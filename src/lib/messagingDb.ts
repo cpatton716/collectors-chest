@@ -277,7 +277,7 @@ export async function sendMessage(senderId: string, input: SendMessageInput): Pr
     .from("user_blocks")
     .select("id")
     .eq("blocker_id", recipientId)
-    .eq("blocked_user_id", senderId)
+    .eq("blocked_id", senderId)
     .maybeSingle();
 
   if (blockExists) {
