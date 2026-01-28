@@ -168,7 +168,7 @@ export async function getAuction(auctionId: string, userId?: string): Promise<Au
       `
       *,
       comics(*),
-      profiles!auctions_seller_id_fkey(id, display_name, public_display_name, email, positive_ratings, negative_ratings, seller_since, username, display_preference)
+      profiles!auctions_seller_id_fkey(id, display_name, public_display_name, email, positive_ratings, negative_ratings, seller_since, username, display_preference, location_city, location_state, location_country, location_privacy)
     `
     )
     .eq("id", auctionId)
@@ -1411,7 +1411,7 @@ export async function getSellerProfile(sellerId: string): Promise<SellerProfile 
   const { data, error } = await supabase
     .from("profiles")
     .select(
-      "id, display_name, public_display_name, username, display_preference, positive_ratings, negative_ratings, seller_since"
+      "id, display_name, public_display_name, username, display_preference, positive_ratings, negative_ratings, seller_since, location_city, location_state, location_country, location_privacy"
     )
     .eq("id", sellerId)
     .single();
@@ -1432,6 +1432,10 @@ export async function getSellerProfile(sellerId: string): Promise<SellerProfile 
     positiveRatings: data.positive_ratings || 0,
     negativeRatings: data.negative_ratings || 0,
     sellerSince: data.seller_since,
+    locationCity: data.location_city,
+    locationState: data.location_state,
+    locationCountry: data.location_country,
+    locationPrivacy: data.location_privacy,
     totalRatings: (data.positive_ratings || 0) + (data.negative_ratings || 0),
     positivePercentage: percentage,
     reputation,
@@ -1635,6 +1639,15 @@ function transformDbAuction(data: Record<string, unknown>): Auction {
       positiveRatings: (profile.positive_ratings as number) || 0,
       negativeRatings: (profile.negative_ratings as number) || 0,
       sellerSince: profile.seller_since as string | null,
+      locationCity: profile.location_city as string | null,
+      locationState: profile.location_state as string | null,
+      locationCountry: profile.location_country as string | null,
+      locationPrivacy: profile.location_privacy as
+        | "full"
+        | "state_country"
+        | "country_only"
+        | "hidden"
+        | null,
       totalRatings:
         ((profile.positive_ratings as number) || 0) + ((profile.negative_ratings as number) || 0),
       positivePercentage: percentage,

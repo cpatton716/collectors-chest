@@ -5,6 +5,7 @@ import { MessageSquare, Package, ShoppingCart, Tag } from "lucide-react";
 import { Auction, formatPrice } from "@/types/auction";
 
 import { ComicImage } from "../ComicImage";
+import { LocationBadge } from "../LocationBadge";
 import { SellerBadgeCompact } from "./SellerBadge";
 import { WatchlistButton } from "./WatchlistButton";
 
@@ -101,6 +102,15 @@ export function ListingCard({
         {showSeller && seller && (
           <div className="mt-2 pt-2 border-t border-gray-100">
             <SellerBadgeCompact seller={seller} />
+            {seller.locationPrivacy && seller.locationPrivacy !== "hidden" && (
+              <LocationBadge
+                city={seller.locationCity}
+                state={seller.locationState}
+                country={seller.locationCountry}
+                privacy={seller.locationPrivacy}
+                className="mt-1"
+              />
+            )}
           </div>
         )}
       </div>

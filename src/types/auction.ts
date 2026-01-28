@@ -253,6 +253,11 @@ export interface SellerProfile {
   positiveRatings: number;
   negativeRatings: number;
   sellerSince: string | null;
+  // Location (optional, respects privacy settings)
+  locationCity: string | null;
+  locationState: string | null;
+  locationCountry: string | null;
+  locationPrivacy: "full" | "state_country" | "country_only" | "hidden" | null;
   // Computed
   totalRatings: number;
   positivePercentage: number;

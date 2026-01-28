@@ -5,6 +5,7 @@ import { Clock, Gavel, Package, ShoppingCart } from "lucide-react";
 import { Auction, formatPrice } from "@/types/auction";
 
 import { ComicImage } from "../ComicImage";
+import { LocationBadge } from "../LocationBadge";
 import { MessageButton } from "../messaging/MessageButton";
 import { AuctionCountdown } from "./AuctionCountdown";
 import { SellerBadgeCompact } from "./SellerBadge";
@@ -151,19 +152,30 @@ export function AuctionCard({
 
         {/* Seller Badge */}
         {showSeller && seller && (
-          <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-between">
-            <SellerBadgeCompact seller={seller} />
-            {/* Message button - only show if not the seller */}
-            {!auction.isSeller && seller.id && (
-              <div onClick={(e) => e.stopPropagation()}>
-                <MessageButton
-                  sellerId={seller.id}
-                  sellerName={seller.username ? `@${seller.username}` : undefined}
-                  listingId={id}
-                  size="sm"
-                  variant="icon"
-                />
-              </div>
+          <div className="mt-2 pt-2 border-t border-gray-100">
+            <div className="flex items-center justify-between">
+              <SellerBadgeCompact seller={seller} />
+              {/* Message button - only show if not the seller */}
+              {!auction.isSeller && seller.id && (
+                <div onClick={(e) => e.stopPropagation()}>
+                  <MessageButton
+                    sellerId={seller.id}
+                    sellerName={seller.username ? `@${seller.username}` : undefined}
+                    listingId={id}
+                    size="sm"
+                    variant="icon"
+                  />
+                </div>
+              )}
+            </div>
+            {seller.locationPrivacy && seller.locationPrivacy !== "hidden" && (
+              <LocationBadge
+                city={seller.locationCity}
+                state={seller.locationState}
+                country={seller.locationCountry}
+                privacy={seller.locationPrivacy}
+                className="mt-1"
+              />
             )}
           </div>
         )}
