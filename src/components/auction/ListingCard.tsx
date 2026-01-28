@@ -6,6 +6,7 @@ import { Auction, formatPrice } from "@/types/auction";
 
 import { ComicImage } from "../ComicImage";
 import { LocationBadge } from "../LocationBadge";
+import { MessageButton } from "../messaging/MessageButton";
 import { SellerBadgeCompact } from "./SellerBadge";
 import { WatchlistButton } from "./WatchlistButton";
 
@@ -101,7 +102,20 @@ export function ListingCard({
         {/* Seller Badge */}
         {showSeller && seller && (
           <div className="mt-2 pt-2 border-t border-gray-100">
-            <SellerBadgeCompact seller={seller} />
+            <div className="flex items-center justify-between">
+              <SellerBadgeCompact seller={seller} />
+              {!listing.isSeller && seller.id && (
+                <div onClick={(e) => e.stopPropagation()}>
+                  <MessageButton
+                    sellerId={seller.id}
+                    sellerName={seller.username ? `@${seller.username}` : undefined}
+                    listingId={id}
+                    size="sm"
+                    variant="icon"
+                  />
+                </div>
+              )}
+            </div>
             {seller.locationPrivacy && seller.locationPrivacy !== "hidden" && (
               <LocationBadge
                 city={seller.locationCity}

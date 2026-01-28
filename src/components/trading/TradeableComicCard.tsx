@@ -5,6 +5,7 @@ import Image from "next/image";
 import { ArrowLeftRight, Star } from "lucide-react";
 
 import { LocationBadge } from "@/components/LocationBadge";
+import { MessageButton } from "@/components/messaging/MessageButton";
 
 import { LocationPrivacy } from "@/app/api/location/route";
 
@@ -31,9 +32,10 @@ interface TradeableComicCardProps {
     };
   };
   onClick: () => void;
+  isCurrentUser?: boolean;
 }
 
-export function TradeableComicCard({ comic, onClick }: TradeableComicCardProps) {
+export function TradeableComicCard({ comic, onClick, isCurrentUser = false }: TradeableComicCardProps) {
   return (
     <div
       onClick={onClick}
@@ -81,7 +83,19 @@ export function TradeableComicCard({ comic, onClick }: TradeableComicCardProps) 
 
         {/* Owner Info */}
         <div className="mt-2 pt-2 border-t border-gray-200">
-          <p className="text-xs text-gray-600 truncate">{comic.owner.displayName}</p>
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-gray-600 truncate">{comic.owner.displayName}</p>
+            {!isCurrentUser && comic.owner.id && (
+              <div onClick={(e) => e.stopPropagation()}>
+                <MessageButton
+                  sellerId={comic.owner.id}
+                  sellerName={comic.owner.username ? `@${comic.owner.username}` : undefined}
+                  size="sm"
+                  variant="icon"
+                />
+              </div>
+            )}
+          </div>
           {comic.owner.rating !== undefined && comic.owner.rating > 0 && (
             <div className="flex items-center gap-1 mt-1">
               <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />

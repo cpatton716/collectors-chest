@@ -23,6 +23,7 @@ import {
   X,
 } from "lucide-react";
 
+import { LocationBadge } from "@/components/LocationBadge";
 import { MessageButton } from "@/components/messaging/MessageButton";
 
 import { Auction, formatPrice } from "@/types/auction";
@@ -306,6 +307,15 @@ export function ListingDetailModal({
                         />
                       )}
                     </div>
+                    {listing.seller.locationPrivacy && listing.seller.locationPrivacy !== "hidden" && (
+                      <LocationBadge
+                        city={listing.seller.locationCity}
+                        state={listing.seller.locationState}
+                        country={listing.seller.locationCountry}
+                        privacy={listing.seller.locationPrivacy}
+                        className="mt-2"
+                      />
+                    )}
                   </div>
                 )}
 

@@ -19,6 +19,8 @@ import {
 import { Auction, formatPrice } from "@/types/auction";
 
 import { ComicImage } from "../ComicImage";
+import { LocationBadge } from "../LocationBadge";
+import { MessageButton } from "../messaging/MessageButton";
 import { AuctionCountdown } from "./AuctionCountdown";
 import { BidForm } from "./BidForm";
 import { BidHistory } from "./BidHistory";
@@ -268,9 +270,27 @@ export function AuctionDetailModal({
                 {auction.seller && (
                   <div className="mt-4">
                     <span className="text-sm text-gray-600">Seller:</span>
-                    <div className="mt-1">
+                    <div className="mt-1 flex items-center gap-2">
                       <SellerBadge seller={auction.seller} />
+                      {!auction.isSeller && auction.seller.id && (
+                        <MessageButton
+                          sellerId={auction.seller.id}
+                          sellerName={auction.seller.username ? `@${auction.seller.username}` : undefined}
+                          listingId={auction.id}
+                          size="sm"
+                          variant="button"
+                        />
+                      )}
                     </div>
+                    {auction.seller.locationPrivacy && auction.seller.locationPrivacy !== "hidden" && (
+                      <LocationBadge
+                        city={auction.seller.locationCity}
+                        state={auction.seller.locationState}
+                        country={auction.seller.locationCountry}
+                        privacy={auction.seller.locationPrivacy}
+                        className="mt-2"
+                      />
+                    )}
                   </div>
                 )}
 
