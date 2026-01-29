@@ -6,26 +6,27 @@ This log tracks session-by-session progress on Collectors Chest.
 
 ## Changes Since Last Deploy
 
-**Sessions since last deploy:** 4
-**Deploy Readiness:** Ready for Testing
+**Sessions since last deploy:** 0
+**Deploy Readiness:** Just Deployed
 
-- Peer-to-peer messaging (all 7 phases complete)
-- Book trading feature (all 4 phases complete)
+_(No changes yet)_
+
+---
+
+## Deploy Log
+
+### January 29, 2026
+**Summary:** Major feature deploy - messaging, trading, location, shop improvements
+
+Key items deployed:
+- Peer-to-peer messaging system (all 7 phases)
+- Book trading feature (all 4 phases)
 - User profile location with privacy controls
 - Sales History page with profit tracking
-- Mark as Sold for all comics (not just forSale)
-- Auto-record platform sales via Stripe webhook
-- Live Hottest Books API (USE_STATIC_LIST removed)
-- Auction cancellation policy in Terms of Service
-- Notify offer-makers when listings are cancelled
-- Duplicate listing prevention
-- Prettier code formatting setup
-- Fixed production 500 error (Next.js route conflict)
-- Added route conflict detection script
-- Added production smoke test script
-- Seller location badges on Shop cards (Auctions, Buy Now, For Trade)
-- Message Seller buttons on all listing cards/modals
-- Fixed messaging system bugs (RLS, column names, profileId)
+- Seller location badges on Shop cards
+- Message Seller buttons throughout app
+- Route conflict detection + smoke test scripts
+- Multiple bug fixes (500 error, messaging RLS, column names)
 
 ---
 
