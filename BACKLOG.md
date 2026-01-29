@@ -237,6 +237,25 @@ Direct messaging between users to facilitate communication around purchases and 
 
 ---
 
+### Customizable Initial Message
+**Priority:** Low
+**Status:** Pending
+**Added:** Jan 29, 2026
+
+Allow users to customize the initial message when starting a conversation via the "Message Seller" button. Currently auto-sends "Hi! I'm interested in your listing." without user input.
+
+**Proposed UX:**
+- Show a modal/popup when clicking "Message Seller"
+- Pre-fill with suggested text but allow editing
+- Include listing context (title, image thumbnail) in the modal
+- Send button to confirm
+
+**Files to Modify:**
+- `src/components/messaging/MessageButton.tsx`
+- New: `src/components/messaging/ComposeMessageModal.tsx`
+
+---
+
 ### Track Sale Price When Marking Book as Sold
 **Priority:** Medium
 **Status:** ✅ Complete (Jan 27, 2026)
