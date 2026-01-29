@@ -23,6 +23,7 @@ export async function GET() {
     return NextResponse.json({
       username: profile.username || null,
       displayPreference: profile.display_preference || "username_only",
+      profileId: profile.id,
     });
   } catch (error) {
     console.error("Error fetching username:", error);

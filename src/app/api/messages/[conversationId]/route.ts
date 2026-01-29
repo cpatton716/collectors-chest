@@ -38,6 +38,14 @@ export async function GET(
       return NextResponse.json({ error: "Conversation not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ error: "Failed to fetch messages" }, { status: 500 });
+    let errorDetails: unknown = null;
+    if (typeof error === "object" && error !== null) {
+      errorDetails = error;
+    }
+    return NextResponse.json({
+      error: "Failed to fetch messages",
+      message: errorMessage,
+      details: errorDetails
+    }, { status: 500 });
   }
 }

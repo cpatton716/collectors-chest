@@ -37,7 +37,8 @@ export async function getOrCreateConversation(
  */
 export async function getUserConversations(userId: string): Promise<ConversationPreview[]> {
   // Get conversations where user is a participant
-  const { data: conversations, error } = await supabase
+  // Use supabaseAdmin to bypass RLS (we verify user access via userId param)
+  const { data: conversations, error } = await supabaseAdmin
     .from("conversations")
     .select(
       `
@@ -110,7 +111,7 @@ export async function getUserConversations(userId: string): Promise<Conversation
  */
 export async function getUnreadMessageCount(userId: string): Promise<number> {
   // Get all conversations for user
-  const { data: conversations, error: convError } = await supabase
+  const { data: conversations, error: convError } = await supabaseAdmin
     .from("conversations")
     .select("id")
     .or(`participant_1_id.eq.${userId},participant_2_id.eq.${userId}`);
@@ -121,7 +122,7 @@ export async function getUnreadMessageCount(userId: string): Promise<number> {
   const conversationIds = conversations.map((c) => c.id);
 
   // Count unread messages where user is NOT the sender
-  const { count, error } = await supabase
+  const { count, error } = await supabaseAdmin
     .from("messages")
     .select("*", { count: "exact", head: true })
     .in("conversation_id", conversationIds)
@@ -144,7 +145,7 @@ export async function getConversationMessages(
   userId: string
 ): Promise<MessagesResponse> {
   // Get conversation
-  const { data: conv, error: convError } = await supabase
+  const { data: conv, error: convError } = await supabaseAdmin
     .from("conversations")
     .select("*")
     .eq("id", conversationId)
@@ -165,7 +166,7 @@ export async function getConversationMessages(
   if (!otherParticipant) throw new Error("Other participant not found");
 
   // Get messages
-  const { data: messages, error: msgError } = await supabase
+  const { data: messages, error: msgError } = await supabaseAdmin
     .from("messages")
     .select(
       `
@@ -179,7 +180,7 @@ export async function getConversationMessages(
       ),
       embedded_auctions:embedded_listing_id (
         id,
-        current_price,
+        current_bid,
         status,
         comics (
           title,
@@ -217,7 +218,7 @@ export async function getConversationMessages(
           id: msg.embedded_auctions.id,
           title: msg.embedded_auctions.comics?.title || "Unknown",
           coverImageUrl: msg.embedded_auctions.comics?.cover_image_url || null,
-          currentPrice: msg.embedded_auctions.current_price,
+          currentPrice: msg.embedded_auctions.current_bid,
           status: msg.embedded_auctions.status,
         }
       : undefined,

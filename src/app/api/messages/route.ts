@@ -26,31 +26,49 @@ export async function GET() {
       conversations,
       totalUnread,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("Error fetching conversations:", error);
-    return NextResponse.json({ error: "Failed to fetch conversations" }, { status: 500 });
+    let errorMessage = "Failed to fetch conversations";
+    let errorDetails: unknown = null;
+
+    if (error instanceof Error) {
+      errorMessage = error.message;
+      errorDetails = error.stack;
+    } else if (typeof error === "object" && error !== null) {
+      errorDetails = error;
+      if ("message" in error) errorMessage = String((error as {message: unknown}).message);
+    }
+
+    return NextResponse.json({
+      error: errorMessage,
+      details: errorDetails
+    }, { status: 500 });
   }
 }
 
 // POST - Send a new message
 export async function POST(request: NextRequest) {
+  let debugStep = "start";
   try {
+    debugStep = "auth";
     const { userId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Check if user is suspended
+    debugStep = "suspension-check";
     const suspensionStatus = await isUserSuspended(userId);
     if (suspensionStatus.suspended) {
       return NextResponse.json({ error: "Your account has been suspended." }, { status: 403 });
     }
 
+    debugStep = "get-profile";
     const profile = await getProfileByClerkId(userId);
     if (!profile) {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
+    debugStep = "parse-body";
     const body = await request.json();
     const { recipientId, content, listingId, imageUrls, embeddedListingId } = body;
 
@@ -62,6 +80,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Message content is required" }, { status: 400 });
     }
 
+    debugStep = "send-message";
     const message = await sendMessage(profile.id, {
       recipientId,
       content,
@@ -71,9 +90,29 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json({ message }, { status: 201 });
-  } catch (error) {
-    console.error("Error sending message:", error);
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: errorMessage }, { status: 500 });
+  } catch (error: unknown) {
+    // Handle different error types
+    let errorMessage = "Unknown error";
+    let errorDetails: unknown = null;
+
+    if (error instanceof Error) {
+      errorMessage = error.message;
+      errorDetails = error.stack;
+    } else if (typeof error === "object" && error !== null) {
+      errorDetails = error;
+      if ("message" in error) errorMessage = String((error as {message: unknown}).message);
+      else if ("error" in error) errorMessage = String((error as {error: unknown}).error);
+      else errorMessage = JSON.stringify(error);
+    } else if (typeof error === "string") {
+      errorMessage = error;
+    }
+
+    return NextResponse.json({
+      error: errorMessage,
+      debugStep,
+      details: errorDetails,
+      errorType: typeof error,
+      errorConstructor: error?.constructor?.name
+    }, { status: 500 });
   }
 }
