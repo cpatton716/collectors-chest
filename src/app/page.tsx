@@ -152,7 +152,6 @@ export default function Home() {
       // Check client-side cache first (prevents unnecessary API calls)
       const cached = getCachedHotBooks();
       if (cached && cached.length > 0) {
-        console.log("Using cached hottest books from localStorage");
         setHotBooks(cached);
         setHotBooksLoading(false);
         return;
@@ -171,7 +170,6 @@ export default function Home() {
           // Cache the result in localStorage for 24 hours
           if (books.length > 0) {
             setCachedHotBooks(books);
-            console.log("Cached hottest books to localStorage");
           }
         }
       } catch (err) {

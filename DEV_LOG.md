@@ -6,7 +6,7 @@ This log tracks session-by-session progress on Collectors Chest.
 
 ## Changes Since Last Deploy
 
-**Sessions since last deploy:** 3
+**Sessions since last deploy:** 4
 **Deploy Readiness:** Ready for Testing
 
 - Peer-to-peer messaging (all 7 phases complete)
@@ -20,6 +20,79 @@ This log tracks session-by-session progress on Collectors Chest.
 - Notify offer-makers when listings are cancelled
 - Duplicate listing prevention
 - Prettier code formatting setup
+- Fixed production 500 error (Next.js route conflict)
+- Added route conflict detection script
+- Added production smoke test script
+- Seller location badges on Shop cards (Auctions, Buy Now, For Trade)
+- Message Seller buttons on all listing cards/modals
+- Fixed messaging system bugs (RLS, column names, profileId)
+
+---
+
+## January 29, 2026
+
+### Session Summary
+Major bug-fix session. Pushed 82 commits to production, fixed critical 500 error from Next.js route conflict, added prevention scripts, then extended location badges and messaging buttons to all Shop cards. Fixed multiple messaging system bugs preventing conversations from working.
+
+### Key Accomplishments
+- **Production Deployment:**
+  - Pushed 82 accumulated commits to Netlify
+  - Ran missing SQL migrations (user_blocks, message_reports)
+
+- **Critical Bug Fix - Production 500 Error:**
+  - Root cause: Next.js dynamic route parameter conflict between `/api/messages/[messageId]` and `/api/messages/[conversationId]`
+  - Fix: Moved `/api/messages/[messageId]/report` to `/api/messages/report/[messageId]`
+  - Updated ReportMessageModal.tsx to use new path
+
+- **Prevention Measures:**
+  - Created `scripts/check-routes.js` - detects conflicting dynamic route parameters
+  - Created `scripts/smoke-test.sh` - starts production server, verifies homepage loads
+  - Added npm scripts: `check:routes`, `smoke-test`, `check:deploy`
+  - Updated CLAUDE.md deploy process
+
+- **Seller Location Badges Extended:**
+  - Added LocationBadge to AuctionCard, AuctionDetailModal, ListingCard, ListingDetailModal
+  - Updated SellerProfile type with location fields
+  - Updated auctionDb.ts queries to fetch location data
+
+- **Message Seller Buttons Extended:**
+  - Added MessageButton to AuctionDetailModal, ListingDetailModal, ListingCard, TradeableComicCard
+  - All cards now allow initiating conversations with sellers
+
+- **Messaging System Bug Fixes:**
+  - Fixed `blocked_user_id` → `blocked_id` column name
+  - Fixed RLS blocking queries - switched to `supabaseAdmin`
+  - Added missing `embedded_listing_id` columns via migration
+  - Added `profileId` to `/api/username/current` response
+  - Fixed `current_price` → `current_bid` column name
+
+### Files Modified
+- `src/app/api/messages/report/[messageId]/route.ts` (moved)
+- `src/components/messaging/ReportMessageModal.tsx`
+- `src/lib/messagingDb.ts` (major fixes)
+- `src/app/api/username/current/route.ts`
+- `src/components/auction/AuctionCard.tsx`
+- `src/components/auction/AuctionDetailModal.tsx`
+- `src/components/auction/ListingCard.tsx`
+- `src/components/auction/ListingDetailModal.tsx`
+- `src/components/trading/TradeableComicCard.tsx`
+- `src/types/auction.ts`
+- `src/lib/auctionDb.ts`
+- `scripts/check-routes.js` (new)
+- `scripts/smoke-test.sh` (new)
+- `package.json` (new scripts)
+- `CLAUDE.md` (deploy process)
+- `BACKLOG.md` (customizable message feature)
+
+### Issues Encountered
+- Production 500 error from Next.js route conflict - identified and fixed
+- Multiple messaging bugs required iterative debugging with user
+- RLS (Row Level Security) was blocking queries even with valid Clerk auth
+
+### Next Session Focus
+1. Full messaging flow testing (send, receive, notifications, block/report)
+2. Mobile responsiveness testing for messaging
+3. Continue with EVALUATION.md priorities
 
 ---
 
