@@ -2,12 +2,14 @@
 
 import { Shield, Skull, User } from "lucide-react";
 
+import { ContributorIcon } from "@/components/reputation";
 import { SellerProfile } from "@/types/auction";
+import { calculateContributorBadge } from "@/types/reputation";
 
 import { MessageButton } from "../messaging/MessageButton";
 
 interface SellerBadgeProps {
-  seller: SellerProfile;
+  seller: SellerProfile & { communityContributionCount?: number };
   size?: "sm" | "md" | "lg";
   showCount?: boolean;
   onClick?: () => void;
@@ -110,6 +112,12 @@ export function SellerBadge({
       >
         <Icon className={`${iconSizes[size]} ${styles.iconColor}`} />
         <span className={`font-medium ${styles.textColor}`}>{name}</span>
+        {seller.communityContributionCount !== undefined &&
+          seller.communityContributionCount > 0 && (
+            <ContributorIcon
+              badge={calculateContributorBadge(seller.communityContributionCount)}
+            />
+          )}
         {showCount && totalRatings > 0 && (
           <span className={`${styles.textColor} opacity-75`}>({positivePercentage}%)</span>
         )}
