@@ -27,6 +27,7 @@ import {
 import { CollectionItem, ConditionLabel, PriceData } from "@/types/comic";
 
 import { createFeedbackReminders } from "./reputationDb";
+import { getAllFollowerIds } from "./followDb";
 import { getSubscriptionStatus, getTransactionFeePercent } from "./subscription";
 import { supabase, supabaseAdmin } from "./supabase";
 
@@ -101,6 +102,25 @@ export async function createAuction(sellerId: string, input: CreateAuctionInput)
     .eq("id", sellerId)
     .is("seller_since", null);
 
+  // Notify followers of new listing
+  // Get comic title for notification
+  const { data: comicData } = await supabase
+    .from("comics")
+    .select("title, issue_number")
+    .eq("id", input.comicId)
+    .single();
+
+  if (comicData) {
+    const comicTitle = comicData.issue_number
+      ? `${comicData.title} #${comicData.issue_number}`
+      : comicData.title || "a comic";
+    const price = input.startingPrice;
+    // Fire and forget - don't block on notification creation
+    notifyFollowersOfNewListing(sellerId, data.id, comicTitle, price, listingType).catch((err) =>
+      console.error("[auctionDb] Failed to notify followers:", err)
+    );
+  }
+
   return transformDbAuction(data);
 }
 
@@ -155,6 +175,24 @@ export async function createFixedPriceListing(
     .update({ seller_since: new Date().toISOString() })
     .eq("id", sellerId)
     .is("seller_since", null);
+
+  // Notify followers of new listing
+  // Get comic title for notification
+  const { data: comicData } = await supabase
+    .from("comics")
+    .select("title, issue_number")
+    .eq("id", input.comicId)
+    .single();
+
+  if (comicData) {
+    const comicTitle = comicData.issue_number
+      ? `${comicData.title} #${comicData.issue_number}`
+      : comicData.title || "a comic";
+    // Fire and forget - don't block on notification creation
+    notifyFollowersOfNewListing(sellerId, data.id, comicTitle, input.price, "fixed_price").catch(
+      (err) => console.error("[auctionDb] Failed to notify followers:", err)
+    );
+  }
 
   return transformDbAuction(data);
 }
@@ -1260,6 +1298,8 @@ export async function createNotification(
     listing_expiring: "Listing expiring soon",
     listing_expired: "Listing has expired",
     listing_cancelled: "Listing cancelled",
+    // Follow system notifications
+    new_listing_from_followed: "New listing from someone you follow",
   };
 
   const messages: Record<NotificationType, string> = {
@@ -1280,6 +1320,8 @@ export async function createNotification(
     listing_expiring: "Your listing will expire in 24 hours. Consider renewing.",
     listing_expired: "Your listing has expired. Relist to continue selling.",
     listing_cancelled: "A listing you made an offer on has been cancelled by the seller.",
+    // Follow system messages (fallback - dynamic messages created via notifyFollowersOfNewListing)
+    new_listing_from_followed: "A seller you follow has listed a new item.",
   };
 
   await supabase.from("notifications").insert({
@@ -1290,6 +1332,77 @@ export async function createNotification(
     auction_id: auctionId || null,
     offer_id: offerId || null,
   });
+}
+
+/**
+ * Notify all followers when a seller creates a new listing
+ * Creates personalized notifications with comic details and price
+ */
+export async function notifyFollowersOfNewListing(
+  sellerId: string,
+  listingId: string,
+  comicTitle: string,
+  price: number,
+  listingType: ListingType
+): Promise<void> {
+  // Get all follower IDs for this seller
+  const followerIds = await getAllFollowerIds(sellerId);
+
+  if (followerIds.length === 0) {
+    return; // No followers to notify
+  }
+
+  // Get seller's display info for the notification
+  const { data: sellerProfile } = await supabase
+    .from("profiles")
+    .select("username, display_name, public_display_name, display_preference")
+    .eq("id", sellerId)
+    .single();
+
+  // Determine seller display name for notification
+  let sellerDisplayName = "A seller";
+  if (sellerProfile) {
+    const { username, display_name, public_display_name, display_preference } = sellerProfile;
+    if (display_preference === "username_only" && username) {
+      sellerDisplayName = `@${username}`;
+    } else if (display_preference === "display_name_only" && (public_display_name || display_name)) {
+      sellerDisplayName = public_display_name || display_name;
+    } else if (display_preference === "both" && username) {
+      sellerDisplayName = public_display_name || display_name
+        ? `${public_display_name || display_name} (@${username})`
+        : `@${username}`;
+    } else if (username) {
+      sellerDisplayName = `@${username}`;
+    } else if (public_display_name || display_name) {
+      sellerDisplayName = public_display_name || display_name;
+    }
+  }
+
+  // Format the price
+  const formattedPrice = `$${price.toFixed(2)}`;
+
+  // Create notification message based on listing type
+  const listingTypeText = listingType === "auction" ? "listed" : "listed";
+  const title = "New listing from someone you follow";
+  const message = `${sellerDisplayName} ${listingTypeText} ${comicTitle} for ${formattedPrice}`;
+
+  // Create notifications for all followers
+  // Using supabaseAdmin to bypass RLS and batch insert
+  const notifications = followerIds.map((followerId) => ({
+    user_id: followerId,
+    type: "new_listing_from_followed" as const,
+    title,
+    message,
+    auction_id: listingId,
+    offer_id: null,
+  }));
+
+  // Batch insert notifications (Supabase handles this efficiently)
+  const { error } = await supabaseAdmin.from("notifications").insert(notifications);
+
+  if (error) {
+    console.error("[auctionDb] Failed to notify followers of new listing:", error);
+  }
 }
 
 /**

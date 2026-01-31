@@ -25,7 +25,9 @@ export type NotificationType =
   // Listing expiration types
   | "listing_expiring"
   | "listing_expired"
-  | "listing_cancelled";
+  | "listing_cancelled"
+  // Follow system
+  | "new_listing_from_followed";
 
 export type OfferStatus =
   | "pending"
