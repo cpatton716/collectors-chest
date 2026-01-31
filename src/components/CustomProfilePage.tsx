@@ -35,6 +35,7 @@ import { useDebounce } from "@/hooks/useDebounce";
 import { useSubscription } from "@/hooks/useSubscription";
 
 import { LocationPrivacy, UserLocation } from "@/app/api/location/route";
+import { FollowerCount } from "@/components/follows";
 import { ContributorBadge, FeedbackList, FeedbackSummary, ReputationBadge } from "@/components/reputation";
 import { TransactionFeedback, UserReputation } from "@/types/reputation";
 
@@ -80,6 +81,7 @@ export function CustomProfilePage() {
   // Username state
   const [username, setUsername] = useState("");
   const [originalUsername, setOriginalUsername] = useState<string | null>(null);
+  const [profileId, setProfileId] = useState<string | null>(null);
   const [isLoadingUsername, setIsLoadingUsername] = useState(true);
   const [isSavingUsername, setIsSavingUsername] = useState(false);
   const [isCheckingUsername, setIsCheckingUsername] = useState(false);
@@ -89,6 +91,11 @@ export function CustomProfilePage() {
   const [usernameError, setUsernameError] = useState<string | null>(null);
   const [usernameSuccess, setUsernameSuccess] = useState(false);
   const debouncedUsername = useDebounce(username, 500);
+
+  // Follow counts state
+  const [followerCount, setFollowerCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
+  const [isLoadingFollowCounts, setIsLoadingFollowCounts] = useState(false);
 
   // Location state
   const [locationCity, setLocationCity] = useState("");
@@ -141,7 +148,7 @@ export function CustomProfilePage() {
     }
   }, [user]);
 
-  // Fetch username on mount
+  // Fetch username and profile ID on mount
   useEffect(() => {
     async function fetchUsername() {
       try {
@@ -151,6 +158,9 @@ export function CustomProfilePage() {
           if (data.username) {
             setUsername(data.username);
             setOriginalUsername(data.username);
+          }
+          if (data.profileId) {
+            setProfileId(data.profileId);
           }
         }
       } catch (error) {
@@ -204,6 +214,27 @@ export function CustomProfilePage() {
     }
     fetchReputation();
   }, [user?.id]);
+
+  // Fetch follow counts when profile ID is available
+  useEffect(() => {
+    async function fetchFollowCounts() {
+      if (!profileId) return;
+      setIsLoadingFollowCounts(true);
+      try {
+        const res = await fetch(`/api/follows/${profileId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setFollowerCount(data.followerCount || 0);
+          setFollowingCount(data.followingCount || 0);
+        }
+      } catch (error) {
+        console.error("Failed to fetch follow counts:", error);
+      } finally {
+        setIsLoadingFollowCounts(false);
+      }
+    }
+    fetchFollowCounts();
+  }, [profileId]);
 
   // Check username availability
   useEffect(() => {
@@ -711,6 +742,30 @@ export function CustomProfilePage() {
                       )}
                     </div>
                   </>
+                )}
+              </div>
+
+              {/* Followers Section */}
+              <div className="border-t border-gray-100 pt-8">
+                <h3 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                  <User className="w-4 h-4" />
+                  Followers
+                </h3>
+                <p className="text-xs text-gray-500 mb-4">
+                  See who follows you and who you follow
+                </p>
+
+                {isLoadingFollowCounts || !profileId ? (
+                  <div className="flex items-center gap-2 text-gray-400">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span className="text-sm">Loading...</span>
+                  </div>
+                ) : (
+                  <FollowerCount
+                    userId={profileId}
+                    followerCount={followerCount}
+                    followingCount={followingCount}
+                  />
                 )}
               </div>
 
