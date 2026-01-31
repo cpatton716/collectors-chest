@@ -36,6 +36,15 @@ interface MessageEmailData {
   messagesUrl: string;
 }
 
+interface FeedbackEmailData {
+  recipientName: string;
+  otherPartyName: string;
+  transactionType: "sale" | "auction" | "trade";
+  comicTitle: string;
+  issueNumber: string;
+  feedbackUrl: string;
+}
+
 function formatPrice(amount: number): string {
   return `$${amount.toFixed(2)}`;
 }
@@ -161,6 +170,27 @@ function messageReceivedTemplate(data: MessageEmailData): EmailTemplate {
   };
 }
 
+function feedbackReminderTemplate(data: FeedbackEmailData): EmailTemplate {
+  const transactionLabel = {
+    sale: "purchase",
+    auction: "auction",
+    trade: "trade",
+  }[data.transactionType];
+
+  return {
+    subject: `How was your ${transactionLabel}? Leave feedback for ${data.otherPartyName}`,
+    html: `
+      <h2>Share Your Experience</h2>
+      <p>Hi ${data.recipientName},</p>
+      <p>Your ${transactionLabel} of <strong>${data.comicTitle} #${data.issueNumber}</strong> with <strong>${data.otherPartyName}</strong> was completed.</p>
+      <p>Your feedback helps build trust in our community. It only takes a moment!</p>
+      <p><a href="${data.feedbackUrl}" style="display: inline-block; padding: 12px 24px; background-color: #16a34a; color: white; text-decoration: none; border-radius: 8px;">Leave Feedback</a></p>
+      <p style="color: #6b7280; font-size: 14px;">If you've already left feedback, you can ignore this email.</p>
+    `,
+    text: `Hi ${data.recipientName},\n\nYour ${transactionLabel} of ${data.comicTitle} #${data.issueNumber} with ${data.otherPartyName} was completed.\n\nYour feedback helps build trust in our community.\n\nLeave feedback: ${data.feedbackUrl}`,
+  };
+}
+
 // ============================================================================
 // SEND EMAIL FUNCTION
 // ============================================================================
@@ -173,12 +203,13 @@ export type NotificationEmailType =
   | "offer_expired"
   | "listing_expiring"
   | "listing_expired"
-  | "message_received";
+  | "message_received"
+  | "feedback_reminder";
 
 interface SendNotificationEmailParams {
   to: string;
   type: NotificationEmailType;
-  data: OfferEmailData | ListingEmailData | MessageEmailData;
+  data: OfferEmailData | ListingEmailData | MessageEmailData | FeedbackEmailData;
 }
 
 export async function sendNotificationEmail({
@@ -218,6 +249,9 @@ export async function sendNotificationEmail({
     case "message_received":
       template = messageReceivedTemplate(data as MessageEmailData);
       break;
+    case "feedback_reminder":
+      template = feedbackReminderTemplate(data as FeedbackEmailData);
+      break;
     default:
       return { success: false, error: `Unknown email type: ${type}` };
   }
@@ -242,3 +276,5 @@ export async function sendNotificationEmail({
     return { success: false, error: String(err) };
   }
 }
+
+export type { FeedbackEmailData };
