@@ -1,0 +1,92 @@
+import { NextRequest, NextResponse } from "next/server";
+
+import { auth } from "@clerk/nextjs/server";
+
+import { getProfileByClerkId } from "@/lib/db";
+import { followUser, unfollowUser, checkFollowStatus } from "@/lib/followDb";
+
+interface RouteParams {
+  params: Promise<{ userId: string }>;
+}
+
+// POST - Follow a user
+export async function POST(_request: NextRequest, context: RouteParams) {
+  try {
+    const { userId: clerkId } = await auth();
+    if (!clerkId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const profile = await getProfileByClerkId(clerkId);
+    if (!profile) {
+      return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+    }
+
+    const { userId } = await context.params;
+
+    const result = await followUser(profile.id, userId);
+
+    if (!result.success) {
+      return NextResponse.json({ error: result.error }, { status: 400 });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("[API] Error following user:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+
+// DELETE - Unfollow a user
+export async function DELETE(_request: NextRequest, context: RouteParams) {
+  try {
+    const { userId: clerkId } = await auth();
+    if (!clerkId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const profile = await getProfileByClerkId(clerkId);
+    if (!profile) {
+      return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+    }
+
+    const { userId } = await context.params;
+
+    const result = await unfollowUser(profile.id, userId);
+
+    if (!result.success) {
+      return NextResponse.json({ error: result.error }, { status: 400 });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("[API] Error unfollowing user:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+
+// GET - Check follow status
+export async function GET(_request: NextRequest, context: RouteParams) {
+  try {
+    const { userId: clerkId } = await auth();
+
+    // If not authenticated, return not following
+    if (!clerkId) {
+      return NextResponse.json({ isFollowing: false, followedAt: null });
+    }
+
+    const profile = await getProfileByClerkId(clerkId);
+    if (!profile) {
+      return NextResponse.json({ isFollowing: false, followedAt: null });
+    }
+
+    const { userId } = await context.params;
+
+    const result = await checkFollowStatus(profile.id, userId);
+
+    return NextResponse.json(result);
+  } catch (error) {
+    console.error("[API] Error checking follow status:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
