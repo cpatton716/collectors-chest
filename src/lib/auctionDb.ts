@@ -26,6 +26,7 @@ import {
 } from "@/types/auction";
 import { CollectionItem, ConditionLabel, PriceData } from "@/types/comic";
 
+import { createFeedbackReminders } from "./reputationDb";
 import { getSubscriptionStatus, getTransactionFeePercent } from "./subscription";
 import { supabase, supabaseAdmin } from "./supabase";
 
@@ -232,6 +233,11 @@ export async function getActiveAuctions(
     query = query.eq("seller_id", filters.sellerId);
   } else {
     query = query.eq("status", "active");
+    // For auctions, also filter out ended ones (end_time has passed)
+    // Fixed-price listings don't have end times so this only affects auctions
+    if (filters.listingType === "auction") {
+      query = query.gt("end_time", new Date().toISOString());
+    }
   }
 
   // Apply filters
@@ -774,6 +780,9 @@ export async function executeBuyItNow(
   // Notify buyer
   await createNotification(buyerId, "won", auctionId);
 
+  // Create feedback reminders for both parties
+  await createFeedbackReminders("auction", auctionId, buyerId, auction.seller_id);
+
   return { success: true };
 }
 
@@ -824,6 +833,9 @@ export async function purchaseFixedPriceListing(
 
   // Notify buyer
   await createNotification(buyerId, "won", listingId);
+
+  // Create feedback reminders for both parties (fixed_price uses "sale" transaction type)
+  await createFeedbackReminders("sale", listingId, buyerId, listing.seller_id);
 
   return { success: true };
 }
@@ -1030,6 +1042,9 @@ export async function respondToOffer(
     // Notify buyer
     await createNotification(offer.buyer_id, "offer_accepted", offer.listing_id, input.offerId);
 
+    // Create feedback reminders for both parties (offer acceptance is a "sale")
+    await createFeedbackReminders("sale", offer.listing_id, offer.buyer_id, sellerId);
+
     return { success: true };
   }
 
@@ -1131,6 +1146,9 @@ export async function respondToCounterOffer(
 
     // Notify seller
     await createNotification(offer.seller_id, "offer_accepted", offer.listing_id, offerId);
+
+    // Create feedback reminders for both parties (counter-offer acceptance is a "sale")
+    await createFeedbackReminders("sale", offer.listing_id, buyerId, offer.seller_id);
 
     return { success: true };
   }
@@ -1511,6 +1529,9 @@ export async function processEndedAuctions(): Promise<{
             await createNotification(watcher.user_id, "ended", auction.id);
           }
         }
+
+        // Create feedback reminders for both parties
+        await createFeedbackReminders("auction", auction.id, winningBid.bidder_id, auction.seller_id);
       } else {
         // No bids, just end it
         await supabase.from("auctions").update({ status: "ended" }).eq("id", auction.id);
@@ -1603,6 +1624,8 @@ function transformDbAuction(data: Record<string, unknown>): Auction {
       dateAdded: comics.date_added as string,
       listIds: [],
       isStarred: comics.is_starred as boolean,
+      customKeyInfo: (comics.custom_key_info as string[]) || [],
+      customKeyInfoStatus: comics.custom_key_info_status as "pending" | "approved" | "rejected" | null,
     };
   }
 

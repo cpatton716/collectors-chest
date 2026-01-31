@@ -103,6 +103,44 @@ function transformContribution(row: ContributionRow): CommunityContribution {
 }
 
 // ============================================================================
+// FEEDBACK REMINDERS
+// ============================================================================
+
+/**
+ * Create feedback reminder records for a completed transaction
+ * Called when trades complete or auctions are sold/shipped
+ */
+export async function createFeedbackReminders(
+  transactionType: TransactionType,
+  transactionId: string,
+  buyerId: string,
+  sellerId: string
+): Promise<void> {
+  const reminders = [
+    {
+      transaction_type: transactionType,
+      transaction_id: transactionId,
+      user_id: buyerId,
+      role: "buyer",
+    },
+    {
+      transaction_type: transactionType,
+      transaction_id: transactionId,
+      user_id: sellerId,
+      role: "seller",
+    },
+  ];
+
+  const { error } = await supabaseAdmin
+    .from("feedback_reminders")
+    .upsert(reminders, { onConflict: "transaction_id,transaction_type,user_id" });
+
+  if (error) {
+    console.error("[reputationDb] Failed to create feedback reminders:", error);
+  }
+}
+
+// ============================================================================
 // FEEDBACK SUBMISSION
 // ============================================================================
 

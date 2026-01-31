@@ -9,6 +9,7 @@ import {
 } from "@/types/trade";
 
 import { getSellerProfile } from "./auctionDb";
+import { createFeedbackReminders } from "./reputationDb";
 import { supabase, supabaseAdmin } from "./supabase";
 
 // ============================================================================
@@ -310,6 +311,10 @@ export async function confirmReceipt(tradeId: string, userId: string): Promise<T
     await completeTrade(tradeId);
     updateData.status = "completed";
     updateData.completed_at = new Date().toISOString();
+
+    // Create feedback reminders for both parties
+    // In trades, proposer is "seller-like" (initiated), recipient is "buyer-like"
+    await createFeedbackReminders("trade", tradeId, trade.recipient_id, trade.proposer_id);
   }
 
   const { data: updated, error } = await supabaseAdmin
