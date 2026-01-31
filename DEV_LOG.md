@@ -16,6 +16,8 @@ This log tracks session-by-session progress on Collectors Chest.
 - Follower notifications (in-app + email) when followed users list items
 - Fixed CSV import listing creation bug (#17)
 - Updated FEEDBACK_JAN_28.md with status tracking
+- Added 13 unit tests for follow system (185 total tests now)
+- Updated CLAUDE.md to make tests MANDATORY for every feature
 
 ---
 
@@ -62,6 +64,7 @@ Implemented complete follow system (feedback item #23) using subagent-driven dev
 - `supabase/migrations/20260130_follow_system.sql`
 - `src/types/follow.ts`
 - `src/lib/followDb.ts`
+- `src/lib/__tests__/followDb.test.ts` - 13 unit tests
 - `src/hooks/useFollow.ts`
 - `src/components/follows/FollowButton.tsx`
 - `src/components/follows/FollowerCount.tsx`
@@ -83,6 +86,7 @@ Implemented complete follow system (feedback item #23) using subagent-driven dev
 - `src/app/shop/page.tsx` - Added following filter
 - `src/app/scan/page.tsx` - Improved CSV error handling
 - `FEEDBACK_JAN_28.md` - Status tracking
+- `CLAUDE.md` - Made tests mandatory for all features
 
 ### Issues Encountered
 - CSV listing creation was failing silently due to ID mismatch between client-generated ID and Supabase-generated ID
