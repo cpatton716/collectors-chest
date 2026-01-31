@@ -26,7 +26,7 @@
 | 20 | Trades feature | ✅ Complete |
 | 21 | Admin search input styling | ✅ Complete |
 | 22 | Payment error after trial reset | ⚠️ Needs Testing |
-| 23 | Follow/friend system | ❌ Not Implemented |
+| 23 | Follow/friend system | ✅ Complete |
 
 ---
 
@@ -520,37 +520,37 @@ Checkout error: Error: Payment system not configured
 
 ## 23. Allow users to "friend" or follow trusted sellers/buyers
 
-**Status:** ❌ Not Implemented
+**Status:** ✅ Complete (Jan 30, 2026)
 
-**Evaluation topic:** How do we allow users to connect with other users they've done business with?
+**Implementation:** Full one-way follow system (similar to eBay/Etsy):
 
-**Use case:**
-- User completes a successful transaction with another user
-- They want to easily find that person again for future deals
-- Build trust networks within the marketplace
+**Database:**
+- `user_follows` table with follower_id, following_id, unique constraint
+- Denormalized `follower_count` and `following_count` on profiles
+- Triggers to auto-update counts on follow/unfollow
+- RLS policies for secure access
 
-**Possible implementations:**
-1. **Follow/Friend system** - Follow users to see their new listings in a feed
-2. **Trusted Seller badge** - Mark users you've had good experiences with
-3. **Favorites list** - Save users to a "My Sellers" or "My Connections" list
-4. **Transaction history link** - View all users you've bought from/sold to with quick access to their shop
+**API Endpoints:**
+- `POST/DELETE /api/follows/[userId]` - Follow/unfollow
+- `GET /api/follows/[userId]` - Check follow status with counts
+- `GET /api/follows/[userId]/followers` - Paginated followers list
+- `GET /api/follows/[userId]/following` - Paginated following list
 
-**Features to consider:**
-- One-way (follow) vs two-way (friend/mutual) connections
-- Privacy controls (allow users to hide their follower count or disable follows)
-- Notifications when a followed user lists something new
-- Filter shop by "From users I follow"
-- Integration with trades - prioritize trade matches with trusted connections
-- Display connection count/trust indicators on seller profiles
+**UI Components:**
+- `FollowButton` - Optimistic updates, "Follow" / "Following" / "Unfollow" states
+- `FollowerCount` - Clickable count display
+- `FollowListModal` - Paginated list with avatars and follow buttons
+- `useFollow` hook for managing follow state
 
-**Questions to answer:**
-- What do we call this relationship? (Follow, Friend, Trust, Favorite, Connect)
-- Should it affect search/discovery rankings?
-- How does this tie into the legitimacy score (item #5)?
+**Integration:**
+- FollowButton added to SellerBadge component
+- FollowerCount added to CustomProfilePage
+- Shop page "From people I follow" filter toggle
+- Auctions API supports `followingOnly=true` param
 
-**Initial direction:** Leaning towards a simple **"Follow" model** rather than mutual friendship:
-- One-way action (I follow you, you don't need to follow back)
-- Lower friction than friend requests that require acceptance
-- Similar to following a seller on eBay or Etsy
-- User can follow sellers they like without social awkwardness
-- Seller doesn't need to manage friend requests
+**Notifications:**
+- In-app notifications when followed sellers list new items
+- Email notifications (respects user preferences)
+- Type: `new_listing_from_followed`
+
+**Design document:** `docs/plans/2026-01-30-follow-system-design.md`
