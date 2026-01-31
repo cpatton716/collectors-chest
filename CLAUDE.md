@@ -44,41 +44,54 @@ Show each group as a continuous numbered list with titles only, no details.
 
 ## Test Requirements
 
-**When adding new features, ALWAYS write unit tests for:**
+**MANDATORY: Every new feature MUST include unit tests.** This is not optional. Tests should be written as part of the feature implementation, not as an afterthought.
+
+### What MUST be tested for every feature:
 - Pure helper functions (calculations, formatting, validation)
 - Business logic (pricing, limits, permissions, state transitions)
+- Database helper functions (transforms, validations)
+- Hook logic (state calculations, optimistic updates)
 - Constants that affect user experience (scan limits, pricing tiers, thresholds)
 
-**Test file locations:**
+### Test file locations:
 - `src/types/__tests__/` - Type helper tests (e.g., auction calculations)
-- `src/lib/__tests__/` - Library function tests (e.g., subscription logic)
+- `src/lib/__tests__/` - Library function tests (e.g., subscription logic, followDb)
 - `src/hooks/__tests__/` - Hook helper tests (e.g., guest scan tracking)
 
-**Test commands:**
+### Test commands:
 ```bash
 npm test              # Run all tests
 npm test -- --watch   # Watch mode during development
 npm test -- [file]    # Run specific test file
 ```
 
-**What to test:**
+### What to test:
 - Edge cases and boundary conditions
 - Error states and validation failures
 - Happy path scenarios
 - Any function that handles money, limits, or permissions
-- Third-party integrations (Stripe, Clerk, Supabase)
+- Self-referential prevention (e.g., can't follow yourself, can't message yourself)
+- Optimistic update calculations
+- Transform functions (DB rows to types)
 
-**What NOT to test (for now):**
+### What NOT to test (for now):
 - React components (defer to manual testing)
 - API routes with database calls (require complex mocking)
 
+### Pre-commit checklist:
+Before closing a feature session, verify:
+- [ ] New helper functions have tests
+- [ ] Business logic is covered
+- [ ] Edge cases are tested
+- [ ] `npm test` passes
 
-**Example:** When adding a new pricing calculation, write tests like:
+**Example:** When adding a follow system, write tests like:
 ```typescript
-describe('calculateNewPrice', () => {
-  it('handles zero input', () => { ... });
-  it('handles boundary at $100', () => { ... });
-  it('returns correct value for typical input', () => { ... });
+describe('followDb helpers', () => {
+  it('builds display name from first and last name', () => { ... });
+  it('returns null when names are missing', () => { ... });
+  it('prevents self-follow', () => { ... });
+  it('never decrements count below zero', () => { ... });
 });
 ```
 
