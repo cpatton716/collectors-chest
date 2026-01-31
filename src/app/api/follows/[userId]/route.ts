@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 
 import { getProfileByClerkId } from "@/lib/db";
-import { followUser, unfollowUser, checkFollowStatus } from "@/lib/followDb";
+import { followUser, unfollowUser, checkFollowStatus, getFollowCounts } from "@/lib/followDb";
 
 interface RouteParams {
   params: Promise<{ userId: string }>;
@@ -65,26 +65,39 @@ export async function DELETE(_request: NextRequest, context: RouteParams) {
   }
 }
 
-// GET - Check follow status
+// GET - Check follow status and get counts
 export async function GET(_request: NextRequest, context: RouteParams) {
   try {
     const { userId: clerkId } = await auth();
+    const { userId } = await context.params;
 
-    // If not authenticated, return not following
+    // Fetch counts in parallel (always available, even for unauthenticated users)
+    const counts = await getFollowCounts(userId);
+
+    // If not authenticated, return not following but include counts
     if (!clerkId) {
-      return NextResponse.json({ isFollowing: false, followedAt: null });
+      return NextResponse.json({
+        isFollowing: false,
+        followedAt: null,
+        ...counts,
+      });
     }
 
     const profile = await getProfileByClerkId(clerkId);
     if (!profile) {
-      return NextResponse.json({ isFollowing: false, followedAt: null });
+      return NextResponse.json({
+        isFollowing: false,
+        followedAt: null,
+        ...counts,
+      });
     }
-
-    const { userId } = await context.params;
 
     const result = await checkFollowStatus(profile.id, userId);
 
-    return NextResponse.json(result);
+    return NextResponse.json({
+      ...result,
+      ...counts,
+    });
   } catch (error) {
     console.error("[API] Error checking follow status:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
