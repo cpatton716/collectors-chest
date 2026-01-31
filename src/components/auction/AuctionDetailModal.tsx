@@ -10,11 +10,16 @@ import {
   CheckCircle,
   ChevronLeft,
   ChevronRight,
-  Key,
+  KeyRound,
   Package,
   PackageMinus,
+  Trophy,
   X,
 } from "lucide-react";
+
+import { useFeedbackEligibility } from "@/hooks/useFeedbackEligibility";
+
+import { LeaveFeedbackButton } from "@/components/reputation";
 
 import { Auction, formatPrice } from "@/types/auction";
 
@@ -48,6 +53,13 @@ export function AuctionDetailModal({
   const [showActionConfirm, setShowActionConfirm] = useState<SellerAction | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+
+  // Check feedback eligibility for sold auctions
+  const isAuctionCompleted = auction?.status === "sold" && auction?.winnerId;
+  const { eligibility } = useFeedbackEligibility(
+    isAuctionCompleted ? auction.id : undefined,
+    isAuctionCompleted ? "auction" : undefined
+  );
 
   useEffect(() => {
     if (isOpen && auctionId) {
@@ -251,7 +263,7 @@ export function AuctionDetailModal({
                         key={idx}
                         className="inline-flex items-center gap-1 px-2 py-1 bg-amber-100 text-amber-800 text-xs font-medium rounded-full"
                       >
-                        <Key className="w-3 h-3" />
+                        <KeyRound className="w-3 h-3" />
                         {info}
                       </span>
                     ))}
@@ -436,6 +448,43 @@ export function AuctionDetailModal({
                       onBidPlaced={handleBidPlaced}
                       onBuyItNow={handleBuyItNow}
                     />
+                  </div>
+                )}
+
+                {/* Sold Status with Feedback */}
+                {auction.status === "sold" && auction.winnerId && (
+                  <div className="mt-6 pt-4 border-t">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Trophy className="w-5 h-5 text-amber-500" />
+                      <span className="font-semibold text-gray-900">
+                        {auction.isSeller ? "Sold!" : "You won this auction!"}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-600 mb-3">
+                      Final price: <span className="font-bold">{formatPrice(auction.winningBid)}</span>
+                    </p>
+                    {eligibility?.canLeaveFeedback && (
+                      <div className="flex items-center gap-2">
+                        <LeaveFeedbackButton
+                          transactionType="auction"
+                          transactionId={auction.id}
+                          revieweeId={auction.isSeller ? auction.winnerId : auction.sellerId}
+                          revieweeName={
+                            auction.isSeller
+                              ? "the buyer"
+                              : auction.seller?.username
+                                ? `@${auction.seller.username}`
+                                : auction.seller?.displayName || "the seller"
+                          }
+                          onFeedbackSubmitted={loadAuction}
+                        />
+                      </div>
+                    )}
+                    {eligibility && !eligibility.canLeaveFeedback && eligibility.feedbackLeftAt && (
+                      <p className="text-sm text-green-600">
+                        Feedback submitted on {new Date(eligibility.feedbackLeftAt).toLocaleDateString()}
+                      </p>
+                    )}
                   </div>
                 )}
 

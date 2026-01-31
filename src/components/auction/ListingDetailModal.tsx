@@ -14,17 +14,21 @@ import {
   CheckCircle,
   ChevronLeft,
   ChevronRight,
-  Key,
+  KeyRound,
   Loader2,
   Package,
   PackageMinus,
   ShoppingCart,
   Tag,
+  Trophy,
   X,
 } from "lucide-react";
 
+import { useFeedbackEligibility } from "@/hooks/useFeedbackEligibility";
+
 import { LocationBadge } from "@/components/LocationBadge";
 import { MessageButton } from "@/components/messaging/MessageButton";
+import { LeaveFeedbackButton } from "@/components/reputation";
 
 import { Auction, formatPrice } from "@/types/auction";
 
@@ -57,6 +61,13 @@ export function ListingDetailModal({
   const [showActionConfirm, setShowActionConfirm] = useState<SellerAction | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+
+  // Check feedback eligibility for sold listings
+  const isListingCompleted = listing?.status === "sold" && listing?.winnerId;
+  const { eligibility } = useFeedbackEligibility(
+    isListingCompleted ? listing.id : undefined,
+    isListingCompleted ? "sale" : undefined
+  );
 
   useEffect(() => {
     if (isOpen && listingId) {
@@ -282,7 +293,7 @@ export function ListingDetailModal({
                           key={idx}
                           className="inline-flex items-center gap-1 px-2 py-1 bg-amber-100 text-amber-800 text-xs font-medium rounded-full"
                         >
-                          <Key className="w-3 h-3" />
+                          <KeyRound className="w-3 h-3" />
                           {info}
                         </span>
                       ))}
@@ -352,6 +363,37 @@ export function ListingDetailModal({
                     <div className="flex items-center justify-center gap-2 py-4 bg-green-100 text-green-700 rounded-xl">
                       <Check className="w-5 h-5" />
                       <span className="font-semibold">Purchase Complete!</span>
+                    </div>
+                  ) : listing.status === "sold" && listing.winnerId ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 py-4 bg-gray-100 text-gray-700 rounded-xl justify-center">
+                        <Trophy className="w-5 h-5 text-amber-500" />
+                        <span className="font-semibold">
+                          {listing.isSeller ? "Sold!" : "You purchased this item!"}
+                        </span>
+                      </div>
+                      {eligibility?.canLeaveFeedback && (
+                        <div className="flex justify-center">
+                          <LeaveFeedbackButton
+                            transactionType="sale"
+                            transactionId={listing.id}
+                            revieweeId={listing.isSeller ? listing.winnerId : listing.sellerId}
+                            revieweeName={
+                              listing.isSeller
+                                ? "the buyer"
+                                : listing.seller?.username
+                                  ? `@${listing.seller.username}`
+                                  : listing.seller?.displayName || "the seller"
+                            }
+                            onFeedbackSubmitted={loadListing}
+                          />
+                        </div>
+                      )}
+                      {eligibility && !eligibility.canLeaveFeedback && eligibility.feedbackLeftAt && (
+                        <p className="text-sm text-green-600 text-center">
+                          Feedback submitted on {new Date(eligibility.feedbackLeftAt).toLocaleDateString()}
+                        </p>
+                      )}
                     </div>
                   ) : listing.status === "active" ? (
                     <button

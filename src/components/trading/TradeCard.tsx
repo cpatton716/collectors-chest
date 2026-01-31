@@ -15,6 +15,10 @@ import {
   X,
 } from "lucide-react";
 
+import { useFeedbackEligibility } from "@/hooks/useFeedbackEligibility";
+
+import { LeaveFeedbackButton } from "@/components/reputation";
+
 import { TradePreview, getTradeStatusColor, getTradeStatusLabel } from "@/types/trade";
 
 interface TradeCardProps {
@@ -28,6 +32,12 @@ export function TradeCard({ trade, onStatusChange }: TradeCardProps) {
   const [showShippingForm, setShowShippingForm] = useState(false);
   const [trackingCarrier, setTrackingCarrier] = useState("");
   const [trackingNumber, setTrackingNumber] = useState("");
+
+  // Check feedback eligibility for completed trades
+  const { eligibility } = useFeedbackEligibility(
+    trade.status === "completed" ? trade.id : undefined,
+    trade.status === "completed" ? "trade" : undefined
+  );
 
   const handleAction = async (action: string, data?: Record<string, unknown>) => {
     setIsUpdating(true);
@@ -333,9 +343,20 @@ export function TradeCard({ trade, onStatusChange }: TradeCardProps) {
 
             {/* Completed status */}
             {trade.status === "completed" && (
-              <div className="flex items-center gap-2 text-pop-green font-bold">
-                <Check className="w-5 h-5" />
-                Trade Completed!
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 text-pop-green font-bold">
+                  <Check className="w-5 h-5" />
+                  Trade Completed!
+                </div>
+                {eligibility?.canLeaveFeedback && trade.otherUser?.id && (
+                  <LeaveFeedbackButton
+                    transactionType="trade"
+                    transactionId={trade.id}
+                    revieweeId={trade.otherUser.id}
+                    revieweeName={trade.otherUser.displayName || trade.otherUser.username || "User"}
+                    onFeedbackSubmitted={onStatusChange}
+                  />
+                )}
               </div>
             )}
           </div>
