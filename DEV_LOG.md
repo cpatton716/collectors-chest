@@ -6,10 +6,16 @@ This log tracks session-by-session progress on Collectors Chest.
 
 ## Changes Since Last Deploy
 
-**Sessions since last deploy:** 0
-**Deploy Readiness:** Just Deployed
+**Sessions since last deploy:** 1
+**Deploy Readiness:** Ready - Full follow system implemented
 
-_(No changes yet)_
+- Follow system: one-way follows (like eBay/Etsy seller follows)
+- Follow/unfollow API endpoints with RLS policies
+- FollowButton, FollowerCount, FollowListModal components
+- "From people I follow" filter on Shop page
+- Follower notifications (in-app + email) when followed users list items
+- Fixed CSV import listing creation bug (#17)
+- Updated FEEDBACK_JAN_28.md with status tracking
 
 ---
 
@@ -27,6 +33,65 @@ Key items deployed:
 - Message Seller buttons throughout app
 - Route conflict detection + smoke test scripts
 - Multiple bug fixes (500 error, messaging RLS, column names)
+
+---
+
+## January 30, 2026
+
+### Session Summary
+Implemented complete follow system (feedback item #23) using subagent-driven development. Also fixed CSV listing creation bug (#17) and organized feedback document with status tracking.
+
+### Key Accomplishments
+- **Follow System (16 tasks completed):**
+  - Database: `user_follows` table with RLS, triggers for count updates
+  - API: Follow/unfollow, followers list, following list endpoints
+  - Components: FollowButton, FollowerCount, FollowListModal
+  - Hook: useFollow for state management
+  - Integrations: SellerBadge, CustomProfilePage, Shop filter
+  - Notifications: In-app + email when followed users list items
+
+- **CSV Import Fix (#17):**
+  - Fixed `addComic()` not preserving client-generated ID
+  - Listings now properly created when CSV has `forSale: true`
+
+- **Feedback Document Organization:**
+  - Added status table to FEEDBACK_JAN_28.md
+  - Marked 14 items complete, 5 need testing, 4 remaining
+
+### Files Added
+- `supabase/migrations/20260130_follow_system.sql`
+- `src/types/follow.ts`
+- `src/lib/followDb.ts`
+- `src/hooks/useFollow.ts`
+- `src/components/follows/FollowButton.tsx`
+- `src/components/follows/FollowerCount.tsx`
+- `src/components/follows/FollowListModal.tsx`
+- `src/components/follows/index.ts`
+- `src/app/api/follows/[userId]/route.ts`
+- `src/app/api/follows/[userId]/followers/route.ts`
+- `src/app/api/follows/[userId]/following/route.ts`
+- `docs/plans/2026-01-30-follow-system-design.md`
+- `docs/plans/2026-01-30-follow-system.md`
+
+### Files Modified
+- `src/lib/db.ts` - Fixed addComic ID preservation
+- `src/lib/auctionDb.ts` - followingOnly param, follower notifications
+- `src/lib/email.ts` - New listing email template
+- `src/types/auction.ts` - Added notification type
+- `src/components/auction/SellerBadge.tsx` - Added FollowButton
+- `src/components/CustomProfilePage.tsx` - Added FollowerCount
+- `src/app/shop/page.tsx` - Added following filter
+- `src/app/scan/page.tsx` - Improved CSV error handling
+- `FEEDBACK_JAN_28.md` - Status tracking
+
+### Issues Encountered
+- CSV listing creation was failing silently due to ID mismatch between client-generated ID and Supabase-generated ID
+
+### Next Session Focus
+1. Run database migration for follow system
+2. Test follow functionality end-to-end
+3. Implement multi-select bulk actions (#18)
+4. Test remaining feedback items (CSV on mobile, stats page, etc.)
 
 ---
 
