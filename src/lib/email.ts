@@ -45,6 +45,15 @@ interface FeedbackEmailData {
   feedbackUrl: string;
 }
 
+interface NewListingEmailData {
+  sellerName: string;
+  sellerUsername: string;
+  comicTitle: string;
+  price: number;
+  listingUrl: string;
+  coverImageUrl?: string;
+}
+
 function formatPrice(amount: number): string {
   return `$${amount.toFixed(2)}`;
 }
@@ -191,6 +200,26 @@ function feedbackReminderTemplate(data: FeedbackEmailData): EmailTemplate {
   };
 }
 
+function newListingFromFollowedTemplate(data: NewListingEmailData): EmailTemplate {
+  const coverImageHtml = data.coverImageUrl
+    ? `<img src="${data.coverImageUrl}" alt="${data.comicTitle}" style="max-width: 150px; border-radius: 8px; margin: 16px 0;" />`
+    : "";
+
+  return {
+    subject: `New listing from @${data.sellerUsername} on Collectors Chest`,
+    html: `
+      <h2>New Listing Alert!</h2>
+      <p><strong>${data.sellerName}</strong> just listed a new comic:</p>
+      ${coverImageHtml}
+      <p style="font-size: 18px; font-weight: bold;">${data.comicTitle}</p>
+      <p style="font-size: 16px; color: #16a34a; font-weight: bold;">${formatPrice(data.price)}</p>
+      <p><a href="${data.listingUrl}" style="display: inline-block; padding: 12px 24px; background-color: #16a34a; color: white; text-decoration: none; border-radius: 8px;">View Listing</a></p>
+      <p style="color: #6b7280; font-size: 14px;">You're receiving this because you follow @${data.sellerUsername}.</p>
+    `,
+    text: `New Listing Alert!\n\n${data.sellerName} just listed a new comic:\n\n${data.comicTitle}\n${formatPrice(data.price)}\n\nView listing: ${data.listingUrl}\n\nYou're receiving this because you follow @${data.sellerUsername}.`,
+  };
+}
+
 // ============================================================================
 // SEND EMAIL FUNCTION
 // ============================================================================
@@ -204,12 +233,18 @@ export type NotificationEmailType =
   | "listing_expiring"
   | "listing_expired"
   | "message_received"
-  | "feedback_reminder";
+  | "feedback_reminder"
+  | "new_listing_from_followed";
 
 interface SendNotificationEmailParams {
   to: string;
   type: NotificationEmailType;
-  data: OfferEmailData | ListingEmailData | MessageEmailData | FeedbackEmailData;
+  data:
+    | OfferEmailData
+    | ListingEmailData
+    | MessageEmailData
+    | FeedbackEmailData
+    | NewListingEmailData;
 }
 
 export async function sendNotificationEmail({
@@ -252,6 +287,9 @@ export async function sendNotificationEmail({
     case "feedback_reminder":
       template = feedbackReminderTemplate(data as FeedbackEmailData);
       break;
+    case "new_listing_from_followed":
+      template = newListingFromFollowedTemplate(data as NewListingEmailData);
+      break;
     default:
       return { success: false, error: `Unknown email type: ${type}` };
   }
@@ -277,4 +315,4 @@ export async function sendNotificationEmail({
   }
 }
 
-export type { FeedbackEmailData };
+export type { FeedbackEmailData, NewListingEmailData };

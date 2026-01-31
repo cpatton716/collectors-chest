@@ -26,6 +26,7 @@ import {
 } from "@/types/auction";
 import { CollectionItem, ConditionLabel, PriceData } from "@/types/comic";
 
+import { sendNotificationEmail } from "./email";
 import { createFeedbackReminders } from "./reputationDb";
 import { getAllFollowerIds } from "./followDb";
 import { getSubscriptionStatus, getTransactionFeePercent } from "./subscription";
@@ -103,10 +104,10 @@ export async function createAuction(sellerId: string, input: CreateAuctionInput)
     .is("seller_since", null);
 
   // Notify followers of new listing
-  // Get comic title for notification
+  // Get comic title and cover image for notification
   const { data: comicData } = await supabase
     .from("comics")
-    .select("title, issue_number")
+    .select("title, issue_number, cover_image_url")
     .eq("id", input.comicId)
     .single();
 
@@ -116,9 +117,14 @@ export async function createAuction(sellerId: string, input: CreateAuctionInput)
       : comicData.title || "a comic";
     const price = input.startingPrice;
     // Fire and forget - don't block on notification creation
-    notifyFollowersOfNewListing(sellerId, data.id, comicTitle, price, listingType).catch((err) =>
-      console.error("[auctionDb] Failed to notify followers:", err)
-    );
+    notifyFollowersOfNewListing(
+      sellerId,
+      data.id,
+      comicTitle,
+      price,
+      listingType,
+      comicData.cover_image_url || undefined
+    ).catch((err) => console.error("[auctionDb] Failed to notify followers:", err));
   }
 
   return transformDbAuction(data);
@@ -177,10 +183,10 @@ export async function createFixedPriceListing(
     .is("seller_since", null);
 
   // Notify followers of new listing
-  // Get comic title for notification
+  // Get comic title and cover image for notification
   const { data: comicData } = await supabase
     .from("comics")
-    .select("title, issue_number")
+    .select("title, issue_number, cover_image_url")
     .eq("id", input.comicId)
     .single();
 
@@ -189,9 +195,14 @@ export async function createFixedPriceListing(
       ? `${comicData.title} #${comicData.issue_number}`
       : comicData.title || "a comic";
     // Fire and forget - don't block on notification creation
-    notifyFollowersOfNewListing(sellerId, data.id, comicTitle, input.price, "fixed_price").catch(
-      (err) => console.error("[auctionDb] Failed to notify followers:", err)
-    );
+    notifyFollowersOfNewListing(
+      sellerId,
+      data.id,
+      comicTitle,
+      input.price,
+      "fixed_price",
+      comicData.cover_image_url || undefined
+    ).catch((err) => console.error("[auctionDb] Failed to notify followers:", err));
   }
 
   return transformDbAuction(data);
@@ -1337,13 +1348,15 @@ export async function createNotification(
 /**
  * Notify all followers when a seller creates a new listing
  * Creates personalized notifications with comic details and price
+ * Also sends emails to followers who have email notifications enabled
  */
 export async function notifyFollowersOfNewListing(
   sellerId: string,
   listingId: string,
   comicTitle: string,
   price: number,
-  listingType: ListingType
+  listingType: ListingType,
+  coverImageUrl?: string
 ): Promise<void> {
   // Get all follower IDs for this seller
   const followerIds = await getAllFollowerIds(sellerId);
@@ -1361,8 +1374,10 @@ export async function notifyFollowersOfNewListing(
 
   // Determine seller display name for notification
   let sellerDisplayName = "A seller";
+  let sellerUsername = "seller";
   if (sellerProfile) {
     const { username, display_name, public_display_name, display_preference } = sellerProfile;
+    sellerUsername = username || "seller";
     if (display_preference === "username_only" && username) {
       sellerDisplayName = `@${username}`;
     } else if (display_preference === "display_name_only" && (public_display_name || display_name)) {
@@ -1402,6 +1417,42 @@ export async function notifyFollowersOfNewListing(
 
   if (error) {
     console.error("[auctionDb] Failed to notify followers of new listing:", error);
+  }
+
+  // Send emails to followers who have email notifications enabled
+  // Query follower profiles with email preferences
+  const { data: followerProfiles } = await supabaseAdmin
+    .from("profiles")
+    .select("id, email, msg_email_enabled")
+    .in("id", followerIds)
+    .eq("msg_email_enabled", true);
+
+  if (!followerProfiles || followerProfiles.length === 0) {
+    return; // No followers with email notifications enabled
+  }
+
+  // Build listing URL
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://collectors-chest.com";
+  const listingUrl = `${baseUrl}/shop/${listingId}`;
+
+  // Send emails to each follower (fire and forget, don't block on email sending)
+  for (const follower of followerProfiles) {
+    if (follower.email) {
+      sendNotificationEmail({
+        to: follower.email,
+        type: "new_listing_from_followed",
+        data: {
+          sellerName: sellerDisplayName,
+          sellerUsername,
+          comicTitle,
+          price,
+          listingUrl,
+          coverImageUrl,
+        },
+      }).catch((err) => {
+        console.error(`[auctionDb] Failed to send new listing email to ${follower.email}:`, err);
+      });
+    }
   }
 }
 
