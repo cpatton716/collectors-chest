@@ -215,7 +215,7 @@ export async function getUserScanCount(profileId: string): Promise<number> {
 }
 
 /**
- * Reset a user's trial (clears trial_started_at and trial_ends_at)
+ * Reset a user's trial (clears trial_started_at, trial_ends_at, and resets subscription_status)
  */
 export async function resetUserTrial(profileId: string): Promise<void> {
   const { error } = await supabaseAdmin
@@ -223,6 +223,7 @@ export async function resetUserTrial(profileId: string): Promise<void> {
     .update({
       trial_started_at: null,
       trial_ends_at: null,
+      subscription_status: "active", // Reset status so user can start a new trial
     })
     .eq("id", profileId);
 

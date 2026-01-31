@@ -15,10 +15,15 @@ import {
   Camera,
   ChevronDown,
   ChevronUp,
+  DollarSign,
+  Flame,
   Gavel,
   Home,
+  KeyRound,
+  Layers,
   LogIn,
   MessageSquare,
+  MoreHorizontal,
   Shield,
   ShoppingBag,
   X,
@@ -77,6 +82,7 @@ export function Navigation() {
   const [showProfessor, setShowProfessor] = useState(false);
   const [expandedFAQ, setExpandedFAQ] = useState<number | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
 
   useEffect(() => {
     if (!isSignedIn) return;
@@ -123,13 +129,44 @@ export function Navigation() {
     };
   }, [isSignedIn, user?.id]);
 
-  const links = [
+  // Guest primary nav links
+  const guestPrimaryLinks = [
     { href: "/", label: "Home", icon: Home },
-    { href: "/scan", label: "Scan Book", icon: Camera },
-    { href: "/collection", label: "My Collection", icon: BookOpen },
+    { href: "/scan", label: "Scan", icon: Camera },
+    { href: "/collection", label: "Collection", icon: BookOpen },
+    { href: "/shop", label: "Shop", icon: ShoppingBag },
+  ];
+
+  // Guest "More" dropdown - all redirect to sign-in
+  const guestSecondaryLinks = [
+    { href: "/sign-in?redirect=/messages", label: "Messages", icon: MessageSquare },
+    { href: "/sign-in?redirect=/my-auctions", label: "My Listings", icon: Gavel },
+    { href: "/sign-in?redirect=/trades", label: "Trades", icon: ArrowLeftRight },
+    { href: "/sign-in?redirect=/stats", label: "Stats", icon: BarChart3 },
+    { href: "/sign-in?redirect=/collection", label: "Lists", icon: Layers },
+  ];
+
+  // Registered user primary nav links
+  const registeredPrimaryLinks = [
+    { href: "/collection", label: "Collection", icon: BookOpen },
     { href: "/shop", label: "Shop", icon: ShoppingBag },
     { href: "/stats", label: "Stats", icon: BarChart3 },
   ];
+
+  // Registered user "More" dropdown
+  const registeredSecondaryLinks = [
+    { href: "/messages", label: "Messages", icon: MessageSquare, showBadge: true },
+    { href: "/sales", label: "Sales", icon: DollarSign },
+    { href: "/trades", label: "Trades", icon: ArrowLeftRight },
+    { href: "/collection", label: "Lists", icon: Layers },
+    { href: "/my-auctions", label: "My Listings", icon: Gavel },
+    { href: "/hottest-books", label: "Hottest Books", icon: Flame },
+    { href: "/key-hunt", label: "Key Hunt", icon: KeyRound },
+  ];
+
+  // Use appropriate links based on auth state
+  const primaryLinks = isSignedIn ? registeredPrimaryLinks : guestPrimaryLinks;
+  const secondaryLinks = isSignedIn ? registeredSecondaryLinks : guestSecondaryLinks;
 
   return (
     <>
@@ -146,9 +183,10 @@ export function Navigation() {
 
             {/* Navigation Links - hidden on mobile (MobileNav handles that) */}
             <div className="hidden md:flex items-center space-x-2">
-              {links.map((link) => {
+              {/* Primary navigation links */}
+              {primaryLinks.map((link) => {
                 const Icon = link.icon;
-                const isActive = pathname === link.href;
+                const isActive = pathname === link.href || (link.href === "/" && pathname === "/");
                 return (
                   <Link
                     key={link.href}
@@ -166,63 +204,72 @@ export function Navigation() {
                   </Link>
                 );
               })}
-              {/* My Listings - signed in only */}
-              <SignedIn>
-                <Link
-                  href="/my-auctions"
+
+              {/* More dropdown - for all users */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowMoreMenu(!showMoreMenu)}
+                  onBlur={() => setTimeout(() => setShowMoreMenu(false), 150)}
                   className={`nav-link-pop flex items-center space-x-2 px-3 py-1.5 transition-all ${
-                    pathname === "/my-auctions"
+                    secondaryLinks.some((l) => pathname === l.href) || pathname.startsWith("/admin")
                       ? "bg-pop-white text-pop-black border-2 border-pop-black shadow-comic-sm"
                       : "text-pop-black hover:bg-pop-white/50"
                   }`}
                 >
-                  <Gavel className="w-5 h-5" />
-                  <span className="font-comic text-sm tracking-wide">MY LISTINGS</span>
-                </Link>
-                {/* Messages */}
-                <Link
-                  href="/messages"
-                  className={`relative nav-link-pop flex items-center space-x-2 px-3 py-1.5 transition-all ${
-                    pathname === "/messages"
-                      ? "bg-pop-white text-pop-black border-2 border-pop-black shadow-comic-sm"
-                      : "text-pop-black hover:bg-pop-white/50"
-                  }`}
-                >
-                  <MessageSquare className="w-5 h-5" />
-                  <span className="font-comic text-sm tracking-wide">MESSAGES</span>
-                  {unreadCount > 0 && (
+                  <MoreHorizontal className="w-5 h-5" />
+                  <span className="font-comic text-sm tracking-wide">MORE</span>
+                  {isSignedIn && unreadCount > 0 && (
                     <span className="absolute -top-1 -right-1 bg-pop-red text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center border border-pop-black">
                       {unreadCount > 9 ? "9+" : unreadCount}
                     </span>
                   )}
-                </Link>
-                {/* Trades */}
-                <Link
-                  href="/trades"
-                  className={`nav-link-pop flex items-center space-x-2 px-3 py-1.5 transition-all ${
-                    pathname === "/trades"
-                      ? "bg-pop-white text-pop-black border-2 border-pop-black shadow-comic-sm"
-                      : "text-pop-black hover:bg-pop-white/50"
-                  }`}
-                >
-                  <ArrowLeftRight className="w-5 h-5" />
-                  <span className="font-comic text-sm tracking-wide">TRADES</span>
-                </Link>
-                {/* Admin - admin users only */}
-                {isAdmin && (
-                  <Link
-                    href="/admin/users"
-                    className={`nav-link-pop flex items-center space-x-2 px-3 py-1.5 transition-all ${
-                      pathname.startsWith("/admin")
-                        ? "bg-pop-red text-pop-white border-2 border-pop-black shadow-comic-sm"
-                        : "text-pop-black hover:bg-pop-red/20"
-                    }`}
-                  >
-                    <Shield className="w-5 h-5" />
-                    <span className="font-comic text-sm tracking-wide">ADMIN</span>
-                  </Link>
+                </button>
+
+                {/* Dropdown menu */}
+                {showMoreMenu && (
+                  <div className="absolute top-full right-0 mt-2 w-48 bg-pop-white border-3 border-pop-black shadow-comic z-50">
+                    {secondaryLinks.map((link) => {
+                      const Icon = link.icon;
+                      const isActive = pathname === link.href;
+                      return (
+                        <Link
+                          key={link.href}
+                          href={link.href}
+                          className={`relative flex items-center space-x-3 px-4 py-3 transition-all border-b border-pop-black/20 last:border-b-0 ${
+                            isActive
+                              ? "bg-pop-yellow text-pop-black"
+                              : "text-pop-black hover:bg-pop-yellow/30"
+                          }`}
+                        >
+                          <Icon className="w-5 h-5" />
+                          <span className="font-comic text-sm tracking-wide">
+                            {link.label.toUpperCase()}
+                          </span>
+                          {"showBadge" in link && (link as { showBadge?: boolean }).showBadge && unreadCount > 0 && (
+                            <span className="ml-auto bg-pop-red text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center border border-pop-black">
+                              {unreadCount > 9 ? "9+" : unreadCount}
+                            </span>
+                          )}
+                        </Link>
+                      );
+                    })}
+                    {/* Admin - inside More dropdown for signed-in admin users */}
+                    {isSignedIn && isAdmin && (
+                      <Link
+                        href="/admin/users"
+                        className={`relative flex items-center space-x-3 px-4 py-3 transition-all border-t border-pop-black/20 ${
+                          pathname.startsWith("/admin")
+                            ? "bg-pop-red text-pop-white"
+                            : "text-pop-black hover:bg-pop-red/20"
+                        }`}
+                      >
+                        <Shield className="w-5 h-5" />
+                        <span className="font-comic text-sm tracking-wide">ADMIN</span>
+                      </Link>
+                    )}
+                  </div>
                 )}
-              </SignedIn>
+              </div>
             </div>
 
             {/* Right side: Notifications + Professor + Auth */}

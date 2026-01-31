@@ -84,7 +84,16 @@ export function KeyHuntManualEntry({ isOpen, onClose, onSubmit }: KeyHuntManualE
               onChange={handleTitleChange}
               placeholder="e.g., Amazing Spider-Man"
             />
-            {years && <p className="text-xs text-gray-500 mt-1">Series: {years}</p>}
+            {years && (
+              <div className="mt-2 px-3 py-2 bg-primary-50 border border-primary-200 rounded-lg">
+                <p className="text-sm text-primary-700 font-medium">
+                  Volume: {years}
+                </p>
+                <p className="text-xs text-primary-600 mt-0.5">
+                  Select a different volume above if needed
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Issue Number */}

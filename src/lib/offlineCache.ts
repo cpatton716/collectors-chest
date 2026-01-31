@@ -6,6 +6,13 @@ const OFFLINE_QUEUE_KEY = "con_mode_offline_queue";
 const MAX_CACHED_ITEMS = 30;
 const TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
 
+export interface GradeEstimate {
+  grade: number;
+  label: string;
+  rawValue: number;
+  slabbedValue: number;
+}
+
 export interface CachedLookup {
   key: string;
   data: {
@@ -18,6 +25,7 @@ export interface CachedLookup {
     recentSale: { price: number; date: string } | null;
     coverImageUrl?: string | null;
     keyInfo?: string[];
+    gradeEstimates?: GradeEstimate[];
   };
   timestamp: number;
   lastAccessed: number;

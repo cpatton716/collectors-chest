@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { useRouter } from "next/navigation";
 
@@ -10,38 +10,40 @@ import { ArrowLeft, BarChart3, RefreshCw } from "lucide-react";
 
 import { storage } from "@/lib/storage";
 
+import { useCollection } from "@/hooks/useCollection";
+
 import { CollectionStats } from "@/components/CollectionStats";
 import { ComicDetailModal } from "@/components/ComicDetailModal";
 import { FeatureGate } from "@/components/FeatureGate";
 import { CollectionPageSkeleton } from "@/components/Skeleton";
 import { useToast } from "@/components/Toast";
 
-import { CollectionItem, UserList } from "@/types/comic";
+import { CollectionItem } from "@/types/comic";
 
 export default function StatsPage() {
   const router = useRouter();
-  const { isSignedIn, isLoaded: authLoaded } = useUser();
+  const { isLoaded: authLoaded } = useUser();
   const { showToast } = useToast();
-  const [collection, setCollection] = useState<CollectionItem[]>([]);
-  const [lists, setLists] = useState<UserList[]>([]);
-  const [isLoaded, setIsLoaded] = useState(false);
   const [selectedItem, setSelectedItem] = useState<CollectionItem | null>(null);
 
-  useEffect(() => {
-    if (authLoaded && isSignedIn) {
-      setCollection(storage.getCollection());
-      setLists(storage.getLists());
-    } else if (authLoaded && !isSignedIn) {
-      setCollection([]);
-      setLists([]);
-    }
-    if (authLoaded) {
-      setIsLoaded(true);
-    }
-  }, [authLoaded, isSignedIn]);
+  // Use collection hook for cloud sync (same as collection page)
+  const {
+    collection,
+    lists,
+    isLoading: collectionLoading,
+    refresh,
+    removeFromCollection,
+    createList,
+    addItemToList,
+    removeItemFromList,
+    recordSale,
+    updateCollectionItem,
+  } = useCollection();
+
+  const isLoaded = authLoaded && !collectionLoading;
 
   const handleRefresh = () => {
-    setCollection(storage.getCollection());
+    refresh();
     showToast("Statistics refreshed", "success");
   };
 
@@ -54,49 +56,44 @@ export default function StatsPage() {
     setSelectedItem(null);
   };
 
-  const handleRemove = (id: string) => {
+  const handleRemove = async (id: string) => {
     const item = collection.find((c) => c.id === id);
-    const updatedCollection = storage.removeFromCollection(id);
-    setCollection(updatedCollection);
+    await removeFromCollection(id);
     setSelectedItem(null);
     showToast(`"${item?.comic.title}" removed from collection`, "success");
   };
 
-  const handleAddToList = (itemId: string, listId: string) => {
-    const updatedCollection = storage.addItemToList(itemId, listId);
-    setCollection(updatedCollection);
+  const handleAddToList = async (itemId: string, listId: string) => {
+    await addItemToList(itemId, listId);
     const list = lists.find((l) => l.id === listId);
-    const item = updatedCollection.find((i) => i.id === itemId);
+    const item = collection.find((i) => i.id === itemId);
     showToast(`Added to "${list?.name}"`, "success");
     if (item) {
       setSelectedItem(item);
     }
   };
 
-  const handleRemoveFromList = (itemId: string, listId: string) => {
-    const updatedCollection = storage.removeItemFromList(itemId, listId);
-    setCollection(updatedCollection);
+  const handleRemoveFromList = async (itemId: string, listId: string) => {
+    await removeItemFromList(itemId, listId);
     const list = lists.find((l) => l.id === listId);
     showToast(`Removed from "${list?.name}"`, "info");
-    const updatedItem = updatedCollection.find((item) => item.id === itemId);
+    const updatedItem = collection.find((item) => item.id === itemId);
     if (updatedItem) {
       setSelectedItem(updatedItem);
     }
   };
 
-  const handleCreateList = (name: string) => {
-    const newList = storage.createList(name);
-    setLists(storage.getLists());
+  const handleCreateList = async (name: string) => {
+    const newList = await createList(name);
     showToast(`List "${name}" created`, "success");
     return newList;
   };
 
-  const handleMarkSold = (itemId: string, salePrice: number) => {
+  const handleMarkSold = async (itemId: string, salePrice: number) => {
     const item = collection.find((c) => c.id === itemId);
     if (item) {
       const profit = salePrice - (item.purchasePrice || 0);
-      storage.recordSale(item, salePrice);
-      setCollection(storage.getCollection());
+      await recordSale(item, salePrice);
       setSelectedItem(null);
       showToast(
         `Sale recorded! ${profit >= 0 ? "Profit" : "Loss"}: $${Math.abs(profit).toFixed(2)}`,
@@ -105,18 +102,13 @@ export default function StatsPage() {
     }
   };
 
-  const handleToggleStar = (itemId: string) => {
+  const handleToggleStar = async (itemId: string) => {
     const item = collection.find((c) => c.id === itemId);
     if (item) {
-      const updatedCollection = storage.updateCollectionItem(itemId, {
+      await updateCollectionItem(itemId, {
         isStarred: !item.isStarred,
       });
-      setCollection(updatedCollection);
       showToast(item.isStarred ? "Removed from favorites" : "Added to favorites", "success");
-      const updatedItem = updatedCollection.find((c) => c.id === itemId);
-      if (updatedItem && selectedItem?.id === itemId) {
-        setSelectedItem(updatedItem);
-      }
     }
   };
 

@@ -277,6 +277,14 @@ export function TitleAutocomplete({
               )}
               {apiSuggestionsFiltered.map((suggestion, index) => {
                 const globalIndex = filteredRecent.length + index;
+                // Check if there are multiple runs of the same title to show volume indicator
+                const sameTitle = apiSuggestionsFiltered.filter(
+                  (s) => s.title.toLowerCase() === suggestion.title.toLowerCase()
+                );
+                const isMultiVolume = sameTitle.length > 1;
+                const volumeIndex = isMultiVolume
+                  ? sameTitle.findIndex((s) => s.years === suggestion.years) + 1
+                  : null;
                 return (
                   <button
                     key={`${suggestion.title}-${suggestion.years}`}
@@ -288,7 +296,9 @@ export function TitleAutocomplete({
                   >
                     <span className="text-gray-900">{suggestion.title}</span>
                     {suggestion.years && (
-                      <span className="text-gray-500 ml-1.5">({suggestion.years})</span>
+                      <span className="text-gray-500 ml-1.5">
+                        {isMultiVolume && volumeIndex ? `Vol. ${volumeIndex} ` : ""}({suggestion.years})
+                      </span>
                     )}
                     {suggestion.publisher && (
                       <span className="text-gray-400 ml-1.5 text-xs">{suggestion.publisher}</span>

@@ -175,6 +175,8 @@ function createCollectionItemFromAction(action: OfflineAction): CollectionItem {
     dateAdded: new Date(action.timestamp).toISOString(),
     listIds: [],
     isStarred: false,
+    customKeyInfo: [],
+    customKeyInfoStatus: null,
   };
 }
 

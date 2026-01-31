@@ -1,13 +1,18 @@
 "use client";
 
+import { useState } from "react";
+
 import {
   AlertTriangle,
+  Check,
   CloudOff,
   Database,
   ExternalLink,
+  Loader2,
   Minus,
   Plus,
   RotateCcw,
+  Target,
   TrendingDown,
   TrendingUp,
   X,
@@ -20,10 +25,18 @@ interface RecentSale {
   date: string;
 }
 
+interface GradeEstimate {
+  grade: number;
+  label: string;
+  rawValue: number;
+  slabbedValue: number;
+}
+
 interface KeyHuntPriceResultProps {
   isOpen: boolean;
   onClose: () => void;
   onAddToCollection: () => void;
+  onAddToHuntList?: () => Promise<{ success: boolean; error?: string }>;
   onNewLookup: () => void;
   title: string;
   issueNumber: string;
@@ -31,6 +44,8 @@ interface KeyHuntPriceResultProps {
   averagePrice: number | null;
   recentSale: RecentSale | null;
   coverImageUrl?: string | null;
+  gradeEstimates?: GradeEstimate[];
+  isInHuntList?: boolean;
   fromCache?: boolean;
   isOffline?: boolean;
   source?: "database" | "ebay" | "ai";
@@ -40,6 +55,7 @@ export function KeyHuntPriceResult({
   isOpen,
   onClose,
   onAddToCollection,
+  onAddToHuntList,
   onNewLookup,
   title,
   issueNumber,
@@ -47,10 +63,28 @@ export function KeyHuntPriceResult({
   averagePrice,
   recentSale,
   coverImageUrl,
+  gradeEstimates,
+  isInHuntList = false,
   fromCache = false,
   isOffline = false,
   source = "ai",
 }: KeyHuntPriceResultProps) {
+  const [showSlabbed, setShowSlabbed] = useState(false);
+  const [isAddingToHunt, setIsAddingToHunt] = useState(false);
+  const [addedToHunt, setAddedToHunt] = useState(isInHuntList);
+  const [huntError, setHuntError] = useState<string | null>(null);
+
+  // Get the current grade's estimate for raw/slabbed values
+  const currentGradeEstimate = gradeEstimates?.find((g) => g.grade === grade);
+  const hasRawSlabbedData = currentGradeEstimate && currentGradeEstimate.rawValue > 0;
+
+  // Calculate display price based on toggle
+  const displayPrice = hasRawSlabbedData
+    ? showSlabbed
+      ? currentGradeEstimate.slabbedValue
+      : currentGradeEstimate.rawValue
+    : averagePrice;
+
   // Build eBay search URL for "For Sale Now" link
   const buildEbaySearchUrl = () => {
     let query = title.trim();
@@ -178,10 +212,44 @@ export function KeyHuntPriceResult({
             </span>
           </div>
 
+          {/* Raw/Slabbed Toggle */}
+          {hasRawSlabbedData && (
+            <div className="flex justify-center mb-4">
+              <div className="inline-flex bg-gray-100 rounded-lg p-1">
+                <button
+                  onClick={() => setShowSlabbed(false)}
+                  className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                    !showSlabbed
+                      ? "bg-white text-gray-900 shadow-sm"
+                      : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  Raw
+                </button>
+                <button
+                  onClick={() => setShowSlabbed(true)}
+                  className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                    showSlabbed
+                      ? "bg-white text-gray-900 shadow-sm"
+                      : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  Slabbed
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Average Price */}
           <div className="text-center mb-4">
-            <p className="text-sm text-gray-500 mb-1">Average Price (Last 5 Sales)</p>
-            <p className="text-4xl font-bold text-gray-900">{formatPrice(averagePrice)}</p>
+            <p className="text-sm text-gray-500 mb-1">
+              {hasRawSlabbedData
+                ? showSlabbed
+                  ? "Slabbed Value (CGC/CBCS)"
+                  : "Raw Value"
+                : "Average Price (Last 5 Sales)"}
+            </p>
+            <p className="text-4xl font-bold text-gray-900">{formatPrice(displayPrice)}</p>
             {fromCache && <p className="text-xs text-amber-600 mt-1">Price from cached lookup</p>}
           </div>
 
@@ -285,11 +353,59 @@ export function KeyHuntPriceResult({
             href={buildEbaySearchUrl()}
             target="_blank"
             rel="noopener noreferrer"
-            className="w-full mb-4 py-2.5 px-4 bg-[#0064D2] text-white rounded-xl font-medium hover:bg-[#004BA0] transition-colors flex items-center justify-center gap-2 text-sm"
+            className="w-full mb-3 py-2.5 px-4 bg-[#0064D2] text-white rounded-xl font-medium hover:bg-[#004BA0] transition-colors flex items-center justify-center gap-2 text-sm"
           >
             <ExternalLink className="w-4 h-4" />
             For Sale Now on eBay
           </a>
+
+          {/* Add to Hunt List Button */}
+          {onAddToHuntList && !isOffline && (
+            <button
+              onClick={async () => {
+                if (addedToHunt || isAddingToHunt) return;
+                setIsAddingToHunt(true);
+                setHuntError(null);
+                const result = await onAddToHuntList();
+                setIsAddingToHunt(false);
+                if (result.success) {
+                  setAddedToHunt(true);
+                } else {
+                  setHuntError(result.error || "Failed to add");
+                }
+              }}
+              disabled={addedToHunt || isAddingToHunt}
+              className={`w-full mb-4 py-2.5 px-4 rounded-xl font-medium transition-colors flex items-center justify-center gap-2 text-sm ${
+                addedToHunt
+                  ? "bg-amber-100 text-amber-700 cursor-default"
+                  : isAddingToHunt
+                    ? "bg-amber-50 text-amber-600"
+                    : "bg-amber-500 text-white hover:bg-amber-600"
+              }`}
+            >
+              {isAddingToHunt ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Adding...
+                </>
+              ) : addedToHunt ? (
+                <>
+                  <Check className="w-4 h-4" />
+                  In Hunt List
+                </>
+              ) : (
+                <>
+                  <Target className="w-4 h-4" />
+                  Add to Hunt List
+                </>
+              )}
+            </button>
+          )}
+
+          {/* Hunt List Error */}
+          {huntError && (
+            <p className="text-xs text-red-600 text-center mb-3">{huntError}</p>
+          )}
 
           {/* Action Buttons */}
           <div className="flex gap-3">

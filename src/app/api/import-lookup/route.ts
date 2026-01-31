@@ -45,6 +45,9 @@ export async function POST(request: Request) {
           writer: dbResult.writer,
           coverArtist: dbResult.coverArtist,
           interiorArtist: dbResult.interiorArtist,
+          publisher: dbResult.publisher,
+          releaseYear: dbResult.releaseYear,
+          coverImageUrl: dbResult.coverImageUrl,
           source: "database",
         });
       }
@@ -172,12 +175,21 @@ Be realistic with prices based on typical eBay sold listings.`,
       }
     } catch {}
 
+    // 4. Try to fetch cover image (non-blocking, best effort)
+    let coverImageUrl: string | null = null;
+    try {
+      coverImageUrl = await fetchCoverImage(normalizedTitle, normalizedIssue, detectedPublisher);
+    } catch {}
+
     return NextResponse.json({
       priceData,
       keyInfo,
       writer,
       coverArtist,
       interiorArtist,
+      publisher: detectedPublisher,
+      releaseYear: detectedYear,
+      coverImageUrl,
       source: "ai",
     });
   } catch (error) {
@@ -190,4 +202,54 @@ Be realistic with prices based on typical eBay sold listings.`,
       { status: 500 }
     );
   }
+}
+
+/**
+ * Try to fetch a cover image URL for the comic
+ * Uses Comic Vine API with Open Library fallback
+ */
+async function fetchCoverImage(
+  title: string,
+  issueNumber: string,
+  publisher?: string | null
+): Promise<string | null> {
+  // Try Comic Vine API if we have a key
+  if (process.env.COMIC_VINE_API_KEY) {
+    try {
+      const searchQuery = `${title} ${issueNumber}`;
+      const cvResponse = await fetch(
+        `https://comicvine.gamespot.com/api/search/?api_key=${process.env.COMIC_VINE_API_KEY}&format=json&query=${encodeURIComponent(searchQuery)}&resources=issue&limit=1`,
+        {
+          headers: { "User-Agent": "CollectorsChest/1.0" },
+          signal: AbortSignal.timeout(5000),
+        }
+      );
+
+      if (cvResponse.ok) {
+        const cvData = await cvResponse.json();
+        if (cvData.results?.[0]?.image?.medium_url) {
+          return cvData.results[0].image.medium_url;
+        }
+      }
+    } catch {}
+  }
+
+  // Fallback: Try Open Library
+  try {
+    const searchQuery = `${title} ${issueNumber} ${publisher || ""} comic`.trim();
+    const olResponse = await fetch(
+      `https://openlibrary.org/search.json?q=${encodeURIComponent(searchQuery)}&limit=3`,
+      { signal: AbortSignal.timeout(3000) }
+    );
+
+    if (olResponse.ok) {
+      const olData = await olResponse.json();
+      const docWithCover = olData.docs?.find((doc: { cover_i?: number }) => doc.cover_i);
+      if (docWithCover?.cover_i) {
+        return `https://covers.openlibrary.org/b/id/${docWithCover.cover_i}-L.jpg`;
+      }
+    }
+  } catch {}
+
+  return null;
 }

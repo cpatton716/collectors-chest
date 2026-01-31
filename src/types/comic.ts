@@ -73,6 +73,9 @@ export interface CollectionItem {
   dateAdded: string;
   listIds: string[];
   isStarred: boolean;
+  // Custom key info added by the user (pending approval)
+  customKeyInfo: string[];
+  customKeyInfoStatus: "pending" | "approved" | "rejected" | null;
 }
 
 export type ConditionLabel =

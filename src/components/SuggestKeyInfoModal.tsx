@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { CheckCircle, Key, Link, Loader2, MessageSquare, Plus, Trash2, X } from "lucide-react";
+import { CheckCircle, KeyRound, Link, Loader2, MessageSquare, Plus, Trash2, X } from "lucide-react";
 
 interface SuggestKeyInfoModalProps {
   isOpen: boolean;
@@ -110,7 +110,7 @@ export function SuggestKeyInfoModal({
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b">
           <div className="flex items-center gap-2">
-            <Key className="w-5 h-5 text-amber-500" />
+            <KeyRound className="w-5 h-5 text-amber-500" />
             <h2 className="text-lg font-bold text-gray-900">Suggest Key Info</h2>
           </div>
           <button
@@ -161,7 +161,7 @@ export function SuggestKeyInfoModal({
                         key={idx}
                         className="inline-flex items-center gap-1 px-2 py-1 bg-amber-100 text-amber-800 text-xs font-medium rounded-full"
                       >
-                        <Key className="w-3 h-3" />
+                        <KeyRound className="w-3 h-3" />
                         {info}
                       </span>
                     ))}
@@ -265,7 +265,7 @@ export function SuggestKeyInfoModal({
                   </>
                 ) : (
                   <>
-                    <Key className="w-4 h-4" />
+                    <KeyRound className="w-4 h-4" />
                     Submit Suggestion
                   </>
                 )}

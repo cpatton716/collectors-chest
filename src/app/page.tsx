@@ -132,6 +132,13 @@ export default function Home() {
   const [hotBooksLoading, setHotBooksLoading] = useState(true);
   const [hotBooksError, setHotBooksError] = useState<string | null>(null);
 
+  // Redirect signed-in users to their collection
+  useEffect(() => {
+    if (isLoaded && isSignedIn) {
+      router.replace("/collection");
+    }
+  }, [isLoaded, isSignedIn, router]);
+
   useEffect(() => {
     // Only load collection data for signed-in users
     if (isLoaded && isSignedIn) {

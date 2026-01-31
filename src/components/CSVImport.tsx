@@ -247,11 +247,24 @@ export function CSVImport({ onImportComplete, onCancel }: CSVImportProps) {
 
         let priceData = null;
         let keyInfo: string[] = [];
+        let enrichedWriter = row.writer || null;
+        let enrichedCoverArtist = row.coverArtist || null;
+        let enrichedInteriorArtist = row.interiorArtist || null;
+        let enrichedPublisher = row.publisher || null;
+        let enrichedReleaseYear = row.releaseYear || null;
+        let enrichedCoverImageUrl = "";
 
         if (response.ok) {
           const lookupData = await response.json();
           priceData = lookupData.priceData || null;
           keyInfo = lookupData.keyInfo || [];
+          // Use API data only if CSV didn't provide it
+          enrichedWriter = row.writer || lookupData.writer || null;
+          enrichedCoverArtist = row.coverArtist || lookupData.coverArtist || null;
+          enrichedInteriorArtist = row.interiorArtist || lookupData.interiorArtist || null;
+          enrichedPublisher = row.publisher || lookupData.publisher || null;
+          enrichedReleaseYear = row.releaseYear || lookupData.releaseYear || null;
+          enrichedCoverImageUrl = lookupData.coverImageUrl || "";
         }
 
         // Create the comic details
@@ -260,11 +273,11 @@ export function CSVImport({ onImportComplete, onCancel }: CSVImportProps) {
           title: row.title,
           issueNumber: row.issueNumber,
           variant: row.variant || null,
-          publisher: row.publisher || null,
-          writer: row.writer || null,
-          coverArtist: row.coverArtist || null,
-          interiorArtist: row.interiorArtist || null,
-          releaseYear: row.releaseYear || null,
+          publisher: enrichedPublisher,
+          writer: enrichedWriter,
+          coverArtist: enrichedCoverArtist,
+          interiorArtist: enrichedInteriorArtist,
+          releaseYear: enrichedReleaseYear,
           confidence: "high",
           isSlabbed: row.isSlabbed || false,
           gradingCompany: (row.gradingCompany as any) || null,
@@ -287,7 +300,7 @@ export function CSVImport({ onImportComplete, onCancel }: CSVImportProps) {
         const item: CollectionItem = {
           id: uuidv4(),
           comic,
-          coverImageUrl: "", // No image for CSV imports
+          coverImageUrl: enrichedCoverImageUrl,
           conditionGrade: row.grade ? parseFloat(row.grade) : null,
           conditionLabel: (row.condition as any) || null,
           isGraded: row.isSlabbed || false,
@@ -302,6 +315,8 @@ export function CSVImport({ onImportComplete, onCancel }: CSVImportProps) {
           dateAdded: new Date().toISOString(),
           listIds,
           isStarred: false,
+          customKeyInfo: [],
+          customKeyInfoStatus: null,
         };
 
         successfulItems.push(item);

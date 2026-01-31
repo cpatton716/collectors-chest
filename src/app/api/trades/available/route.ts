@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 
 import { getProfileByClerkId } from "@/lib/db";
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase";
 
 // GET - Get all comics marked for trade (excluding user's own)
 export async function GET(request: NextRequest) {
@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Query comics marked for trade
-    let query = supabase
+    let query = supabaseAdmin
       .from("comics")
       .select(
         `
@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
     const comicsWithWantCount = await Promise.all(
       (comics || []).map(async (comic: any) => {
         // Count users who want this comic (excluding the owner)
-        const { count } = await supabase
+        const { count } = await supabaseAdmin
           .from("key_hunt_lists")
           .select("*", { count: "exact", head: true })
           .ilike("title_normalized", comic.title.toLowerCase().trim())

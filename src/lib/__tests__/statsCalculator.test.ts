@@ -86,6 +86,8 @@ const createItem = (overrides: Record<string, any> = {}): CollectionItem => {
     dateAdded: new Date().toISOString(),
     listIds: [],
     isStarred: false,
+    customKeyInfo: [],
+    customKeyInfoStatus: null,
     ...restOverrides,
   };
 };

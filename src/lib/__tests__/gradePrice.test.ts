@@ -82,6 +82,8 @@ const createCollectionItem = (overrides?: Partial<CollectionItem>): CollectionIt
     dateAdded: new Date().toISOString(),
     listIds: [],
     isStarred: false,
+    customKeyInfo: [],
+    customKeyInfoStatus: null,
   };
   // Apply overrides except comic (which we handled separately)
   const { comic: _comic, ...restOverrides } = overrides || {};

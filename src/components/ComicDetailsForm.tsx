@@ -76,6 +76,10 @@ export function ComicDetailsForm({
     ...initialComic,
     keyInfo: initialComic.keyInfo || [],
   });
+  // Custom key info added by user (separate from database key info)
+  const [customKeyInfo, setCustomKeyInfo] = useState<string[]>(
+    existingItem?.customKeyInfo || []
+  );
 
   // Grading state - initialized from AI detection or existing item
   const [isGraded, setIsGraded] = useState(
@@ -344,6 +348,9 @@ export function ComicDetailsForm({
       notes: notes || null,
       forSale,
       askingPrice: forSale && askingPrice ? parseFloat(askingPrice) : null,
+      // Custom key info with pending status if user added any
+      customKeyInfo,
+      customKeyInfoStatus: customKeyInfo.length > 0 ? "pending" : null,
     });
   };
 
@@ -880,22 +887,39 @@ export function ComicDetailsForm({
           First appearances, deaths, team changes, and other significant events
         </p>
 
-        {/* Existing Key Info Items */}
+        {/* Database Key Info (read-only) */}
         {comic.keyInfo && comic.keyInfo.length > 0 && (
           <div className="space-y-2 mb-3">
             {comic.keyInfo.map((info, index) => (
               <div
-                key={index}
+                key={`db-${index}`}
                 className="flex items-start gap-2 p-2 bg-yellow-50 border border-yellow-200 rounded-lg"
               >
                 <span className="flex-1 text-sm text-gray-700">{info}</span>
+                <span className="text-xs text-yellow-600 bg-yellow-100 px-2 py-0.5 rounded">
+                  Verified
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Custom Key Info (user-added, with remove buttons) */}
+        {customKeyInfo.length > 0 && (
+          <div className="space-y-2 mb-3">
+            {customKeyInfo.map((info, index) => (
+              <div
+                key={`custom-${index}`}
+                className="flex items-start gap-2 p-2 bg-amber-50 border border-amber-200 rounded-lg"
+              >
+                <span className="flex-1 text-sm text-gray-700">{info}</span>
+                <span className="text-xs text-amber-600 bg-amber-100 px-2 py-0.5 rounded">
+                  Pending
+                </span>
                 <button
                   type="button"
                   onClick={() => {
-                    setComic((prev) => ({
-                      ...prev,
-                      keyInfo: prev.keyInfo.filter((_, i) => i !== index),
-                    }));
+                    setCustomKeyInfo((prev) => prev.filter((_, i) => i !== index));
                   }}
                   className="p-1 text-gray-400 hover:text-red-500 transition-colors"
                   aria-label="Remove key info"
@@ -916,10 +940,7 @@ export function ComicDetailsForm({
             onKeyDown={(e) => {
               if (e.key === "Enter" && newKeyInfo.trim()) {
                 e.preventDefault();
-                setComic((prev) => ({
-                  ...prev,
-                  keyInfo: [...(prev.keyInfo || []), newKeyInfo.trim()],
-                }));
+                setCustomKeyInfo((prev) => [...prev, newKeyInfo.trim()]);
                 setNewKeyInfo("");
               }
             }}
@@ -930,10 +951,7 @@ export function ComicDetailsForm({
             type="button"
             onClick={() => {
               if (newKeyInfo.trim()) {
-                setComic((prev) => ({
-                  ...prev,
-                  keyInfo: [...(prev.keyInfo || []), newKeyInfo.trim()],
-                }));
+                setCustomKeyInfo((prev) => [...prev, newKeyInfo.trim()]);
                 setNewKeyInfo("");
               }
             }}
@@ -943,6 +961,12 @@ export function ComicDetailsForm({
             <Plus className="w-4 h-4" />
           </button>
         </div>
+        {customKeyInfo.length > 0 && (
+          <p className="text-xs text-amber-600 mt-2 flex items-center gap-1">
+            <Info className="w-3 h-3" />
+            Custom key info is reviewed before appearing publicly
+          </p>
+        )}
       </div>
 
       {/* Grading */}

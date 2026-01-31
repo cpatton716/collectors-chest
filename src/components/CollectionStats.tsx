@@ -14,7 +14,7 @@ import {
   Calendar,
   DollarSign,
   ExternalLink,
-  Key,
+  KeyRound,
   Shield,
   TrendingDown,
   TrendingUp,
@@ -420,7 +420,7 @@ export function CollectionStats({ collection, onComicClick }: CollectionStatsPro
       >
         <div className="flex items-center gap-3 mb-6">
           <div className="w-10 h-10 bg-pop-yellow border-2 border-pop-black flex items-center justify-center">
-            <Key className="w-5 h-5 text-pop-black" />
+            <KeyRound className="w-5 h-5 text-pop-black" />
           </div>
           <h2 className="text-xl font-black text-pop-black">Key Comics</h2>
           <span className="ml-auto px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-sm font-medium">

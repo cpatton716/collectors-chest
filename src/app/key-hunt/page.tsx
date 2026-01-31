@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 
 import { useUser } from "@clerk/nextjs";
 
-import { Database, History, KeyRound, Loader2 } from "lucide-react";
+import { Database, History, KeyRound, Loader2, Smartphone, Camera, Zap, Target } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 
 import {
@@ -21,6 +21,7 @@ import {
 } from "@/lib/offlineCache";
 import { storage } from "@/lib/storage";
 
+import { useKeyHunt } from "@/hooks/useKeyHunt";
 import { useOffline } from "@/hooks/useOffline";
 
 import { BarcodeScanner } from "@/components/BarcodeScanner";
@@ -55,6 +56,13 @@ type KeyHuntFlow =
   | "history-detail"
   | "my-list";
 
+interface GradeEstimate {
+  grade: number;
+  label: string;
+  rawValue: number;
+  slabbedValue: number;
+}
+
 interface LookupResult {
   title: string;
   issueNumber: string;
@@ -65,6 +73,7 @@ interface LookupResult {
   recentSale: { price: number; date: string } | null;
   coverImageUrl?: string | null;
   keyInfo?: string[];
+  gradeEstimates?: GradeEstimate[];
   fromCache?: boolean;
   source?: "database" | "ebay" | "ai";
 }
@@ -76,6 +85,7 @@ export default function KeyHuntPage() {
   const [error, setError] = useState<string | null>(null);
   const { isOnline, isOfflineMode, pendingActionsCount, lastSyncResult, syncPendingActions } =
     useOffline();
+  const { addToKeyHunt, isInKeyHunt } = useKeyHunt();
   const [showSyncNotification, setShowSyncNotification] = useState(false);
 
   // Lookup state
@@ -317,6 +327,7 @@ export default function KeyHuntPage() {
         recentSale: data.recentSale,
         coverImageUrl: data.coverImageUrl || pendingComic?.coverImageUrl,
         keyInfo: data.keyInfo,
+        gradeEstimates: data.gradeEstimates,
         fromCache: false,
         source: data.source,
       };
@@ -332,6 +343,7 @@ export default function KeyHuntPage() {
         recentSale: lookupResult.recentSale,
         coverImageUrl: lookupResult.coverImageUrl,
         keyInfo: lookupResult.keyInfo,
+        gradeEstimates: lookupResult.gradeEstimates,
       });
 
       // Save to scan history
@@ -454,6 +466,8 @@ export default function KeyHuntPage() {
       dateAdded: new Date().toISOString(),
       listIds: [],
       isStarred: false,
+      customKeyInfo: [],
+      customKeyInfoStatus: null,
     };
 
     storage.addToCollection(item);
@@ -566,6 +580,8 @@ export default function KeyHuntPage() {
         dateAdded: new Date().toISOString(),
         listIds: [],
         isStarred: false,
+        customKeyInfo: [],
+        customKeyInfoStatus: null,
       };
 
       storage.addToCollection(item);
@@ -583,7 +599,107 @@ export default function KeyHuntPage() {
 
   return (
     <FeatureGate feature="keyHunt">
-      <div className="min-h-screen bg-gray-900">
+      {/* Desktop Explainer - shown on md+ screens */}
+      <div className="hidden md:block min-h-screen bg-gradient-to-br from-amber-50 to-orange-50">
+        <div className="max-w-4xl mx-auto px-6 py-12">
+          {/* Header */}
+          <div className="text-center mb-12">
+            <div className="inline-flex items-center justify-center w-20 h-20 bg-amber-500 rounded-2xl shadow-lg mb-6">
+              <KeyRound className="w-10 h-10 text-white" />
+            </div>
+            <h1 className="text-4xl font-bold text-gray-900 mb-4">Key Hunt</h1>
+            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+              Your mobile companion for finding key comics at conventions, shops, and garage sales.
+            </p>
+          </div>
+
+          {/* Mobile-Only Badge */}
+          <div className="flex justify-center mb-12">
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-amber-100 border border-amber-200 rounded-full">
+              <Smartphone className="w-5 h-5 text-amber-600" />
+              <span className="text-amber-800 font-medium">Mobile Exclusive Feature</span>
+            </div>
+          </div>
+
+          {/* Features Grid */}
+          <div className="grid md:grid-cols-3 gap-6 mb-12">
+            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
+                <Camera className="w-6 h-6 text-blue-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Scan Covers</h3>
+              <p className="text-gray-600">
+                Point your camera at any comic cover and instantly identify the issue with AI-powered recognition.
+              </p>
+            </div>
+
+            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
+                <Zap className="w-6 h-6 text-green-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Instant Pricing</h3>
+              <p className="text-gray-600">
+                Get real-time market values for any grade. See raw vs slabbed prices at a glance.
+              </p>
+            </div>
+
+            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+              <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
+                <Target className="w-6 h-6 text-purple-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Track Your Hunt</h3>
+              <p className="text-gray-600">
+                Build a list of books you&apos;re hunting for. Get notified when prices drop on your targets.
+              </p>
+            </div>
+          </div>
+
+          {/* How to Use */}
+          <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-100 mb-12">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">How to Use Key Hunt</h2>
+            <div className="grid md:grid-cols-4 gap-6">
+              <div className="text-center">
+                <div className="w-10 h-10 bg-amber-500 text-white rounded-full flex items-center justify-center mx-auto mb-3 font-bold">
+                  1
+                </div>
+                <p className="text-gray-700">Open Key Hunt on your phone</p>
+              </div>
+              <div className="text-center">
+                <div className="w-10 h-10 bg-amber-500 text-white rounded-full flex items-center justify-center mx-auto mb-3 font-bold">
+                  2
+                </div>
+                <p className="text-gray-700">Scan a cover or enter manually</p>
+              </div>
+              <div className="text-center">
+                <div className="w-10 h-10 bg-amber-500 text-white rounded-full flex items-center justify-center mx-auto mb-3 font-bold">
+                  3
+                </div>
+                <p className="text-gray-700">Select the condition grade</p>
+              </div>
+              <div className="text-center">
+                <div className="w-10 h-10 bg-amber-500 text-white rounded-full flex items-center justify-center mx-auto mb-3 font-bold">
+                  4
+                </div>
+                <p className="text-gray-700">Get instant price data</p>
+              </div>
+            </div>
+          </div>
+
+          {/* CTA */}
+          <div className="text-center">
+            <p className="text-gray-600 mb-4">
+              Access Key Hunt from your mobile device to start hunting!
+            </p>
+            <div className="inline-flex items-center gap-2 text-sm text-gray-500">
+              <Smartphone className="w-4 h-4" />
+              <span>Available on iOS and Android browsers</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile UI - hidden on md+ screens */}
+      <div className="md:hidden min-h-screen bg-gray-900">
         {/* Offline Indicator */}
         {isOfflineMode && (
           <OfflineIndicator pendingCount={pendingActionsCount} syncResult={lastSyncResult} />
@@ -810,6 +926,22 @@ export default function KeyHuntPage() {
             isOpen={flow === "result"}
             onClose={handleNewLookup}
             onAddToCollection={handleAddToCollection}
+            onAddToHuntList={
+              isSignedIn
+                ? async () => {
+                    return addToKeyHunt({
+                      title: result.title,
+                      issueNumber: result.issueNumber,
+                      publisher: result.publisher || undefined,
+                      releaseYear: result.releaseYear || undefined,
+                      coverImageUrl: result.coverImageUrl || undefined,
+                      keyInfo: result.keyInfo,
+                      currentPriceMid: result.averagePrice || undefined,
+                      addedFrom: "key_hunt",
+                    });
+                  }
+                : undefined
+            }
             onNewLookup={handleNewLookup}
             title={result.title}
             issueNumber={result.issueNumber}
@@ -817,6 +949,8 @@ export default function KeyHuntPage() {
             averagePrice={result.averagePrice}
             recentSale={result.recentSale}
             coverImageUrl={result.coverImageUrl}
+            gradeEstimates={result.gradeEstimates}
+            isInHuntList={isInKeyHunt(result.title, result.issueNumber)}
             fromCache={result.fromCache}
             isOffline={isOfflineMode}
             source={result.source}

@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
-import { AlertCircle, Camera, Loader2, RefreshCw, Settings, X } from "lucide-react";
+import jsQR from "jsqr";
+import { AlertCircle, Camera, Loader2, RefreshCw, Settings, SwitchCamera, X } from "lucide-react";
 
 interface BarcodeScannerProps {
   onScan: (barcode: string) => void;
@@ -19,22 +19,25 @@ interface CameraError {
   canRetry: boolean;
 }
 
-// Supported barcode formats for comic book UPC codes
-const SUPPORTED_FORMATS = [
-  Html5QrcodeSupportedFormats.UPC_A,
-  Html5QrcodeSupportedFormats.UPC_E,
-  Html5QrcodeSupportedFormats.EAN_13,
-  Html5QrcodeSupportedFormats.EAN_8,
-  Html5QrcodeSupportedFormats.CODE_128,
-];
+// Check if native BarcodeDetector API is available
+const hasBarcodeDetector = typeof window !== "undefined" && "BarcodeDetector" in window;
+
+// Supported barcode formats
+const BARCODE_FORMATS = ["upc_a", "upc_e", "ean_13", "ean_8", "code_128"];
 
 export function BarcodeScanner({ onScan, onClose, isProcessing }: BarcodeScannerProps) {
   const [scannerState, setScannerState] = useState<ScannerState>("checking");
   const [error, setError] = useState<CameraError | null>(null);
   const [lastScannedCode, setLastScannedCode] = useState<string | null>(null);
-  const scannerRef = useRef<Html5Qrcode | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [facingMode, setFacingMode] = useState<"environment" | "user">("environment");
+  const [hasMultipleCameras, setHasMultipleCameras] = useState(false);
+
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
   const mountedRef = useRef(true);
+  const barcodeDetectorRef = useRef<BarcodeDetector | null>(null);
 
   // Parse error into user-friendly message
   const parseError = (err: unknown): CameraError => {
@@ -86,177 +89,273 @@ export function BarcodeScanner({ onScan, onClose, isProcessing }: BarcodeScanner
     };
   };
 
-  // Check camera permission status
-  const checkCameraPermission = useCallback(async (): Promise<"granted" | "denied" | "prompt"> => {
+  // Check for multiple cameras
+  const checkMultipleCameras = useCallback(async () => {
     try {
-      // Check if permissions API is available
-      if (navigator.permissions && navigator.permissions.query) {
-        const result = await navigator.permissions.query({ name: "camera" as PermissionName });
-        return result.state;
-      }
-      // If permissions API not available, we'll need to try requesting
-      return "prompt";
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices.filter((device) => device.kind === "videoinput");
+      setHasMultipleCameras(videoDevices.length > 1);
     } catch {
-      // Permissions API not supported, proceed to request
-      return "prompt";
+      setHasMultipleCameras(false);
     }
   }, []);
 
-  // Request camera permission explicitly
-  const requestCameraPermission = useCallback(async (): Promise<boolean> => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" },
-      });
-      // Permission granted, stop the test stream
-      stream.getTracks().forEach((track) => track.stop());
-      return true;
-    } catch (err) {
-      console.error("Permission request failed:", err);
-      return false;
+  // Stop scanning loop
+  const stopScanning = useCallback(() => {
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
     }
   }, []);
 
-  // Stop scanner safely
-  const stopScanner = useCallback(async () => {
-    if (scannerRef.current) {
+  // Stop camera stream
+  const stopCamera = useCallback(() => {
+    stopScanning();
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+  }, [stopScanning]);
+
+  // Process detected barcode
+  const processBarcode = useCallback(
+    (code: string) => {
+      // Validate barcode: UPC-A (12), UPC-E (8), EAN-13 (13), EAN-8 (8)
+      const cleanCode = code.replace(/\D/g, "");
+      if (/^\d{8,13}$/.test(cleanCode) && cleanCode !== lastScannedCode) {
+        setLastScannedCode(cleanCode);
+        onScan(cleanCode);
+      }
+    },
+    [lastScannedCode, onScan]
+  );
+
+  // Scan using native BarcodeDetector API
+  const scanWithBarcodeDetector = useCallback(
+    async (video: HTMLVideoElement) => {
+      if (!barcodeDetectorRef.current || !mountedRef.current) return;
+
       try {
-        const state = scannerRef.current.getState();
-        if (state === 2) {
-          // SCANNING state
-          await scannerRef.current.stop();
+        const barcodes = await barcodeDetectorRef.current.detect(video);
+        if (barcodes.length > 0 && barcodes[0].rawValue) {
+          processBarcode(barcodes[0].rawValue);
         }
       } catch (err) {
-        console.error("Error stopping scanner:", err);
+        // Detection failed, continue scanning
       }
-      scannerRef.current = null;
-    }
-  }, []);
+    },
+    [processBarcode]
+  );
 
-  // Start the scanner
-  const startScanner = useCallback(async () => {
-    if (!mountedRef.current) return;
+  // Scan using jsQR fallback
+  const scanWithJsQR = useCallback(
+    (video: HTMLVideoElement, canvas: HTMLCanvasElement) => {
+      if (!mountedRef.current) return;
 
-    // Check for browser support
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      setError({
-        type: "unknown",
-        message: "Your browser doesn't support camera access. Please try a different browser.",
-        canRetry: false,
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      if (!ctx) return;
+
+      // Set canvas size to match video
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+
+      // Draw video frame to canvas
+      ctx.drawImage(video, 0, 0);
+
+      // Get image data for jsQR
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+      // jsQR is designed for QR codes, but can detect some 1D barcodes
+      // For better 1D barcode support, we scan a horizontal strip in the middle
+      const result = jsQR(imageData.data, imageData.width, imageData.height, {
+        inversionAttempts: "dontInvert",
       });
-      setScannerState("error");
-      return;
-    }
+
+      if (result?.data) {
+        processBarcode(result.data);
+      }
+    },
+    [processBarcode]
+  );
+
+  // Main scanning loop
+  const startScanningLoop = useCallback(() => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+
+    if (!video || !canvas || !mountedRef.current) return;
+
+    const scan = async () => {
+      if (!mountedRef.current || video.readyState !== video.HAVE_ENOUGH_DATA) {
+        animationFrameRef.current = requestAnimationFrame(scan);
+        return;
+      }
+
+      if (hasBarcodeDetector && barcodeDetectorRef.current) {
+        await scanWithBarcodeDetector(video);
+      } else {
+        scanWithJsQR(video, canvas);
+      }
+
+      // Continue scanning at ~15fps
+      if (mountedRef.current) {
+        animationFrameRef.current = requestAnimationFrame(() => {
+          setTimeout(scan, 66); // ~15fps
+        });
+      }
+    };
+
+    scan();
+  }, [scanWithBarcodeDetector, scanWithJsQR]);
+
+  // Start camera with fallback constraints
+  const startCamera = useCallback(
+    async (useBasicConstraints = false) => {
+      if (!mountedRef.current) return;
+
+      // Check for browser support
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setError({
+          type: "unknown",
+          message: "Your browser doesn't support camera access. Please try a different browser.",
+          canRetry: false,
+        });
+        setScannerState("error");
+        return;
+      }
+
+      setScannerState("starting");
+      setError(null);
+
+      // Stop any existing stream
+      stopCamera();
+
+      try {
+        // Try with preferred constraints first, fall back to basic
+        const constraints: MediaStreamConstraints = useBasicConstraints
+          ? { video: true, audio: false }
+          : {
+              video: {
+                facingMode: facingMode,
+                width: { ideal: 1280 },
+                height: { ideal: 720 },
+              },
+              audio: false,
+            };
+
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        streamRef.current = stream;
+
+        if (videoRef.current && mountedRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play();
+
+          // Initialize BarcodeDetector if available
+          if (hasBarcodeDetector) {
+            try {
+              // @ts-expect-error - BarcodeDetector is not in TypeScript types yet
+              barcodeDetectorRef.current = new window.BarcodeDetector({
+                formats: BARCODE_FORMATS,
+              });
+            } catch {
+              // Fall back to jsQR
+              barcodeDetectorRef.current = null;
+            }
+          }
+
+          setScannerState("active");
+          startScanningLoop();
+
+          // Check for multiple cameras after permission granted
+          await checkMultipleCameras();
+        }
+      } catch (err) {
+        console.error("Camera error:", err);
+
+        // If we failed with specific constraints, try basic constraints
+        if (!useBasicConstraints && err instanceof Error && err.name === "OverconstrainedError") {
+          console.log("Retrying with basic constraints...");
+          return startCamera(true);
+        }
+
+        if (mountedRef.current) {
+          const parsedError = parseError(err);
+          setError(parsedError);
+          setScannerState("error");
+        }
+      }
+    },
+    [facingMode, stopCamera, startScanningLoop, checkMultipleCameras]
+  );
+
+  // Check permission and start camera
+  const initializeScanner = useCallback(async () => {
+    if (!mountedRef.current) return;
 
     setScannerState("checking");
     setError(null);
 
     // Check current permission status
-    const permissionStatus = await checkCameraPermission();
-
-    if (permissionStatus === "denied") {
-      setError({
-        type: "permission_denied",
-        message:
-          "Camera access was previously denied. Please enable camera permissions in your browser settings.",
-        canRetry: true,
-      });
-      setScannerState("error");
-      return;
-    }
-
-    if (permissionStatus === "prompt") {
-      setScannerState("requesting");
-      const granted = await requestCameraPermission();
-      if (!granted) {
-        setError({
-          type: "permission_denied",
-          message: "Camera access was denied. Please allow camera permissions to scan barcodes.",
-          canRetry: true,
-        });
-        setScannerState("error");
-        return;
-      }
-    }
-
-    if (!mountedRef.current) return;
-    setScannerState("starting");
-
-    // Wait for DOM to be ready
-    await new Promise((resolve) => setTimeout(resolve, 100));
-
-    if (!mountedRef.current || !document.getElementById("barcode-reader")) {
-      return;
-    }
-
     try {
-      // Stop any existing scanner
-      await stopScanner();
-
-      const scanner = new Html5Qrcode("barcode-reader", {
-        formatsToSupport: SUPPORTED_FORMATS,
-        verbose: false,
-      });
-      scannerRef.current = scanner;
-
-      await scanner.start(
-        { facingMode: "environment" },
-        {
-          fps: 15,
-          qrbox: { width: 280, height: 160 },
-          aspectRatio: 1.5,
-          disableFlip: false,
-        },
-        (decodedText) => {
-          // Validate and process barcode
-          // UPC-A: 12 digits, UPC-E: 8 digits, EAN-13: 13 digits, EAN-8: 8 digits
-          const cleanCode = decodedText.replace(/\D/g, "");
-          if (/^\d{8,13}$/.test(cleanCode) && cleanCode !== lastScannedCode) {
-            setLastScannedCode(cleanCode);
-            onScan(cleanCode);
-          }
-        },
-        () => {
-          // Scan error callback - ignore (no barcode in frame)
+      if (navigator.permissions && navigator.permissions.query) {
+        const result = await navigator.permissions.query({ name: "camera" as PermissionName });
+        if (result.state === "denied") {
+          setError({
+            type: "permission_denied",
+            message:
+              "Camera access was previously denied. Please enable camera permissions in your browser settings.",
+            canRetry: true,
+          });
+          setScannerState("error");
+          return;
         }
-      );
-
-      if (mountedRef.current) {
-        setScannerState("active");
       }
-    } catch (err) {
-      console.error("Error starting scanner:", err);
-      if (mountedRef.current) {
-        const parsedError = parseError(err);
-        setError(parsedError);
-        setScannerState("error");
-      }
+    } catch {
+      // Permissions API not supported, continue
     }
-  }, [checkCameraPermission, requestCameraPermission, stopScanner, onScan, lastScannedCode]);
+
+    setScannerState("requesting");
+    await startCamera();
+  }, [startCamera]);
 
   // Retry scanning
   const handleRetry = useCallback(() => {
     setError(null);
     setLastScannedCode(null);
-    startScanner();
-  }, [startScanner]);
+    initializeScanner();
+  }, [initializeScanner]);
+
+  // Switch camera
+  const switchCamera = useCallback(() => {
+    setFacingMode((prev) => (prev === "environment" ? "user" : "environment"));
+  }, []);
+
+  // Restart camera when facing mode changes
+  useEffect(() => {
+    if (scannerState === "active") {
+      startCamera();
+    }
+  }, [facingMode]);
 
   // Initialize scanner on mount
   useEffect(() => {
     mountedRef.current = true;
-    startScanner();
+    initializeScanner();
 
     return () => {
       mountedRef.current = false;
-      stopScanner();
+      stopCamera();
     };
-  }, [startScanner, stopScanner]);
+  }, []);
 
   // Handle close
-  const handleClose = useCallback(async () => {
-    await stopScanner();
+  const handleClose = useCallback(() => {
+    stopCamera();
     onClose();
-  }, [stopScanner, onClose]);
+  }, [stopCamera, onClose]);
 
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col">
@@ -266,14 +365,25 @@ export function BarcodeScanner({ onScan, onClose, isProcessing }: BarcodeScanner
           <Camera className="w-5 h-5" />
           Scan Barcode
         </h2>
-        <button
-          onClick={handleClose}
-          className="p-2 text-white hover:bg-white/20 rounded-full transition-colors"
-          disabled={isProcessing}
-          aria-label="Close scanner"
-        >
-          <X className="w-6 h-6" />
-        </button>
+        <div className="flex items-center gap-2">
+          {hasMultipleCameras && scannerState === "active" && (
+            <button
+              onClick={switchCamera}
+              className="p-2 text-white hover:bg-white/20 rounded-full transition-colors"
+              aria-label="Switch camera"
+            >
+              <SwitchCamera className="w-6 h-6" />
+            </button>
+          )}
+          <button
+            onClick={handleClose}
+            className="p-2 text-white hover:bg-white/20 rounded-full transition-colors"
+            disabled={isProcessing}
+            aria-label="Close scanner"
+          >
+            <X className="w-6 h-6" />
+          </button>
+        </div>
       </div>
 
       {/* Scanner Area */}
@@ -320,7 +430,6 @@ export function BarcodeScanner({ onScan, onClose, isProcessing }: BarcodeScanner
               {error.type === "permission_denied" && (
                 <button
                   onClick={() => {
-                    // Open browser settings instructions
                     alert(
                       "To enable camera:\n\n1. Click the lock/info icon in your browser's address bar\n2. Find 'Camera' in the permissions list\n3. Change it to 'Allow'\n4. Refresh this page"
                     );
@@ -345,11 +454,14 @@ export function BarcodeScanner({ onScan, onClose, isProcessing }: BarcodeScanner
         {scannerState === "active" && (
           <>
             <div className="relative w-full max-w-md">
-              {/* Scanner container */}
-              <div
-                id="barcode-reader"
-                ref={containerRef}
+              {/* Video element - using proven mobile-compatible attributes */}
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
                 className="w-full rounded-xl overflow-hidden bg-gray-900"
+                style={{ transform: facingMode === "user" ? "scaleX(-1)" : "none" }}
               />
 
               {/* Scanning overlay with animated border */}
@@ -370,13 +482,18 @@ export function BarcodeScanner({ onScan, onClose, isProcessing }: BarcodeScanner
             <p className="text-white/80 text-sm mt-6 text-center">
               Position the barcode within the frame
             </p>
+
+            {/* Detection method indicator */}
+            <p className="text-white/40 text-xs mt-2">
+              {hasBarcodeDetector && barcodeDetectorRef.current
+                ? "Using native barcode detection"
+                : "Using jsQR detection"}
+            </p>
           </>
         )}
 
-        {/* Hidden container for scanner initialization (shown when not active) */}
-        {scannerState !== "active" && (
-          <div id="barcode-reader" ref={containerRef} className="hidden" />
-        )}
+        {/* Hidden canvas for frame processing */}
+        <canvas ref={canvasRef} className="hidden" />
 
         {/* Processing Overlay */}
         {isProcessing && (
