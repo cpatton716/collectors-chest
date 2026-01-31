@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 
 import { useAuth } from "@clerk/nextjs";
 
-import { ArrowLeftRight, ChevronDown, Clock, Gavel, Search, Tag } from "lucide-react";
+import { ArrowLeftRight, ChevronDown, Clock, Gavel, Search, Tag, Users } from "lucide-react";
 
 import {
   AuctionCard,
@@ -118,6 +118,7 @@ function ShopPageContent() {
   const [endingSoonOnly, setEndingSoonOnly] = useState(false);
   const [hasBuyItNow, setHasBuyItNow] = useState(false);
   const [auctionSearchQuery, setAuctionSearchQuery] = useState("");
+  const [followingOnlyAuctions, setFollowingOnlyAuctions] = useState(false);
 
   // Listings state
   const [listings, setListings] = useState<Auction[]>([]);
@@ -125,6 +126,7 @@ function ShopPageContent() {
   const [selectedListingId, setSelectedListingId] = useState<string | null>(null);
   const [listingSortBy, setListingSortBy] = useState<ListingSortBy>("newest");
   const [listingSearchQuery, setListingSearchQuery] = useState("");
+  const [followingOnlyListings, setFollowingOnlyListings] = useState(false);
 
   // Tradeable comics state
   const [tradeableComics, setTradeableComics] = useState<TradeableComic[]>([]);
@@ -137,14 +139,14 @@ function ShopPageContent() {
     if (activeTab === "auctions") {
       loadAuctions();
     }
-  }, [activeTab, auctionSortBy, endingSoonOnly, hasBuyItNow]);
+  }, [activeTab, auctionSortBy, endingSoonOnly, hasBuyItNow, followingOnlyAuctions]);
 
   // Load listings when tab changes or filters change
   useEffect(() => {
     if (activeTab === "buy-now") {
       loadListings();
     }
-  }, [activeTab, listingSortBy]);
+  }, [activeTab, listingSortBy, followingOnlyListings]);
 
   // Load tradeable comics when tab changes
   useEffect(() => {
@@ -161,6 +163,7 @@ function ShopPageContent() {
         sortBy: auctionSortBy,
         ...(endingSoonOnly && { endingSoon: "true" }),
         ...(hasBuyItNow && { hasBuyItNow: "true" }),
+        ...(followingOnlyAuctions && { followingOnly: "true" }),
       });
 
       const response = await fetch(`/api/auctions?${params}`);
@@ -181,6 +184,7 @@ function ShopPageContent() {
       const params = new URLSearchParams({
         listingType: "fixed_price",
         sortBy: listingSortBy,
+        ...(followingOnlyListings && { followingOnly: "true" }),
       });
 
       const response = await fetch(`/api/auctions?${params}`);
@@ -326,7 +330,7 @@ function ShopPageContent() {
                 />
               </div>
 
-              {/* Sort */}
+              {/* Sort and Filters */}
               <div className="flex flex-wrap items-center gap-3">
                 <select
                   value={listingSortBy}
@@ -339,6 +343,21 @@ function ShopPageContent() {
                     </option>
                   ))}
                 </select>
+
+                {/* Following Only Filter - only show when logged in */}
+                {isSignedIn && (
+                  <button
+                    onClick={() => setFollowingOnlyListings(!followingOnlyListings)}
+                    className={`flex items-center gap-2 px-4 py-2 border-2 border-pop-black font-bold transition-all ${
+                      followingOnlyListings
+                        ? "bg-pop-pink text-white shadow-[2px_2px_0px_#000]"
+                        : "bg-pop-white text-pop-black hover:shadow-[2px_2px_0px_#000]"
+                    }`}
+                  >
+                    <Users className="w-4 h-4" />
+                    Following
+                  </button>
+                )}
               </div>
             </div>
 
@@ -351,15 +370,21 @@ function ShopPageContent() {
                 style={{ boxShadow: "4px 4px 0px #000" }}
               >
                 <div className="w-16 h-16 bg-pop-yellow border-3 border-pop-black flex items-center justify-center mx-auto mb-4">
-                  <Tag className="w-8 h-8 text-pop-black" />
+                  {followingOnlyListings ? (
+                    <Users className="w-8 h-8 text-pop-black" />
+                  ) : (
+                    <Tag className="w-8 h-8 text-pop-black" />
+                  )}
                 </div>
                 <p className="text-xl font-black text-pop-black font-comic uppercase">
-                  No listings found
+                  {followingOnlyListings ? "No listings from followed sellers" : "No listings found"}
                 </p>
                 <p className="mt-2 text-gray-600">
                   {listingSearchQuery
                     ? "Try adjusting your search"
-                    : "Check back soon for new listings"}
+                    : followingOnlyListings
+                      ? "Follow more sellers or check back later"
+                      : "Check back soon for new listings"}
                 </p>
               </div>
             ) : (
@@ -435,6 +460,21 @@ function ShopPageContent() {
                   <Tag className="w-4 h-4" />
                   Buy It Now
                 </button>
+
+                {/* Following Only Filter - only show when logged in */}
+                {isSignedIn && (
+                  <button
+                    onClick={() => setFollowingOnlyAuctions(!followingOnlyAuctions)}
+                    className={`flex items-center gap-2 px-4 py-2 border-2 border-pop-black font-bold transition-all ${
+                      followingOnlyAuctions
+                        ? "bg-pop-pink text-white shadow-[2px_2px_0px_#000]"
+                        : "bg-pop-white text-pop-black hover:shadow-[2px_2px_0px_#000]"
+                    }`}
+                  >
+                    <Users className="w-4 h-4" />
+                    Following
+                  </button>
+                )}
               </div>
             </div>
 
@@ -447,15 +487,21 @@ function ShopPageContent() {
                 style={{ boxShadow: "4px 4px 0px #000" }}
               >
                 <div className="w-16 h-16 bg-pop-yellow border-3 border-pop-black flex items-center justify-center mx-auto mb-4">
-                  <Gavel className="w-8 h-8 text-pop-black" />
+                  {followingOnlyAuctions ? (
+                    <Users className="w-8 h-8 text-pop-black" />
+                  ) : (
+                    <Gavel className="w-8 h-8 text-pop-black" />
+                  )}
                 </div>
                 <p className="text-xl font-black text-pop-black font-comic uppercase">
-                  No auctions found
+                  {followingOnlyAuctions ? "No auctions from followed sellers" : "No auctions found"}
                 </p>
                 <p className="mt-2 text-gray-600">
                   {auctionSearchQuery
                     ? "Try adjusting your search"
-                    : "Check back soon for new listings"}
+                    : followingOnlyAuctions
+                      ? "Follow more sellers or check back later"
+                      : "Check back soon for new listings"}
                 </p>
               </div>
             ) : (
