@@ -305,6 +305,8 @@ export default function ScanPage() {
         dateAdded: new Date().toISOString(),
         listIds,
         isStarred: false,
+        customKeyInfo: itemData.customKeyInfo || [],
+        customKeyInfoStatus: itemData.customKeyInfoStatus || null,
       };
 
       await addToCollection(newItem);
@@ -582,7 +584,7 @@ export default function ScanPage() {
                   {isSignedIn && (
                     <button
                       onClick={() => setShowCSVImport(true)}
-                      className="hidden sm:flex flex-col items-center justify-center w-36 h-24 bg-pop-white text-pop-black border-2 border-pop-black font-bold hover:shadow-[3px_3px_0px_#000] transition-all"
+                      className="flex flex-col items-center justify-center w-36 h-24 bg-pop-white text-pop-black border-2 border-pop-black font-bold hover:shadow-[3px_3px_0px_#000] transition-all"
                     >
                       <FileSpreadsheet className="w-7 h-7 mb-2" />
                       <span className="text-sm">Import CSV</span>
@@ -867,7 +869,60 @@ export default function ScanPage() {
                 for (const item of items) {
                   await addToCollection(item);
                 }
-                showToast(`Successfully imported ${items.length} comics!`, "success");
+
+                // Create shop listings for items marked as for sale
+                const forSaleItems = items.filter(
+                  (item) => item.forSale && item.askingPrice && item.askingPrice >= 1
+                );
+                let listingsCreated = 0;
+                let listingsFailed = 0;
+
+                if (forSaleItems.length > 0 && isSignedIn) {
+                  for (const item of forSaleItems) {
+                    try {
+                      const response = await fetch("/api/auctions", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          comicId: item.id,
+                          comicData: item,
+                          listingType: "fixed_price",
+                          price: item.askingPrice,
+                          shippingCost: 5, // Default shipping cost
+                          description: item.notes || "",
+                          acceptsOffers: false,
+                        }),
+                      });
+
+                      if (response.ok) {
+                        listingsCreated++;
+                      } else {
+                        listingsFailed++;
+                        const errorData = await response.json().catch(() => ({}));
+                        console.error(
+                          `Failed to create listing for ${item.comic.title} #${item.comic.issueNumber}:`,
+                          errorData
+                        );
+                      }
+                    } catch (error) {
+                      listingsFailed++;
+                      console.error(
+                        `Error creating listing for ${item.comic.title} #${item.comic.issueNumber}:`,
+                        error
+                      );
+                    }
+                  }
+                }
+
+                let message = `Successfully imported ${items.length} comics!`;
+                if (listingsCreated > 0 && listingsFailed === 0) {
+                  message = `Imported ${items.length} comics and created ${listingsCreated} shop listings!`;
+                } else if (listingsCreated > 0 && listingsFailed > 0) {
+                  message = `Imported ${items.length} comics. Created ${listingsCreated} listings (${listingsFailed} failed).`;
+                } else if (forSaleItems.length > 0 && listingsCreated === 0) {
+                  message = `Imported ${items.length} comics. Shop listings could not be created - check console for details.`;
+                }
+                showToast(message, "success");
                 setShowCSVImport(false);
                 router.push("/collection");
               }}

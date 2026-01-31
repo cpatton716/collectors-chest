@@ -98,7 +98,10 @@ export async function getUserComics(profileId: string): Promise<CollectionItem[]
 }
 
 export async function addComic(profileId: string, item: CollectionItem) {
-  const dbComic = transformCollectionItemToDbComic(item, profileId);
+  const dbComic = {
+    id: item.id, // Preserve the client-generated ID for consistency with listings
+    ...transformCollectionItemToDbComic(item, profileId),
+  };
 
   const { data, error } = await supabase.from("comics").insert(dbComic).select().single();
 
@@ -593,6 +596,8 @@ function transformDbComicToCollectionItem(dbComic: Record<string, unknown>): Col
     dateAdded: dbComic.date_added as string,
     listIds: ((dbComic.comic_lists as { list_id: string }[]) || []).map((cl) => cl.list_id),
     isStarred: dbComic.is_starred as boolean,
+    customKeyInfo: (dbComic.custom_key_info as string[]) || [],
+    customKeyInfoStatus: dbComic.custom_key_info_status as "pending" | "approved" | "rejected" | null,
   };
 }
 
@@ -632,6 +637,8 @@ function transformCollectionItemToDbComic(item: CollectionItem, profileId: strin
     average_price: item.averagePrice,
     date_added: item.dateAdded,
     is_starred: item.isStarred,
+    custom_key_info: item.customKeyInfo || [],
+    custom_key_info_status: item.customKeyInfoStatus,
   };
 }
 
@@ -661,10 +668,11 @@ export interface PublicCollectionStats {
 
 /**
  * Get a public profile by slug or user ID
+ * Uses supabaseAdmin to bypass RLS for anonymous public access
  */
 export async function getPublicProfile(slugOrId: string): Promise<PublicProfile | null> {
   // Try by slug first, then by ID
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from("profiles")
     .select("*")
     .or(`public_slug.eq.${slugOrId},id.eq.${slugOrId}`)
@@ -688,9 +696,10 @@ export async function getPublicProfile(slugOrId: string): Promise<PublicProfile 
 
 /**
  * Get comics for a public profile (read-only)
+ * Uses supabaseAdmin to bypass RLS for anonymous public access
  */
 export async function getPublicComics(profileId: string): Promise<CollectionItem[]> {
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from("comics")
     .select(
       `
@@ -708,9 +717,10 @@ export async function getPublicComics(profileId: string): Promise<CollectionItem
 
 /**
  * Get lists for a public profile (only shared lists)
+ * Uses supabaseAdmin to bypass RLS for anonymous public access
  */
 export async function getPublicLists(profileId: string): Promise<UserList[]> {
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from("lists")
     .select("*")
     .eq("user_id", profileId)

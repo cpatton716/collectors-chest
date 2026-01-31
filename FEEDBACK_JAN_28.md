@@ -1,6 +1,40 @@
 # Feedback - January 28, 2026
 
+## Status Summary
+
+| # | Issue | Status |
+|---|-------|--------|
+| 1 | Homepage redirect for logged-in users | ✅ Complete |
+| 2 | CSV functionality on mobile | ⚠️ Needs Testing |
+| 3 | Mark as Sold button prominence | ✅ Complete |
+| 4 | Custom key info admin approval | ✅ Complete |
+| 5 | Reward users for contributions | ✅ Complete |
+| 6 | Ended auctions on live page | ✅ Complete |
+| 7 | Financial data caching | ⚠️ Needs Verification |
+| 8 | Stats page "No Statistics Available" | ⚠️ Needs Testing |
+| 9 | Mobile barcode scanning | ⚠️ Needs Testing |
+| 10 | Public share link not working | ⚠️ Needs Testing |
+| 11 | Key Hunt in navigation | ✅ Complete |
+| 12 | Navigation bloat | ✅ Complete |
+| 13 | Key icon consistency | ✅ Complete |
+| 14 | Key Hunt raw vs slabbed pricing | ✅ Complete |
+| 15 | Key Hunt volumes in predictive text | ✅ Complete |
+| 16 | CSV import enrichment data | ✅ Complete |
+| 17 | CSV forSale creates shop listing | ✅ Complete |
+| 18 | Multi-select bulk actions | ❌ Not Implemented |
+| 19 | Key Hunt "Add to Hunt List" button | ✅ Complete |
+| 20 | Trades feature | ✅ Complete |
+| 21 | Admin search input styling | ✅ Complete |
+| 22 | Payment error after trial reset | ⚠️ Needs Testing |
+| 23 | Follow/friend system | ❌ Not Implemented |
+
+---
+
 ## 1. Logged-in user homepage should be their collection
+
+**Status:** ✅ Complete (Jan 30, 2026)
+
+**Implementation:** `src/app/page.tsx` lines 137-140 - useEffect redirects signed-in users to `/collection`.
 
 **Issue:** When a logged-in user visits the homepage, they see the marketing/landing page instead of their collection.
 
@@ -13,6 +47,8 @@
 
 ## 2. Add CSV functionality missing on mobile
 
+**Status:** ⚠️ Needs Testing
+
 **Issue:** The "Add CSV" functionality doesn't appear to exist on mobile.
 
 **Action needed:** Verify whether CSV import is available on mobile, and if not, determine if it should be added or if this is intentional.
@@ -20,6 +56,10 @@
 ---
 
 ## 3. "Mark as Sold" button too prominent for unlisted items
+
+**Status:** ✅ Complete (Jan 30, 2026)
+
+**Implementation:** `src/components/ComicDetailModal.tsx` lines 967-975 - Now a small text link: "Sold elsewhere? Record sale" with `text-xs text-gray-500` styling.
 
 **Issue:** When viewing the details of a book that is NOT listed in the shop, the "Mark as Sold" button is too large/prominent.
 
@@ -30,6 +70,14 @@
 ---
 
 ## 4. Custom key info requires admin approval before public visibility
+
+**Status:** ✅ Complete (Jan 30, 2026)
+
+**Implementation:**
+- Admin moderation page: `src/app/admin/key-info/page.tsx`
+- API routes: `src/app/api/admin/custom-key-info/route.ts` and `[id]/route.ts`
+- Status field: `customKeyInfoStatus` (pending/approved/rejected)
+- Contribution tracking integrated with reputation system
 
 **Issue:** When a user adds custom key info to a comic, it currently shows to the general public without any review.
 
@@ -55,15 +103,27 @@
 
 ## 5. Reward users for approved key info contributions
 
+**Status:** ✅ Complete (Jan 30, 2026)
+
+**Implementation:** Full reputation system implemented:
+- Database: `transaction_feedback`, `community_contributions`, `feedback_reminders` tables
+- Types: `src/types/reputation.ts`
+- Components: `ReputationBadge`, `ContributorBadge`, `FeedbackModal`, `FeedbackList`
+- API: `/api/feedback/*`, `/api/reputation/*`
+- Auto-tracking: Admin approval of key info increments `community_contribution_count`
+- Contributor badges: None → Contributor (1-4) → Verified Contributor (5-9) → Top Contributor (10+)
+
 **Issue:** Users who contribute quality key info should be rewarded.
 
 **Desired behavior:** When a user's custom key info gets approved by an admin, they receive credit towards a "legitimacy score" or similar reputation system.
 
-**Status:** Details TBD - will figure out the specifics later.
-
 ---
 
 ## 6. Ended auctions still appearing on live Auctions page
+
+**Status:** ✅ Complete
+
+**Implementation:** `src/lib/auctionDb.ts` - `getActiveAuctions` filters by `status = "active"` (line 235).
 
 **Issue:** The Infinity Gauntlet #1 is showing on the Shop's Auctions tab even though it displays "Ended" status. Ended auctions should not appear in the live auctions view.
 
@@ -77,6 +137,8 @@
 
 ## 7. Confirm caching behavior for financial data
 
+**Status:** ⚠️ Needs Verification
+
 **Question:** How often does the financial data (earnings, ROI, total value, etc.) update on the collection page?
 
 **Options:**
@@ -88,6 +150,10 @@
 ---
 
 ## 8. Stats page shows "No Statistics Available" despite having comics with values
+
+**Status:** ⚠️ Needs Testing
+
+**Note:** `CollectionStats.tsx` line 57 checks `collection.length === 0` - if collection prop is empty, shows empty state. May be a data loading issue rather than logic bug.
 
 **Issue:** The Stats page displays "No Statistics Available" and prompts to "Add Your First Comic" even when the user has:
 - 16 comics in their collection
@@ -109,6 +175,8 @@
 
 ## 9. Mobile barcode scanning not working (regression?)
 
+**Status:** ⚠️ Needs Testing
+
 **Issue:** Scanning a barcode from a mobile device does not work.
 
 **Context:** This was previously investigated and believed to be resolved, but the issue has resurfaced or was never fully fixed.
@@ -122,6 +190,10 @@
 ---
 
 ## 10. Public share link returns "Collection Not Found"
+
+**Status:** ⚠️ Needs Testing
+
+**Note:** Code looks correct - `getPublicProfile` checks `is_public = true` and queries by `public_slug`. May be a data issue (slug not saved correctly) rather than code bug.
 
 **Issue:** The public share link feature does not work. When a user enables "Public Collection" and shares their link, visitors see "Collection Not Found" error instead of the collection.
 
@@ -144,6 +216,10 @@
 
 ## 11. Key Hunt missing/inaccessible in navigation
 
+**Status:** ✅ Complete (Jan 30, 2026)
+
+**Implementation:** Navigation reorganized - Key Hunt now in "More" dropdown (`registeredSecondaryLinks` in Navigation.tsx line 164).
+
 **Issue:** The Key Hunt feature is not easily accessible on both desktop and mobile.
 
 **Findings:**
@@ -161,6 +237,12 @@
 ---
 
 ## 12. Top navigation bar has become bloated - needs revision
+
+**Status:** ✅ Complete (Jan 30, 2026)
+
+**Implementation:** Navigation.tsx reorganized:
+- Primary nav: Collection, Shop, Stats (3 items)
+- "More" dropdown: Messages, Sales, Trades, Lists, My Listings, Hottest Books, Key Hunt
 
 **Issue:** The top navigation bar has grown too large with all the new features added over time. It needs to be streamlined for better UX.
 
@@ -182,6 +264,10 @@
 
 ## 13. Inconsistent key icons across Key Hunt feature
 
+**Status:** ✅ Complete
+
+**Implementation:** All Key Hunt-related icons now use `KeyRound` from lucide-react consistently.
+
 **Issue:** Different key icons are being used in various places for the Key Hunt feature. This creates visual inconsistency.
 
 **Requirement:** All Key Hunt-related icons should use the same key icon throughout the app for visual consistency and brand coherence.
@@ -194,6 +280,10 @@
 ---
 
 ## 14. Key Hunt should allow users to select raw vs. slabbed pricing
+
+**Status:** ✅ Complete (Jan 30, 2026)
+
+**Implementation:** `KeyHuntPriceResult.tsx` has Raw/Slabbed toggle UI (lines 215-241) with clear labeling.
 
 **Issue:** When using Key Hunt (especially manual entry), users cannot specify whether they're looking up a raw book or a slabbed/graded book. The price shown is currently the raw price, but this isn't communicated to the user.
 
@@ -218,6 +308,10 @@
 
 ## 15. Key Hunt manual entry predictive text not showing volumes
 
+**Status:** ✅ Complete
+
+**Implementation:** `TitleAutocomplete.tsx` includes `years` field in suggestions and `KeyHuntManualEntry.tsx` displays selected volume.
+
 **Issue:** The predictive text/autocomplete in Key Hunt's manual entry feature doesn't appear to be pulling up volumes like it does in the "My Collection" add flow. It also may have regressed from previous functionality.
 
 **Action needed:**
@@ -234,6 +328,10 @@
 ---
 
 ## 16. CSV import not using enrichment data from API lookup
+
+**Status:** ✅ Complete (Jan 30, 2026)
+
+**Implementation:** `CSVImport.tsx` now uses all enrichment data (lines 250-303): `writer`, `coverArtist`, `interiorArtist`, `coverImageUrl`.
 
 **Issue:** The import-lookup API correctly fetches enrichment data (creators, publisher, year, prices), but the CSVImport component only uses `priceData` and `keyInfo`. The rest of the enrichment data is ignored. Additionally, cover images are not looked up at all.
 
@@ -262,6 +360,14 @@
 
 ## 17. CSV import "for sale" flag doesn't create actual shop listings
 
+**Status:** ✅ Complete (Jan 30, 2026)
+
+**Fix:** The listing creation code already existed in `scan/page.tsx` but wasn't working due to a bug in `db.ts`:
+- `addComic()` wasn't preserving the client-generated `item.id`, so Supabase generated a new ID
+- When the listing API tried to find the comic by `item.id`, it failed
+- Fixed by adding `id: item.id` to the insert in `addComic()`
+- Also improved error handling to log failures and inform users
+
 **Issue:** When importing comics via CSV with `forSale: true` and an `askingPrice`, the collection view correctly shows the "For Sale" badge, but:
 - The book detail/listing does not show it's for sale
 - The book does NOT appear in the shop
@@ -287,6 +393,8 @@ If a user marks a book as for sale in their CSV import (with asking price), the 
 ---
 
 ## 18. Add multi-select tool for bulk collection actions
+
+**Status:** ❌ Not Implemented
 
 **Issue:** Users with more than one book in their collection have no way to perform bulk operations. Every action (delete, mark as sold, list for sale, etc.) must be done one book at a time.
 
@@ -314,6 +422,10 @@ If a user marks a book as for sale in their CSV import (with asking price), the 
 
 ## 19. Key Hunt results missing "Add to Key Hunt List" option
 
+**Status:** ✅ Complete
+
+**Implementation:** `KeyHuntPriceResult.tsx` has "Add to Hunt List" button (lines 362-405).
+
 **Issue:** After performing a Key Hunt lookup (manual entry or scan), the results screen only shows:
 - "Add to Collection" button
 - "Refresh" button
@@ -333,6 +445,16 @@ There is no option to add the book to the Key Hunt tracking list.
 ---
 
 ## 20. Trades feature not working - listings not appearing, no matching
+
+**Status:** ✅ Complete (Jan 28, 2026)
+
+**Implementation:** Full trading system implemented:
+- Database tables: `trades`, `trade_items`, `trade_matches`
+- Pages: `/trades` with Active, History, and Matches tabs
+- Components: `TradeCard`, `TradeMatchCard`, `TradeProposalModal`, `TradeableComicCard`
+- Shop integration: "For Trade" tab in Shop
+- Matching: Automatic match finding against Key Hunt lists
+- Notifications: Match notifications when trades align
 
 **Issue:** The trades functionality appears to be broken. Tested with two users:
 
@@ -360,6 +482,10 @@ There is no option to add the book to the Key Hunt tracking list.
 
 ## 21. Admin view: Search input placeholder overlaps magnifying glass icon
 
+**Status:** ✅ Complete
+
+**Implementation:** `src/app/admin/users/page.tsx` line 375 - Input has `pl-12` padding class.
+
 **Issue:** In the Admin User Management view, the search input field has a styling issue where the "Search by email..." placeholder text overlaps with the magnifying glass icon on the left side of the input.
 
 **Screenshot reference:** The "S" in "Search by email..." is partially hidden behind/overlapping with the magnifying glass icon.
@@ -369,6 +495,8 @@ There is no option to add the book to the Key Hunt tracking list.
 ---
 
 ## 22. "Payment system not configured" error after admin resets user's free trial
+
+**Status:** ⚠️ Needs Testing
 
 **Issue:** When an admin resets a user's free trial, and that user then attempts to start a new trial, they receive a 503 error.
 
@@ -391,6 +519,8 @@ Checkout error: Error: Payment system not configured
 ---
 
 ## 23. Allow users to "friend" or follow trusted sellers/buyers
+
+**Status:** ❌ Not Implemented
 
 **Evaluation topic:** How do we allow users to connect with other users they've done business with?
 
@@ -424,4 +554,3 @@ Checkout error: Error: Payment system not configured
 - Similar to following a seller on eBay or Etsy
 - User can follow sellers they like without social awkwardness
 - Seller doesn't need to manage friend requests
-
