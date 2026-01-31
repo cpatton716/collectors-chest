@@ -5,6 +5,7 @@ import { auth } from "@clerk/nextjs/server";
 import { isUserSuspended } from "@/lib/adminAuth";
 import { createAuction, createFixedPriceListing, getActiveAuctions } from "@/lib/auctionDb";
 import { ensureComicInSupabase, getProfileByClerkId } from "@/lib/db";
+import { getFollowingIds } from "@/lib/followDb";
 
 import {
   AuctionFilters,
@@ -60,7 +61,23 @@ export async function GET(request: NextRequest) {
     const limit = Number(searchParams.get("limit")) || 50;
     const offset = Number(searchParams.get("offset")) || 0;
 
-    const { auctions, total } = await getActiveAuctions(filters, sortBy, limit, offset);
+    // Parse followingOnly filter
+    const followingOnly = searchParams.get("followingOnly") === "true";
+    let followedSellerIds: string[] | undefined;
+
+    if (followingOnly) {
+      const { userId } = await auth();
+      if (userId) {
+        const profile = await getProfileByClerkId(userId);
+        if (profile) {
+          followedSellerIds = await getFollowingIds(profile.id);
+        }
+      }
+      // If user is not logged in or no profile, followedSellerIds stays undefined
+      // and getActiveAuctions will return all auctions (graceful degradation)
+    }
+
+    const { auctions, total } = await getActiveAuctions(filters, sortBy, limit, offset, followedSellerIds);
 
     return NextResponse.json({
       auctions,

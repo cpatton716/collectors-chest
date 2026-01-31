@@ -212,12 +212,14 @@ export async function getAuction(auctionId: string, userId?: string): Promise<Au
 
 /**
  * Get active auctions with filters and sorting
+ * @param followedSellerIds - Optional array of seller IDs to filter by (for "following only" mode)
  */
 export async function getActiveAuctions(
   filters: AuctionFilters = {},
   sortBy: AuctionSortBy = "ending_soonest",
   limit = 50,
-  offset = 0
+  offset = 0,
+  followedSellerIds?: string[]
 ): Promise<{ auctions: Auction[]; total: number }> {
   let query = supabase.from("auctions").select(
     `
@@ -238,6 +240,14 @@ export async function getActiveAuctions(
     if (filters.listingType === "auction") {
       query = query.gt("end_time", new Date().toISOString());
     }
+  }
+
+  // Filter by followed sellers if provided
+  if (followedSellerIds && followedSellerIds.length > 0) {
+    query = query.in("seller_id", followedSellerIds);
+  } else if (followedSellerIds && followedSellerIds.length === 0) {
+    // User follows no one, return empty result
+    return { auctions: [], total: 0 };
   }
 
   // Apply filters
