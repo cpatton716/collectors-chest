@@ -16,7 +16,7 @@ import {
   CreditCard,
   Crown,
   ExternalLink,
-  Key,
+  KeyRound,
   Link as LinkIcon,
   Loader2,
   LogOut,
@@ -35,6 +35,8 @@ import { useDebounce } from "@/hooks/useDebounce";
 import { useSubscription } from "@/hooks/useSubscription";
 
 import { LocationPrivacy, UserLocation } from "@/app/api/location/route";
+import { ContributorBadge, FeedbackList, FeedbackSummary, ReputationBadge } from "@/components/reputation";
+import { TransactionFeedback, UserReputation } from "@/types/reputation";
 
 // Tab types
 type TabId = "profile" | "security" | "billing";
@@ -98,6 +100,11 @@ export function CustomProfilePage() {
   const [isSavingLocation, setIsSavingLocation] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [locationSuccess, setLocationSuccess] = useState(false);
+
+  // Reputation state
+  const [reputation, setReputation] = useState<UserReputation | null>(null);
+  const [recentFeedback, setRecentFeedback] = useState<TransactionFeedback[]>([]);
+  const [isLoadingReputation, setIsLoadingReputation] = useState(false);
 
   // Sessions state
   const [sessions, setSessions] = useState<
@@ -176,6 +183,27 @@ export function CustomProfilePage() {
     }
     fetchLocation();
   }, []);
+
+  // Fetch reputation on mount
+  useEffect(() => {
+    async function fetchReputation() {
+      if (!user?.id) return;
+      setIsLoadingReputation(true);
+      try {
+        const res = await fetch(`/api/reputation?includeFeedback=true&feedbackLimit=5`);
+        if (res.ok) {
+          const data = await res.json();
+          setReputation(data.reputation);
+          setRecentFeedback(data.recentFeedback || []);
+        }
+      } catch (error) {
+        console.error("Failed to fetch reputation:", error);
+      } finally {
+        setIsLoadingReputation(false);
+      }
+    }
+    fetchReputation();
+  }, [user?.id]);
 
   // Check username availability
   useEffect(() => {
@@ -807,6 +835,62 @@ export function CustomProfilePage() {
                   </>
                 )}
               </div>
+
+              {/* Reputation Section */}
+              <div className="border-t border-gray-100 pt-8">
+                <h3 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                  <Shield className="w-4 h-4" />
+                  Reputation & Feedback
+                </h3>
+                <p className="text-xs text-gray-500 mb-4">
+                  Your transaction trust score and community contributions
+                </p>
+
+                {isLoadingReputation ? (
+                  <div className="flex items-center gap-2 text-gray-400">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span className="text-sm">Loading reputation...</span>
+                  </div>
+                ) : reputation ? (
+                  <div className="space-y-6">
+                    {/* Transaction Trust */}
+                    <div>
+                      <p className="text-sm font-medium text-gray-700 mb-2">Transaction Trust</p>
+                      <ReputationBadge trust={reputation.transactionTrust} size="lg" />
+                      {reputation.transactionTrust.totalCount > 0 && (
+                        <div className="mt-3">
+                          <FeedbackSummary
+                            positiveCount={reputation.transactionTrust.positiveCount}
+                            negativeCount={reputation.transactionTrust.negativeCount}
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Community Contributor Badge */}
+                    {reputation.communityBadge.tier !== "none" && (
+                      <div>
+                        <p className="text-sm font-medium text-gray-700 mb-2">Community Status</p>
+                        <ContributorBadge badge={reputation.communityBadge} size="lg" />
+                        <p className="mt-1 text-xs text-gray-500">
+                          {reputation.communityBadge.count} approved contribution
+                          {reputation.communityBadge.count !== 1 ? "s" : ""}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Recent Feedback */}
+                    {recentFeedback.length > 0 && (
+                      <div>
+                        <p className="text-sm font-medium text-gray-700 mb-2">Recent Feedback</p>
+                        <FeedbackList feedback={recentFeedback} />
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500">No reputation data available</p>
+                )}
+              </div>
             </div>
           )}
 
@@ -816,7 +900,7 @@ export function CustomProfilePage() {
               {/* Password Section */}
               <div>
                 <h3 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                  <Key className="w-4 h-4" />
+                  <KeyRound className="w-4 h-4" />
                   Password
                 </h3>
                 <p className="text-xs text-gray-500 mb-4">
@@ -826,7 +910,7 @@ export function CustomProfilePage() {
                   onClick={() => openUserProfile()}
                   className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2"
                 >
-                  <Key className="w-4 h-4" />
+                  <KeyRound className="w-4 h-4" />
                   Change Password
                 </button>
               </div>
