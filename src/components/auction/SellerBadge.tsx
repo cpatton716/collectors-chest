@@ -2,6 +2,7 @@
 
 import { Shield, Skull, User } from "lucide-react";
 
+import { FollowButton } from "@/components/follows";
 import { ContributorIcon } from "@/components/reputation";
 import { SellerProfile } from "@/types/auction";
 import { calculateContributorBadge } from "@/types/reputation";
@@ -16,6 +17,7 @@ interface SellerBadgeProps {
   showMessageButton?: boolean;
   listingId?: string;
   isSeller?: boolean;
+  currentUserId?: string | null;
 }
 
 /**
@@ -52,6 +54,7 @@ export function SellerBadge({
   showMessageButton = false,
   listingId,
   isSeller = false,
+  currentUserId,
 }: SellerBadgeProps) {
   const { reputation, positivePercentage, totalRatings } = seller;
   const name = getSellerDisplayName(seller);
@@ -122,6 +125,10 @@ export function SellerBadge({
           <span className={`${styles.textColor} opacity-75`}>({positivePercentage}%)</span>
         )}
       </div>
+      {/* Follow button - only show when viewing another user's badge */}
+      {currentUserId && seller.id && seller.id !== currentUserId && (
+        <FollowButton userId={seller.id} size="sm" />
+      )}
       {showMessageButton && !isSeller && seller.id && (
         <MessageButton
           sellerId={seller.id}
