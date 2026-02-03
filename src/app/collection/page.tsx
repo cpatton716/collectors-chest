@@ -757,15 +757,15 @@ export default function CollectionPage() {
             </button>
 
             {/* List Filter */}
-            <div className="flex items-center gap-1.5">
-              <label className="text-sm font-medium text-gray-600 hidden md:flex items-center gap-1">
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-comic text-pop-black hidden md:flex items-center gap-1">
                 <ListFilter className="w-4 h-4" />
                 List:
               </label>
               <select
                 value={selectedList}
                 onChange={(e) => setSelectedList(e.target.value)}
-                className="px-2.5 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white text-sm text-gray-900"
+                className="px-3 py-1.5 border-2 border-pop-black bg-pop-white text-sm font-comic text-pop-black focus:outline-none hover:shadow-[2px_2px_0px_#000] transition-all cursor-pointer"
               >
                 {lists.map((list) => (
                   <option key={list.id} value={list.id}>
@@ -776,15 +776,15 @@ export default function CollectionPage() {
             </div>
 
             {/* Publisher Filter */}
-            <div className="flex items-center gap-1.5">
-              <label className="text-sm font-medium text-gray-600 hidden md:flex items-center gap-1">
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-comic text-pop-black hidden md:flex items-center gap-1">
                 <Building className="w-4 h-4" />
                 Publisher:
               </label>
               <select
                 value={publisherFilter}
                 onChange={(e) => setPublisherFilter(e.target.value)}
-                className="px-2.5 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white text-sm text-gray-900"
+                className="px-3 py-1.5 border-2 border-pop-black bg-pop-white text-sm font-comic text-pop-black focus:outline-none hover:shadow-[2px_2px_0px_#000] transition-all cursor-pointer"
               >
                 <option value="all">All Publishers</option>
                 {uniquePublishers.map((publisher) => (
@@ -796,15 +796,15 @@ export default function CollectionPage() {
             </div>
 
             {/* Title Filter */}
-            <div className="flex items-center gap-1.5">
-              <label className="text-sm font-medium text-gray-600 hidden md:flex items-center gap-1">
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-comic text-pop-black hidden md:flex items-center gap-1">
                 <Book className="w-4 h-4" />
                 Title:
               </label>
               <select
                 value={titleFilter}
                 onChange={(e) => setTitleFilter(e.target.value)}
-                className="px-2.5 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white text-sm text-gray-900"
+                className="px-3 py-1.5 border-2 border-pop-black bg-pop-white text-sm font-comic text-pop-black focus:outline-none hover:shadow-[2px_2px_0px_#000] transition-all cursor-pointer"
               >
                 <option value="all">All Titles</option>
                 {uniqueTitles.map((title) => (
@@ -816,15 +816,15 @@ export default function CollectionPage() {
             </div>
 
             {/* Sort */}
-            <div className="flex items-center gap-1.5 ml-auto">
-              <label className="text-sm font-medium text-gray-600 flex items-center gap-1">
+            <div className="flex items-center gap-2 ml-auto">
+              <label className="text-sm font-comic text-pop-black flex items-center gap-1">
                 <SortAsc className="w-4 h-4" />
                 Sort:
               </label>
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as SortOption)}
-                className="px-2.5 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white text-sm text-gray-900"
+                className="px-3 py-1.5 border-2 border-pop-black bg-pop-white text-sm font-comic text-pop-black focus:outline-none hover:shadow-[2px_2px_0px_#000] transition-all cursor-pointer"
               >
                 <option value="date">Date Added</option>
                 <option value="title">Title</option>
@@ -837,7 +837,7 @@ export default function CollectionPage() {
             <FeatureButton
               feature="csvExport"
               onClick={handleExportCSV}
-              className="flex items-center gap-1.5 px-2.5 py-2 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 hover:text-gray-700 transition-colors text-sm"
+              className="flex items-center gap-2 px-3 py-1.5 border-2 border-pop-black bg-pop-white text-pop-black/60 font-comic text-sm hover:shadow-[2px_2px_0px_#000] transition-all"
             >
               <Download className="w-4 h-4" />
               <span className="hidden sm:inline">Export CSV</span>
