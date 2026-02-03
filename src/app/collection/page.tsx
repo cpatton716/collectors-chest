@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { useRouter } from "next/navigation";
 
@@ -47,7 +47,7 @@ import { ComicCard } from "@/components/ComicCard";
 import { ComicDetailModal } from "@/components/ComicDetailModal";
 import { ComicDetailsForm } from "@/components/ComicDetailsForm";
 import { ComicImage } from "@/components/ComicImage";
-import { ComicListItem } from "@/components/ComicListItem";
+import { ComicListItem as _ComicListItem } from "@/components/ComicListItem";
 import { FeatureButton } from "@/components/FeatureGate";
 import { ShareCollectionModal } from "@/components/ShareCollectionModal";
 import { CollectionPageSkeleton } from "@/components/Skeleton";
@@ -61,25 +61,25 @@ type FilterOption = "all" | string;
 
 export default function CollectionPage() {
   const router = useRouter();
-  const { isSignedIn, isLoaded: authLoaded } = useUser();
+  const { isSignedIn: _isSignedIn, isLoaded: authLoaded } = useUser();
   const { showToast } = useToast();
-  const { features } = useSubscription();
+  const { features: _features } = useSubscription();
 
   // Use the collection hook for cloud sync
   const {
     collection,
     lists,
-    sales,
+    sales: _sales,
     isLoading: collectionLoading,
-    isCloudEnabled,
-    addToCollection,
+    isCloudEnabled: _isCloudEnabled,
+    addToCollection: _addToCollection,
     updateCollectionItem: updateItem,
     removeFromCollection,
     createList: createNewList,
     addItemToList,
     removeItemFromList,
     recordSale,
-    getCollectionStats,
+    getCollectionStats: _getCollectionStats,
     getSalesStats,
     refresh,
   } = useCollection();
@@ -101,7 +101,7 @@ export default function CollectionPage() {
     isSelectionMode,
     selectedIds,
     selectionCount,
-    hasSelection,
+    hasSelection: _hasSelection,
     checkIsAllSelected,
     enterSelectionMode,
     exitSelectionMode,
@@ -201,7 +201,7 @@ export default function CollectionPage() {
     forSale: filteredCollection.filter((item) => item.forSale).length,
   };
   const profitLoss = stats.totalValue - stats.totalCost;
-  const profitLossPercent = stats.totalCost > 0 ? (profitLoss / stats.totalCost) * 100 : 0;
+  const _profitLossPercent = stats.totalCost > 0 ? (profitLoss / stats.totalCost) * 100 : 0;
 
   // Get selected items
   const selectedItems = filteredCollection.filter((item) => selectedIds.has(item.id));
