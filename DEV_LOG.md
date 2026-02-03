@@ -6,24 +6,31 @@ This log tracks session-by-session progress on Collectors Chest.
 
 ## Changes Since Last Deploy
 
-**Sessions since last deploy:** 2
-**Deploy Readiness:** Ready - Bulk actions + pricing page improvements
+**Sessions since last deploy:** 0
+**Deploy Readiness:** Just deployed
 
+(No changes yet)
+
+---
+
+## Deploy Log
+
+### February 2, 2026
+**Summary:** Follow system, bulk actions, pricing page UX, bug fixes
+
+Key items deployed:
 - Follow system: one-way follows (like eBay/Etsy seller follows)
 - Follow/unfollow API endpoints with RLS policies
 - FollowButton, FollowerCount, FollowListModal components
 - "From people I follow" filter on Shop page
 - Follower notifications (in-app + email) when followed users list items
+- Bulk Actions (multi-select): selection toolbar, bulk delete/update/add-to-list
+- Pricing page: blue Premium card, green CTAs, readable FAQ title
 - Fixed CSV import listing creation bug (#17)
-- Added 13 unit tests for follow system
-- **Bulk Actions (multi-select):** Selection toolbar, bulk delete/update/add-to-list
-- **Pricing page improvements:** Blue Premium card, green CTAs, readable FAQ title
-- **Bug fix:** `/api/trades/available` 500 error (wrong column name)
-- Updated test count to 198 tests
+- Fixed /api/trades/available 500 error (wrong column name)
+- 198 total tests
 
 ---
-
-## Deploy Log
 
 ### January 29, 2026
 **Summary:** Major feature deploy - messaging, trading, location, shop improvements
