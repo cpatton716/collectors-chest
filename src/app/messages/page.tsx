@@ -101,8 +101,10 @@ function MessagesContent() {
       <div className="border-b-4 border-pop-black bg-pop-white">
         <div className="mx-auto max-w-6xl px-4 py-4">
           <div className="flex items-center gap-3">
-            <MessageSquare className="h-6 w-6" />
-            <h1 className="text-2xl font-black">Messages</h1>
+            <div className="p-2 bg-pop-blue border-2 border-pop-black">
+              <MessageSquare className="h-5 w-5 text-pop-white" />
+            </div>
+            <h1 className="text-2xl font-comic text-pop-black">MESSAGES</h1>
           </div>
         </div>
       </div>

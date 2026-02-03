@@ -40,40 +40,51 @@ export default function PricingPage() {
   const showTrialCTA = !isGuest && tier === "free" && trialAvailable && !isTrialing;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white py-12 px-4">
+    <div className="min-h-screen py-12 px-4">
       <div className="max-w-5xl mx-auto">
         {/* Header */}
         <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">Simple, Transparent Pricing</h1>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Start free, upgrade when you need more. No hidden fees.
-          </p>
+          <h1
+            className="font-comic text-4xl md:text-5xl text-pop-yellow tracking-wide mb-4"
+            style={{
+              WebkitTextStroke: "2px black",
+              paintOrder: "stroke fill",
+              textShadow: "3px 3px 0px #000",
+            }}
+          >
+            SIMPLE PRICING!
+          </h1>
+          <div className="speech-bubble max-w-xl mx-auto">
+            <p className="text-lg font-body text-pop-black">
+              Start free, upgrade when you need more. No hidden fees!
+            </p>
+          </div>
         </div>
 
         {/* Billing Toggle */}
         <div className="flex justify-center mb-8">
-          <div className="bg-gray-100 p-1 rounded-lg inline-flex">
+          <div className="bg-pop-white border-3 border-pop-black p-1 inline-flex shadow-[3px_3px_0px_#000]">
             <button
               onClick={() => setBillingInterval("monthly")}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              className={`px-4 py-2 font-comic text-sm transition-all border-2 border-pop-black ${
                 billingInterval === "monthly"
-                  ? "bg-white text-gray-900 shadow-sm"
-                  : "text-gray-600 hover:text-gray-900"
+                  ? "bg-pop-blue text-pop-white shadow-[2px_2px_0px_#000]"
+                  : "bg-pop-white text-pop-black hover:bg-pop-cream"
               }`}
             >
-              Monthly
+              MONTHLY
             </button>
             <button
               onClick={() => setBillingInterval("annual")}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              className={`px-4 py-2 font-comic text-sm transition-all border-2 border-pop-black flex items-center gap-2 ${
                 billingInterval === "annual"
-                  ? "bg-white text-gray-900 shadow-sm"
-                  : "text-gray-600 hover:text-gray-900"
+                  ? "bg-pop-blue text-pop-white shadow-[2px_2px_0px_#000]"
+                  : "bg-pop-white text-pop-black hover:bg-pop-cream"
               }`}
             >
-              Annual
-              <span className="ml-2 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
-                Save {savings}%
+              ANNUAL
+              <span className="text-xs bg-pop-green text-pop-white px-2 py-0.5 border border-pop-black">
+                SAVE {savings}%
               </span>
             </button>
           </div>
@@ -82,35 +93,36 @@ export default function PricingPage() {
         {/* Pricing Cards */}
         <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
           {/* Free Tier */}
-          <div className="bg-white rounded-2xl border border-gray-200 p-8 relative">
+          <div className="bg-pop-white border-4 border-pop-black p-8 shadow-[6px_6px_0px_#000] relative">
             <div className="mb-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Free</h2>
-              <p className="text-gray-600">Perfect for casual collectors</p>
+              <h2 className="text-2xl font-comic text-pop-black mb-2">FREE</h2>
+              <p className="font-body text-pop-black/70">Perfect for casual collectors</p>
             </div>
 
             <div className="mb-6">
-              <span className="text-4xl font-bold text-gray-900">$0</span>
-              <span className="text-gray-600">/month</span>
+              <span className="text-5xl font-comic text-pop-black">$0</span>
+              <span className="font-body text-pop-black/70">/month</span>
             </div>
 
             {isGuest ? (
               <Link
                 href="/sign-up"
-                className="block w-full py-3 px-4 text-center bg-gray-100 text-gray-900 rounded-lg font-medium hover:bg-gray-200 transition-colors"
+                className="block w-full py-3 px-4 text-center bg-pop-cream border-3 border-pop-black font-comic text-pop-black shadow-[3px_3px_0px_#000] hover:shadow-[4px_4px_0px_#000] transition-all"
               >
-                Create Free Account
+                CREATE FREE ACCOUNT
               </Link>
             ) : tier === "free" && !isTrialing ? (
-              <div className="py-3 px-4 text-center bg-gray-100 text-gray-600 rounded-lg font-medium">
-                Current Plan
+              <div className="py-3 px-4 text-center bg-pop-yellow border-3 border-pop-black font-comic text-pop-black">
+                <Check className="w-5 h-5 inline mr-2" />
+                CURRENT PLAN
               </div>
             ) : (
-              <div className="py-3 px-4 text-center bg-gray-50 text-gray-400 rounded-lg font-medium">
-                Free Tier
+              <div className="py-3 px-4 text-center bg-pop-cream border-3 border-pop-black font-comic text-pop-black/50">
+                FREE TIER
               </div>
             )}
 
-            <ul className="mt-8 space-y-4">
+            <ul className="mt-8 space-y-3">
               <FeatureItem included>10 scans per month</FeatureItem>
               <FeatureItem included>Cloud collection sync</FeatureItem>
               <FeatureItem included>Real eBay prices</FeatureItem>
@@ -127,32 +139,32 @@ export default function PricingPage() {
           </div>
 
           {/* Premium Tier */}
-          <div className="bg-gradient-to-br from-indigo-600 to-purple-600 rounded-2xl p-8 relative text-white">
-            <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-              <span className="bg-yellow-400 text-yellow-900 text-xs font-bold px-3 py-1 rounded-full uppercase">
-                Most Popular
+          <div className="bg-pop-blue border-4 border-pop-black p-8 shadow-[6px_6px_0px_#000] relative text-pop-white">
+            <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
+              <span className="bg-pop-yellow text-pop-black text-xs font-comic px-4 py-1 border-2 border-pop-black shadow-[2px_2px_0px_#000]">
+                MOST POPULAR!
               </span>
             </div>
 
             <div className="mb-6">
               <div className="flex items-center gap-2 mb-2">
-                <Crown className="w-6 h-6 text-yellow-400" />
-                <h2 className="text-2xl font-bold">Premium</h2>
+                <Crown className="w-6 h-6 text-pop-yellow" />
+                <h2 className="text-2xl font-comic">PREMIUM</h2>
               </div>
-              <p className="text-indigo-200">For serious collectors</p>
+              <p className="font-body text-pop-white/80">For serious collectors</p>
             </div>
 
             <div className="mb-6">
               {billingInterval === "monthly" ? (
                 <>
-                  <span className="text-4xl font-bold">${monthlyPrice}</span>
-                  <span className="text-indigo-200">/month</span>
+                  <span className="text-5xl font-comic">${monthlyPrice}</span>
+                  <span className="font-body text-pop-white/80">/month</span>
                 </>
               ) : (
                 <>
-                  <span className="text-4xl font-bold">${annualPrice}</span>
-                  <span className="text-indigo-200">/year</span>
-                  <div className="text-sm text-indigo-200 mt-1">
+                  <span className="text-5xl font-comic">${annualPrice}</span>
+                  <span className="font-body text-pop-white/80">/year</span>
+                  <div className="text-sm font-body text-pop-white/70 mt-1">
                     ${annualMonthly}/month billed annually
                   </div>
                 </>
@@ -160,41 +172,41 @@ export default function PricingPage() {
             </div>
 
             {isPremium ? (
-              <div className="py-3 px-4 text-center bg-white/20 text-white rounded-lg font-medium">
+              <div className="py-3 px-4 text-center bg-pop-white/20 border-3 border-pop-black font-comic">
                 <Check className="w-5 h-5 inline mr-2" />
-                Current Plan
+                CURRENT PLAN
               </div>
             ) : isTrialing ? (
               <button
                 onClick={() => handleUpgrade(billingInterval)}
                 disabled={isLoading}
-                className="w-full py-3 px-4 bg-white text-indigo-600 rounded-lg font-medium hover:bg-gray-100 transition-colors disabled:opacity-50"
+                className="w-full py-3 px-4 bg-pop-green text-pop-white border-3 border-pop-black font-comic shadow-[3px_3px_0px_#000] hover:shadow-[4px_4px_0px_#000] transition-all disabled:opacity-50"
               >
-                Subscribe Now
+                SUBSCRIBE NOW
               </button>
             ) : showTrialCTA ? (
               <button
                 onClick={() => handleUpgrade(billingInterval)}
                 disabled={isLoading}
-                className="w-full py-3 px-4 bg-white text-indigo-600 rounded-lg font-medium hover:bg-gray-100 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                className="w-full py-3 px-4 bg-pop-green text-pop-white border-3 border-pop-black font-comic shadow-[3px_3px_0px_#000] hover:shadow-[4px_4px_0px_#000] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 <Sparkles className="w-5 h-5" />
-                Start 7-Day Free Trial
+                START 7-DAY FREE TRIAL!
               </button>
             ) : (
               <button
                 onClick={() => handleUpgrade(billingInterval)}
                 disabled={isLoading}
-                className="w-full py-3 px-4 bg-white text-indigo-600 rounded-lg font-medium hover:bg-gray-100 transition-colors disabled:opacity-50"
+                className="w-full py-3 px-4 bg-pop-green text-pop-white border-3 border-pop-black font-comic shadow-[3px_3px_0px_#000] hover:shadow-[4px_4px_0px_#000] transition-all disabled:opacity-50"
               >
-                {isGuest ? "Sign Up & Subscribe" : "Upgrade to Premium"}
+                {isGuest ? "SIGN UP & SUBSCRIBE" : "UPGRADE TO PREMIUM"}
               </button>
             )}
 
-            <ul className="mt-8 space-y-4">
+            <ul className="mt-8 space-y-3">
               <FeatureItem included premium>
                 <span className="flex items-center gap-2">
-                  <Zap className="w-4 h-4 text-yellow-400" />
+                  <Zap className="w-4 h-4 text-pop-yellow" />
                   Unlimited scans
                 </span>
               </FeatureItem>
@@ -212,26 +224,26 @@ export default function PricingPage() {
               </FeatureItem>
               <FeatureItem included premium>
                 <span className="flex items-center gap-2">
-                  <Zap className="w-4 h-4 text-yellow-400" />
+                  <Zap className="w-4 h-4 text-pop-yellow" />
                   Unlimited listings
                 </span>
               </FeatureItem>
               <FeatureItem included premium>
-                <span className="font-semibold">5% seller fee</span>
-                <span className="text-indigo-200 text-sm ml-1">(save 3%)</span>
+                <span className="font-comic">5% seller fee</span>
+                <span className="text-pop-white/70 text-sm ml-1">(save 3%)</span>
               </FeatureItem>
               <FeatureItem included premium>
                 CSV import & export
               </FeatureItem>
               <FeatureItem included premium>
                 <span className="flex items-center gap-2">
-                  <Zap className="w-4 h-4 text-yellow-400" />
+                  <Zap className="w-4 h-4 text-pop-yellow" />
                   Key Hunt (offline lookup)
                 </span>
               </FeatureItem>
               <FeatureItem included premium>
                 <span className="flex items-center gap-2">
-                  <Zap className="w-4 h-4 text-yellow-400" />
+                  <Zap className="w-4 h-4 text-pop-yellow" />
                   Advanced statistics
                 </span>
               </FeatureItem>
@@ -241,12 +253,12 @@ export default function PricingPage() {
 
         {/* Scan Pack Callout */}
         <div className="mt-12 max-w-2xl mx-auto">
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 text-center">
-            <h3 className="text-lg font-semibold text-amber-900 mb-2">
-              Need more scans without subscribing?
+          <div className="bg-pop-yellow border-4 border-pop-black p-6 text-center shadow-[4px_4px_0px_#000]">
+            <h3 className="text-lg font-comic text-pop-black mb-2">
+              NEED MORE SCANS WITHOUT SUBSCRIBING?
             </h3>
-            <p className="text-amber-700 mb-4">
-              Purchase scan packs for $1.99 (10 scans). Great for occasional use.
+            <p className="font-body text-pop-black/80 mb-4">
+              Purchase scan packs for $1.99 (10 scans). Great for occasional use!
             </p>
             {!isGuest && tier === "free" && (
               <button
@@ -254,9 +266,9 @@ export default function PricingPage() {
                   const url = await startCheckout("scan_pack");
                   if (url) window.location.href = url;
                 }}
-                className="px-4 py-2 bg-amber-600 text-white rounded-lg font-medium hover:bg-amber-700 transition-colors"
+                className="px-6 py-3 bg-pop-green text-pop-white border-3 border-pop-black font-comic shadow-[3px_3px_0px_#000] hover:shadow-[4px_4px_0px_#000] transition-all"
               >
-                Buy Scan Pack - $1.99
+                BUY SCAN PACK - $1.99
               </button>
             )}
           </div>
@@ -264,11 +276,18 @@ export default function PricingPage() {
 
         {/* FAQ */}
         <div className="mt-16 max-w-3xl mx-auto">
-          <h2 className="text-2xl font-bold text-gray-900 text-center mb-8">
-            Frequently Asked Questions
+          <h2
+            className="text-2xl md:text-3xl font-comic text-pop-yellow text-center mb-8"
+            style={{
+              WebkitTextStroke: "2px black",
+              paintOrder: "stroke fill",
+              textShadow: "3px 3px 0px #000",
+            }}
+          >
+            FREQUENTLY ASKED QUESTIONS
           </h2>
 
-          <div className="space-y-6">
+          <div className="space-y-4">
             <FAQ
               question="What happens when my trial ends?"
               answer="After your 7-day trial, you'll be charged for the plan you selected. You can cancel anytime before the trial ends to avoid charges. Any comics you scanned during the trial stay in your collection."
@@ -308,22 +327,40 @@ function FeatureItem({
   return (
     <li className="flex items-start gap-3">
       {included ? (
-        <Check
-          className={`w-5 h-5 flex-shrink-0 ${premium ? "text-green-400" : "text-green-600"}`}
-        />
+        <div
+          className={`w-5 h-5 flex items-center justify-center border-2 border-pop-black flex-shrink-0 ${
+            premium ? "bg-pop-green" : "bg-pop-green"
+          }`}
+        >
+          <Check className="w-3 h-3 text-pop-white" strokeWidth={3} />
+        </div>
       ) : (
-        <X className="w-5 h-5 text-gray-300 flex-shrink-0" />
+        <div className="w-5 h-5 flex items-center justify-center border-2 border-pop-black/30 bg-pop-cream flex-shrink-0">
+          <X className="w-3 h-3 text-pop-black/30" strokeWidth={3} />
+        </div>
       )}
-      <span className={included ? "" : "text-gray-400"}>{children}</span>
+      <span
+        className={`font-body text-sm ${
+          premium
+            ? included
+              ? "text-pop-white"
+              : "text-pop-white/50"
+            : included
+              ? "text-pop-black"
+              : "text-pop-black/40"
+        }`}
+      >
+        {children}
+      </span>
     </li>
   );
 }
 
 function FAQ({ question, answer }: { question: string; answer: string }) {
   return (
-    <div className="bg-white rounded-lg p-6 border border-gray-200">
-      <h3 className="font-semibold text-gray-900 mb-2">{question}</h3>
-      <p className="text-gray-600">{answer}</p>
+    <div className="bg-pop-white border-3 border-pop-black p-6 shadow-[3px_3px_0px_#000]">
+      <h3 className="font-comic text-pop-black mb-2">{question.toUpperCase()}</h3>
+      <p className="font-body text-pop-black/80">{answer}</p>
     </div>
   );
 }

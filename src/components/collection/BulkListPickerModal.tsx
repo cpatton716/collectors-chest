@@ -48,7 +48,7 @@ export function BulkListPickerModal({
       <div className="absolute inset-0 bg-black/50" onClick={onCancel} />
 
       {/* Modal */}
-      <div className="relative bg-pop-white border-4 border-pop-black shadow-[6px_6px_0px_#000] max-w-sm w-full">
+      <div className="relative bg-pop-white border-4 border-pop-black shadow-[6px_6px_0px_#000] max-w-sm md:max-w-lg w-full">
         {/* Header */}
         <div className="bg-pop-blue border-b-4 border-pop-black p-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -66,7 +66,7 @@ export function BulkListPickerModal({
         </div>
 
         {/* Body */}
-        <div className="p-4 max-h-[300px] overflow-y-auto">
+        <div className="p-4 md:p-6 max-h-[300px] md:max-h-[400px] overflow-y-auto">
           {userLists.length === 0 && !isCreating ? (
             <p className="text-pop-black/70 font-body text-center py-4">
               No lists yet. Create one below!

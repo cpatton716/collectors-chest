@@ -1,46 +1,16 @@
-# Claude Code Instructions
+# Comic Tracker - Project-Specific Instructions
 
-## On Session Start
+> These instructions extend the global `~/.claude/CLAUDE.md` file with Comic Tracker-specific details.
 
-These steps run automatically when starting a new conversation, OR can be triggered manually with **"Let's get started"**.
+---
 
-1. Check recent git commits and summarize where we left off last session (1-2 lines)
-2. Show **Priority Action Items from `EVALUATION.md`** - this is the primary guide for what to work on next
-3. Show a summary of the last session by reading the most recent entry in DEV_LOG.md. Include:
-  - What was accomplished
-  - Any issues that were encountered
-  - Where we left off
-4. Ask me if I will be testing on Mobile or Web during this session. This will help guide the changes that need to be made via my test results
+## On Session Start (Additional Step)
 
-## Let's Get Started Command
+In addition to the global session start steps, also:
 
-When the user says **"Let's get started"**, perform all the steps in "On Session Start" above. This is useful for:
-- Starting a new work session
-- Re-orienting after a context reset or long break
-- Getting a fresh status update on the project
+4. **Ask about testing platform** - Ask me if I will be testing on Mobile or Web during this session. This helps guide changes based on my test results.
 
-## Priority Documents
-
-**EVALUATION.md** is the guiding light for development priorities. It takes precedence over BACKLOG.md.
-
-- `EVALUATION.md` - Launch readiness evaluation with prioritized action items (work from this)
-- `BACKLOG.md` - Feature ideas and enhancements to tackle after launch priorities are complete
-
-When asked "what's next?" or similar, always reference EVALUATION.md's Priority Action Items first.
-
-## Backlog Display Format
-
-When displaying the backlog (only when specifically requested), group items by status and priority:
-1. Pending - High Priority
-2. Pending - Medium Priority
-3. Pending - Low Priority
-4. Completed (with dates)
-
-Show each group as a continuous numbered list with titles only, no details.
-
-## New Feature Interview
-1. Always interview me using the AskUserQuestionTool when a new feature is added
-2. Always provide the full "Implementation Plan" before adding a new feature
+---
 
 ## Test Requirements
 
@@ -95,56 +65,51 @@ describe('followDb helpers', () => {
 });
 ```
 
-## Design Standards
-1. Always keep mobile responsiveness part of all design decisions
-2. Ensure all design decisions are focused on a streamlined UX for the user
+---
 
-## Clipboard Usage
-**ALWAYS** copy content to the user's clipboard when they need to paste something somewhere (Supabase SQL, API keys, URLs, etc.):
-```bash
-echo "content here" | pbcopy
-# or for file contents:
-cat /path/to/file.sql | pbcopy
-```
-Never make the user manually copy text - use `pbcopy` to do it for them.
+## Design Standards
+
+1. **Mobile responsiveness** - Always keep mobile responsiveness part of all design decisions
+2. **Lichtenstein Design Language** - All new pages must follow the site's pop art / Lichtenstein aesthetic. Before creating new UI, review existing components and pages to maintain visual consistency. When in doubt, reference the homepage design patterns.
+
+---
 
 ## Environment Variables
+
 When any environment variable needs to be added or updated:
-1. Automatically open the .env.local file in TextEdit for the user:
+1. Automatically open the .env.local file in TextEdit:
 ```bash
 open -a TextEdit "/Users/chrispatton/Coding for Dummies/Comic Tracker/.env.local"
 ```
 2. **Track the new variable** - Remember that this variable was added during the session
 3. **Remind about Netlify** - When deploying, this variable MUST be added to Netlify environment variables first
 
+---
+
 ## Close Up Shop Command
 
-When the user says **"Close up shop"**, use the `/collectors-chest-close-up-shop` skill which runs an optimized workflow with parallel code checks.
+When I say **"Close up shop"**, use the `/collectors-chest-close-up-shop` skill.
 
-**Quick Reference - Available Scripts:**
+The skill runs an optimized 6-phase workflow with parallel code checks, documentation updates, and commit. It does NOT deploy.
+
+---
+
+## Available Scripts (Quick Reference)
+
+For ad-hoc use during development:
 
 | Script | Purpose | When to Use |
 |--------|---------|-------------|
 | `npm run check` | typecheck + lint + test | Quick validation |
 | `npm run check:full` | check + build | Before committing |
-| `npm run check:all` | All checks including format, circular, deadcode, audit | Full quality gate |
+| `npm run check:all` | All checks (format, circular, deadcode, audit) | Full quality gate |
 | `npm run format` | Auto-fix formatting | Fix prettier issues |
 | `npm run circular` | Find circular imports | Debug import issues |
 | `npm run deadcode` | Find unused exports/files | Cleanup codebase |
 | `npm run audit` | Security vulnerability check | Before deploy |
 | `npm run build:analyze` | Bundle size analysis | Optimize bundle |
 
-**The skill handles:**
-1. **Parallel checks** - typecheck, lint, test, audit run simultaneously
-2. **Sequential checks** - circular deps, dead code, build
-3. **Code cleanup** - console.logs, unused imports, TODOs
-4. **Documentation** - TEST_CASES.md, ARCHITECTURE.md, CLAUDE.md, DEV_LOG.md
-5. **Commit** - Descriptive message (no push unless requested)
-6. **Summary** - Results table and next session recommendations
-
-The Dev Log is stored at: `DEV_LOG.md` in the project root.
-
-**Important:** Close up shop does NOT deploy. 
+---
 
 ## Services & Infrastructure
 
@@ -202,11 +167,13 @@ The Dev Log is stored at: `DEV_LOG.md` in the project root.
 - PostHog: 1M events/mo
 - Sentry: 5K errors/mo
 
+---
+
 ## Deploy Command
 
 **Hosting Platform:** Netlify (NOT Vercel)
 
-When the user says **"Deploy"**, perform the following steps:
+When I say **"Deploy"**, perform the following steps:
 
 1. **Run full quality check:**
    - `npm run check:routes` - Check for dynamic route conflicts
@@ -241,18 +208,11 @@ When the user says **"Deploy"**, perform the following steps:
    - Log the deploy date and summary in DEV_LOG.md
    - **IMPORTANT:** Batch the DEV_LOG update into the same commit OR commit it locally without pushing (to avoid triggering a second Netlify build)
 
-## Changes Since Last Deploy Tracking
-
-Maintain a "Changes Since Last Deploy" section at the top of DEV_LOG.md with:
-- List of features/fixes added since last deploy
-- Running count of sessions since last deploy
-- Assessment of deploy readiness (Ready / Needs Testing / Has Issues)
-
-This helps batch work strategically and avoid wasting deploys on small changes.
+---
 
 ## Revert Technopathy Command
 
-When the user says **"revert technopathy"**, revert ALL of the following changes back to "AI" terminology:
+When I say **"revert technopathy"**, revert ALL of the following changes back to "AI" terminology:
 
 ### Files and Exact Changes to Revert:
 
@@ -309,4 +269,3 @@ When the user says **"revert technopathy"**, revert ALL of the following changes
 2. Use Edit tool with replace_all where multiple occurrences exist
 3. Run `npm run build` to verify changes compile
 4. Commit with message: "Revert technopathy branding back to AI terminology"
-

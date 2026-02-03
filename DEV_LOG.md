@@ -6,8 +6,8 @@ This log tracks session-by-session progress on Collectors Chest.
 
 ## Changes Since Last Deploy
 
-**Sessions since last deploy:** 1
-**Deploy Readiness:** Ready - Full follow system implemented
+**Sessions since last deploy:** 2
+**Deploy Readiness:** Ready - Bulk actions + pricing page improvements
 
 - Follow system: one-way follows (like eBay/Etsy seller follows)
 - Follow/unfollow API endpoints with RLS policies
@@ -15,9 +15,11 @@ This log tracks session-by-session progress on Collectors Chest.
 - "From people I follow" filter on Shop page
 - Follower notifications (in-app + email) when followed users list items
 - Fixed CSV import listing creation bug (#17)
-- Updated FEEDBACK_JAN_28.md with status tracking
-- Added 13 unit tests for follow system (185 total tests now)
-- Updated CLAUDE.md to make tests MANDATORY for every feature
+- Added 13 unit tests for follow system
+- **Bulk Actions (multi-select):** Selection toolbar, bulk delete/update/add-to-list
+- **Pricing page improvements:** Blue Premium card, green CTAs, readable FAQ title
+- **Bug fix:** `/api/trades/available` 500 error (wrong column name)
+- Updated test count to 198 tests
 
 ---
 
@@ -35,6 +37,47 @@ Key items deployed:
 - Message Seller buttons throughout app
 - Route conflict detection + smoke test scripts
 - Multiple bug fixes (500 error, messaging RLS, column names)
+
+---
+
+## February 2, 2026
+
+### Session Summary
+Completed multi-select bulk actions feature (#18), fixed trades API bug, and improved pricing page UX.
+
+### Key Accomplishments
+- **Bulk Actions (completed from previous session):**
+  - Fixed bulk API routes (profile_id → user_id column name)
+  - Improved SelectionToolbar button styling and order
+  - Increased BulkListPickerModal size on desktop
+
+- **Bug Fixes:**
+  - `/api/trades/available` 500 error: Changed `seller_rating`/`seller_rating_count` to `positive_ratings`/`negative_ratings` (columns didn't exist)
+  - Navigation "More" menu: Fixed unreliable click-outside behavior
+  - Collection page filter styling: Standardized pop-art design
+
+- **Pricing Page Improvements:**
+  - Changed Premium card background from red to blue (more trustworthy)
+  - Changed CTA buttons from yellow to green (better purchase psychology)
+  - Fixed FAQ title readability (yellow text with black stroke)
+  - Changed scan pack button to green
+
+### Files Modified
+- `src/app/api/trades/available/route.ts` - Fixed column names
+- `src/app/pricing/page.tsx` - Color scheme improvements
+- `src/app/api/comics/bulk-*.ts` - Fixed profile_id → user_id
+- `src/components/collection/SelectionToolbar.tsx` - Styling
+- `src/components/collection/BulkListPickerModal.tsx` - Size increase
+- `src/components/Navigation.tsx` - Click-outside fix
+
+### Issues Encountered
+- Trades API was using non-existent `seller_rating` column from old schema
+
+### Next Session Focus
+1. Test bulk actions and pricing page changes
+2. Follow up with GoCollect on API access
+3. Form LLC (blocks Privacy Policy/ToS)
+4. Set up Stripe account (blocks premium billing)
 
 ---
 

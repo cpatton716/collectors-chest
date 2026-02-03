@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
       .from("comics")
       .update({ deleted_at: null })
       .in("id", comicIds)
-      .eq("profile_id", profile.id)
+      .eq("user_id", profile.id)
       .not("deleted_at", "is", null)
       .select("id");
 

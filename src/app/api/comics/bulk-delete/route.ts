@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
       .from("comics")
       .select("id")
       .in("id", comicIds)
-      .eq("profile_id", profile.id)
+      .eq("user_id", profile.id)
       .is("deleted_at", null);
 
     if (fetchError) {
