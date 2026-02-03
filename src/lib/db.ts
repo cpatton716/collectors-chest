@@ -89,6 +89,7 @@ export async function getUserComics(profileId: string): Promise<CollectionItem[]
     `
     )
     .eq("user_id", profileId)
+    .is("deleted_at", null)
     .order("date_added", { ascending: false });
 
   if (error) throw error;
@@ -708,6 +709,7 @@ export async function getPublicComics(profileId: string): Promise<CollectionItem
     `
     )
     .eq("user_id", profileId)
+    .is("deleted_at", null)
     .order("date_added", { ascending: false });
 
   if (error) return [];
