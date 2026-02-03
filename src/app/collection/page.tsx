@@ -689,13 +689,13 @@ export default function CollectionPage() {
           <div className="flex flex-col md:flex-row gap-4">
             {/* Search */}
             <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-pop-black/50" />
               <input
                 type="text"
                 placeholder="Search by title, publisher, writer..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-gray-900 placeholder:text-gray-400"
+                className="w-full pl-10 pr-4 py-1.5 border-2 border-pop-black bg-pop-white font-comic text-sm text-pop-black placeholder:text-pop-black/40 focus:outline-none focus:shadow-[2px_2px_0px_#000] transition-all"
               />
             </div>
 
