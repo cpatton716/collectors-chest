@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -83,6 +83,24 @@ export function Navigation() {
   const [expandedFAQ, setExpandedFAQ] = useState<number | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
+
+  // Click-outside handler for More menu
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
+        setShowMoreMenu(false);
+      }
+    };
+
+    if (showMoreMenu) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showMoreMenu]);
 
   useEffect(() => {
     if (!isSignedIn) return;
@@ -206,10 +224,9 @@ export function Navigation() {
               })}
 
               {/* More dropdown - for all users */}
-              <div className="relative">
+              <div className="relative" ref={moreMenuRef}>
                 <button
                   onClick={() => setShowMoreMenu(!showMoreMenu)}
-                  onBlur={() => setTimeout(() => setShowMoreMenu(false), 150)}
                   className={`nav-link-pop flex items-center space-x-2 px-3 py-1.5 transition-all ${
                     secondaryLinks.some((l) => pathname === l.href) || pathname.startsWith("/admin")
                       ? "bg-pop-white text-pop-black border-2 border-pop-black shadow-comic-sm"
@@ -235,6 +252,7 @@ export function Navigation() {
                         <Link
                           key={link.href}
                           href={link.href}
+                          onClick={() => setShowMoreMenu(false)}
                           className={`relative flex items-center space-x-3 px-4 py-3 transition-all border-b border-pop-black/20 last:border-b-0 ${
                             isActive
                               ? "bg-pop-yellow text-pop-black"
@@ -257,6 +275,7 @@ export function Navigation() {
                     {isSignedIn && isAdmin && (
                       <Link
                         href="/admin/users"
+                        onClick={() => setShowMoreMenu(false)}
                         className={`relative flex items-center space-x-3 px-4 py-3 transition-all border-t border-pop-black/20 ${
                           pathname.startsWith("/admin")
                             ? "bg-pop-red text-pop-white"
