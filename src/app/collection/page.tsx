@@ -731,14 +731,14 @@ export default function CollectionPage() {
             {/* Starred Filter */}
             <button
               onClick={() => setShowStarredOnly(!showStarredOnly)}
-              className={`flex items-center gap-1.5 px-2.5 py-2 rounded-lg border transition-colors text-sm ${
+              className={`flex items-center gap-2 px-3 py-1.5 border-2 border-pop-black font-comic text-sm transition-all ${
                 showStarredOnly
-                  ? "bg-yellow-100 border-yellow-300 text-yellow-700"
-                  : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+                  ? "bg-pop-yellow text-pop-black shadow-[2px_2px_0px_#000]"
+                  : "bg-pop-white text-pop-black hover:shadow-[2px_2px_0px_#000]"
               }`}
             >
               <Star
-                className={`w-4 h-4 ${showStarredOnly ? "fill-yellow-500 text-yellow-500" : ""}`}
+                className={`w-4 h-4 ${showStarredOnly ? "fill-pop-black" : ""}`}
               />
               <span className="hidden sm:inline">Starred</span>
             </button>
@@ -746,9 +746,9 @@ export default function CollectionPage() {
             {/* For Trade Filter */}
             <button
               onClick={() => setShowForTradeOnly(!showForTradeOnly)}
-              className={`flex items-center gap-2 px-3 py-1.5 border-2 border-pop-black font-bold text-sm transition-all ${
+              className={`flex items-center gap-2 px-3 py-1.5 border-2 border-pop-black font-comic text-sm transition-all ${
                 showForTradeOnly
-                  ? "bg-pop-orange text-white shadow-[2px_2px_0px_#000]"
+                  ? "bg-pop-orange text-pop-white shadow-[2px_2px_0px_#000]"
                   : "bg-pop-white text-pop-black hover:shadow-[2px_2px_0px_#000]"
               }`}
             >
