@@ -2,6 +2,7 @@
 
 import { DollarSign, Pencil, Star, Tag, TrendingDown, TrendingUp } from "lucide-react";
 
+import { SelectionCheckbox } from "@/components/collection/SelectionCheckbox";
 import { CollectionItem } from "@/types/comic";
 
 interface ComicCardProps {
@@ -9,9 +10,21 @@ interface ComicCardProps {
   onClick?: () => void;
   onToggleStar?: (id: string) => void;
   onEdit?: (item: CollectionItem) => void;
+  // Selection mode props
+  isSelectionMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: (id: string) => void;
 }
 
-export function ComicCard({ item, onClick, onToggleStar, onEdit }: ComicCardProps) {
+export function ComicCard({
+  item,
+  onClick,
+  onToggleStar,
+  onEdit,
+  isSelectionMode = false,
+  isSelected = false,
+  onToggleSelect,
+}: ComicCardProps) {
   const { comic, coverImageUrl, conditionLabel, forSale, askingPrice } = item;
 
   // Calculate profit/loss
@@ -30,8 +43,19 @@ export function ComicCard({ item, onClick, onToggleStar, onEdit }: ComicCardProp
     onEdit?.(item);
   };
 
+  const handleCardClick = () => {
+    if (isSelectionMode && onToggleSelect) {
+      onToggleSelect(item.id);
+    } else {
+      onClick?.();
+    }
+  };
+
   return (
-    <div onClick={onClick} className="comic-card cursor-pointer group">
+    <div
+      onClick={handleCardClick}
+      className={`comic-card cursor-pointer group ${isSelected ? "ring-4 ring-pop-yellow" : ""}`}
+    >
       {/* Cover Image */}
       <div className="relative aspect-[2/3] bg-pop-cream border-b-3 border-pop-black">
         {coverImageUrl ? (
@@ -46,8 +70,15 @@ export function ComicCard({ item, onClick, onToggleStar, onEdit }: ComicCardProp
           </div>
         )}
 
+        {/* Selection Checkbox */}
+        {isSelectionMode && onToggleSelect && (
+          <div className="absolute top-2 left-2 z-10">
+            <SelectionCheckbox checked={isSelected} onChange={() => onToggleSelect(item.id)} />
+          </div>
+        )}
+
         {/* Badges */}
-        <div className="absolute top-2 left-2 flex flex-col gap-1">
+        <div className={`absolute ${isSelectionMode ? "top-12" : "top-2"} left-2 flex flex-col gap-1`}>
           {forSale && (
             <span className="badge-pop badge-pop-green flex items-center gap-1">
               <Tag className="w-3 h-3" />
