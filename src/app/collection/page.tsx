@@ -14,6 +14,7 @@ import {
   Book,
   BookOpen,
   Building,
+  CheckSquare,
   DollarSign,
   Download,
   Grid3X3,
@@ -34,8 +35,14 @@ import { calculateCollectionValue, getComicValue } from "@/lib/gradePrice";
 import { storage } from "@/lib/storage";
 
 import { useCollection } from "@/hooks/useCollection";
+import { useSelection } from "@/hooks/useSelection";
 import { useSubscription } from "@/hooks/useSubscription";
 
+import { BulkDeleteModal } from "@/components/collection/BulkDeleteModal";
+import { BulkListPickerModal } from "@/components/collection/BulkListPickerModal";
+import { SelectionHeader } from "@/components/collection/SelectionHeader";
+import { SelectionToolbar } from "@/components/collection/SelectionToolbar";
+import { UndoToast } from "@/components/collection/UndoToast";
 import { ComicCard } from "@/components/ComicCard";
 import { ComicDetailModal } from "@/components/ComicDetailModal";
 import { ComicDetailsForm } from "@/components/ComicDetailsForm";
@@ -74,6 +81,7 @@ export default function CollectionPage() {
     recordSale,
     getCollectionStats,
     getSalesStats,
+    refresh,
   } = useCollection();
 
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
@@ -87,6 +95,28 @@ export default function CollectionPage() {
   const [publisherFilter, setPublisherFilter] = useState<FilterOption>("all");
   const [titleFilter, setTitleFilter] = useState<FilterOption>("all");
   const [showShareModal, setShowShareModal] = useState(false);
+
+  // Selection state
+  const {
+    isSelectionMode,
+    selectedIds,
+    selectionCount,
+    hasSelection,
+    checkIsAllSelected,
+    enterSelectionMode,
+    exitSelectionMode,
+    toggle: toggleSelection,
+    selectAllVisible,
+    clearAll: clearSelection,
+  } = useSelection();
+
+  // Bulk action modals
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+  const [showBulkListPicker, setShowBulkListPicker] = useState(false);
+  const [undoState, setUndoState] = useState<{
+    message: string;
+    comicIds: string[];
+  } | null>(null);
 
   const salesStats = getSalesStats();
   const isLoaded = authLoaded && !collectionLoading;
@@ -172,6 +202,138 @@ export default function CollectionPage() {
   };
   const profitLoss = stats.totalValue - stats.totalCost;
   const profitLossPercent = stats.totalCost > 0 ? (profitLoss / stats.totalCost) * 100 : 0;
+
+  // Get selected items
+  const selectedItems = filteredCollection.filter((item) => selectedIds.has(item.id));
+  const visibleIds = filteredCollection.map((item) => item.id);
+
+  // Bulk delete handler
+  const handleBulkDelete = async () => {
+    if (selectedItems.length >= 10) {
+      setShowBulkDeleteModal(true);
+      return;
+    }
+    await executeBulkDelete();
+  };
+
+  const executeBulkDelete = async () => {
+    setShowBulkDeleteModal(false);
+    const idsToDelete = Array.from(selectedIds);
+
+    try {
+      const response = await fetch("/api/comics/bulk-delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ comicIds: idsToDelete }),
+      });
+
+      if (!response.ok) throw new Error("Failed to delete");
+
+      // Show undo toast
+      setUndoState({
+        message: `${idsToDelete.length} comics deleted`,
+        comicIds: idsToDelete,
+      });
+
+      // Exit selection mode and refresh
+      exitSelectionMode();
+      refresh();
+    } catch {
+      showToast("Failed to delete comics", "error");
+    }
+  };
+
+  const handleUndoDelete = async () => {
+    if (!undoState) return;
+
+    try {
+      const response = await fetch("/api/comics/undo-delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ comicIds: undoState.comicIds }),
+      });
+
+      if (!response.ok) throw new Error("Failed to undo");
+
+      setUndoState(null);
+      refresh();
+    } catch {
+      showToast("Failed to restore comics", "error");
+    }
+  };
+
+  // Bulk mark for trade handler
+  const handleBulkMarkForTrade = async () => {
+    const idsToUpdate = Array.from(selectedIds);
+
+    try {
+      const response = await fetch("/api/comics/bulk-update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          comicIds: idsToUpdate,
+          field: "for_trade",
+          value: true,
+        }),
+      });
+
+      if (!response.ok) throw new Error("Failed to update");
+
+      exitSelectionMode();
+      refresh();
+      showToast(`${idsToUpdate.length} comics marked for trade`, "success");
+    } catch {
+      showToast("Failed to mark for trade", "error");
+    }
+  };
+
+  // Bulk add to list handler
+  const handleBulkAddToList = async (listId: string) => {
+    const idsToAdd = Array.from(selectedIds);
+    setShowBulkListPicker(false);
+
+    try {
+      const response = await fetch("/api/comics/bulk-add-to-list", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ comicIds: idsToAdd, listId }),
+      });
+
+      if (!response.ok) throw new Error("Failed to add to list");
+
+      exitSelectionMode();
+      refresh();
+      const list = lists.find((l) => l.id === listId);
+      showToast(`${idsToAdd.length} comics added to "${list?.name}"`, "success");
+    } catch {
+      showToast("Failed to add to list", "error");
+    }
+  };
+
+  // Bulk mark as sold handler
+  const handleBulkMarkSold = async () => {
+    const idsToUpdate = Array.from(selectedIds);
+
+    try {
+      const response = await fetch("/api/comics/bulk-update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          comicIds: idsToUpdate,
+          field: "is_sold",
+          value: true,
+        }),
+      });
+
+      if (!response.ok) throw new Error("Failed to update");
+
+      exitSelectionMode();
+      refresh();
+      showToast(`${idsToUpdate.length} comics marked as sold`, "success");
+    } catch {
+      showToast("Failed to mark as sold", "error");
+    }
+  };
 
   const handleComicClick = (item: CollectionItem) => {
     setSelectedItem(item);
@@ -362,6 +524,13 @@ export default function CollectionPage() {
             <span className="hidden sm:inline">Share</span>
           </button>
           <button
+            onClick={enterSelectionMode}
+            className="inline-flex items-center gap-2 px-3 py-2 bg-pop-white border-2 border-pop-black text-pop-black font-bold hover:shadow-[2px_2px_0px_#000] transition-all"
+          >
+            <CheckSquare className="w-5 h-5" />
+            <span className="hidden sm:inline">Select</span>
+          </button>
+          <button
             onClick={() => router.push("/scan")}
             className="inline-flex items-center gap-2 px-3 py-2 bg-pop-blue border-2 border-pop-black text-white font-bold shadow-[2px_2px_0px_#000] hover:shadow-[3px_3px_0px_#000] transition-all"
           >
@@ -461,6 +630,17 @@ export default function CollectionPage() {
           </div>
         </div>
       </div>
+
+      {/* Selection Header - shown when in selection mode */}
+      {isSelectionMode && (
+        <SelectionHeader
+          selectionCount={selectionCount}
+          isAllSelected={checkIsAllSelected(visibleIds)}
+          onSelectAll={() => selectAllVisible(visibleIds)}
+          onClear={clearSelection}
+          onCancel={exitSelectionMode}
+        />
+      )}
 
       {/* List Selector Tabs - Pop Art Style */}
       <div className="mb-4">
@@ -755,7 +935,7 @@ export default function CollectionPage() {
           </div>
         </div>
       ) : viewMode === "grid" ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+        <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 ${isSelectionMode ? "pb-20" : ""}`}>
           {filteredCollection.map((item) => (
             <ComicCard
               key={item.id}
@@ -763,6 +943,9 @@ export default function CollectionPage() {
               onClick={() => handleComicClick(item)}
               onToggleStar={handleToggleStar}
               onEdit={handleEdit}
+              isSelectionMode={isSelectionMode}
+              isSelected={selectedIds.has(item.id)}
+              onToggleSelect={toggleSelection}
             />
           ))}
         </div>
@@ -945,6 +1128,49 @@ export default function CollectionPage() {
 
       {/* Share Collection Modal */}
       {showShareModal && <ShareCollectionModal onClose={() => setShowShareModal(false)} />}
+
+      {/* Selection Toolbar - shown when in selection mode */}
+      {isSelectionMode && (
+        <SelectionToolbar
+          selectionCount={selectionCount}
+          onDelete={handleBulkDelete}
+          onMarkForTrade={handleBulkMarkForTrade}
+          onAddToList={() => setShowBulkListPicker(true)}
+          onMarkSold={handleBulkMarkSold}
+        />
+      )}
+
+      {/* Bulk Delete Confirmation Modal */}
+      {showBulkDeleteModal && (
+        <BulkDeleteModal
+          items={selectedItems}
+          onConfirm={executeBulkDelete}
+          onCancel={() => setShowBulkDeleteModal(false)}
+        />
+      )}
+
+      {/* Bulk List Picker Modal */}
+      {showBulkListPicker && (
+        <BulkListPickerModal
+          lists={lists}
+          selectionCount={selectionCount}
+          onSelect={handleBulkAddToList}
+          onCreateList={async (name) => {
+            const newList = await createNewList(name);
+            return newList;
+          }}
+          onCancel={() => setShowBulkListPicker(false)}
+        />
+      )}
+
+      {/* Undo Toast */}
+      {undoState && (
+        <UndoToast
+          message={undoState.message}
+          onUndo={handleUndoDelete}
+          onExpire={() => setUndoState(null)}
+        />
+      )}
     </div>
   );
 }
