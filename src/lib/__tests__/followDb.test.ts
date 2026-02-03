@@ -174,8 +174,8 @@ describe("follow business logic", () => {
     });
 
     it("should allow following different users", () => {
-      const followerId = "user-123";
-      const followingId = "user-456";
+      const followerId = "user-123" as string;
+      const followingId = "user-456" as string;
 
       const canFollow = followerId !== followingId;
 
