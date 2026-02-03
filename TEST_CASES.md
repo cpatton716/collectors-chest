@@ -43,6 +43,79 @@ A guide for testing the main and secondary features of the application.
 | Sort collection | Change sort dropdown | Comics reorder by date/title/value/issue |
 | Star a comic | Click star icon on comic card | Comic marked as starred, filter works |
 
+### 2a. Bulk Actions (Multi-Select)
+
+**Location:** Collection → "Select" button in header
+
+#### Selection Mode Entry/Exit
+
+| Test Case | Steps | Expected Result |
+|-----------|-------|-----------------|
+| Enter selection mode | Click "Select" button in header | Checkboxes appear on all comics, selection header appears, bottom toolbar slides up |
+| Exit via Cancel | In selection mode → Click "Cancel" | Selection mode exits, checkboxes/toolbar disappear |
+| Exit via action | Perform any bulk action | Selection mode exits after action completes |
+
+#### Selection Behavior
+
+| Test Case | Steps | Expected Result |
+|-----------|-------|-----------------|
+| Select single comic | In selection mode → Tap comic card | Checkbox toggles, card shows yellow ring highlight |
+| Select via checkbox | Tap checkbox directly | Comic selected/deselected |
+| Selection count | Select multiple comics | Header shows "X SELECTED" count updating in real-time |
+| Select All | Click "Select All" button | All visible comics selected |
+| Clear selection | Click "Clear" button | All comics deselected |
+| Select All toggle | With all selected → Click "Select All" | Button shows "ALL SELECTED" state |
+
+#### Bulk Delete
+
+| Test Case | Steps | Expected Result |
+|-----------|-------|-----------------|
+| Delete < 10 comics | Select 1-9 comics → Tap "Delete" | Comics deleted immediately, undo toast appears |
+| Delete 10+ comics | Select 10+ comics → Tap "Delete" | Confirmation modal appears first |
+| Confirmation modal content | Trigger modal with 10+ comics | Shows first 5 titles + "...and X more" count |
+| Confirm delete | In modal → Click "Delete" | Comics deleted, undo toast appears |
+| Cancel delete | In modal → Click "Cancel" | Modal closes, no deletion |
+
+#### Undo Toast
+
+| Test Case | Steps | Expected Result |
+|-----------|-------|-----------------|
+| Toast appears | Complete bulk delete | Toast shows "X comics deleted" with UNDO button |
+| Progress countdown | Watch toast | 10-second progress bar counts down |
+| Undo action | Click "UNDO" before timer expires | Comics restored, toast disappears |
+| Toast auto-dismiss | Wait 10 seconds | Toast disappears, delete is permanent |
+
+#### Bulk Mark for Trade
+
+| Test Case | Steps | Expected Result |
+|-----------|-------|-----------------|
+| Mark for trade | Select comics → Tap "Trade" | Comics' for_trade status set to true |
+| Toggle trade status | Select already-for-trade comics → Tap "Trade" | Status toggles (implementation dependent) |
+
+#### Bulk Add to List
+
+| Test Case | Steps | Expected Result |
+|-----------|-------|-----------------|
+| Open list picker | Select comics → Tap "Add to List" | List picker modal opens |
+| Modal shows lists | View modal | All user lists displayed (except "collection") |
+| Select existing list | Click a list name | Comics added to list, selection clears |
+| Create new list | Click "Create New List" → Enter name → Create | New list created, comics added |
+| Skip duplicates | Add comics already in list | Shows added/skipped counts |
+
+#### Bulk Mark as Sold
+
+| Test Case | Steps | Expected Result |
+|-----------|-------|-----------------|
+| Mark as sold | Select comics → Tap "Sold" | Comics' is_sold status set to true, sold_at timestamp set |
+
+#### Mobile Responsiveness
+
+| Test Case | Steps | Expected Result |
+|-----------|-------|-----------------|
+| Toolbar on mobile | View on mobile viewport | Toolbar buttons show icons only (no text labels) |
+| Touch targets | Tap buttons on mobile | All buttons have adequate touch target size (44px+) |
+| Content not obscured | Scroll collection in selection mode | Bottom padding prevents toolbar from hiding content |
+
 ### 3. Comic Details & Editing
 
 **Location:** Collection → Click any comic
@@ -747,4 +820,4 @@ If you encounter bugs or unexpected behavior:
 
 ---
 
-*Last Updated: January 28, 2026*
+*Last Updated: February 2, 2026*
