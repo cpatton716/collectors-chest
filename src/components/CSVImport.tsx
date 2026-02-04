@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 
-import { AlertCircle, Check, Download, FileText, Loader2, Upload, X } from "lucide-react";
+import { AlertCircle, Check, Download, FileText, Loader2, Upload, X, Zap } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 
 import { CollectionItem, ComicDetails } from "@/types/comic";
@@ -71,6 +71,8 @@ export function CSVImport({ onImportComplete, onCancel }: CSVImportProps) {
   const [importProgress, setImportProgress] = useState(0);
   const [importResults, setImportResults] = useState<ImportResult[]>([]);
   const [step, setStep] = useState<"upload" | "preview" | "importing" | "complete">("upload");
+  const [quickImport, setQuickImport] = useState(false);
+  const [importedItems, setImportedItems] = useState<CollectionItem[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const parseCSV = (text: string): ParsedRow[] => {
@@ -232,19 +234,6 @@ export function CSVImport({ onImportComplete, onCancel }: CSVImportProps) {
       setImportProgress(Math.round(((i + 1) / parsedRows.length) * 100));
 
       try {
-        // Call API to lookup price data and key info
-        const response = await fetch("/api/import-lookup", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            title: row.title,
-            issueNumber: row.issueNumber,
-            variant: row.variant,
-            publisher: row.publisher,
-            releaseYear: row.releaseYear,
-          }),
-        });
-
         let priceData = null;
         let keyInfo: string[] = [];
         let enrichedWriter = row.writer || null;
@@ -254,17 +243,32 @@ export function CSVImport({ onImportComplete, onCancel }: CSVImportProps) {
         let enrichedReleaseYear = row.releaseYear || null;
         let enrichedCoverImageUrl = "";
 
-        if (response.ok) {
-          const lookupData = await response.json();
-          priceData = lookupData.priceData || null;
-          keyInfo = lookupData.keyInfo || [];
-          // Use API data only if CSV didn't provide it
-          enrichedWriter = row.writer || lookupData.writer || null;
-          enrichedCoverArtist = row.coverArtist || lookupData.coverArtist || null;
-          enrichedInteriorArtist = row.interiorArtist || lookupData.interiorArtist || null;
-          enrichedPublisher = row.publisher || lookupData.publisher || null;
-          enrichedReleaseYear = row.releaseYear || lookupData.releaseYear || null;
-          enrichedCoverImageUrl = lookupData.coverImageUrl || "";
+        // Only call API for enrichment if Quick Import is disabled
+        if (!quickImport) {
+          const response = await fetch("/api/import-lookup", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              title: row.title,
+              issueNumber: row.issueNumber,
+              variant: row.variant,
+              publisher: row.publisher,
+              releaseYear: row.releaseYear,
+            }),
+          });
+
+          if (response.ok) {
+            const lookupData = await response.json();
+            priceData = lookupData.priceData || null;
+            keyInfo = lookupData.keyInfo || [];
+            // Use API data only if CSV didn't provide it
+            enrichedWriter = row.writer || lookupData.writer || null;
+            enrichedCoverArtist = row.coverArtist || lookupData.coverArtist || null;
+            enrichedInteriorArtist = row.interiorArtist || lookupData.interiorArtist || null;
+            enrichedPublisher = row.publisher || lookupData.publisher || null;
+            enrichedReleaseYear = row.releaseYear || lookupData.releaseYear || null;
+            enrichedCoverImageUrl = lookupData.coverImageUrl || "";
+          }
         }
 
         // Create the comic details
@@ -329,36 +333,42 @@ export function CSVImport({ onImportComplete, onCancel }: CSVImportProps) {
         });
       }
 
-      // Small delay to prevent rate limiting
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      // Small delay to prevent rate limiting (skip delay for quick import)
+      if (!quickImport) {
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      }
     }
 
     setImportResults(results);
+    setImportedItems(successfulItems);
     setIsImporting(false);
     setStep("complete");
+  };
 
-    if (successfulItems.length > 0) {
-      onImportComplete(successfulItems);
+  const handleDone = () => {
+    if (importedItems.length > 0) {
+      onImportComplete(importedItems);
     }
+    onCancel();
   };
 
   const successCount = importResults.filter((r) => r.success).length;
   const failCount = importResults.filter((r) => !r.success).length;
 
   return (
-    <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+    <div className="bg-pop-white border-3 border-pop-black shadow-comic p-6">
       {/* Upload Step */}
       {step === "upload" && (
         <div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Import from CSV</h3>
-          <p className="text-sm text-gray-600 mb-4">
+          <h3 className="text-xl font-comic text-pop-black mb-4">IMPORT FROM CSV</h3>
+          <p className="text-sm text-pop-black/70 mb-4">
             Upload a CSV file to bulk import your collection. Download the template below for the
             correct format.
           </p>
           <a
-            href="/sample-import.csv"
-            download="sample-import.csv"
-            className="inline-flex items-center gap-2 text-sm text-primary-600 hover:text-primary-700 font-medium mb-6"
+            href="/Collectors-Chest-Sample-Import.csv"
+            download="Collectors-Chest-Sample-Import.csv"
+            className="inline-flex items-center gap-2 text-sm text-pop-blue hover:text-pop-blue/80 font-comic mb-6"
           >
             <Download className="w-4 h-4" />
             Download sample CSV template
@@ -366,11 +376,11 @@ export function CSVImport({ onImportComplete, onCancel }: CSVImportProps) {
 
           <div
             onClick={() => fileInputRef.current?.click()}
-            className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-primary-500 hover:bg-primary-50 transition-colors"
+            className="border-3 border-dashed border-pop-black/50 p-8 text-center cursor-pointer hover:border-pop-black hover:bg-pop-yellow/20 transition-colors"
           >
-            <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600 mb-2">Click to select a CSV file</p>
-            <p className="text-sm text-gray-400">or drag and drop</p>
+            <Upload className="w-12 h-12 text-pop-black/40 mx-auto mb-4" />
+            <p className="text-pop-black/70 mb-2 font-comic">Click to select a CSV file</p>
+            <p className="text-sm text-pop-black/50">or drag and drop</p>
             <input
               ref={fileInputRef}
               type="file"
@@ -381,16 +391,16 @@ export function CSVImport({ onImportComplete, onCancel }: CSVImportProps) {
           </div>
 
           {parseError && (
-            <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-red-700">{parseError}</p>
+            <div className="mt-4 p-4 bg-pop-red/10 border-2 border-pop-red flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-pop-red flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-pop-red">{parseError}</p>
             </div>
           )}
 
           <div className="mt-6 flex justify-end">
             <button
               onClick={onCancel}
-              className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+              className="px-4 py-2 font-comic text-pop-black hover:bg-pop-black/10 border-2 border-pop-black transition-colors"
             >
               Cancel
             </button>
@@ -402,41 +412,69 @@ export function CSVImport({ onImportComplete, onCancel }: CSVImportProps) {
       {step === "preview" && (
         <div>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Preview Import</h3>
-            <div className="flex items-center gap-2 text-sm text-gray-600">
+            <h3 className="text-xl font-comic text-pop-black">PREVIEW IMPORT</h3>
+            <div className="flex items-center gap-2 text-sm text-pop-black/60">
               <FileText className="w-4 h-4" />
               <span className="truncate max-w-[200px]">{file?.name}</span>
             </div>
           </div>
 
-          <p className="text-sm text-gray-600 mb-4">
-            Found <strong>{parsedRows.length}</strong> comics to import. We&apos;ll look up price
-            data and key info for each.
+          <p className="text-sm text-pop-black/70 mb-4">
+            Found <strong className="text-pop-black">{parsedRows.length}</strong> comics to import.
+            {!quickImport && " We'll look up price data, key info, and covers for each."}
+            {quickImport && " Quick Import enabled - skipping data lookups for faster import."}
           </p>
 
-          <div className="max-h-64 overflow-y-auto border border-gray-200 rounded-lg mb-6 overflow-x-auto">
+          {/* Quick Import Toggle */}
+          <div className="mb-6 p-4 bg-pop-yellow/20 border-2 border-pop-black">
+            <label className="flex items-center justify-between cursor-pointer">
+              <div className="flex items-center gap-3">
+                <Zap className={`w-5 h-5 ${quickImport ? "text-pop-blue" : "text-pop-black/40"}`} />
+                <div>
+                  <span className="font-comic text-pop-black">Quick Import</span>
+                  <p className="text-xs text-pop-black/60">
+                    Skip price, creator, key info, and cover lookups for faster import
+                  </p>
+                </div>
+              </div>
+              <div
+                className={`relative w-12 h-6 border-2 border-pop-black transition-colors overflow-hidden flex-shrink-0 ${
+                  quickImport ? "bg-pop-yellow" : "bg-pop-white"
+                }`}
+                onClick={() => setQuickImport(!quickImport)}
+              >
+                <div
+                  className={`absolute top-0.5 w-4 h-4 bg-pop-black transition-transform ${
+                    quickImport ? "left-auto right-0.5" : "left-0.5"
+                  }`}
+                />
+              </div>
+            </label>
+          </div>
+
+          <div className="max-h-64 overflow-y-auto border-2 border-pop-black mb-6 overflow-x-auto">
             <table className="w-full text-sm min-w-[280px]">
-              <thead className="bg-gray-50 sticky top-0">
+              <thead className="bg-pop-yellow sticky top-0">
                 <tr>
-                  <th className="text-left p-3 font-medium text-gray-700">Title</th>
-                  <th className="text-left p-3 font-medium text-gray-700">Issue</th>
-                  <th className="text-left p-3 font-medium text-gray-700 hidden sm:table-cell">
+                  <th className="text-left p-3 font-comic text-pop-black border-b-2 border-pop-black">Title</th>
+                  <th className="text-left p-3 font-comic text-pop-black border-b-2 border-pop-black">Issue</th>
+                  <th className="text-left p-3 font-comic text-pop-black border-b-2 border-pop-black hidden sm:table-cell">
                     Publisher
                   </th>
-                  <th className="text-left p-3 font-medium text-gray-700 hidden sm:table-cell">
+                  <th className="text-left p-3 font-comic text-pop-black border-b-2 border-pop-black hidden sm:table-cell">
                     Year
                   </th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="bg-pop-white">
                 {parsedRows.slice(0, 50).map((row, idx) => (
-                  <tr key={idx} className="border-t border-gray-100">
-                    <td className="p-3 text-gray-900">{row.title}</td>
-                    <td className="p-3 text-gray-600">#{row.issueNumber}</td>
-                    <td className="p-3 text-gray-600 hidden sm:table-cell">
+                  <tr key={idx} className="border-b border-pop-black/20">
+                    <td className="p-3 text-pop-black">{row.title}</td>
+                    <td className="p-3 text-pop-black/70">#{row.issueNumber}</td>
+                    <td className="p-3 text-pop-black/70 hidden sm:table-cell">
                       {row.publisher || "-"}
                     </td>
-                    <td className="p-3 text-gray-600 hidden sm:table-cell">
+                    <td className="p-3 text-pop-black/70 hidden sm:table-cell">
                       {row.releaseYear || "-"}
                     </td>
                   </tr>
@@ -444,7 +482,7 @@ export function CSVImport({ onImportComplete, onCancel }: CSVImportProps) {
               </tbody>
             </table>
             {parsedRows.length > 50 && (
-              <p className="p-3 text-sm text-gray-500 text-center bg-gray-50">
+              <p className="p-3 text-sm text-pop-black/60 text-center bg-pop-yellow/30">
                 ...and {parsedRows.length - 50} more
               </p>
             )}
@@ -457,13 +495,13 @@ export function CSVImport({ onImportComplete, onCancel }: CSVImportProps) {
                 setFile(null);
                 setParsedRows([]);
               }}
-              className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+              className="px-4 py-2 font-comic text-pop-black hover:bg-pop-black/10 border-2 border-pop-black transition-colors"
             >
               Back
             </button>
             <button
               onClick={handleImport}
-              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+              className="px-4 py-2 font-comic bg-pop-blue text-pop-white border-2 border-pop-black shadow-comic-sm hover:translate-y-0.5 hover:shadow-none transition-all"
             >
               Import {parsedRows.length} Comics
             </button>
@@ -474,18 +512,22 @@ export function CSVImport({ onImportComplete, onCancel }: CSVImportProps) {
       {/* Importing Step */}
       {step === "importing" && (
         <div className="text-center py-8">
-          <Loader2 className="w-12 h-12 text-primary-600 animate-spin mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">Importing Comics</h3>
-          <p className="text-sm text-gray-600 mb-4">
-            Looking up price data and key info for each comic...
+          <Loader2 className="w-12 h-12 text-pop-blue animate-spin mx-auto mb-4" />
+          <h3 className="text-xl font-comic text-pop-black mb-2">
+            {quickImport ? "QUICK IMPORTING..." : "IMPORTING COMICS..."}
+          </h3>
+          <p className="text-sm text-pop-black/70 mb-4">
+            {quickImport
+              ? "Adding comics to your collection..."
+              : "Looking up price data, key info, and covers for each comic..."}
           </p>
-          <div className="w-full max-w-xs mx-auto bg-gray-200 rounded-full h-2 mb-2">
+          <div className="w-full max-w-xs mx-auto bg-pop-black/20 h-3 border-2 border-pop-black mb-2">
             <div
-              className="bg-primary-600 h-2 rounded-full transition-all"
+              className="bg-pop-blue h-full transition-all"
               style={{ width: `${importProgress}%` }}
             />
           </div>
-          <p className="text-sm text-gray-500">{importProgress}% complete</p>
+          <p className="text-sm font-comic text-pop-black/60">{importProgress}% complete</p>
         </div>
       )}
 
@@ -493,21 +535,31 @@ export function CSVImport({ onImportComplete, onCancel }: CSVImportProps) {
       {step === "complete" && (
         <div>
           <div className="text-center py-6">
-            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Check className="w-8 h-8 text-green-600" />
+            <div className="w-16 h-16 bg-pop-green border-3 border-pop-black flex items-center justify-center mx-auto mb-4">
+              <Check className="w-8 h-8 text-pop-white" />
             </div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">Import Complete</h3>
-            <p className="text-gray-600">
-              Successfully imported <strong>{successCount}</strong> of {parsedRows.length} comics.
+            <h3 className="text-xl font-comic text-pop-black mb-2">IMPORT COMPLETE!</h3>
+            <p className="text-pop-black/70">
+              Successfully imported <strong className="text-pop-black">{successCount}</strong> of {parsedRows.length} comics.
             </p>
+            {successCount > 0 && (
+              <div className="mt-4 p-3 bg-pop-blue/10 border-2 border-pop-blue text-left max-w-md mx-auto">
+                <p className="text-sm text-pop-black font-comic mb-1">COVER TIP:</p>
+                <p className="text-sm text-pop-black/70">
+                  {quickImport
+                    ? "Quick Import skips cover lookups. Tap any comic and use the Edit button to add or change the cover image."
+                    : "Some covers may not match perfectly. Tap any comic and use the Edit button to change the cover image."}
+                </p>
+              </div>
+            )}
           </div>
 
           {failCount > 0 && (
-            <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <p className="text-sm text-yellow-800 font-medium mb-2">
+            <div className="mt-4 p-4 bg-pop-yellow/30 border-2 border-pop-black">
+              <p className="text-sm text-pop-black font-comic mb-2">
                 {failCount} {failCount === 1 ? "comic" : "comics"} couldn&apos;t be imported:
               </p>
-              <ul className="text-sm text-yellow-700 space-y-1">
+              <ul className="text-sm text-pop-black/70 space-y-1">
                 {importResults
                   .filter((r) => !r.success)
                   .slice(0, 5)
@@ -523,8 +575,8 @@ export function CSVImport({ onImportComplete, onCancel }: CSVImportProps) {
 
           <div className="mt-6 flex justify-center gap-3">
             <button
-              onClick={onCancel}
-              className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+              onClick={handleDone}
+              className="px-6 py-2 font-comic bg-pop-green text-pop-white border-2 border-pop-black shadow-comic-sm hover:translate-y-0.5 hover:shadow-none transition-all"
             >
               Done
             </button>

@@ -524,13 +524,6 @@ export default function CollectionPage() {
             <span className="hidden sm:inline">Share</span>
           </button>
           <button
-            onClick={enterSelectionMode}
-            className="inline-flex items-center gap-2 px-3 py-2 bg-pop-white border-2 border-pop-black text-pop-black font-bold hover:shadow-[2px_2px_0px_#000] transition-all"
-          >
-            <CheckSquare className="w-5 h-5" />
-            <span className="hidden sm:inline">Select</span>
-          </button>
-          <button
             onClick={() => router.push("/scan")}
             className="inline-flex items-center gap-2 px-3 py-2 bg-pop-blue border-2 border-pop-black text-white font-bold shadow-[2px_2px_0px_#000] hover:shadow-[3px_3px_0px_#000] transition-all"
           >
@@ -643,7 +636,7 @@ export default function CollectionPage() {
       )}
 
       {/* List Selector Tabs - Pop Art Style */}
-      <div className="mb-4">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap gap-2">
           {lists.map((list) => {
             const count =
@@ -680,6 +673,15 @@ export default function CollectionPage() {
             );
           })}
         </div>
+
+        {/* Select Button - positioned above filters */}
+        <button
+          onClick={enterSelectionMode}
+          className="inline-flex items-center gap-2 px-3 py-2 bg-pop-white border-2 border-pop-black text-pop-black font-bold hover:shadow-[2px_2px_0px_#000] transition-all"
+        >
+          <CheckSquare className="w-5 h-5" />
+          <span className="hidden sm:inline">Select</span>
+        </button>
       </div>
 
       {/* Filters Bar - Pop Art Style */}

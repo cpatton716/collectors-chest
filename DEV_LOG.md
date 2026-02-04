@@ -6,10 +6,32 @@ This log tracks session-by-session progress on Collectors Chest.
 
 ## Changes Since Last Deploy
 
-**Sessions since last deploy:** 0
-**Deploy Readiness:** Just deployed
+**Sessions since last deploy:** 1
+**Deploy Readiness:** Needs Testing
 
-(No changes yet)
+### Feb 4, 2026 - Session Changes
+
+**Completed:**
+- CSV Import: Quick Import toggle (skip API lookups for faster import)
+- CSV Import: Cover tip callout on completion ("edit to change covers")
+- CSV Import: Modal stays until user clicks Done (was auto-closing)
+- CSV Import: Pop-art styling improvements, toggle overflow fix
+- CSV Import: Renamed sample file to "Collectors-Chest-Sample-Import.csv"
+- Navigation: Fixed "More" button active state on Collection page
+- TEST_CASES.md: Updated mobile CSV import test case
+
+**In Progress - BARCODE SCANNER BROKEN:**
+- Rewrote BarcodeScanner.tsx to use `html5-qrcode` library (installed)
+- Removed `jsqr` package
+- **BLOCKER:** Mobile Chrome caching old JS bundle that references jsQR
+- Error: "Module jsqr was instantiated but module factory is not available"
+- Server restarts, cache clears haven't fixed mobile browser cache
+
+**To Resume:**
+1. Clear Chrome cache/data on mobile device (Settings → Apps → Chrome → Clear Cache)
+2. OR test on production deploy (cache won't be an issue)
+3. OR test in Chrome Incognito on mobile
+4. The code is correct - it's a mobile browser caching issue
 
 ---
 

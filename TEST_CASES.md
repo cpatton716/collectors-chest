@@ -270,7 +270,7 @@ A guide for testing the main and secondary features of the application.
 | Preview import | Review preview table | Shows title, issue (publisher/year on desktop) |
 | Import comics | Click "Import X Comics" | Progress bar shows, comics import with price lookups |
 | Import complete | Wait for completion | Success message, redirected to collection |
-| Not visible on mobile | View scan page on mobile | Import CSV button hidden |
+| Mobile CSV import | View scan page on mobile | Import CSV button visible and functional ✅ |
 | Not visible for guests | View scan page while logged out | Import CSV button hidden |
 
 ### 12. Alternative Add Methods
@@ -766,7 +766,7 @@ A guide for testing the main and secondary features of the application.
 | Collection mobile | View collection on mobile | Filter labels hidden, dropdowns work |
 | Comic detail mobile | Open comic detail on mobile | Modal scrollable, all info accessible |
 | Navigation mobile | View nav on mobile | Bottom navigation bar appears |
-| CSV import hidden | View scan page on mobile | Import CSV button not visible |
+| CSV import on mobile | View scan page on mobile | Import CSV button visible and modal works ✅ |
 
 ---
 

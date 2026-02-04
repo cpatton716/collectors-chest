@@ -228,7 +228,7 @@ export function Navigation() {
                 <button
                   onClick={() => setShowMoreMenu(!showMoreMenu)}
                   className={`nav-link-pop flex items-center space-x-2 px-3 py-1.5 transition-all ${
-                    secondaryLinks.some((l) => pathname === l.href) || pathname.startsWith("/admin")
+                    secondaryLinks.some((l) => pathname === l.href && !primaryLinks.some((p) => p.href === l.href)) || pathname.startsWith("/admin")
                       ? "bg-pop-white text-pop-black border-2 border-pop-black shadow-comic-sm"
                       : "text-pop-black hover:bg-pop-white/50"
                   }`}
