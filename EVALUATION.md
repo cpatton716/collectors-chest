@@ -440,6 +440,16 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
    - Test Stripe webhooks
    - Effort: 0.5 session
 
+### 🟠 Feb 5 Feedback Items (21 items — see FEEDBACK_FEB_5.md)
+
+Key areas needing attention:
+- **Messaging**: Real-time updates (#17), notification icon bugs (#20)
+- **Key Hunt**: Access issues (#12, #14), trial button (#15), styling (#16)
+- **Admin**: Navigation (#13), search UX (#10, #11)
+- **Data handling**: Price field dollar signs (#5), publisher dropdown mismatch (#4), sort by value (#19), raw/slabbed value re-eval (#18)
+- **Community**: Key info notifications (#6), reputation updates (#7), follow discoverability (#21)
+- **Public sharing**: Show profile name (#9)
+
 ### 🟡 Next Session Focus
 
 1. **GoCollect API Integration** ⏸️ BLOCKED

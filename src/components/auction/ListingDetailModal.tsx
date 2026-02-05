@@ -251,8 +251,8 @@ export function ListingDetailModal({
                     )}
                   </>
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-6xl text-green-400 font-bold italic">
-                    ?
+                  <div className="w-full h-full flex items-center justify-center dots-red">
+                    <span className="font-comic text-6xl text-pop-blue text-comic-outline">?</span>
                   </div>
                 )}
 

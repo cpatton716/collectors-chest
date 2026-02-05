@@ -6,14 +6,30 @@ This log tracks session-by-session progress on Collectors Chest.
 
 ## Changes Since Last Deploy
 
-**Sessions since last deploy:** 3
+**Sessions since last deploy:** 4
 **Deploy Readiness:** Ready
 
-### Feb 5, 2026 Changes
+### Feb 5, 2026 - Session 2 Changes
+
+**Completed:**
+- CSV Import: Flexible boolean parsing (yes/no, Y/N, 1/0 in addition to true/false)
+- Missing cover placeholders: Updated to Lichtenstein pop-art style (was old Riddler style)
+- Partner feedback session: Documented 21 items in FEEDBACK_FEB_5.md
+- FEEDBACK_JAN_28.md: Closed out #8 (stats), #10 (public share), #22 (payment error)
+
+**Files Modified:**
+- `src/components/CSVImport.tsx` - Added `parseBool()` helper for flexible boolean parsing
+- `src/components/ComicImage.tsx` - Pop-art placeholder for missing covers
+- `src/components/auction/ListingDetailModal.tsx` - Pop-art placeholder for missing covers
+- `FEEDBACK_FEB_5.md` - Created with 21 feedback items
+- `FEEDBACK_JAN_28.md` - Updated completed items
+
+### Feb 5, 2026 - Session 1 Changes
 
 **Completed:**
 - Public share link bug FIXED: Root cause was `.or()` query comparing text slug against UUID column, causing PostgreSQL `22P02` error that killed the entire query. Fix: validate UUID format before building query.
 - CLAUDE.md: Updated session-start testing questions (added Android/Windows devices, multiSelect for account type)
+- Deployed to production
 
 **Files Modified:**
 - `src/lib/db.ts` - Fixed `getPublicProfile()` UUID type error

@@ -26,7 +26,7 @@ interface ComicImageProps {
  * Features:
  * - Automatic lazy loading (unless priority=true)
  * - WebP/AVIF format optimization
- * - Riddler-style placeholder for missing/broken images
+ * - Pop-art placeholder for missing/broken images
  * - Consistent aspect ratio handling
  */
 export function ComicImage({
@@ -62,11 +62,9 @@ export function ComicImage({
       onClick={onClick}
     >
       {showPlaceholder ? (
-        // Riddler-style placeholder for missing/broken images
-        <div className="w-full h-full flex items-center justify-center bg-gray-900">
-          <span className="text-green-400 font-bold italic text-4xl drop-shadow-[0_0_8px_rgba(74,222,128,0.6)]">
-            ?
-          </span>
+        // Pop-art placeholder for missing/broken images
+        <div className="w-full h-full flex items-center justify-center dots-red">
+          <span className="font-comic text-6xl text-pop-blue text-comic-outline">?</span>
         </div>
       ) : (
         <>

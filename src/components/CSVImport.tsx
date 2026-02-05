@@ -7,6 +7,11 @@ import { v4 as uuidv4 } from "uuid";
 
 import { CollectionItem, ComicDetails } from "@/types/comic";
 
+function parseBool(value: string): boolean {
+  const v = value.toLowerCase().trim();
+  return ["true", "1", "yes", "y"].includes(v);
+}
+
 interface CSVImportProps {
   onImportComplete: (items: CollectionItem[]) => void;
   onCancel: () => void;
@@ -128,7 +133,7 @@ export function CSVImport({ onImportComplete, onCancel }: CSVImportProps) {
             row.releaseYear = value || undefined;
             break;
           case "isslabbed":
-            row.isSlabbed = value.toLowerCase() === "true" || value === "1";
+            row.isSlabbed = parseBool(value);
             break;
           case "gradingcompany":
             row.gradingCompany = value || undefined;
@@ -137,7 +142,7 @@ export function CSVImport({ onImportComplete, onCancel }: CSVImportProps) {
             row.grade = value || undefined;
             break;
           case "issignatureseries":
-            row.isSignatureSeries = value.toLowerCase() === "true" || value === "1";
+            row.isSignatureSeries = parseBool(value);
             break;
           case "signedby":
             row.signedBy = value || undefined;
@@ -155,7 +160,7 @@ export function CSVImport({ onImportComplete, onCancel }: CSVImportProps) {
             row.notes = value || undefined;
             break;
           case "forsale":
-            row.forSale = value.toLowerCase() === "true" || value === "1";
+            row.forSale = parseBool(value);
             break;
           case "askingprice":
             row.askingPrice = value ? parseFloat(value) : undefined;
