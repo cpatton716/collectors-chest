@@ -8,10 +8,11 @@
 
 In addition to the global session start steps, also:
 
-4. **Ask about testing context** - Ask ALL questions together using AskUserQuestion:
-   - **Testing platform**: Mobile or Web
-   - **Account type**: Guest (no account), Free (registered, not premium), or Premium
-   - **Device(s)**: What specific device(s) will you test on? (e.g., "iPhone 15 Pro", "Samsung Galaxy S24", "MacBook Pro Chrome", "Windows Firefox")
+4. **Ask about testing context** - Ask ALL 4 questions together using AskUserQuestion:
+   - **Platform**: Mobile, Web, or Both
+   - **Account type** (multiSelect): Guest (no account), Free (registered, not premium), Premium
+   - **Mobile devices** (multiSelect): iPhone, Android
+   - **Desktop browsers** (multiSelect): Mac Chrome, Mac Safari, Windows Chrome, Windows Edge
 
 5. **Log to Testing Results** - After getting answers, append to `TESTING_RESULTS.md`:
    ```markdown

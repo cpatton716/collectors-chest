@@ -6,8 +6,18 @@ This log tracks session-by-session progress on Collectors Chest.
 
 ## Changes Since Last Deploy
 
-**Sessions since last deploy:** 2
-**Deploy Readiness:** Needs Testing (Public Share Link Bug)
+**Sessions since last deploy:** 3
+**Deploy Readiness:** Ready
+
+### Feb 5, 2026 Changes
+
+**Completed:**
+- Public share link bug FIXED: Root cause was `.or()` query comparing text slug against UUID column, causing PostgreSQL `22P02` error that killed the entire query. Fix: validate UUID format before building query.
+- CLAUDE.md: Updated session-start testing questions (added Android/Windows devices, multiSelect for account type)
+
+**Files Modified:**
+- `src/lib/db.ts` - Fixed `getPublicProfile()` UUID type error
+- `CLAUDE.md` - Updated testing context questions
 
 ### Feb 4, 2026 - Session 2 Changes
 

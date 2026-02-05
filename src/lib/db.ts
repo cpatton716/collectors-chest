@@ -688,13 +688,21 @@ export interface PublicCollectionStats {
  * Uses supabaseAdmin to bypass RLS for anonymous public access
  */
 export async function getPublicProfile(slugOrId: string): Promise<PublicProfile | null> {
-  // Try by slug first, then by ID
-  const { data, error } = await supabaseAdmin
+  // Try by slug first; only try UUID lookup if input is a valid UUID format
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slugOrId);
+
+  let query = supabaseAdmin
     .from("profiles")
     .select("*")
-    .or(`public_slug.eq.${slugOrId},id.eq.${slugOrId}`)
-    .eq("is_public", true)
-    .single();
+    .eq("is_public", true);
+
+  if (isUuid) {
+    query = query.or(`public_slug.eq.${slugOrId},id.eq.${slugOrId}`);
+  } else {
+    query = query.eq("public_slug", slugOrId);
+  }
+
+  const { data, error } = await query.single();
 
   if (error || !data) return null;
 
