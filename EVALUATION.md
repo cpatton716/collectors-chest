@@ -295,7 +295,7 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 | Key Hunt (offline) | ✅ Complete |
 | CSV Import/Export | ✅ Complete |
 | Collection Statistics | ✅ Complete |
-| Public Sharing | ✅ Complete |
+| Public Sharing | ⚠️ Bug - See FEEDBACK #10 |
 | PWA Support | ✅ Complete |
 | Auction Marketplace | ✅ Complete |
 | Fixed-Price Listings (Buy Now) | ✅ Complete |

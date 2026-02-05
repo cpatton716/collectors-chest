@@ -5,15 +5,15 @@
 | # | Issue | Status |
 |---|-------|--------|
 | 1 | Homepage redirect for logged-in users | ✅ Complete |
-| 2 | CSV functionality on mobile | ⚠️ Needs Testing |
+| 2 | CSV functionality on mobile | ✅ Complete (Feb 4, 2026) |
 | 3 | Mark as Sold button prominence | ✅ Complete |
 | 4 | Custom key info admin approval | ✅ Complete |
 | 5 | Reward users for contributions | ✅ Complete |
 | 6 | Ended auctions on live page | ✅ Complete |
 | 7 | Financial data caching | ⚠️ Needs Verification |
 | 8 | Stats page "No Statistics Available" | ⚠️ Needs Testing |
-| 9 | Mobile barcode scanning | ⚠️ Needs Testing |
-| 10 | Public share link not working | ⚠️ Needs Testing |
+| 9 | Mobile barcode scanning | ❌ N/A (Removed Feb 4, 2026) |
+| 10 | Public share link not working | 🔧 In Progress |
 | 11 | Key Hunt in navigation | ✅ Complete |
 | 12 | Navigation bloat | ✅ Complete |
 | 13 | Key icon consistency | ✅ Complete |
@@ -21,12 +21,25 @@
 | 15 | Key Hunt volumes in predictive text | ✅ Complete |
 | 16 | CSV import enrichment data | ✅ Complete |
 | 17 | CSV forSale creates shop listing | ✅ Complete |
-| 18 | Multi-select bulk actions | ❌ Not Implemented |
+| 18 | Multi-select bulk actions | ✅ Complete (Feb 2, 2026) |
 | 19 | Key Hunt "Add to Hunt List" button | ✅ Complete |
 | 20 | Trades feature | ✅ Complete |
 | 21 | Admin search input styling | ✅ Complete |
 | 22 | Payment error after trial reset | ⚠️ Needs Testing |
 | 23 | Follow/friend system | ✅ Complete |
+
+---
+
+## 🔴 PRIORITY FOR NEXT SESSION (4 remaining items)
+
+| # | Issue | Quick Test | Notes |
+|---|-------|------------|-------|
+| **10** | **Public share link** | Toggle ON, visit `/u/[slug]` in incognito | RLS fix applied but still failing - needs DB verification |
+| **7** | Financial data caching | Check if collection values refresh within 24h | Verify cache duration is acceptable |
+| **8** | Stats page empty | Navigate to Stats with valued comics | May be data loading issue |
+| **22** | Payment error after trial reset | Admin reset trial → user starts new trial | 503 error on checkout |
+
+**Issue #10 debugging steps ready in section below.**
 
 ---
 
@@ -47,11 +60,9 @@
 
 ## 2. Add CSV functionality missing on mobile
 
-**Status:** ⚠️ Needs Testing
+**Status:** ✅ Complete (Feb 4, 2026)
 
-**Issue:** The "Add CSV" functionality doesn't appear to exist on mobile.
-
-**Action needed:** Verify whether CSV import is available on mobile, and if not, determine if it should be added or if this is intentional.
+**Verified:** CSV import button is visible and functional on mobile.
 
 ---
 
@@ -175,30 +186,22 @@
 
 ## 9. Mobile barcode scanning not working (regression?)
 
-**Status:** ⚠️ Needs Testing
+**Status:** ❌ N/A - Feature Removed (Feb 4, 2026)
 
-**Issue:** Scanning a barcode from a mobile device does not work.
+**Resolution:** Dedicated barcode scanning was removed from the app on Feb 4, 2026 because no reliable external UPC → comic mapping API exists (Comic Vine returns garbage, Metron was down).
 
-**Context:** This was previously investigated and believed to be resolved, but the issue has resurfaced or was never fully fixed.
-
-**Action needed:**
-- Investigate what's causing the barcode scan to fail on mobile
-- Review previous fix to understand what was changed
-- Ensure it works consistently across iOS and Android devices
-- Test thoroughly before marking as resolved this time
+**New Approach:** Barcodes are now detected during AI cover scans and cataloged to build a crowd-sourced database. See `docs/BARCODE_SCANNER_SPEC.md` and BACKLOG.md item "Re-introduce Dedicated Barcode Scanning" for the path to re-enabling this feature.
 
 ---
 
 ## 10. Public share link returns "Collection Not Found"
 
-**Status:** ⚠️ Needs Testing
-
-**Note:** Code looks correct - `getPublicProfile` checks `is_public = true` and queries by `public_slug`. May be a data issue (slug not saved correctly) rather than code bug.
+**Status:** ⚠️ In Progress - RLS fix applied but not working
 
 **Issue:** The public share link feature does not work. When a user enables "Public Collection" and shares their link, visitors see "Collection Not Found" error instead of the collection.
 
 **Testing performed:**
-- Multiple users tested
+- Multiple users tested (production + local)
 - Multiple browsers tested
 - Incognito mode tested
 - All attempts return the same error
@@ -206,11 +209,51 @@
 **Screenshot reference:**
 - Share modal shows "Public Collection" toggle ON with link: `https://collectors-chest.com/u/jsnaponte`
 - Visiting that URL shows "Collection Not Found - This collection doesn't exist or isn't public"
+- Local test: `/u/patton-test1` returns 404 even with share toggle ON showing slug "patton-test1"
 
-**Investigation needed:**
-- Verify the `is_public` flag is being saved correctly to the database
-- Check if the `/u/[username]` route is querying the correct field
-- Confirm the username in the URL matches what's stored in the database
+**Fix attempt (Feb 4, 2026):**
+Changed `togglePublicSharing` and `updatePublicProfileSettings` in `src/lib/db.ts` to use `supabaseAdmin` instead of `supabase` to bypass RLS. Build passed but issue persists.
+
+**Root cause investigation needed:**
+
+1. **Verify data is actually being saved:**
+   - Add console logging to `togglePublicSharing` (line 872) to confirm:
+     - What `profileId` is being passed
+     - Whether the update returns an error
+     - Number of rows affected
+   - Direct Supabase query to check the profile table:
+     ```sql
+     SELECT id, is_public, public_slug FROM profiles WHERE public_slug = 'patton-test1';
+     ```
+
+2. **Check `getSharingSettings` RLS issue (line 952):**
+   - Still uses regular `supabase` client, may not read correctly
+   - This could cause the UI to show incorrect state (toggle ON but data not saved)
+   - Consider changing to `supabaseAdmin`
+
+3. **Validate query syntax in `getPublicProfile` (line 695):**
+   - Current: `.or(\`public_slug.eq.${slugOrId},id.eq.${slugOrId}\`)`
+   - Test with explicit query:
+     ```sql
+     SELECT * FROM profiles WHERE public_slug = 'patton-test1' AND is_public = true;
+     ```
+
+4. **Profile ID mismatch:**
+   - Verify `profileId` passed to `togglePublicSharing` matches actual profile ID format
+   - Check if `profile.id` from `getProfileByClerkId` is the correct Supabase profile ID
+
+**Code locations:**
+- `src/lib/db.ts:690-712` - `getPublicProfile` query
+- `src/lib/db.ts:825-895` - `togglePublicSharing` update
+- `src/lib/db.ts:952-957` - `getSharingSettings` query (potential RLS issue)
+- `src/app/api/sharing/route.ts` - API routes calling these functions
+- `src/app/u/[slug]/page.tsx` - Public profile page
+
+**Next steps:**
+1. Add logging to `togglePublicSharing` to confirm updates succeed
+2. Query database directly to verify `is_public` and `public_slug` values
+3. Change `getSharingSettings` to use `supabaseAdmin`
+4. Test the complete flow with logging enabled
 
 ---
 
@@ -394,7 +437,14 @@ If a user marks a book as for sale in their CSV import (with asking price), the 
 
 ## 18. Add multi-select tool for bulk collection actions
 
-**Status:** ❌ Not Implemented
+**Status:** ✅ Complete (Feb 2, 2026)
+
+**Implementation:**
+- Selection mode: "Select" button in collection header
+- Selection toolbar: Delete, Trade, Add to List, Sold
+- Bulk delete with confirmation modal for 10+ comics
+- Undo toast with 10-second countdown
+- Mobile-responsive (icons only on mobile)
 
 **Issue:** Users with more than one book in their collection have no way to perform bulk operations. Every action (delete, mark as sold, list for sale, etc.) must be done one book at a time.
 

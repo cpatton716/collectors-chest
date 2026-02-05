@@ -240,3 +240,122 @@ $$ language 'plpgsql';
 CREATE TRIGGER create_default_lists_trigger
   AFTER INSERT ON profiles
   FOR EACH ROW EXECUTE FUNCTION create_default_lists();
+
+-- Barcode catalog table (community-submitted barcode mappings)
+CREATE TABLE barcode_catalog (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  comic_id UUID NOT NULL REFERENCES comics(id) ON DELETE CASCADE,
+
+  -- Full barcode as scanned (e.g., "76194137691200521")
+  raw_barcode TEXT NOT NULL,
+
+  -- Parsed barcode components
+  upc_prefix TEXT,       -- First 5 digits - publisher identifier (e.g., "76194")
+  item_number TEXT,      -- Next 6 digits - series identifier
+  check_digit TEXT,      -- 1 digit - validation
+  addon_issue TEXT,      -- 3 digits from add-on - issue number
+  addon_variant TEXT,    -- 2 digits from add-on - variant code
+
+  -- Quality tracking
+  confidence TEXT CHECK (confidence IN ('high', 'medium', 'low')),
+  status TEXT CHECK (status IN ('auto_approved', 'pending_review', 'approved', 'rejected')) DEFAULT 'pending_review',
+
+  -- Submission tracking
+  submitted_by UUID NOT NULL REFERENCES profiles(id),
+  reviewed_by UUID REFERENCES profiles(id),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  reviewed_at TIMESTAMPTZ
+);
+
+CREATE INDEX idx_barcode_catalog_comic_id ON barcode_catalog(comic_id);
+CREATE INDEX idx_barcode_catalog_raw_barcode ON barcode_catalog(raw_barcode);
+CREATE INDEX idx_barcode_catalog_series ON barcode_catalog(upc_prefix, item_number);
+CREATE INDEX idx_barcode_catalog_status ON barcode_catalog(status);
+
+-- Enable RLS on barcode_catalog
+ALTER TABLE barcode_catalog ENABLE ROW LEVEL SECURITY;
+
+-- Barcode catalog policies
+CREATE POLICY "Users can view own submitted barcodes" ON barcode_catalog
+  FOR SELECT USING (submitted_by IN (
+    SELECT id FROM profiles WHERE clerk_user_id = current_setting('request.jwt.claims', true)::json->>'sub'
+  ));
+
+CREATE POLICY "Admins can view all barcodes" ON barcode_catalog
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM profiles
+      WHERE clerk_user_id = current_setting('request.jwt.claims', true)::json->>'sub'
+      AND is_admin = TRUE
+    )
+  );
+
+CREATE POLICY "Service role can insert barcodes" ON barcode_catalog
+  FOR INSERT WITH CHECK (auth.role() = 'service_role');
+
+CREATE POLICY "Service role can update barcodes" ON barcode_catalog
+  FOR UPDATE USING (auth.role() = 'service_role');
+
+-- ============================================
+-- Admin Barcode Reviews (low-confidence alert queue)
+-- ============================================
+
+CREATE TABLE admin_barcode_reviews (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+
+  -- Link to barcode catalog entry
+  barcode_catalog_id UUID NOT NULL REFERENCES barcode_catalog(id) ON DELETE CASCADE,
+
+  -- Detection data
+  detected_upc TEXT NOT NULL,
+  corrected_upc TEXT,
+  cover_image_url TEXT NOT NULL,
+
+  -- Display info (denormalized for admin convenience)
+  comic_title TEXT,
+  comic_issue TEXT,
+
+  -- Review status
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'corrected', 'rejected')),
+  admin_notes TEXT,
+
+  -- Timestamps
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  resolved_at TIMESTAMPTZ,
+
+  -- Who resolved it
+  resolved_by UUID REFERENCES profiles(id)
+);
+
+-- Indexes for admin_barcode_reviews
+CREATE INDEX idx_barcode_reviews_catalog_id ON admin_barcode_reviews(barcode_catalog_id);
+CREATE INDEX idx_barcode_reviews_status ON admin_barcode_reviews(status);
+CREATE INDEX idx_barcode_reviews_created_at ON admin_barcode_reviews(created_at DESC);
+
+-- Enable RLS on admin_barcode_reviews
+ALTER TABLE admin_barcode_reviews ENABLE ROW LEVEL SECURITY;
+
+-- Admin barcode review policies
+CREATE POLICY "Admins can view barcode reviews" ON admin_barcode_reviews
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM profiles
+      WHERE clerk_user_id = current_setting('request.jwt.claims', true)::json->>'sub'
+      AND is_admin = TRUE
+    )
+  );
+
+CREATE POLICY "Admins can update barcode reviews" ON admin_barcode_reviews
+  FOR UPDATE USING (
+    EXISTS (
+      SELECT 1 FROM profiles
+      WHERE clerk_user_id = current_setting('request.jwt.claims', true)::json->>'sub'
+      AND is_admin = TRUE
+    )
+  );
+
+CREATE POLICY "Service role can insert barcode reviews" ON admin_barcode_reviews
+  FOR INSERT WITH CHECK (auth.role() = 'service_role');
+
+CREATE POLICY "Service role full access to barcode reviews" ON admin_barcode_reviews
+  FOR ALL USING (auth.role() = 'service_role');

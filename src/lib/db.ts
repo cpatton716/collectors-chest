@@ -117,6 +117,22 @@ export async function addComic(profileId: string, item: CollectionItem) {
     await supabase.from("comic_lists").insert(listInserts);
   }
 
+  // Catalog barcode if detected during scan (async, non-blocking)
+  if (item.comic.barcode?.raw) {
+    catalogBarcode({
+      comicId: data.id,
+      raw: item.comic.barcode.raw,
+      confidence: item.comic.barcode.confidence,
+      parsed: item.comic.barcode.parsed,
+      submittedBy: profileId,
+      coverImageUrl: item.coverImageUrl,
+      comicTitle: item.comic.title || undefined,
+      comicIssue: item.comic.issueNumber || undefined,
+    }).catch((err) => {
+      console.error("[addComic] Barcode cataloging failed:", err);
+    });
+  }
+
   return data;
 }
 
@@ -852,8 +868,8 @@ export async function togglePublicSharing(
       }
     }
 
-    // Enable public sharing
-    const { error } = await supabase
+    // Enable public sharing (use supabaseAdmin to bypass RLS)
+    const { error } = await supabaseAdmin
       .from("profiles")
       .update({ is_public: true, public_slug: slug })
       .eq("id", profileId);
@@ -865,7 +881,7 @@ export async function togglePublicSharing(
     return { success: true, slug };
   } else {
     // Disable public sharing (keep the slug for reuse)
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from("profiles")
       .update({ is_public: false })
       .eq("id", profileId);
@@ -914,7 +930,8 @@ export async function updatePublicProfileSettings(
     updates.public_slug = settings.publicSlug;
   }
 
-  const { error } = await supabase.from("profiles").update(updates).eq("id", profileId);
+  // Use supabaseAdmin to bypass RLS
+  const { error } = await supabaseAdmin.from("profiles").update(updates).eq("id", profileId);
 
   if (error) {
     return { success: false, error: error.message };
@@ -953,4 +970,82 @@ export async function getSharingSettings(profileId: string): Promise<{
  */
 export async function toggleListSharing(listId: string, isShared: boolean): Promise<void> {
   await supabase.from("lists").update({ is_shared: isShared }).eq("id", listId);
+}
+
+// ============================================
+// Barcode Cataloging
+// ============================================
+
+interface BarcodeCatalogEntry {
+  comicId: string;
+  raw: string;
+  confidence: "high" | "medium" | "low";
+  parsed?: {
+    upcPrefix: string;
+    itemNumber: string;
+    checkDigit: string;
+    addonIssue?: string;
+    addonVariant?: string;
+  };
+  submittedBy: string;
+  coverImageUrl: string;
+  comicTitle?: string;
+  comicIssue?: string;
+}
+
+/**
+ * Catalog a barcode after user saves a comic to their collection.
+ * High confidence barcodes are auto-approved.
+ * Low/medium confidence barcodes are flagged for admin review.
+ */
+export async function catalogBarcode(entry: BarcodeCatalogEntry): Promise<void> {
+  try {
+    const status = entry.confidence === "high" ? "auto_approved" : "pending_review";
+
+    // Insert into barcode_catalog
+    const { data: catalogEntry, error: catalogError } = await supabaseAdmin
+      .from("barcode_catalog")
+      .insert({
+        comic_id: entry.comicId,
+        raw_barcode: entry.raw,
+        upc_prefix: entry.parsed?.upcPrefix || null,
+        item_number: entry.parsed?.itemNumber || null,
+        check_digit: entry.parsed?.checkDigit || null,
+        addon_issue: entry.parsed?.addonIssue || null,
+        addon_variant: entry.parsed?.addonVariant || null,
+        confidence: entry.confidence,
+        status,
+        submitted_by: entry.submittedBy,
+      })
+      .select()
+      .single();
+
+    if (catalogError) {
+      console.error("[catalogBarcode] Error inserting catalog entry:", catalogError);
+      return; // Don't throw - barcode cataloging shouldn't break comic save
+    }
+
+    // If low/medium confidence, create admin review alert
+    if (entry.confidence !== "high" && catalogEntry) {
+      const { error: reviewError } = await supabaseAdmin
+        .from("admin_barcode_reviews")
+        .insert({
+          barcode_catalog_id: catalogEntry.id,
+          detected_upc: entry.raw,
+          cover_image_url: entry.coverImageUrl,
+          comic_title: entry.comicTitle || null,
+          comic_issue: entry.comicIssue || null,
+          status: "pending",
+        });
+
+      if (reviewError) {
+        console.error("[catalogBarcode] Error creating admin review:", reviewError);
+      }
+    }
+
+    // Barcode successfully cataloged (status: ${status})
+  } catch (error) {
+    console.error("[catalogBarcode] Unexpected error:", error);
+    // Don't throw - barcode cataloging shouldn't break the main flow
+  }
 }

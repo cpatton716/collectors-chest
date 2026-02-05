@@ -279,7 +279,6 @@ A guide for testing the main and secondary features of the application.
 
 | Test Case | Steps | Expected Result |
 |-----------|-------|-----------------|
-| Scan barcode | Click "Scan Barcode" → Scan comic barcode | Comic looked up by UPC, details populated |
 | Manual entry | Click "Enter Manually" | Empty form opens for manual data entry |
 
 ### 13. Price Estimates & Key Info
@@ -318,9 +317,8 @@ A guide for testing the main and secondary features of the application.
 
 | Test Case | Steps | Expected Result |
 |-----------|-------|-----------------|
-| Open Key Hunt | Tap Key Hunt in mobile nav | Bottom sheet opens with 3 entry options |
+| Open Key Hunt | Tap Key Hunt in mobile nav | Bottom sheet opens with 2 entry options |
 | Scan cover | Select "Scan Cover" → Take photo | AI identifies comic, grade selector appears for raw |
-| Scan barcode | Select "Scan Barcode" → Scan UPC | Comic looked up by barcode, grade selector appears |
 | Manual entry | Select "Manual Entry" | Title autocomplete + issue number + grade fields |
 | Grade selection (raw) | Complete lookup for raw comic | Grade picker shows 6 options (9.8 to 2.0) |
 | Slabbed detection | Scan cover of slabbed comic | Auto-detects grade from CGC/CBCS label |
@@ -354,7 +352,6 @@ A guide for testing the main and secondary features of the application.
 | Test Case | Steps | Expected Result |
 |-----------|-------|-----------------|
 | Title autocomplete cache | Type "Spider" in title field → Clear → Type "Spider" again | Second request returns faster (Redis hit) |
-| Barcode cache | Scan same barcode twice | Second scan returns instantly (6-month cache) |
 | Cert lookup cache | Look up same CGC cert number twice | Second lookup returns instantly (1-year cache) |
 | Profile cache | Make multiple API calls as logged-in user | Profile fetched once, cached 5 minutes |
 | AI image cache | Scan exact same image twice | Second scan skips AI call (30-day cache) |
@@ -820,4 +817,4 @@ If you encounter bugs or unexpected behavior:
 
 ---
 
-*Last Updated: February 2, 2026*
+*Last Updated: February 4, 2026*

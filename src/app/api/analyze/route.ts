@@ -26,6 +26,21 @@ import {
 
 import { PriceData } from "@/types/comic";
 
+// Barcode detection result from AI analysis
+interface BarcodeDetection {
+  raw: string;
+  confidence: "high" | "medium" | "low";
+}
+
+// Parsed barcode components (UPC-A with optional 5-digit add-on)
+interface ParsedBarcode {
+  upcPrefix: string; // First 5 digits (publisher code)
+  itemNumber: string; // Next 6 digits (item identifier)
+  checkDigit: string; // Digit 12 (check digit)
+  addonIssue?: string; // Digits 13-15 (issue number, if present)
+  addonVariant?: string; // Digits 16-17 (variant code, if present)
+}
+
 // Interface for comic details from AI analysis
 interface ComicDetails {
   title: string | null;
@@ -49,11 +64,48 @@ interface ComicDetails {
   gradeDate?: string;
   graderNotes?: string;
   priceData?: (PriceData & { priceSource: "ebay" | "ai" }) | null;
+  barcodeNumber?: string | null; // UPC barcode if visible in image (legacy field)
+  barcode?: { raw: string; confidence: "high" | "medium" | "low"; parsed?: ParsedBarcode } | null; // Enhanced barcode detection
+  dataSource?: "barcode" | "ai" | "cache"; // Track where primary data came from
 }
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
+
+/**
+ * Parse a UPC barcode string into its component parts
+ * UPC-A (12 digits): PPPPP IIIIII C
+ * UPC-A with add-on (17 digits): PPPPP IIIIII C AAA VV
+ *
+ * @param barcodeRaw - The raw barcode string (12-17 digits)
+ * @returns Parsed components or null if invalid format
+ */
+function parseBarcode(barcodeRaw: string): ParsedBarcode | null {
+  // Clean the barcode (remove any spaces/dashes)
+  const clean = barcodeRaw.replace(/[\s-]/g, "");
+
+  // Must be 12-17 digits
+  if (!/^\d{12,17}$/.test(clean)) {
+    return null;
+  }
+
+  const parsed: ParsedBarcode = {
+    upcPrefix: clean.slice(0, 5), // First 5 digits (publisher code)
+    itemNumber: clean.slice(5, 11), // Next 6 digits (item identifier)
+    checkDigit: clean.slice(11, 12), // Digit 12 (check digit)
+  };
+
+  // If we have a 5-digit add-on (digits 13-17)
+  if (clean.length >= 15) {
+    parsed.addonIssue = clean.slice(12, 15); // Digits 13-15 (issue number)
+  }
+  if (clean.length >= 17) {
+    parsed.addonVariant = clean.slice(15, 17); // Digits 16-17 (variant code)
+  }
+
+  return parsed;
+}
 
 // Phase 3: Removed Supabase cache layer - using Redis only for eBay prices
 // This simplifies the caching architecture and reduces latency
@@ -221,7 +273,14 @@ Look carefully at:
 4. Any variant cover indicators (Cover A, B, 1:25, etc.)
 5. Creator credits if visible (writer, artist names)
 6. The publication year or month/year
-7. Any UPC/barcode area that might have date info
+7. **UPC BARCODE DETECTION** - Look for any UPC barcode visible on the cover:
+   - Read ALL digits carefully (typically 12 digits for UPC-A, plus optional 5-digit add-on = 17 total)
+   - The main UPC is 12 digits; if there's a smaller 5-digit add-on code to the right, include those too
+   - Report your confidence level based on image clarity:
+     * "high" - barcode is clear and fully readable
+     * "medium" - barcode is partially visible or slightly blurry but you can make out most digits
+     * "low" - barcode is obscured, damaged, or very blurry but you can attempt to read it
+   - If no barcode is visible at all, return null for the barcode field
 8. WHETHER THIS IS A GRADED/SLABBED COMIC - Look for:
    - A hard plastic case (slab) around the comic
    - A label at the top with grading company logo (CGC, CBCS, PGX)
@@ -246,7 +305,12 @@ Return your findings as a JSON object with this exact structure:
   "grade": "the numeric grade as a string (e.g., '9.8', '9.0') or null if not slabbed",
   "certificationNumber": "the certification/serial number from the label (7-10 digit number) or null if not visible/not slabbed",
   "isSignatureSeries": true or false - whether it's a Signature Series (signed and authenticated),
-  "signedBy": "name of person who signed it or null if not signed/not visible"
+  "signedBy": "name of person who signed it or null if not signed/not visible",
+  "barcodeNumber": "the full UPC barcode digits (12-17 numbers) if visible on the cover, otherwise null",
+  "barcode": {
+    "raw": "all barcode digits as a single string (12-17 digits)",
+    "confidence": "high" | "medium" | "low"
+  } or null if no barcode visible
 }
 
 Important:
@@ -255,7 +319,9 @@ Important:
 - Be accurate - don't guess if you're not confident
 - For publisher, use the full name (e.g., "Marvel Comics" not just "Marvel")
 - Pay special attention to the grading label if present - it contains valuable info
-- The CGC/CBCS label typically shows: grade, title, issue, date, and signature info`,
+- The CGC/CBCS label typically shows: grade, title, issue, date, and signature info
+- **BARCODE PRIORITY**: If you can see a UPC barcode, read EVERY digit carefully - this enables faster database lookup
+- **BARCODE CONFIDENCE**: Report "high" only if you can clearly read all digits; "medium" if some digits are unclear; "low" if barcode is partially obscured`,
               },
             ],
           },
@@ -287,6 +353,19 @@ Important:
         comicDetails = JSON.parse(jsonText.trim());
         // Initialize keyInfo as empty array
         comicDetails.keyInfo = [];
+
+        // Parse the barcode into components if detected
+        if (comicDetails.barcode && comicDetails.barcode.raw) {
+          const parsed = parseBarcode(comicDetails.barcode.raw);
+          if (parsed) {
+            comicDetails.barcode.parsed = parsed;
+          }
+        }
+
+        // Ensure backward compatibility: populate barcodeNumber from barcode.raw if needed
+        if (comicDetails.barcode?.raw && !comicDetails.barcodeNumber) {
+          comicDetails.barcodeNumber = comicDetails.barcode.raw;
+        }
 
         // Cache the AI analysis result for 30 days (Phase 2 optimization)
         // Only cache if we got valid results
@@ -321,6 +400,143 @@ Important:
     // Ensure keyInfo is initialized
     if (!comicDetails.keyInfo) {
       comicDetails.keyInfo = [];
+    }
+
+    // ============================================
+    // BARCODE LOOKUP (Optimization)
+    // If Claude detected a barcode, try fast database lookup first
+    // Barcode lookups are cached and much faster than AI analysis
+    // ============================================
+    if (comicDetails.barcodeNumber && !usedCache) {
+      try {
+        // Clean the barcode (remove any spaces/dashes)
+        const cleanBarcode = comicDetails.barcodeNumber.replace(/[\s-]/g, "");
+
+        // Only proceed if it looks like a valid UPC (8-13 digits)
+        if (/^\d{8,13}$/.test(cleanBarcode)) {
+          // Check barcode cache first
+          const cachedBarcode = await cacheGet<{
+            title: string | null;
+            issueNumber: string | null;
+            publisher: string | null;
+            releaseYear: string | null;
+            writer: string | null;
+            coverArtist: string | null;
+            interiorArtist: string | null;
+          }>(cleanBarcode, "barcode");
+
+          if (cachedBarcode && cachedBarcode.title) {
+            // Use barcode lookup data, but keep AI-detected grading info
+            const gradingInfo = {
+              isSlabbed: comicDetails.isSlabbed,
+              gradingCompany: comicDetails.gradingCompany,
+              grade: comicDetails.grade,
+              certificationNumber: comicDetails.certificationNumber,
+              isSignatureSeries: comicDetails.isSignatureSeries,
+              signedBy: comicDetails.signedBy,
+            };
+
+            comicDetails = {
+              ...comicDetails,
+              title: cachedBarcode.title || comicDetails.title,
+              issueNumber: cachedBarcode.issueNumber || comicDetails.issueNumber,
+              publisher: cachedBarcode.publisher || comicDetails.publisher,
+              releaseYear: cachedBarcode.releaseYear || comicDetails.releaseYear,
+              writer: cachedBarcode.writer || comicDetails.writer,
+              coverArtist: cachedBarcode.coverArtist || comicDetails.coverArtist,
+              interiorArtist: cachedBarcode.interiorArtist || comicDetails.interiorArtist,
+              ...gradingInfo,
+              dataSource: "barcode",
+              keyInfo: [], // Will be populated later
+            };
+          } else {
+            // Try fresh barcode lookup via Comic Vine
+            const COMIC_VINE_API_KEY = process.env.COMIC_VINE_API_KEY;
+            if (COMIC_VINE_API_KEY) {
+              const upcWithoutCheckDigit = cleanBarcode.slice(0, -1);
+              const searchUrl = `https://comicvine.gamespot.com/api/issues/?api_key=${COMIC_VINE_API_KEY}&format=json&filter=upc:${upcWithoutCheckDigit}&field_list=id,name,issue_number,cover_date,image,volume,person_credits`;
+
+              const barcodeResponse = await fetch(searchUrl, {
+                headers: { "User-Agent": "ComicTracker/1.0" },
+              });
+
+              if (barcodeResponse.ok) {
+                const barcodeData = await barcodeResponse.json();
+                if (barcodeData.results && barcodeData.results.length > 0) {
+                  const issue = barcodeData.results[0];
+                  const gradingInfo = {
+                    isSlabbed: comicDetails.isSlabbed,
+                    gradingCompany: comicDetails.gradingCompany,
+                    grade: comicDetails.grade,
+                    certificationNumber: comicDetails.certificationNumber,
+                    isSignatureSeries: comicDetails.isSignatureSeries,
+                    signedBy: comicDetails.signedBy,
+                  };
+
+                  // Extract year from cover_date
+                  let releaseYear: string | null = null;
+                  if (issue.cover_date) {
+                    const yearMatch = issue.cover_date.match(/(\d{4})/);
+                    if (yearMatch) releaseYear = yearMatch[1];
+                  }
+
+                  // Extract creators
+                  let writer: string | null = null;
+                  let coverArtist: string | null = null;
+                  let interiorArtist: string | null = null;
+                  if (issue.person_credits) {
+                    for (const credit of issue.person_credits) {
+                      const role = credit.role?.toLowerCase() || "";
+                      if (role.includes("writer") && !writer) writer = credit.name;
+                      if (role.includes("cover") && !coverArtist) coverArtist = credit.name;
+                      if ((role.includes("artist") || role.includes("pencil")) && !interiorArtist) {
+                        interiorArtist = credit.name;
+                      }
+                    }
+                  }
+
+                  comicDetails = {
+                    ...comicDetails,
+                    title: issue.volume?.name || comicDetails.title,
+                    issueNumber: issue.issue_number || comicDetails.issueNumber,
+                    publisher: issue.volume?.publisher?.name || comicDetails.publisher,
+                    releaseYear: releaseYear || comicDetails.releaseYear,
+                    writer: writer || comicDetails.writer,
+                    coverArtist: coverArtist || comicDetails.coverArtist,
+                    interiorArtist: interiorArtist || comicDetails.interiorArtist,
+                    ...gradingInfo,
+                    dataSource: "barcode",
+                    keyInfo: [],
+                  };
+
+                  // Cache the barcode result for future lookups (fire and forget)
+                  cacheSet(
+                    cleanBarcode,
+                    {
+                      title: comicDetails.title,
+                      issueNumber: comicDetails.issueNumber,
+                      publisher: comicDetails.publisher,
+                      releaseYear: comicDetails.releaseYear,
+                      writer: comicDetails.writer,
+                      coverArtist: comicDetails.coverArtist,
+                      interiorArtist: comicDetails.interiorArtist,
+                    },
+                    "barcode"
+                  ).catch(() => {});
+                }
+              }
+            }
+          }
+        }
+      } catch (barcodeError) {
+        console.error("[analyze] Barcode lookup error:", barcodeError);
+        // Continue with AI-detected data - barcode lookup is optional optimization
+      }
+    }
+
+    // Track data source if not already set
+    if (!comicDetails.dataSource) {
+      comicDetails.dataSource = usedCache ? "cache" : "ai";
     }
 
     // If this is a slabbed comic with a certification number, look up from grading company

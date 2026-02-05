@@ -30,6 +30,19 @@ Added rate limiting (20 requests/min) to protect Anthropic API costs.
 
 ---
 
+### Fix Verification Email Branding
+**Priority:** High
+**Status:** Pending
+**Added:** Feb 4, 2026
+
+The email verification emails sent for bonus scan claims still reference "Collector's Catalog" instead of "Collector's Chest". Update the email template to use the correct branding.
+
+**Files to Check:**
+- `src/app/api/email-capture/route.ts` - Look for email template content
+- Any Resend email templates or utilities
+
+---
+
 ## Design Review
 
 ### Unique Visual Identity
@@ -253,6 +266,128 @@ Allow users to customize the initial message when starting a conversation via th
 **Files to Modify:**
 - `src/components/messaging/MessageButton.tsx`
 - New: `src/components/messaging/ComposeMessageModal.tsx`
+
+---
+
+### Evaluate Dynamsoft Barcode Reader SDK
+**Priority:** Low
+**Status:** Pending
+**Added:** Feb 4, 2026
+
+Evaluate upgrading from html5-qrcode to Dynamsoft Barcode Reader for more reliable barcode scanning, especially for UPC/EAN supplemental (add-on) codes.
+
+**Why Consider:**
+- Actively maintained with professional support
+- Explicit, documented support for 5-digit add-on codes
+- Enterprise-grade reliability
+- Clean API: just set `EnableAddOnCode = 1`
+
+**Considerations:**
+- Cost: ~$1,249+/year (custom pricing, contact sales)
+- 30-day free trial available
+- May be overkill if html5-qrcode works well enough
+
+**Resources:**
+- [Dynamsoft EAN/UPC Add-On Tutorial](https://www.dynamsoft.com/codepool/scan-ean-upc-and-its-add-on-javascript.html)
+- [Pricing Page](https://www.dynamsoft.com/store/dynamsoft-barcode-reader/)
+
+---
+
+### Pre-Seed Barcode Database
+**Priority:** Medium
+**Status:** Pending
+**Added:** Feb 4, 2026
+
+Pre-populate the barcode cache with UPC codes from popular/valuable comics to enable instant lookups without hitting Comic Vine API.
+
+**Potential Data Sources:**
+1. **Comic Vine API bulk export** - Query their API for top series and cache all UPCs
+2. **User collection mining** - When users add comics manually, store any barcode data
+3. **GoCollect integration** - If their API provides UPCs, cache during price lookups
+4. **Community contribution** - Let users submit barcode → comic mappings
+5. **Web scraping** - Scrape UPC lists from comic databases (check ToS)
+
+**Implementation Ideas:**
+- Create a seed script that queries Comic Vine for top 1000 series
+- For each series, get all issues with UPCs
+- Store in Redis with 1-year TTL (or permanent in Supabase)
+- Run as one-time migration or scheduled job
+
+**Considerations:**
+- Comic Vine API rate limits (may need to spread over multiple days)
+- Storage costs for large dataset
+- Cache invalidation strategy (comic data rarely changes)
+- Could store in Supabase `comic_metadata` table instead of Redis for permanence
+
+**Estimated Impact:**
+- Pre-seeding top 5,000 comics would cover ~80% of scans
+- Instant lookups vs 500ms+ API calls
+- Reduced Comic Vine API usage
+
+**Chosen Approach:** Comic Vine bulk query over multiple days
+- Create seed script to query top series (Marvel, DC, Image, Dark Horse, etc.)
+- Respect rate limits by spreading queries over 3-5 days
+- Store results in Redis barcode cache with long TTL
+- Run as background job or manual script
+
+---
+
+### Barcode Detection in Cover Image Analysis
+**Priority:** Medium
+**Status:** ✅ Complete (Feb 4, 2026)
+**Added:** Feb 4, 2026
+
+When analyzing a cover image, if a barcode is visible in the photo, detect and use it first for faster lookup. Barcode database queries are much faster than Claude Vision analysis.
+
+**Implementation:**
+- Modified Claude prompt to extract `barcodeNumber` (12-17 digit UPC) if visible in image
+- Barcode data stored in crowd-sourced `barcode_catalog` table
+- Low/medium confidence detections go to admin review queue
+- High confidence detections auto-approved
+
+**Benefits:**
+- Building a proprietary barcode database over time
+- Faster results when barcode is visible (catalog lookups are instant)
+- More accurate identification (barcode is definitive vs AI interpretation)
+
+**Files Modified:**
+- `src/app/api/analyze/route.ts` - Added barcode detection to prompt
+- `src/lib/db.ts` - Added `catalogBarcode` function
+- `src/types/comic.ts` - Added `BarcodeData` interface
+
+---
+
+### Re-introduce Dedicated Barcode Scanning
+**Priority:** Low
+**Status:** Pending
+**Added:** Feb 4, 2026
+
+Re-enable dedicated barcode scanning feature once the crowd-sourced barcode catalog has sufficient data to provide reliable lookups.
+
+**Context:**
+The dedicated barcode scanner was removed on Feb 4, 2026 because:
+- Comic Vine API returns garbage data for UPC queries (1.1M wildcard results)
+- Metron.cloud has exact UPC matching but server was down
+- No reliable external barcode → comic mapping API exists
+
+**Current Approach:**
+- Barcodes are now detected during AI cover scans and cataloged
+- Building a crowd-sourced `barcode_catalog` database
+- Admin review queue for low/medium confidence detections
+
+**Prerequisites to Re-enable:**
+1. Barcode catalog has 5,000+ verified entries
+2. OR partner with local comic shop to seed data
+3. OR find a reliable external UPC database (GoCollect API may provide this)
+4. OR Comic Vine fixes their API to support exact UPC matching
+
+**When Ready:**
+1. Restore `BarcodeScanner.tsx` component from git history (commit before Feb 4, 2026)
+2. Update barcode lookup to query our `barcode_catalog` first
+3. Fall back to AI cover scan if barcode not in catalog
+4. Re-add "Scan Barcode" option to scan page and Key Hunt
+
+**Spec Document:** `docs/BARCODE_SCANNER_SPEC.md` - Full technical documentation
 
 ---
 

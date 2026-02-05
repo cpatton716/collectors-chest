@@ -24,7 +24,6 @@ import { storage } from "@/lib/storage";
 import { useKeyHunt } from "@/hooks/useKeyHunt";
 import { useOffline } from "@/hooks/useOffline";
 
-import { BarcodeScanner } from "@/components/BarcodeScanner";
 import { FeatureGate } from "@/components/FeatureGate";
 import { GradeSelector } from "@/components/GradeSelector";
 import { ImageUpload } from "@/components/ImageUpload";
@@ -44,8 +43,6 @@ type KeyHuntFlow =
   | "options"
   | "cover-scan"
   | "cover-analyzing"
-  | "barcode-scan"
-  | "barcode-lookup"
   | "manual-entry"
   | "grade-select"
   | "loading"
@@ -126,14 +123,6 @@ export default function KeyHuntPage() {
           setFlow("cover-scan");
         }
         break;
-      case "barcode":
-        if (isOfflineMode) {
-          setError("Barcode scanning is not available offline. Use cached lookups instead.");
-          setFlow("error");
-        } else {
-          setFlow("barcode-scan");
-        }
-        break;
       case "manual":
         setFlow("manual-entry");
         break;
@@ -206,41 +195,6 @@ export default function KeyHuntPage() {
     } catch (err) {
       console.error("Cover scan error:", err);
       setError(err instanceof Error ? err.message : "Failed to analyze cover");
-      setFlow("error");
-    }
-  };
-
-  // Handle barcode scan
-  const handleBarcodeScan = async (barcode: string) => {
-    setFlow("barcode-lookup");
-    setError(null);
-
-    try {
-      const response = await fetch("/api/quick-lookup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ barcode }),
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Failed to look up comic");
-      }
-
-      const data = await response.json();
-
-      // Store comic info and prompt for grade
-      setPendingComic({
-        title: data.comic.title || "Unknown",
-        issueNumber: data.comic.issueNumber || "1",
-        publisher: data.comic.publisher,
-        releaseYear: data.comic.releaseYear,
-        coverImageUrl: data.coverImageUrl,
-      });
-      setFlow("grade-select");
-    } catch (err) {
-      console.error("Barcode lookup error:", err);
-      setError(err instanceof Error ? err.message : "Failed to look up comic");
       setFlow("error");
     }
   };
@@ -822,17 +776,6 @@ export default function KeyHuntPage() {
           </div>
         )}
 
-        {/* Barcode lookup state */}
-        {flow === "barcode-lookup" && (
-          <div className="flex-1 flex items-center justify-center p-8">
-            <div className="text-center text-white">
-              <Loader2 className="w-12 h-12 animate-spin mx-auto mb-4 text-amber-400" />
-              <p className="text-lg font-medium">Looking up comic...</p>
-              <p className="text-sm text-gray-400 mt-2">Finding details from barcode</p>
-            </div>
-          </div>
-        )}
-
         {/* Loading state */}
         {flow === "loading" && (
           <div className="flex-1 flex items-center justify-center p-8">
@@ -894,15 +837,6 @@ export default function KeyHuntPage() {
           onSelectOption={handleSelectOption}
           isOffline={isOfflineMode}
         />
-
-        {/* Barcode Scanner */}
-        {flow === "barcode-scan" && (
-          <BarcodeScanner
-            onScan={handleBarcodeScan}
-            onClose={() => setFlow("options")}
-            isProcessing={false}
-          />
-        )}
 
         {/* Manual Entry Modal */}
         <KeyHuntManualEntry

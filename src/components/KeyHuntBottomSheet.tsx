@@ -8,7 +8,6 @@ import {
   History,
   KeyRound,
   PenLine,
-  ScanBarcode,
   Target,
   WifiOff,
   X,
@@ -18,7 +17,7 @@ import { getKeyHuntHistoryCount } from "@/lib/offlineCache";
 
 import { useKeyHunt } from "@/hooks/useKeyHunt";
 
-type KeyHuntOption = "cover" | "barcode" | "manual" | "offline-search" | "history" | "my-list";
+type KeyHuntOption = "cover" | "manual" | "offline-search" | "history" | "my-list";
 
 interface KeyHuntBottomSheetProps {
   isOpen: boolean;
@@ -86,15 +85,6 @@ export function KeyHuntBottomSheet({
       title: "Scan Cover",
       description: isOffline ? "Not available offline" : "Take a photo of the comic cover",
       color: isOffline ? "bg-gray-400" : "bg-blue-500",
-      disabled: isOffline,
-      badge: null,
-    },
-    {
-      id: "barcode" as KeyHuntOption,
-      icon: ScanBarcode,
-      title: "Scan Barcode",
-      description: isOffline ? "Not available offline" : "Scan the UPC barcode on the back",
-      color: isOffline ? "bg-gray-400" : "bg-green-500",
       disabled: isOffline,
       badge: null,
     },

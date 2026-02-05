@@ -4,11 +4,23 @@
 
 ---
 
-## On Session Start (Additional Step)
+## On Session Start (Additional Steps)
 
 In addition to the global session start steps, also:
 
-4. **Ask about testing platform** - Ask me if I will be testing on Mobile or Web during this session. This helps guide changes based on my test results.
+4. **Ask about testing context** - Ask ALL questions together using AskUserQuestion:
+   - **Testing platform**: Mobile or Web
+   - **Account type**: Guest (no account), Free (registered, not premium), or Premium
+   - **Device(s)**: What specific device(s) will you test on? (e.g., "iPhone 15 Pro", "Samsung Galaxy S24", "MacBook Pro Chrome", "Windows Firefox")
+
+5. **Log to Testing Results** - After getting answers, append to `TESTING_RESULTS.md`:
+   ```markdown
+   ## [Date] - Session Start
+   - **Platform:** [Mobile/Web]
+   - **Account Type:** [Guest/Free/Premium]
+   - **Device(s):** [Device list from user]
+   - **Focus:** [To be filled as session progresses]
+   ```
 
 ---
 

@@ -49,6 +49,17 @@ export function LiveCameraCapture({ onCapture, onClose }: LiveCameraCaptureProps
     }
   }, []);
 
+  // Release any stuck camera streams globally
+  const releaseAllCameras = useCallback(async () => {
+    try {
+      // Get and immediately stop any streams to release cameras
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      stream.getTracks().forEach(track => track.stop());
+    } catch {
+      // Ignore - just trying to release
+    }
+  }, []);
+
   // Start camera stream
   const startCamera = useCallback(async () => {
     if (!checkCameraSupport()) return;
@@ -62,11 +73,15 @@ export function LiveCameraCapture({ onCapture, onClose }: LiveCameraCaptureProps
     setErrorMessage("");
 
     try {
+      // First try to release any stuck camera
+      await releaseAllCameras();
+      await new Promise(resolve => setTimeout(resolve, 300));
+
       const constraints: MediaStreamConstraints = {
         video: {
           facingMode: facingMode,
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
         },
         audio: false,
       };
@@ -94,7 +109,7 @@ export function LiveCameraCapture({ onCapture, onClose }: LiveCameraCaptureProps
         } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
           setErrorMessage("No camera found on this device.");
         } else if (err.name === "NotReadableError" || err.name === "TrackStartError") {
-          setErrorMessage("Camera is in use by another application.");
+          setErrorMessage("Camera is busy. Try closing Chrome completely and reopening, or restart your phone.");
         } else if (err.name === "OverconstrainedError") {
           setErrorMessage("Camera doesn't support the required settings.");
         } else {
@@ -104,7 +119,7 @@ export function LiveCameraCapture({ onCapture, onClose }: LiveCameraCaptureProps
         setErrorMessage("An unexpected error occurred. Please try file upload instead.");
       }
     }
-  }, [facingMode, checkCameraSupport, checkMultipleCameras]);
+  }, [facingMode, checkCameraSupport, checkMultipleCameras, releaseAllCameras]);
 
   // Stop camera stream
   const stopCamera = useCallback(() => {

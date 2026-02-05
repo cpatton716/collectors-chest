@@ -33,10 +33,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     const id = `toast-${Date.now()}`;
     setToasts((prev) => [...prev, { id, message, type }]);
 
-    // Auto-dismiss after 3 seconds
+    // Auto-dismiss: errors stay longer (6s) since they often need action
+    const duration = type === "error" ? 6000 : 3000;
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 3000);
+    }, duration);
   }, []);
 
   const dismissToast = useCallback((id: string) => {

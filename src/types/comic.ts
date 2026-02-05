@@ -1,3 +1,16 @@
+// Barcode data detected from cover scan
+export interface BarcodeData {
+  raw: string; // Full barcode string (12-17 digits)
+  confidence: "high" | "medium" | "low";
+  parsed?: {
+    upcPrefix: string; // First 5 digits (publisher code)
+    itemNumber: string; // Next 6 digits (series identifier)
+    checkDigit: string; // Digit 12 (validation)
+    addonIssue?: string; // Digits 13-15 (issue number)
+    addonVariant?: string; // Digits 16-17 (variant code)
+  };
+}
+
 export interface ComicDetails {
   id: string;
   title: string | null;
@@ -24,6 +37,8 @@ export interface ComicDetails {
   priceData: PriceData | null;
   // Key info (first appearances, deaths, team changes, etc.)
   keyInfo: string[];
+  // Barcode data (detected during cover scan)
+  barcode?: BarcodeData | null;
 }
 
 export interface PriceData {

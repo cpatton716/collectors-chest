@@ -6,10 +6,26 @@ This log tracks session-by-session progress on Collectors Chest.
 
 ## Changes Since Last Deploy
 
-**Sessions since last deploy:** 1
-**Deploy Readiness:** Needs Testing
+**Sessions since last deploy:** 2
+**Deploy Readiness:** Needs Testing (Public Share Link Bug)
 
-### Feb 4, 2026 - Session Changes
+### Feb 4, 2026 - Session 2 Changes
+
+**Completed:**
+- Public share link debugging: Applied RLS fix (supabaseAdmin in togglePublicSharing)
+- FEEDBACK_JAN_28.md: Added "Priority for Next Session" section with 4 remaining items
+- FEEDBACK_JAN_28.md: Detailed debugging notes for public share link issue (#10)
+- EVALUATION.md: Updated Public Sharing status to "Bug - See FEEDBACK #10"
+- Testing-complete skill: Created new skill at ~/.claude/skills/testing-complete/
+- Barcode scanning: Removed feature (no reliable UPC API exists)
+- BACKLOG.md: Added "Re-introduce Dedicated Barcode Scanning" item
+- TEST_CASES.md: Removed barcode scanning test cases
+- Verified CSV import working on mobile (#2 complete)
+
+**In Progress:**
+- Public share link (#10): RLS fix applied but still failing - needs DB verification
+
+### Feb 4, 2026 - Session 1 Changes
 
 **Completed:**
 - CSV Import: Quick Import toggle (skip API lookups for faster import)
@@ -18,20 +34,7 @@ This log tracks session-by-session progress on Collectors Chest.
 - CSV Import: Pop-art styling improvements, toggle overflow fix
 - CSV Import: Renamed sample file to "Collectors-Chest-Sample-Import.csv"
 - Navigation: Fixed "More" button active state on Collection page
-- TEST_CASES.md: Updated mobile CSV import test case
-
-**In Progress - BARCODE SCANNER BROKEN:**
-- Rewrote BarcodeScanner.tsx to use `html5-qrcode` library (installed)
-- Removed `jsqr` package
-- **BLOCKER:** Mobile Chrome caching old JS bundle that references jsQR
-- Error: "Module jsqr was instantiated but module factory is not available"
-- Server restarts, cache clears haven't fixed mobile browser cache
-
-**To Resume:**
-1. Clear Chrome cache/data on mobile device (Settings → Apps → Chrome → Clear Cache)
-2. OR test on production deploy (cache won't be an issue)
-3. OR test in Chrome Incognito on mobile
-4. The code is correct - it's a mobile browser caching issue
+- Barcode Scanner: Rewrote to use `html5-qrcode` library (later removed)
 
 ---
 

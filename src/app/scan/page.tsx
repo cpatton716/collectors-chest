@@ -17,7 +17,6 @@ import {
   Loader2,
   PenLine,
   Save,
-  ScanBarcode,
   Sparkles,
   Wand2,
   X,
@@ -30,7 +29,6 @@ import { StorageQuotaError, storage } from "@/lib/storage";
 import { useCollection } from "@/hooks/useCollection";
 import { MilestoneType, useGuestScans } from "@/hooks/useGuestScans";
 
-import { BarcodeScanner } from "@/components/BarcodeScanner";
 import { CSVImport } from "@/components/CSVImport";
 import { ComicDetailsForm } from "@/components/ComicDetailsForm";
 import { GuestLimitBanner } from "@/components/GuestLimitBanner";
@@ -189,8 +187,6 @@ export default function ScanPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [savedComic, setSavedComic] = useState<CollectionItem | null>(null);
   const [currentFact, setCurrentFact] = useState("");
-  const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
-  const [isProcessingBarcode, setIsProcessingBarcode] = useState(false);
   const [showCSVImport, setShowCSVImport] = useState(false);
   const [milestoneToShow, setMilestoneToShow] = useState<MilestoneType>(null);
   const [showEnlargedImage, setShowEnlargedImage] = useState(false);
@@ -384,69 +380,6 @@ export default function ScanPage() {
     setState("review");
   };
 
-  const handleBarcodeScan = async (barcode: string) => {
-    setIsProcessingBarcode(true);
-
-    try {
-      const response = await fetch("/api/barcode-lookup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ barcode }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to look up comic");
-      }
-
-      // Set the cover image if provided
-      if (data.coverImageUrl) {
-        setImagePreview(data.coverImageUrl);
-      }
-
-      // Set comic details
-      setComicDetails({
-        id: uuidv4(),
-        title: data.title,
-        issueNumber: data.issueNumber,
-        variant: data.variant,
-        publisher: data.publisher,
-        coverArtist: data.coverArtist,
-        writer: data.writer,
-        interiorArtist: data.interiorArtist,
-        releaseYear: data.releaseYear,
-        confidence: data.confidence || "high",
-        isSlabbed: false,
-        gradingCompany: null,
-        grade: null,
-        isSignatureSeries: false,
-        signedBy: null,
-        priceData: data.priceData || null,
-        keyInfo: data.keyInfo || [],
-        certificationNumber: null,
-        labelType: null,
-        pageQuality: null,
-        gradeDate: null,
-        graderNotes: null,
-      });
-
-      setShowBarcodeScanner(false);
-      setState("review");
-      showToast("Comic found!", "success");
-    } catch (err) {
-      console.error("Barcode lookup error:", err);
-      showToast(
-        err instanceof Error
-          ? err.message
-          : "We couldn't find this comic. Try scanning the cover instead.",
-        "error"
-      );
-    } finally {
-      setIsProcessingBarcode(false);
-    }
-  };
-
   const handleRetry = () => {
     if (imagePreview) {
       // Convert data URL back to file for retry
@@ -567,13 +500,6 @@ export default function ScanPage() {
                   Other ways to add your books:
                 </p>
                 <div className="flex flex-wrap justify-center gap-4">
-                  <button
-                    onClick={() => setShowBarcodeScanner(true)}
-                    className="flex flex-col items-center justify-center w-36 h-24 bg-pop-white text-pop-black border-2 border-pop-black font-bold hover:shadow-[3px_3px_0px_#000] transition-all"
-                  >
-                    <ScanBarcode className="w-7 h-7 mb-2" />
-                    <span className="text-sm">Scan Barcode</span>
-                  </button>
                   <button
                     onClick={handleManualEntry}
                     className="flex flex-col items-center justify-center w-36 h-24 bg-pop-white text-pop-black border-2 border-pop-black font-bold hover:shadow-[3px_3px_0px_#000] transition-all"
@@ -848,15 +774,6 @@ export default function ScanPage() {
             </div>
           </div>
         </div>
-      )}
-
-      {/* Barcode Scanner Modal */}
-      {showBarcodeScanner && (
-        <BarcodeScanner
-          onScan={handleBarcodeScan}
-          onClose={() => setShowBarcodeScanner(false)}
-          isProcessing={isProcessingBarcode}
-        />
       )}
 
       {/* CSV Import Modal */}
