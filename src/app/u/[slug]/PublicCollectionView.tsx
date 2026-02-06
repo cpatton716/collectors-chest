@@ -13,9 +13,12 @@ import {
   User,
 } from "lucide-react";
 
+import { useAuth } from "@clerk/nextjs";
+
 import { PublicCollectionStats, PublicProfile } from "@/lib/db";
 
 import { ComicImage } from "@/components/ComicImage";
+import { FollowButton } from "@/components/follows";
 import { PublicComicCard } from "@/components/PublicComicCard";
 import { PublicComicModal } from "@/components/PublicComicModal";
 
@@ -32,13 +35,14 @@ type ViewMode = "grid" | "list";
 type SortOption = "date" | "title" | "value";
 
 export function PublicCollectionView({ profile, comics, lists, stats }: Props) {
+  const { userId } = useAuth();
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<SortOption>("date");
   const [selectedList, setSelectedList] = useState<string>("all");
   const [selectedComic, setSelectedComic] = useState<CollectionItem | null>(null);
 
-  const displayName = profile.publicDisplayName || profile.displayName || "A Collector";
+  const displayName = profile.publicDisplayName || profile.displayName || profile.username || "A Collector";
 
   // Filter and sort comics
   const filteredComics = comics
@@ -98,6 +102,11 @@ export function PublicCollectionView({ profile, comics, lists, stats }: Props) {
                 year: "numeric",
               })}
             </p>
+            {userId && userId !== profile.id && (
+              <div className="mt-3">
+                <FollowButton userId={profile.id} />
+              </div>
+            )}
           </div>
         </div>
       </div>

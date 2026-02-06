@@ -164,6 +164,45 @@ export const PUBLISHERS = [
   "Other",
 ];
 
+/**
+ * Maps common publisher shorthand/variations to canonical PUBLISHERS values.
+ */
+export const PUBLISHER_ALIASES: Record<string, string> = {
+  dc: "DC Comics",
+  "dc comics": "DC Comics",
+  marvel: "Marvel Comics",
+  "marvel comics": "Marvel Comics",
+  image: "Image Comics",
+  "image comics": "Image Comics",
+  "dark horse": "Dark Horse Comics",
+  "dark horse comics": "Dark Horse Comics",
+  idw: "IDW Publishing",
+  "idw publishing": "IDW Publishing",
+  boom: "Boom! Studios",
+  "boom!": "Boom! Studios",
+  "boom studios": "Boom! Studios",
+  "boom! studios": "Boom! Studios",
+  dynamite: "Dynamite Entertainment",
+  "dynamite entertainment": "Dynamite Entertainment",
+  valiant: "Valiant Comics",
+  "valiant comics": "Valiant Comics",
+  archie: "Archie Comics",
+  "archie comics": "Archie Comics",
+  other: "Other",
+};
+
+/**
+ * Normalize a publisher name to a canonical value from the PUBLISHERS list.
+ * Returns null if no mapping exists.
+ */
+export function normalizePublisher(publisher: string | null | undefined): string | null {
+  if (!publisher || !publisher.trim()) return null;
+  const trimmed = publisher.trim();
+  if (PUBLISHERS.includes(trimmed)) return trimmed;
+  const alias = PUBLISHER_ALIASES[trimmed.toLowerCase()];
+  return alias || null;
+}
+
 export const GRADING_COMPANIES: GradingCompany[] = ["CGC", "CBCS", "PGX", "Other"];
 
 // Standard comic book grading scale (CGC/CBCS scale)

@@ -1311,6 +1311,9 @@ export async function createNotification(
     listing_cancelled: "Listing cancelled",
     // Follow system notifications
     new_listing_from_followed: "New listing from someone you follow",
+    // Community contribution notifications
+    key_info_approved: "Key info approved!",
+    key_info_rejected: "Key info not accepted",
   };
 
   const messages: Record<NotificationType, string> = {
@@ -1333,6 +1336,9 @@ export async function createNotification(
     listing_cancelled: "A listing you made an offer on has been cancelled by the seller.",
     // Follow system messages (fallback - dynamic messages created via notifyFollowersOfNewListing)
     new_listing_from_followed: "A seller you follow has listed a new item.",
+    // Community contribution messages
+    key_info_approved: "Your key info suggestion has been approved and added to the database. Thank you for contributing!",
+    key_info_rejected: "Your key info suggestion was reviewed but not accepted. Thank you for contributing!",
   };
 
   await supabase.from("notifications").insert({

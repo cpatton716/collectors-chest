@@ -817,4 +817,52 @@ If you encounter bugs or unexpected behavior:
 
 ---
 
-*Last Updated: February 4, 2026*
+---
+
+## Feb 5 Feedback Fixes
+
+> See `FEEDBACK_FEB_5.md` for full test cases per item. Summary of key tests below.
+
+### CSV Import Enhancements
+
+| Test Case | Steps | Expected Result |
+|-----------|-------|-----------------|
+| Dollar signs in price | Import CSV with `purchasePrice: $8.00` | Shows $8.00 in edit details |
+| Commas in price | Import CSV with `purchasePrice: $1,000.00` | Shows $1,000 in edit details |
+| Publisher alias mapping | Import CSV with publisher "DC" | Maps to "DC Comics" in edit dropdown |
+| Unknown publisher | Import CSV with unknown publisher | Dropdown shows "Other", "Suggest Publisher" button appears |
+
+### Admin UX
+
+| Test Case | Steps | Expected Result |
+|-----------|-------|-----------------|
+| Search icon spacing | Admin → Users → view search | Placeholder text doesn't overlap magnifying glass |
+| No results message | Admin → Users → search "zzzzz@fake.com" | Shows "No users found matching..." |
+| Admin nav bar | Visit any admin page | Yellow pop-art nav bar with all 5 sections |
+
+### Key Hunt Premium Gate
+
+| Test Case | Steps | Expected Result |
+|-----------|-------|-----------------|
+| Free user sees lock | As free user, view "Add to Key Hunt" button | Button shows with "Premium" lock badge |
+| Lock triggers upgrade | Click locked button | Triggers free trial or Stripe checkout |
+| Premium user normal | As premium user, view button | Button works normally (no lock) |
+
+### Community Features
+
+| Test Case | Steps | Expected Result |
+|-----------|-------|-----------------|
+| Key info approval notification | Admin approves key info | Submitter sees "Key info approved!" notification |
+| Key info rejection notification | Admin rejects key info | Submitter sees "Key info not accepted" notification |
+| Reputation increment | Admin approves key info | Submitter's contribution count increments |
+| Follow on public page | Visit another user's public page while logged in | Follow button visible in profile header |
+| Public profile name | Visit /u/[slug] | Header shows username or display name, not "A Collector" |
+
+### Sort & Value
+
+| Test Case | Steps | Expected Result |
+|-----------|-------|-----------------|
+| Sort by value | Collection → sort by "Value" | Books sort by grade-aware value (matches displayed values) |
+| Raw/slabbed toggle | Toggle slabbed on book with grade | Value updates immediately |
+
+*Last Updated: February 5, 2026*

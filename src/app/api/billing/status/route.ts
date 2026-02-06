@@ -43,6 +43,7 @@ export async function GET() {
           csvExport: false,
           fullStats: false,
           unlimitedListings: false,
+          unlimitedScans: false,
           shopBuying: false,
           cloudSync: false,
         },

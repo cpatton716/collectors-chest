@@ -5,7 +5,8 @@ import { useRef, useState } from "react";
 import { AlertCircle, Check, Download, FileText, Loader2, Upload, X, Zap } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 
-import { CollectionItem, ComicDetails } from "@/types/comic";
+import { parseCurrencyValue } from "@/lib/csvHelpers";
+import { CollectionItem, ComicDetails, normalizePublisher } from "@/types/comic";
 
 function parseBool(value: string): boolean {
   const v = value.toLowerCase().trim();
@@ -118,7 +119,7 @@ export function CSVImport({ onImportComplete, onCancel }: CSVImportProps) {
             row.variant = value || undefined;
             break;
           case "publisher":
-            row.publisher = value || undefined;
+            row.publisher = normalizePublisher(value) || undefined;
             break;
           case "writer":
             row.writer = value || undefined;
@@ -151,7 +152,7 @@ export function CSVImport({ onImportComplete, onCancel }: CSVImportProps) {
             row.condition = value || undefined;
             break;
           case "purchaseprice":
-            row.purchasePrice = value ? parseFloat(value) : undefined;
+            row.purchasePrice = parseCurrencyValue(value);
             break;
           case "purchasedate":
             row.purchaseDate = value || undefined;
@@ -163,7 +164,7 @@ export function CSVImport({ onImportComplete, onCancel }: CSVImportProps) {
             row.forSale = parseBool(value);
             break;
           case "askingprice":
-            row.askingPrice = value ? parseFloat(value) : undefined;
+            row.askingPrice = parseCurrencyValue(value);
             break;
         }
       });

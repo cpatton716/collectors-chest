@@ -11,7 +11,9 @@
  */
 import { createClient } from "@supabase/supabase-js";
 
+import { createNotification } from "./auctionDb";
 import { lookupKeyInfo as lookupKeyInfoStatic } from "./keyComicsDatabase";
+import { recordContribution } from "./reputationDb";
 
 // Supabase client for key info lookups
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -386,6 +388,12 @@ export async function approveSubmission(
       return { success: false, error: statusError.message };
     }
 
+    // Notify the submitter
+    await createNotification(submission.user_id, "key_info_approved").catch(() => {});
+
+    // Record community contribution for reputation/badge system
+    await recordContribution(submission.user_id, "key_info", keyComicId).catch(() => {});
+
     return { success: true };
   } catch (error) {
     return {
@@ -408,6 +416,13 @@ export async function rejectSubmission(
   }
 
   try {
+    // Get submission to find the submitter
+    const { data: submission } = await supabase
+      .from("key_info_submissions")
+      .select("user_id")
+      .eq("id", submissionId)
+      .single();
+
     const { error } = await supabase
       .from("key_info_submissions")
       .update({
@@ -421,6 +436,11 @@ export async function rejectSubmission(
 
     if (error) {
       return { success: false, error: error.message };
+    }
+
+    // Notify the submitter
+    if (submission?.user_id) {
+      await createNotification(submission.user_id, "key_info_rejected").catch(() => {});
     }
 
     return { success: true };

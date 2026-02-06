@@ -6,9 +6,10 @@ import Link from "next/link";
 
 import { useUser } from "@clerk/nextjs";
 
-import { Check, Loader2, LogIn, Target } from "lucide-react";
+import { Check, Loader2, Lock, LogIn, Target } from "lucide-react";
 
 import { AddToKeyHuntParams, useKeyHunt } from "@/hooks/useKeyHunt";
+import { useSubscription } from "@/hooks/useSubscription";
 
 interface AddToKeyHuntButtonProps {
   title: string;
@@ -43,6 +44,7 @@ export function AddToKeyHuntButton({
 }: AddToKeyHuntButtonProps) {
   const { isSignedIn } = useUser();
   const { addToKeyHunt, isInKeyHunt } = useKeyHunt();
+  const { features, tier, isTrialing, startFreeTrial, startCheckout } = useSubscription();
   const [isAdding, setIsAdding] = useState(false);
   const [justAdded, setJustAdded] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -111,6 +113,55 @@ export function AddToKeyHuntButton({
         <LogIn className="w-4 h-4" />
         {variant === "compact" ? "Sign in" : "Sign in to add to Key Hunt"}
       </Link>
+    );
+  }
+
+  // Signed in but no premium access - show locked button
+  if (isSignedIn && !features.keyHunt) {
+    const handleUpgrade = async () => {
+      if (tier === "free" && !isTrialing) {
+        const result = await startFreeTrial();
+        if (result.success) {
+          window.location.reload();
+          return;
+        }
+      }
+      const url = await startCheckout("monthly", tier === "free" && !isTrialing);
+      if (url) {
+        window.location.href = url;
+      }
+    };
+
+    if (variant === "icon") {
+      return (
+        <button
+          onClick={handleUpgrade}
+          className={`p-2 text-gray-400 hover:text-indigo-600 transition-colors relative ${className}`}
+          title="Premium feature - upgrade to use Key Hunt"
+        >
+          <Target className="w-5 h-5 opacity-50" />
+          <Lock className="w-3 h-3 absolute -top-0.5 -right-0.5 text-indigo-600" />
+        </button>
+      );
+    }
+
+    return (
+      <button
+        onClick={handleUpgrade}
+        className={`
+          relative inline-flex items-center gap-2 px-3 py-2
+          bg-gray-100 text-gray-500 rounded-lg
+          hover:bg-indigo-50 hover:text-indigo-600 transition-colors text-sm
+          ${className}
+        `}
+      >
+        <Target className="w-4 h-4" />
+        {variant === "compact" ? "Key Hunt" : "Add to Key Hunt"}
+        <span className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
+          <Lock className="w-3 h-3" />
+          Premium
+        </span>
+      </button>
     );
   }
 

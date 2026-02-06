@@ -19,7 +19,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     };
   }
 
-  const displayName = profile.publicDisplayName || profile.displayName || "A Collector";
+  const displayName = profile.publicDisplayName || profile.displayName || profile.username || slug || "A Collector";
 
   return {
     title: `${displayName}'s Collection | Collectors Chest`,

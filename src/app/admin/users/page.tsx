@@ -144,6 +144,7 @@ export default function AdminUsersPage() {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [suspendReason, setSuspendReason] = useState("");
+  const [hasSearched, setHasSearched] = useState(false);
 
   const searchUsers = async () => {
     if (!searchQuery.trim() || searchQuery.length < 2) {
@@ -168,6 +169,7 @@ export default function AdminUsersPage() {
       const data = await response.json();
       setSearchResults(data.users);
       setSelectedUser(null);
+      setHasSearched(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unknown error");
       setSearchResults([]);
@@ -372,7 +374,7 @@ export default function AdminUsersPage() {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Search by email..."
-                className="input-pop pl-12"
+                className="input-pop pl-14"
               />
             </div>
             <button
@@ -405,7 +407,11 @@ export default function AdminUsersPage() {
               {searchResults.length === 0 ? (
                 <div className="p-8 text-center">
                   <Users className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                  <p className="text-gray-500">Search for users by email</p>
+                  <p className="text-gray-500">
+                    {hasSearched
+                      ? `No users found matching "${searchQuery}"`
+                      : "Search for users by email"}
+                  </p>
                 </div>
               ) : (
                 <div>
@@ -619,23 +625,6 @@ export default function AdminUsersPage() {
           </div>
         </div>
 
-        {/* Admin Links */}
-        <div className="mt-6 flex gap-4">
-          <Link
-            href="/admin/usage"
-            className="text-sm font-bold hover:underline"
-            style={{ color: "var(--pop-blue)" }}
-          >
-            → Service Usage Monitor
-          </Link>
-          <Link
-            href="/admin/key-info"
-            className="text-sm font-bold hover:underline"
-            style={{ color: "var(--pop-blue)" }}
-          >
-            → Key Info Moderation
-          </Link>
-        </div>
       </div>
     </div>
   );

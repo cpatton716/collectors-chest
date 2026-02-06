@@ -28,6 +28,7 @@ import {
   GRADE_SCALE,
   GRADING_COMPANIES,
   GradingCompany,
+  normalizePublisher,
   PUBLISHERS,
 } from "@/types/comic";
 
@@ -116,6 +117,7 @@ export function ComicDetailsForm({
   const [lastLookedUpTitle, setLastLookedUpTitle] = useState<string | null>(null);
   const [lastLookedUpIssue, setLastLookedUpIssue] = useState<string | null>(null);
   const [newKeyInfo, setNewKeyInfo] = useState("");
+  const [publisherSuggested, setPublisherSuggested] = useState(false);
 
   // Track original values to detect changes in edit mode
   const [originalTitle] = useState(initialComic.title || "");
@@ -141,7 +143,7 @@ export function ComicDetailsForm({
         if (response.ok) {
           const data = await response.json();
           if (data.publisher && !comic.publisher) {
-            setComic((prev) => ({ ...prev, publisher: data.publisher }));
+            setComic((prev) => ({ ...prev, publisher: normalizePublisher(data.publisher) || data.publisher }));
           }
           setLastLookedUpTitle(comic.title);
         }
@@ -198,7 +200,7 @@ export function ComicDetailsForm({
                 issueNumber: prev.issueNumber,
                 variant: prev.variant,
                 // Replace looked-up data with fresh data
-                publisher: data.publisher,
+                publisher: normalizePublisher(data.publisher) || data.publisher,
                 releaseYear: data.releaseYear,
                 writer: data.writer,
                 coverArtist: data.coverArtist,
@@ -210,7 +212,7 @@ export function ComicDetailsForm({
             // First lookup - merge (don't overwrite existing)
             return {
               ...prev,
-              publisher: prev.publisher || data.publisher,
+              publisher: prev.publisher || normalizePublisher(data.publisher) || data.publisher,
               releaseYear: prev.releaseYear || data.releaseYear,
               writer: prev.writer || data.writer,
               coverArtist: prev.coverArtist || data.coverArtist,
@@ -310,7 +312,7 @@ export function ComicDetailsForm({
         // Update metadata fields but preserve user-entered data
         setComic((prev) => ({
           ...prev,
-          publisher: data.publisher || null,
+          publisher: normalizePublisher(data.publisher) || data.publisher || null,
           releaseYear: data.releaseYear || null,
           writer: data.writer || null,
           coverArtist: data.coverArtist || null,
@@ -581,7 +583,7 @@ export function ComicDetailsForm({
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Publisher</label>
           <select
-            value={comic.publisher || ""}
+            value={comic.publisher && PUBLISHERS.includes(comic.publisher) ? comic.publisher : ""}
             onChange={(e) => updateComic("publisher", e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white text-gray-900"
           >
@@ -592,6 +594,33 @@ export function ComicDetailsForm({
               </option>
             ))}
           </select>
+          {comic.publisher && !PUBLISHERS.includes(comic.publisher) && (
+            <div className="mt-1.5 flex items-center gap-2">
+              <span className="text-xs text-amber-600">
+                &quot;{comic.publisher}&quot; not in list
+              </span>
+              {publisherSuggested ? (
+                <span className="text-xs text-green-600">Suggestion sent!</span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const res = await fetch("/api/admin/publishers", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ publisherName: comic.publisher }),
+                      });
+                      if (res.ok) setPublisherSuggested(true);
+                    } catch {}
+                  }}
+                  className="text-xs text-primary-600 hover:text-primary-700 underline"
+                >
+                  Suggest Publisher
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         <div>

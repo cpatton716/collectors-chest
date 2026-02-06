@@ -554,14 +554,14 @@ export default function KeyHuntPage() {
   return (
     <FeatureGate feature="keyHunt">
       {/* Desktop Explainer - shown on md+ screens */}
-      <div className="hidden md:block min-h-screen bg-gradient-to-br from-amber-50 to-orange-50">
+      <div className="hidden md:block min-h-screen" style={{ background: "var(--pop-cream)" }}>
         <div className="max-w-4xl mx-auto px-6 py-12">
           {/* Header */}
           <div className="text-center mb-12">
-            <div className="inline-flex items-center justify-center w-20 h-20 bg-amber-500 rounded-2xl shadow-lg mb-6">
+            <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl mb-6 border-4 border-black shadow-[4px_4px_0px_#000]" style={{ background: "var(--pop-yellow)" }}>
               <KeyRound className="w-10 h-10 text-white" />
             </div>
-            <h1 className="text-4xl font-bold text-gray-900 mb-4">Key Hunt</h1>
+            <h1 className="text-4xl font-bold text-gray-900 mb-4" style={{ fontFamily: "var(--font-bangers)" }}>Key Hunt</h1>
             <p className="text-xl text-gray-600 max-w-2xl mx-auto">
               Your mobile companion for finding key comics at conventions, shops, and garage sales.
             </p>
@@ -569,15 +569,15 @@ export default function KeyHuntPage() {
 
           {/* Mobile-Only Badge */}
           <div className="flex justify-center mb-12">
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-amber-100 border border-amber-200 rounded-full">
-              <Smartphone className="w-5 h-5 text-amber-600" />
-              <span className="text-amber-800 font-medium">Mobile Exclusive Feature</span>
+            <div className="inline-flex items-center gap-2 px-4 py-2 border-3 border-black rounded-full shadow-[2px_2px_0px_#000]" style={{ background: "var(--pop-yellow)" }}>
+              <Smartphone className="w-5 h-5 text-black" />
+              <span className="text-black font-bold">Mobile Exclusive Feature</span>
             </div>
           </div>
 
           {/* Features Grid */}
           <div className="grid md:grid-cols-3 gap-6 mb-12">
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+            <div className="comic-panel p-6">
               <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
                 <Camera className="w-6 h-6 text-blue-600" />
               </div>
@@ -587,7 +587,7 @@ export default function KeyHuntPage() {
               </p>
             </div>
 
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+            <div className="comic-panel p-6">
               <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
                 <Zap className="w-6 h-6 text-green-600" />
               </div>
@@ -597,7 +597,7 @@ export default function KeyHuntPage() {
               </p>
             </div>
 
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+            <div className="comic-panel p-6">
               <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
                 <Target className="w-6 h-6 text-purple-600" />
               </div>
@@ -653,29 +653,29 @@ export default function KeyHuntPage() {
       </div>
 
       {/* Mobile UI - hidden on md+ screens */}
-      <div className="md:hidden min-h-screen bg-gray-900">
+      <div className="md:hidden min-h-screen bg-gray-900 overflow-y-auto">
         {/* Offline Indicator */}
         {isOfflineMode && (
           <OfflineIndicator pendingCount={pendingActionsCount} syncResult={lastSyncResult} />
         )}
 
         {/* Header */}
-        <div className="bg-gradient-to-b from-amber-500 to-amber-600 px-4 py-6 safe-area-inset-top">
+        <div className="px-4 py-6 safe-area-inset-top border-b-4 border-black" style={{ background: "var(--pop-yellow)" }}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-                <KeyRound className="w-6 h-6 text-white" />
+              <div className="w-10 h-10 bg-black/10 rounded-full flex items-center justify-center">
+                <KeyRound className="w-6 h-6 text-black" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-white">Key Hunt</h1>
-                <p className="text-sm text-white/80">Quick Price Lookup</p>
+                <h1 className="text-xl font-bold text-black">Key Hunt</h1>
+                <p className="text-sm text-black/70">Quick Price Lookup</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
               {isOfflineMode && (
                 <button
                   onClick={() => setFlow("offline-search")}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white/20 rounded-full text-white text-sm"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-black/10 rounded-full text-black text-sm"
                 >
                   <Database className="w-4 h-4" />
                   Cached
@@ -683,7 +683,7 @@ export default function KeyHuntPage() {
               )}
               <button
                 onClick={() => setFlow("history")}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-white/20 rounded-full text-white text-sm"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-black/10 rounded-full text-black text-sm"
               >
                 <History className="w-4 h-4" />
                 Recent

@@ -175,9 +175,7 @@ export default function CollectionPage() {
         case "title":
           return (a.comic.title || "").localeCompare(b.comic.title || "");
         case "value":
-          return (
-            (b.averagePrice || b.purchasePrice || 0) - (a.averagePrice || a.purchasePrice || 0)
-          );
+          return getComicValue(b) - getComicValue(a);
         case "issue":
           return parseInt(a.comic.issueNumber || "0") - parseInt(b.comic.issueNumber || "0");
         case "date":

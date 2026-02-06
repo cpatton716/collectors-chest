@@ -27,7 +27,10 @@ export type NotificationType =
   | "listing_expired"
   | "listing_cancelled"
   // Follow system
-  | "new_listing_from_followed";
+  | "new_listing_from_followed"
+  // Community contribution types
+  | "key_info_approved"
+  | "key_info_rejected";
 
 export type OfferStatus =
   | "pending"

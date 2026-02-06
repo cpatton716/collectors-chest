@@ -6,8 +6,54 @@ This log tracks session-by-session progress on Collectors Chest.
 
 ## Changes Since Last Deploy
 
-**Sessions since last deploy:** 4
+**Sessions since last deploy:** 5
 **Deploy Readiness:** Ready
+
+### Feb 5, 2026 - Session 3 Changes
+
+**Completed:**
+- Feb 5 Feedback: Implemented 13 of 21 items (4 pinned, 1 closed, 3 already complete)
+- CSV Import: Dollar sign/comma stripping for price fields (`parseCurrencyValue`)
+- Publisher Dropdown: Alias mapping (DC → DC Comics, etc.) + "Suggest Publisher" for unknowns
+- Sort by Value: Fixed to use `getComicValue()` (grade-aware) instead of raw averagePrice
+- Admin Search: Fixed magnifying glass overlap, added "No results found" message
+- Admin Navigation: New shared layout bar across all 5 admin pages (pop-art styled)
+- Key Info Notifications: Submitters now notified on approval/rejection
+- Reputation: Approving key info now increments contributor count
+- Public Profile: Username fallback in display name chain + FollowButton on public pages
+- Key Hunt Page: Pop-art styling overhaul + mobile scroll fix
+- Key Hunt Button: Premium gate with locked state + upgrade flow for non-premium users
+- Billing Status: Fixed missing `unlimitedScans` in guest features object
+- 21 new unit tests (6 CSV parsing + 15 publisher normalization)
+
+**Files Created:**
+- `src/lib/csvHelpers.ts` - parseCurrencyValue helper
+- `src/lib/__tests__/csvParsing.test.ts` - 6 tests
+- `src/types/__tests__/publisherNormalize.test.ts` - 15 tests
+- `src/app/api/admin/publishers/route.ts` - Publisher suggestion endpoint
+- `src/app/admin/layout.tsx` - Shared admin navigation
+- `docs/plans/2026-02-05-feb5-feedback-fixes.md` - Implementation plan
+
+**Files Modified:**
+- `src/types/comic.ts` - PUBLISHER_ALIASES + normalizePublisher()
+- `src/components/CSVImport.tsx` - parseCurrencyValue + normalizePublisher
+- `src/components/ComicDetailsForm.tsx` - Publisher normalization + Suggest Publisher button
+- `src/app/collection/page.tsx` - Sort by value fix (getComicValue)
+- `src/app/admin/users/page.tsx` - Search icon padding, no results msg, removed old links
+- `src/types/auction.ts` - key_info_approved/rejected notification types
+- `src/lib/auctionDb.ts` - Notification titles/messages for new types
+- `src/lib/keyComicsDb.ts` - createNotification + recordContribution on approval
+- `src/app/u/[slug]/page.tsx` - Username fallback in displayName
+- `src/app/u/[slug]/PublicCollectionView.tsx` - Username fallback + FollowButton
+- `src/app/key-hunt/page.tsx` - Pop-art styling + scroll fix
+- `src/components/AddToKeyHuntButton.tsx` - Premium gate with locked state
+- `src/app/api/billing/status/route.ts` - Added unlimitedScans to guest features
+- `FEEDBACK_FEB_5.md` - Updated all statuses + test cases
+
+**Pinned for Future Sessions:**
+- #2: Cover images returned incorrectly (needs examples)
+- #12: Premium user lost Key Hunt after trial reset (needs DB investigation)
+- #17 & #20: Messaging real-time + notification icon (Messaging v2 session)
 
 ### Feb 5, 2026 - Session 2 Changes
 
