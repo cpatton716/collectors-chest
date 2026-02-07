@@ -6,8 +6,51 @@ This log tracks session-by-session progress on Collectors Chest.
 
 ## Changes Since Last Deploy
 
-**Sessions since last deploy:** 5
-**Deploy Readiness:** Ready
+**Sessions since last deploy:** 0
+**Deploy Readiness:** Deployed
+**Last Deploy:** February 6, 2026
+
+---
+
+## Feb 6, 2026 - Session 2 (Continued Testing & /Following Page)
+
+**Summary:** Continued Feb 5 feedback testing, built /following page, fixed admin search #11, added CSV cycling facts, deployed twice to production.
+
+**Key Accomplishments:**
+- Built `/following` page with Following/Followers tabs, pop-art styling, pagination
+- Fixed FollowButton self-check pattern (fetches own status on mount when prop undefined)
+- Fixed followDb.ts schema mismatch (first_name/last_name → display_name)
+- Fixed Key Hunt desktop scroll bug (JS body overflow, not CSS)
+- Fixed admin search #11 (hasSearched only set on success path)
+- Added cycling comic facts to CSV import progress screen
+- Extracted shared COMIC_FACTS to src/lib/comicFacts.ts
+- Added "Following" link to Navigation More dropdown
+- Tested and verified 15 of 21 Feb 5 feedback items
+
+**Files Created:**
+- `src/app/following/page.tsx` - Following/Followers page
+- `src/lib/comicFacts.ts` - Shared comic facts array + getRandomFact()
+
+**Files Modified:**
+- `src/components/Navigation.tsx` - Added Following link
+- `src/components/follows/FollowButton.tsx` - Self-check on mount
+- `src/lib/followDb.ts` - Fixed column names (display_name)
+- `src/components/KeyHuntBottomSheet.tsx` - Mobile-only overflow hidden
+- `src/app/key-hunt/page.tsx` - Reverted margin hack, technopathy branding
+- `src/app/admin/users/page.tsx` - Fixed #11 hasSearched bug, red no-results text
+- `src/app/scan/page.tsx` - Refactored to use shared comicFacts
+- `src/components/CSVImport.tsx` - Added cycling facts during import
+- `FEEDBACK_FEB_5.md` - Status updates (15 Tested)
+
+**Issues Resolved:**
+- Key Hunt desktop scroll: JS `document.body.style.overflow = "hidden"` from bottom sheet
+- FollowButton wrong state: DB query wrong columns + missing self-check
+- Admin search icon overlap: CSS shorthand `padding` overriding Tailwind `pl-*`
+- Admin search no results: `hasSearched` only set in try block, not catch
+
+**Deployed:** 2 deploys to Netlify (commits 7ebc83d, d28833c)
+
+---
 
 ### Feb 5, 2026 - Session 3 Changes
 

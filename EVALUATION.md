@@ -442,15 +442,17 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 
 ### 🟠 Feb 5 Feedback Items (21 items — see FEEDBACK_FEB_5.md)
 
-**Session 3 Progress:** 13 Complete, 1 Closed, 4 Pinned, 3 were already complete
+**Session 4 Progress:** 15 Tested, 2 Completed — Needs Testing, 4 Pinned, 1 Closed
 
-✅ Completed: #1, #3, #4, #5, #6, #7, #8, #9, #10, #11, #13, #14, #16, #18, #19, #21
+✅ Tested: #1, #3, #4, #5, #8, #9, #10, #11, #13, #14, #16, #18, #19, #21
+✅ Completed — Needs Testing: #6 (key info notifications), #7 (reputation updates)
 📌 Pinned: #2 (wrong covers), #12 (trial reset), #17 & #20 (Messaging v2)
 ✅ Closed: #15 (trial button believed working)
 
 **Remaining work:**
+- **Test #6 & #7**: Key info approval notifications and reputation increment
 - **Messaging v2**: Real-time updates (#17), notification icon bugs (#20) — dedicated session
-- **Investigation needed**: Wrong cover images (#12 — needs specific examples), trial reset bug (#12 — needs DB check for jsnaponte@yahoo.com)
+- **Investigation needed**: Wrong cover images (#2 — needs specific examples), trial reset bug (#12 — needs DB check for jsnaponte@yahoo.com)
 
 ### 🟡 Next Session Focus
 

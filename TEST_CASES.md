@@ -865,4 +865,31 @@ If you encounter bugs or unexpected behavior:
 | Sort by value | Collection → sort by "Value" | Books sort by grade-aware value (matches displayed values) |
 | Raw/slabbed toggle | Toggle slabbed on book with grade | Value updates immediately |
 
-*Last Updated: February 5, 2026*
+### Following Page
+
+| Test Case | Steps | Expected Result |
+|-----------|-------|-----------------|
+| View following list | Navigate to /following while signed in | See list of users you follow with avatars and names |
+| View followers list | Click "Followers" tab | See list of users following you |
+| Follow/unfollow from list | Click Follow/Following button on a user row | Toggle follow state in place |
+| Navigate to user profile | Click a user row | Navigates to /u/{username} |
+| Load more pagination | Scroll to bottom of long list | "Load more" button loads next 20 users |
+| Empty state | Visit /following with no follows | Shows "You're not following anyone yet" message |
+| Auth redirect | Visit /following while signed out | Redirects to /sign-in |
+| Navigation link | Open "More" dropdown in nav | "Following" link visible |
+
+### CSV Import Facts
+
+| Test Case | Steps | Expected Result |
+|-----------|-------|-----------------|
+| Cycling facts during import | Upload CSV and watch progress | Comic facts cycle every 7 seconds below progress bar |
+| Mobile fact display | Import CSV on mobile | Facts show without "Did you know?" prefix |
+
+### Admin Search No Results
+
+| Test Case | Steps | Expected Result |
+|-----------|-------|-----------------|
+| No results message | Admin → Users → search non-existent email | Red bold "No users found matching '...'" message |
+| Default state | Admin → Users → before any search | Gray "Search for users by email" message |
+
+*Last Updated: February 6, 2026*
