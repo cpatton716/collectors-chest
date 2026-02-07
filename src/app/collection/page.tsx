@@ -56,7 +56,7 @@ import { useToast } from "@/components/Toast";
 import { CollectionItem } from "@/types/comic";
 
 type ViewMode = "grid" | "list";
-type SortOption = "date" | "title" | "value" | "issue";
+type SortOption = "date" | "title" | "value" | "value-asc" | "issue";
 type FilterOption = "all" | string;
 
 export default function CollectionPage() {
@@ -176,6 +176,8 @@ export default function CollectionPage() {
           return (a.comic.title || "").localeCompare(b.comic.title || "");
         case "value":
           return getComicValue(b) - getComicValue(a);
+        case "value-asc":
+          return getComicValue(a) - getComicValue(b);
         case "issue":
           return parseInt(a.comic.issueNumber || "0") - parseInt(b.comic.issueNumber || "0");
         case "date":
@@ -828,8 +830,9 @@ export default function CollectionPage() {
               >
                 <option value="date">Date Added</option>
                 <option value="title">Title</option>
-                <option value="value">Value</option>
                 <option value="issue">Issue #</option>
+                <option value="value">Value (High to Low)</option>
+                <option value="value-asc">Value (Low to High)</option>
               </select>
             </div>
 

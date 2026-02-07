@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { UserPlus, UserCheck, Loader2 } from "lucide-react";
 
 interface FollowButtonProps {
@@ -12,13 +12,35 @@ interface FollowButtonProps {
 
 export function FollowButton({
   userId,
-  initialIsFollowing = false,
+  initialIsFollowing,
   size = "md",
   onFollowChange,
 }: FollowButtonProps) {
-  const [isFollowing, setIsFollowing] = useState(initialIsFollowing);
+  const [isFollowing, setIsFollowing] = useState(initialIsFollowing ?? false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isChecking, setIsChecking] = useState(initialIsFollowing === undefined);
   const [isHovered, setIsHovered] = useState(false);
+
+  // Fetch follow status on mount when not provided by parent
+  useEffect(() => {
+    if (initialIsFollowing !== undefined) return;
+
+    const checkStatus = async () => {
+      try {
+        const res = await fetch(`/api/follows/${userId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setIsFollowing(data.isFollowing ?? false);
+        }
+      } catch {
+        // Silently fail — button defaults to "Follow"
+      } finally {
+        setIsChecking(false);
+      }
+    };
+
+    checkStatus();
+  }, [userId, initialIsFollowing]);
 
   const sizeClasses = {
     sm: "px-2 py-1 text-xs gap-1",
@@ -62,6 +84,16 @@ export function FollowButton({
   };
 
   const baseClasses = `inline-flex items-center rounded-full font-medium border-2 transition-colors ${sizeClasses[size]}`;
+
+  // Show loading spinner while checking initial status
+  if (isChecking) {
+    return (
+      <span className={`${baseClasses} border-gray-200 bg-gray-50 text-gray-400 cursor-default`}>
+        <Loader2 className={`${iconSizes[size]} animate-spin`} />
+        <span>Follow</span>
+      </span>
+    );
+  }
 
   // Following state (with hover to show unfollow)
   if (isFollowing) {

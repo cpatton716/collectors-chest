@@ -317,19 +317,14 @@ export default function AdminUsersPage() {
       {/* Header */}
       <header className="border-b-4 border-black mb-6" style={{ background: "var(--pop-yellow)" }}>
         <div className="max-w-6xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Users className="w-8 h-8" />
-              <h1
-                className="text-2xl font-bold tracking-wide"
-                style={{ fontFamily: "var(--font-bangers)" }}
-              >
-                User Management
-              </h1>
-            </div>
-            <Link href="/collection" className="btn-pop btn-pop-white text-sm">
-              ← Back to App
-            </Link>
+          <div className="flex items-center gap-3">
+            <Users className="w-8 h-8" />
+            <h1
+              className="text-2xl font-bold tracking-wide"
+              style={{ fontFamily: "var(--font-bangers)" }}
+            >
+              User Management
+            </h1>
           </div>
         </div>
       </header>
@@ -367,14 +362,15 @@ export default function AdminUsersPage() {
           </h2>
           <div className="flex gap-3">
             <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Search by email..."
-                className="input-pop pl-14"
+                className="input-pop"
+                style={{ paddingLeft: "2.75rem" }}
               />
             </div>
             <button

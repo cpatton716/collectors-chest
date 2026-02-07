@@ -27,8 +27,7 @@ interface UserFollowRow {
 interface ProfileRow {
   id: string;
   username: string | null;
-  first_name: string | null;
-  last_name: string | null;
+  display_name: string | null;
   avatar_url: string | null;
 }
 
@@ -45,10 +44,7 @@ interface FollowCountsRow {
  * Build display name from profile data
  */
 function buildDisplayName(profile: ProfileRow): string | null {
-  if (profile.first_name && profile.last_name) {
-    return `${profile.first_name} ${profile.last_name}`;
-  }
-  return profile.first_name || profile.last_name || null;
+  return profile.display_name || null;
 }
 
 /**
@@ -175,7 +171,7 @@ export async function getFollowers(
       `
       follower_id,
       created_at,
-      follower:profiles!follower_id(id, username, first_name, last_name, avatar_url)
+      follower:profiles!follower_id(id, username, display_name, avatar_url)
     `
     )
     .eq("following_id", userId)
@@ -231,7 +227,7 @@ export async function getFollowing(
       `
       following_id,
       created_at,
-      following:profiles!following_id(id, username, first_name, last_name, avatar_url)
+      following:profiles!following_id(id, username, display_name, avatar_url)
     `
     )
     .eq("follower_id", userId)

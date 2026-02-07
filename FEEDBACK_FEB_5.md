@@ -12,19 +12,19 @@
 | 6 | Notify key info submitter on admin approval/rejection | ✅ Complete — needs testing |
 | 7 | Approving key info doesn't update submitter's reputation/feedback | ✅ Complete — needs testing |
 | 8 | Public share page missing covers use old Riddler style, not pop-art | ✅ Complete (same fix as #3) |
-| 9 | Public view book details should show user profile info | ✅ Complete — needs testing |
-| 10 | Admin user search: magnifying glass overlaps placeholder text | ✅ Complete — needs testing |
+| 9 | Public view book details should show user profile info | ✅ Tested |
+| 10 | Admin user search: magnifying glass overlaps placeholder text | ✅ Tested |
 | 11 | Admin user search: no message when no results found | ✅ Complete — needs testing |
 | 12 | Premium user lost Key Hunt access after trial reset + reactivation | 📌 Pinned — needs DB investigation |
-| 13 | Admin portal needs better navigation to all admin tools | ✅ Complete — needs testing |
+| 13 | Admin portal needs better navigation to all admin tools | ✅ Tested |
 | 14 | Key Hunt list not showing up for guest/free user | ✅ Complete — needs testing |
 | 15 | "Start 7-day Trial" button on Key Hunt page not working | ✅ Closed — believed working, revisit if needed |
-| 16 | Key Hunt page not in pop-art style and not scrollable | ✅ Complete — needs testing |
+| 16 | Key Hunt page not in pop-art style and not scrollable | ✅ Tested |
 | 17 | Messages need real-time updates without page refresh | 📌 Pinned — future "Messaging v2" session |
 | 18 | Changing raw↔slabbed should re-evaluate book value | ✅ Complete — already reactive, no change needed |
-| 19 | Sort by value not sorting correctly | ✅ Complete — needs testing |
+| 19 | Sort by value not sorting correctly | ✅ Tested |
 | 20 | Message notification icon behavior is sporadic/broken | 📌 Pinned — future "Messaging v2" session |
-| 21 | No visible way to follow another user | ✅ Complete — needs testing |
+| 21 | No visible way to follow another user | ✅ Tested |
 
 ---
 
@@ -141,7 +141,7 @@
 
 ## 9. Public view book details should show user profile info
 
-**Status:** ✅ Complete — needs testing
+**Status:** ✅ Tested (Feb 6)
 
 **Issue:** The public collection page header says "A Collector's Collection" instead of using the owner's actual profile name.
 
@@ -157,11 +157,11 @@
 
 ## 10. Admin user search: magnifying glass overlaps placeholder text
 
-**Status:** ✅ Complete — needs testing
+**Status:** ✅ Tested (Feb 6)
 
 **Issue:** The magnifying glass icon visually overlaps the "Search by email..." placeholder text.
 
-**Fix applied:** Increased input left padding from `pl-12` to `pl-14` in the admin users page.
+**Fix applied:** Used inline `paddingLeft: 2.75rem` to override `input-pop` shorthand padding. Tailwind `pl-*` was being overridden by the CSS class's shorthand `padding` property.
 
 **Test cases:**
 - [ ] Go to Admin → Users → search input placeholder text should not overlap with the magnifying glass icon
@@ -199,7 +199,7 @@
 
 ## 13. Admin portal needs better navigation to all admin tools
 
-**Status:** ✅ Complete — needs testing
+**Status:** ✅ Tested (Feb 6)
 
 **Issue:** Admin tools are scattered across 5 pages with no shared navigation.
 
@@ -251,7 +251,7 @@
 
 ## 16. Key Hunt page not in pop-art style and not scrollable
 
-**Status:** ✅ Complete — needs testing
+**Status:** ✅ Tested (Feb 6)
 
 **Issue:** The Key Hunt page does not follow the Lichtenstein pop-art design language. Content below the fold isn't scrollable on mobile.
 
@@ -301,7 +301,7 @@
 
 ## 19. Sort by value not sorting correctly
 
-**Status:** ✅ Complete — needs testing
+**Status:** ✅ Tested (Feb 6)
 
 **Issue:** Collection sort-by-value was using `averagePrice || purchasePrice || 0` instead of the grade-aware `getComicValue()` function that the UI displays.
 
@@ -330,7 +330,7 @@
 
 ## 21. No visible way to follow another user
 
-**Status:** ✅ Complete — needs testing
+**Status:** ✅ Tested (Feb 6)
 
 **Issue:** The FollowButton component exists but was only rendered inside SellerBadge (shop listings), not discoverable from public collection pages.
 

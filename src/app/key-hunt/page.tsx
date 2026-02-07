@@ -554,11 +554,11 @@ export default function KeyHuntPage() {
   return (
     <FeatureGate feature="keyHunt">
       {/* Desktop Explainer - shown on md+ screens */}
-      <div className="hidden md:block min-h-screen" style={{ background: "var(--pop-cream)" }}>
-        <div className="max-w-4xl mx-auto px-6 py-12">
+      <div className="hidden md:block" style={{ background: "var(--pop-cream)" }}>
+        <div className="max-w-4xl mx-auto px-6 py-12 pb-24">
           {/* Header */}
           <div className="text-center mb-12">
-            <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl mb-6 border-4 border-black shadow-[4px_4px_0px_#000]" style={{ background: "var(--pop-yellow)" }}>
+            <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl mb-6 border-4 border-black shadow-[4px_4px_0px_#000]" style={{ background: "var(--pop-blue)" }}>
               <KeyRound className="w-10 h-10 text-white" />
             </div>
             <h1 className="text-4xl font-bold text-gray-900 mb-4" style={{ fontFamily: "var(--font-bangers)" }}>Key Hunt</h1>
@@ -583,7 +583,7 @@ export default function KeyHuntPage() {
               </div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Scan Covers</h3>
               <p className="text-gray-600">
-                Point your camera at any comic cover and instantly identify the issue with AI-powered recognition.
+                Point your camera at any comic cover and instantly identify the issue with our technopathic recognition.
               </p>
             </div>
 

@@ -9,7 +9,6 @@ import { useUser } from "@clerk/nextjs";
 
 import {
   AlertTriangle,
-  ArrowLeft,
   Barcode,
   Check,
   CheckCircle,
@@ -157,274 +156,312 @@ export default function BarcodeReviewsPage() {
 
   if (!isLoaded) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin" style={{ color: "var(--pop-blue)" }} />
       </div>
     );
   }
 
   if (!isSignedIn) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <p className="text-gray-600">Please sign in to access this page.</p>
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="comic-panel p-8 text-center max-w-md">
+          <AlertTriangle className="w-12 h-12 mx-auto mb-4" style={{ color: "var(--pop-red)" }} />
+          <h1 className="text-2xl font-bold mb-2" style={{ fontFamily: "var(--font-bangers)" }}>
+            Sign In Required
+          </h1>
+          <p className="mb-6">Please sign in to access this page.</p>
+          <Link href="/sign-in" className="btn-pop btn-pop-red">
+            Sign In
+          </Link>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-6xl mx-auto p-6">
+    <div className="min-h-screen pb-8">
       {/* Header */}
-      <div className="mb-8">
-        <Link
-          href="/admin/usage"
-          className="flex items-center gap-2 text-pop-black font-bold hover:underline mb-4"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back to Admin
-        </Link>
-        <h1 className="text-3xl font-black text-pop-black font-comic flex items-center gap-3">
-          <Barcode className="w-8 h-8" />
-          BARCODE REVIEWS
-        </h1>
-        <p className="text-gray-600 mt-2">
-          Review and verify barcodes detected from cover scans with low/medium confidence.
-        </p>
-      </div>
-
-      {/* Success/Error Messages */}
-      {successMessage && (
-        <div className="mb-4 p-4 bg-green-50 border-2 border-green-500 rounded-lg flex items-center gap-2 text-green-700">
-          <CheckCircle className="w-5 h-5" />
-          {successMessage}
+      <header className="border-b-4 border-black mb-6" style={{ background: "var(--pop-yellow)" }}>
+        <div className="max-w-6xl mx-auto px-4 py-4">
+          <div className="flex items-center gap-3">
+            <Barcode className="w-8 h-8" />
+            <div>
+              <h1
+                className="text-2xl font-bold tracking-wide"
+                style={{ fontFamily: "var(--font-bangers)" }}
+              >
+                Barcode Reviews
+              </h1>
+              <p className="text-sm">Review barcodes detected from cover scans.</p>
+            </div>
+          </div>
         </div>
-      )}
-      {error && (
-        <div className="mb-4 p-4 bg-red-50 border-2 border-red-500 rounded-lg flex items-center gap-2 text-red-700">
-          <AlertTriangle className="w-5 h-5" />
-          {error}
-        </div>
-      )}
+      </header>
 
-      {/* Status Filter Tabs */}
-      <div className="flex gap-2 mb-6">
-        {["pending", "approved", "corrected", "rejected"].map((status) => (
-          <button
-            key={status}
-            onClick={() => setStatusFilter(status)}
-            className={`px-4 py-2 rounded-lg font-medium capitalize transition-colors ${
-              statusFilter === status
-                ? "bg-pop-blue text-white"
-                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-            }`}
+      <div className="max-w-6xl mx-auto px-4">
+        {/* Success/Error Messages */}
+        {successMessage && (
+          <div
+            className="comic-panel p-4 mb-6"
+            style={{ borderColor: "var(--pop-green)", background: "#f0fff0" }}
           >
-            {status}
+            <div className="flex items-center gap-2" style={{ color: "var(--pop-green)" }}>
+              <CheckCircle className="w-5 h-5" />
+              <p className="font-bold">{successMessage}</p>
+            </div>
+          </div>
+        )}
+        {error && (
+          <div
+            className="comic-panel p-4 mb-6"
+            style={{ borderColor: "var(--pop-red)", background: "#fff0f0" }}
+          >
+            <div className="flex items-center gap-2" style={{ color: "var(--pop-red)" }}>
+              <AlertTriangle className="w-5 h-5" />
+              <p className="font-bold">{error}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Status Filter Tabs */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex gap-2">
+            {["pending", "approved", "corrected", "rejected"].map((status) => (
+              <button
+                key={status}
+                onClick={() => setStatusFilter(status)}
+                className={`px-4 py-2 font-bold capitalize transition-colors border-3 border-black ${
+                  statusFilter === status
+                    ? "text-white"
+                    : "bg-white hover:bg-gray-100"
+                }`}
+                style={
+                  statusFilter === status
+                    ? { background: "var(--pop-blue)", fontFamily: "var(--font-bangers)" }
+                    : { fontFamily: "var(--font-bangers)" }
+                }
+              >
+                {status}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={() => fetchReviews(pagination?.page || 1)}
+            className="btn-pop btn-pop-white text-sm flex items-center gap-2"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+            Refresh
           </button>
-        ))}
-        <button
-          onClick={() => fetchReviews(pagination?.page || 1)}
-          className="ml-auto px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Refresh
-        </button>
-      </div>
+        </div>
 
-      {/* Reviews List */}
-      {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
-        </div>
-      ) : reviews.length === 0 ? (
-        <div className="text-center py-12 bg-gray-50 rounded-lg">
-          <Barcode className="w-12 h-12 mx-auto text-gray-300 mb-4" />
-          <p className="text-gray-500">No {statusFilter} reviews found.</p>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {reviews.map((review) => (
-            <div
-              key={review.id}
-              className="bg-white border-2 border-pop-black p-4 rounded-lg"
-              style={{ boxShadow: "3px 3px 0px #000" }}
+        {/* Reviews List */}
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin" style={{ color: "var(--pop-blue)" }} />
+          </div>
+        ) : reviews.length === 0 ? (
+          <div className="comic-panel p-8 text-center">
+            <Barcode className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+            <h3
+              className="text-xl font-bold mb-1"
+              style={{ fontFamily: "var(--font-bangers)" }}
             >
-              <div className="flex gap-4">
-                {/* Cover Image */}
-                <div className="w-24 h-36 flex-shrink-0 bg-gray-100 rounded overflow-hidden relative">
-                  {review.cover_image_url ? (
-                    <Image
-                      src={review.cover_image_url}
-                      alt="Comic cover"
-                      fill
-                      className="object-cover"
-                      unoptimized
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-400">
-                      No image
-                    </div>
-                  )}
-                </div>
-
-                {/* Details */}
-                <div className="flex-1">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h3 className="font-bold text-lg">
-                        {review.comic_title || "Unknown Title"}
-                        {review.comic_issue && ` #${review.comic_issue}`}
-                      </h3>
-                      <p className="text-gray-500 text-sm">
-                        Submitted {new Date(review.created_at).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <span
-                      className={`px-2 py-1 rounded text-xs font-bold uppercase ${
-                        review.status === "pending"
-                          ? "bg-yellow-100 text-yellow-800"
-                          : review.status === "approved"
-                            ? "bg-green-100 text-green-800"
-                            : review.status === "corrected"
-                              ? "bg-blue-100 text-blue-800"
-                              : "bg-red-100 text-red-800"
-                      }`}
-                    >
-                      {review.status}
-                    </span>
-                  </div>
-
-                  {/* UPC Display */}
-                  <div className="mt-3 p-3 bg-gray-50 rounded-lg">
-                    <label className="text-xs font-bold text-gray-500 uppercase">Detected UPC</label>
-                    {editingId === review.id ? (
-                      <input
-                        type="text"
-                        value={editedUpc}
-                        onChange={(e) => setEditedUpc(e.target.value)}
-                        className="w-full mt-1 px-3 py-2 font-mono text-lg border-2 border-pop-black rounded focus:outline-none focus:ring-2 focus:ring-pop-blue"
-                        placeholder="Enter corrected UPC"
-                      />
-                    ) : (
-                      <p className="font-mono text-lg mt-1">{review.detected_upc}</p>
-                    )}
-                    {review.corrected_upc && (
-                      <p className="text-sm text-blue-600 mt-1">
-                        Corrected to: <span className="font-mono">{review.corrected_upc}</span>
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Admin Notes Input (when editing) */}
-                  {editingId === review.id && (
-                    <div className="mt-3">
-                      <label className="text-xs font-bold text-gray-500 uppercase">Admin Notes (optional)</label>
-                      <textarea
-                        value={adminNotes}
-                        onChange={(e) => setAdminNotes(e.target.value)}
-                        className="w-full mt-1 px-3 py-2 border-2 border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-pop-blue"
-                        rows={2}
-                        placeholder="Add any notes about this review..."
-                      />
-                    </div>
-                  )}
-
-                  {/* Display existing admin notes */}
-                  {review.admin_notes && !editingId && (
-                    <p className="mt-2 text-sm text-gray-600 italic">
-                      Note: {review.admin_notes}
-                    </p>
-                  )}
-
-                  {/* Action Buttons */}
-                  {review.status === "pending" && (
-                    <div className="mt-4 flex gap-2">
-                      {editingId === review.id ? (
-                        <>
-                          <button
-                            onClick={() => handleAction(review.id, "correct")}
-                            disabled={updating === review.id}
-                            className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white font-bold rounded hover:bg-blue-600 disabled:opacity-50 transition-colors"
-                          >
-                            {updating === review.id ? (
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                              <Check className="w-4 h-4" />
-                            )}
-                            Save Correction
-                          </button>
-                          <button
-                            onClick={cancelEditing}
-                            className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 font-bold rounded hover:bg-gray-300 transition-colors"
-                          >
-                            <X className="w-4 h-4" />
-                            Cancel
-                          </button>
-                        </>
+              No {statusFilter} reviews
+            </h3>
+            <p>Nothing to show here.</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {reviews.map((review) => (
+              <div key={review.id} className="comic-panel overflow-hidden">
+                <div className="p-4">
+                  <div className="flex gap-4">
+                    {/* Cover Image */}
+                    <div className="w-24 h-36 flex-shrink-0 border-2 border-black overflow-hidden relative">
+                      {review.cover_image_url ? (
+                        <Image
+                          src={review.cover_image_url}
+                          alt="Comic cover"
+                          fill
+                          className="object-cover"
+                          unoptimized
+                        />
                       ) : (
-                        <>
-                          <button
-                            onClick={() => handleAction(review.id, "approve")}
-                            disabled={updating === review.id}
-                            className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white font-bold rounded hover:bg-green-600 disabled:opacity-50 transition-colors"
-                          >
-                            {updating === review.id ? (
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                              <CheckCircle className="w-4 h-4" />
-                            )}
-                            Approve
-                          </button>
-                          <button
-                            onClick={() => startEditing(review)}
-                            className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white font-bold rounded hover:bg-blue-600 transition-colors"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                            Edit & Approve
-                          </button>
-                          <button
-                            onClick={() => handleAction(review.id, "reject")}
-                            disabled={updating === review.id}
-                            className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white font-bold rounded hover:bg-red-600 disabled:opacity-50 transition-colors"
-                          >
-                            {updating === review.id ? (
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                              <XCircle className="w-4 h-4" />
-                            )}
-                            Reject
-                          </button>
-                        </>
+                        <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-400">
+                          No image
+                        </div>
                       )}
                     </div>
-                  )}
+
+                    {/* Details */}
+                    <div className="flex-1">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <h3 className="font-bold text-lg">
+                            {review.comic_title || "Unknown Title"}
+                            {review.comic_issue && ` #${review.comic_issue}`}
+                          </h3>
+                          <p className="text-gray-500 text-sm">
+                            Submitted {new Date(review.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <span
+                          className={`badge-pop text-xs ${
+                            review.status === "pending"
+                              ? "badge-pop-yellow"
+                              : review.status === "approved"
+                                ? "badge-pop-green"
+                                : review.status === "corrected"
+                                  ? "badge-pop-blue"
+                                  : "badge-pop-red"
+                          }`}
+                        >
+                          {review.status}
+                        </span>
+                      </div>
+
+                      {/* UPC Display */}
+                      <div
+                        className="mt-3 p-3 border-2 border-black"
+                        style={{ background: "var(--pop-cream)" }}
+                      >
+                        <label className="text-xs font-bold uppercase">Detected UPC</label>
+                        {editingId === review.id ? (
+                          <input
+                            type="text"
+                            value={editedUpc}
+                            onChange={(e) => setEditedUpc(e.target.value)}
+                            className="w-full mt-1 px-3 py-2 font-mono text-lg border-3 border-black focus:outline-none text-gray-900"
+                            placeholder="Enter corrected UPC"
+                          />
+                        ) : (
+                          <p className="font-mono text-lg mt-1">{review.detected_upc}</p>
+                        )}
+                        {review.corrected_upc && (
+                          <p className="text-sm mt-1" style={{ color: "var(--pop-blue)" }}>
+                            Corrected to: <span className="font-mono">{review.corrected_upc}</span>
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Admin Notes Input (when editing) */}
+                      {editingId === review.id && (
+                        <div className="mt-3">
+                          <label className="text-xs font-bold uppercase">Admin Notes (optional)</label>
+                          <textarea
+                            value={adminNotes}
+                            onChange={(e) => setAdminNotes(e.target.value)}
+                            className="w-full mt-1 px-3 py-2 border-3 border-black text-gray-900"
+                            rows={2}
+                            placeholder="Add any notes about this review..."
+                          />
+                        </div>
+                      )}
+
+                      {/* Display existing admin notes */}
+                      {review.admin_notes && !editingId && (
+                        <p className="mt-2 text-sm text-gray-600 italic">
+                          Note: {review.admin_notes}
+                        </p>
+                      )}
+
+                      {/* Action Buttons */}
+                      {review.status === "pending" && (
+                        <div className="mt-4 flex gap-2 border-t-3 border-black pt-4">
+                          {editingId === review.id ? (
+                            <>
+                              <button
+                                onClick={() => handleAction(review.id, "correct")}
+                                disabled={updating === review.id}
+                                className="btn-pop btn-pop-blue flex items-center gap-2 disabled:opacity-50"
+                              >
+                                {updating === review.id ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <Check className="w-4 h-4" />
+                                )}
+                                Save Correction
+                              </button>
+                              <button
+                                onClick={cancelEditing}
+                                className="btn-pop btn-pop-white flex items-center gap-2"
+                              >
+                                <X className="w-4 h-4" />
+                                Cancel
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => handleAction(review.id, "approve")}
+                                disabled={updating === review.id}
+                                className="btn-pop btn-pop-green flex items-center gap-2 disabled:opacity-50"
+                              >
+                                {updating === review.id ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <CheckCircle className="w-4 h-4" />
+                                )}
+                                Approve
+                              </button>
+                              <button
+                                onClick={() => startEditing(review)}
+                                className="btn-pop btn-pop-blue flex items-center gap-2"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                                Edit & Approve
+                              </button>
+                              <button
+                                onClick={() => handleAction(review.id, "reject")}
+                                disabled={updating === review.id}
+                                className="btn-pop btn-pop-red flex items-center gap-2 disabled:opacity-50"
+                              >
+                                {updating === review.id ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <XCircle className="w-4 h-4" />
+                                )}
+                                Reject
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
 
-      {/* Pagination */}
-      {pagination && pagination.totalPages > 1 && (
-        <div className="flex items-center justify-center gap-2 mt-6">
-          <button
-            onClick={() => fetchReviews(pagination.page - 1)}
-            disabled={pagination.page === 1 || loading}
-            className="px-4 py-2 bg-gray-100 rounded hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Previous
-          </button>
-          <span className="px-4 py-2 text-gray-600">
-            Page {pagination.page} of {pagination.totalPages}
-          </span>
-          <button
-            onClick={() => fetchReviews(pagination.page + 1)}
-            disabled={pagination.page === pagination.totalPages || loading}
-            className="px-4 py-2 bg-gray-100 rounded hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Next
-          </button>
-        </div>
-      )}
+        {/* Pagination */}
+        {pagination && pagination.totalPages > 1 && (
+          <div className="flex items-center justify-center gap-2 mt-6">
+            <button
+              onClick={() => fetchReviews(pagination.page - 1)}
+              disabled={pagination.page === 1 || loading}
+              className="btn-pop btn-pop-white disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Previous
+            </button>
+            <span
+              className="px-4 py-2 font-bold"
+              style={{ fontFamily: "var(--font-bangers)" }}
+            >
+              Page {pagination.page} of {pagination.totalPages}
+            </span>
+            <button
+              onClick={() => fetchReviews(pagination.page + 1)}
+              disabled={pagination.page === pagination.totalPages || loading}
+              className="btn-pop btn-pop-white disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Next
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

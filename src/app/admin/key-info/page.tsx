@@ -231,19 +231,24 @@ export default function AdminKeyInfoPage() {
 
   if (!isLoaded) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin" style={{ color: "var(--pop-blue)" }} />
       </div>
     );
   }
 
   if (!isSignedIn) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <AlertTriangle className="w-12 h-12 text-amber-500 mx-auto mb-4" />
-          <h1 className="text-xl font-bold text-gray-900">Not Signed In</h1>
-          <p className="text-gray-600 mt-2">Please sign in to access this page.</p>
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="comic-panel p-8 text-center max-w-md">
+          <AlertTriangle className="w-12 h-12 mx-auto mb-4" style={{ color: "var(--pop-red)" }} />
+          <h1 className="text-2xl font-bold mb-2" style={{ fontFamily: "var(--font-bangers)" }}>
+            Sign In Required
+          </h1>
+          <p className="mb-6">Please sign in to access this page.</p>
+          <Link href="/sign-in" className="btn-pop btn-pop-red">
+            Sign In
+          </Link>
         </div>
       </div>
     );
@@ -251,12 +256,14 @@ export default function AdminKeyInfoPage() {
 
   if (error === "You do not have permission to access this page") {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <h1 className="text-xl font-bold text-gray-900">Access Denied</h1>
-          <p className="text-gray-600 mt-2">You do not have permission to access this page.</p>
-          <Link href="/" className="text-primary-600 hover:underline mt-4 inline-block">
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="comic-panel p-8 text-center max-w-md">
+          <AlertTriangle className="w-12 h-12 mx-auto mb-4" style={{ color: "var(--pop-red)" }} />
+          <h1 className="text-2xl font-bold mb-2" style={{ fontFamily: "var(--font-bangers)" }}>
+            Access Denied
+          </h1>
+          <p className="mb-6">You do not have permission to access this page.</p>
+          <Link href="/" className="btn-pop btn-pop-blue">
             Return Home
           </Link>
         </div>
@@ -265,50 +272,58 @@ export default function AdminKeyInfoPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen pb-8">
       {/* Header */}
-      <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+      <header className="border-b-4 border-black mb-6" style={{ background: "var(--pop-yellow)" }}>
+        <div className="max-w-6xl mx-auto px-4 py-4">
           <div className="flex items-center gap-3">
-            <KeyRound className="w-6 h-6 text-amber-500" />
-            <h1 className="text-xl font-bold text-gray-900">Key Info Moderation</h1>
+            <KeyRound className="w-8 h-8" />
+            <h1
+              className="text-2xl font-bold tracking-wide"
+              style={{ fontFamily: "var(--font-bangers)" }}
+            >
+              Key Info Moderation
+            </h1>
           </div>
-          <Link href="/" className="text-sm text-primary-600 hover:underline">
-            Back to App
-          </Link>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-6">
+      <main className="max-w-6xl mx-auto px-4">
         {/* Stats Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white rounded-lg shadow p-4">
-            <div className="flex items-center gap-2 text-gray-600 mb-1">
+          <div className="comic-panel p-4">
+            <div className="flex items-center gap-2 mb-1">
               <Database className="w-4 h-4" />
-              <span className="text-sm">Total Key Comics</span>
+              <span className="text-sm font-medium">Total Key Comics</span>
             </div>
-            <p className="text-2xl font-bold text-gray-900">{keyComicsCount}</p>
+            <p className="text-2xl font-bold">{keyComicsCount}</p>
           </div>
-          <div className="bg-white rounded-lg shadow p-4">
-            <div className="flex items-center gap-2 text-amber-600 mb-1">
+          <div className="comic-panel p-4" style={{ borderColor: "#d97706" }}>
+            <div className="flex items-center gap-2 mb-1" style={{ color: "#d97706" }}>
               <Clock className="w-4 h-4" />
-              <span className="text-sm">Pending</span>
+              <span className="text-sm font-medium">Pending</span>
             </div>
-            <p className="text-2xl font-bold text-amber-600">{counts.pending}</p>
+            <p className="text-2xl font-bold" style={{ color: "#d97706" }}>
+              {counts.pending}
+            </p>
           </div>
-          <div className="bg-white rounded-lg shadow p-4">
-            <div className="flex items-center gap-2 text-green-600 mb-1">
+          <div className="comic-panel p-4" style={{ borderColor: "var(--pop-green)" }}>
+            <div className="flex items-center gap-2 mb-1" style={{ color: "var(--pop-green)" }}>
               <CheckCircle className="w-4 h-4" />
-              <span className="text-sm">Approved</span>
+              <span className="text-sm font-medium">Approved</span>
             </div>
-            <p className="text-2xl font-bold text-green-600">{counts.approved}</p>
+            <p className="text-2xl font-bold" style={{ color: "var(--pop-green)" }}>
+              {counts.approved}
+            </p>
           </div>
-          <div className="bg-white rounded-lg shadow p-4">
-            <div className="flex items-center gap-2 text-red-600 mb-1">
+          <div className="comic-panel p-4" style={{ borderColor: "var(--pop-red)" }}>
+            <div className="flex items-center gap-2 mb-1" style={{ color: "var(--pop-red)" }}>
               <XCircle className="w-4 h-4" />
-              <span className="text-sm">Rejected</span>
+              <span className="text-sm font-medium">Rejected</span>
             </div>
-            <p className="text-2xl font-bold text-red-600">{counts.rejected}</p>
+            <p className="text-2xl font-bold" style={{ color: "var(--pop-red)" }}>
+              {counts.rejected}
+            </p>
           </div>
         </div>
 
@@ -317,21 +332,31 @@ export default function AdminKeyInfoPage() {
           <div className="flex gap-2">
             <button
               onClick={() => setActiveTab("submissions")}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              className={`px-4 py-2 font-bold transition-colors border-3 border-black ${
                 activeTab === "submissions"
-                  ? "bg-amber-500 text-white"
-                  : "bg-white text-gray-700 hover:bg-gray-100"
+                  ? "text-white"
+                  : "bg-white hover:bg-gray-100"
               }`}
+              style={
+                activeTab === "submissions"
+                  ? { background: "var(--pop-blue)", fontFamily: "var(--font-bangers)" }
+                  : { fontFamily: "var(--font-bangers)" }
+              }
             >
               Suggestions ({counts.pending})
             </button>
             <button
               onClick={() => setActiveTab("custom")}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              className={`px-4 py-2 font-bold transition-colors border-3 border-black ${
                 activeTab === "custom"
-                  ? "bg-amber-500 text-white"
-                  : "bg-white text-gray-700 hover:bg-gray-100"
+                  ? "text-white"
+                  : "bg-white hover:bg-gray-100"
               }`}
+              style={
+                activeTab === "custom"
+                  ? { background: "var(--pop-blue)", fontFamily: "var(--font-bangers)" }
+                  : { fontFamily: "var(--font-bangers)" }
+              }
             >
               From Comics ({customCounts.pending})
             </button>
@@ -339,7 +364,7 @@ export default function AdminKeyInfoPage() {
           <button
             onClick={fetchData}
             disabled={isLoading}
-            className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+            className="btn-pop btn-pop-white text-sm flex items-center gap-2"
           >
             <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
             Refresh
@@ -349,39 +374,55 @@ export default function AdminKeyInfoPage() {
         {/* Content based on active tab */}
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
+            <Loader2 className="w-8 h-8 animate-spin" style={{ color: "var(--pop-blue)" }} />
           </div>
         ) : error ? (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
-            <p className="text-red-700">{error}</p>
+          <div
+            className="comic-panel p-4 text-center"
+            style={{ borderColor: "var(--pop-red)", background: "#fff0f0" }}
+          >
+            <p className="font-bold" style={{ color: "var(--pop-red)" }}>{error}</p>
           </div>
         ) : activeTab === "submissions" && submissions.length === 0 ? (
-          <div className="bg-white rounded-lg shadow p-8 text-center">
-            <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900">All caught up!</h3>
-            <p className="text-gray-600 mt-1">No pending submissions to review.</p>
+          <div className="comic-panel p-8 text-center">
+            <CheckCircle className="w-12 h-12 mx-auto mb-4" style={{ color: "var(--pop-green)" }} />
+            <h3
+              className="text-xl font-bold mb-1"
+              style={{ fontFamily: "var(--font-bangers)" }}
+            >
+              All caught up!
+            </h3>
+            <p>No pending submissions to review.</p>
           </div>
         ) : activeTab === "custom" && customKeyInfoComics.length === 0 ? (
-          <div className="bg-white rounded-lg shadow p-8 text-center">
-            <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900">All caught up!</h3>
-            <p className="text-gray-600 mt-1">No pending custom key info to review.</p>
+          <div className="comic-panel p-8 text-center">
+            <CheckCircle className="w-12 h-12 mx-auto mb-4" style={{ color: "var(--pop-green)" }} />
+            <h3
+              className="text-xl font-bold mb-1"
+              style={{ fontFamily: "var(--font-bangers)" }}
+            >
+              All caught up!
+            </h3>
+            <p>No pending custom key info to review.</p>
           </div>
         ) : activeTab === "custom" ? (
           <div className="space-y-4">
             {customKeyInfoComics.map((comic) => (
-              <div key={comic.id} className="bg-white rounded-lg shadow overflow-hidden">
-                <div className="p-4 border-b bg-gray-50">
+              <div key={comic.id} className="comic-panel overflow-hidden">
+                <div
+                  className="p-4 border-b-3 border-black"
+                  style={{ background: "var(--pop-cream)" }}
+                >
                   <div className="flex items-start gap-4">
                     {comic.coverImageUrl && (
                       <img
                         src={comic.coverImageUrl}
                         alt={comic.title}
-                        className="w-16 h-24 object-cover rounded border border-gray-200"
+                        className="w-16 h-24 object-cover border-2 border-black"
                       />
                     )}
                     <div>
-                      <h3 className="font-bold text-gray-900">
+                      <h3 className="font-bold">
                         {comic.title} #{comic.issueNumber}
                       </h3>
                       {comic.publisher && (
@@ -398,13 +439,10 @@ export default function AdminKeyInfoPage() {
                   {/* Existing Key Info */}
                   {comic.existingKeyInfo.length > 0 && (
                     <div className="mb-3">
-                      <p className="text-sm font-medium text-gray-700 mb-2">Existing Key Info:</p>
+                      <p className="text-sm font-bold mb-2">Existing Key Info:</p>
                       <div className="flex flex-wrap gap-2">
                         {comic.existingKeyInfo.map((info, idx) => (
-                          <span
-                            key={idx}
-                            className="px-2 py-1 bg-yellow-50 border border-yellow-200 text-yellow-800 rounded text-xs"
-                          >
+                          <span key={idx} className="badge-pop badge-pop-yellow text-xs">
                             {info}
                           </span>
                         ))}
@@ -413,13 +451,10 @@ export default function AdminKeyInfoPage() {
                   )}
 
                   {/* Custom Key Info to Review */}
-                  <p className="text-sm font-medium text-gray-700 mb-2">Custom Key Info (Pending):</p>
+                  <p className="text-sm font-bold mb-2">Custom Key Info (Pending):</p>
                   <div className="flex flex-wrap gap-2 mb-4">
                     {comic.customKeyInfo.map((info, idx) => (
-                      <span
-                        key={idx}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-amber-100 text-amber-800 text-sm font-medium rounded-full"
-                      >
+                      <span key={idx} className="badge-pop badge-pop-blue text-sm">
                         <KeyRound className="w-3 h-3" />
                         {info}
                       </span>
@@ -427,11 +462,11 @@ export default function AdminKeyInfoPage() {
                   </div>
 
                   {/* Actions */}
-                  <div className="flex gap-2 border-t pt-4 mt-4">
+                  <div className="flex gap-2 border-t-3 border-black pt-4 mt-4">
                     <button
                       onClick={() => handleApproveCustom(comic.id)}
                       disabled={processingId === comic.id}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+                      className="btn-pop btn-pop-green flex-1 flex items-center justify-center gap-2 disabled:opacity-50"
                     >
                       {processingId === comic.id ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
@@ -443,7 +478,7 @@ export default function AdminKeyInfoPage() {
                     <button
                       onClick={() => handleRejectCustom(comic.id)}
                       disabled={processingId === comic.id}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors disabled:opacity-50"
+                      className="btn-pop btn-pop-white flex-1 flex items-center justify-center gap-2 disabled:opacity-50"
                     >
                       <X className="w-4 h-4" />
                       Reject
@@ -456,33 +491,31 @@ export default function AdminKeyInfoPage() {
         ) : (
           <div className="space-y-4">
             {submissions.map((submission) => (
-              <div key={submission.id} className="bg-white rounded-lg shadow overflow-hidden">
+              <div key={submission.id} className="comic-panel overflow-hidden">
                 {/* Submission Header */}
-                <div className="p-4 border-b bg-gray-50">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h3 className="font-bold text-gray-900">
-                        {submission.title} #{submission.issueNumber}
-                      </h3>
-                      {submission.publisher && (
-                        <p className="text-sm text-gray-600">{submission.publisher}</p>
-                      )}
-                      <p className="text-xs text-gray-500 mt-1">
-                        Submitted {new Date(submission.createdAt).toLocaleDateString()}
-                      </p>
-                    </div>
+                <div
+                  className="p-4 border-b-3 border-black"
+                  style={{ background: "var(--pop-cream)" }}
+                >
+                  <div>
+                    <h3 className="font-bold">
+                      {submission.title} #{submission.issueNumber}
+                    </h3>
+                    {submission.publisher && (
+                      <p className="text-sm text-gray-600">{submission.publisher}</p>
+                    )}
+                    <p className="text-xs text-gray-500 mt-1">
+                      Submitted {new Date(submission.createdAt).toLocaleDateString()}
+                    </p>
                   </div>
                 </div>
 
                 {/* Suggested Key Info */}
                 <div className="p-4">
-                  <p className="text-sm font-medium text-gray-700 mb-2">Suggested Key Info:</p>
+                  <p className="text-sm font-bold mb-2">Suggested Key Info:</p>
                   <div className="flex flex-wrap gap-2 mb-4">
                     {submission.suggestedKeyInfo.map((info, idx) => (
-                      <span
-                        key={idx}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-amber-100 text-amber-800 text-sm font-medium rounded-full"
-                      >
+                      <span key={idx} className="badge-pop badge-pop-blue text-sm">
                         <KeyRound className="w-3 h-3" />
                         {info}
                       </span>
@@ -491,13 +524,14 @@ export default function AdminKeyInfoPage() {
 
                   {/* Source URL */}
                   {submission.sourceUrl && (
-                    <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
+                    <div className="flex items-center gap-2 text-sm mb-2">
                       <ExternalLink className="w-4 h-4" />
                       <a
                         href={submission.sourceUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-primary-600 hover:underline truncate"
+                        className="hover:underline truncate"
+                        style={{ color: "var(--pop-blue)" }}
                       >
                         {submission.sourceUrl}
                       </a>
@@ -514,8 +548,8 @@ export default function AdminKeyInfoPage() {
 
                   {/* Actions */}
                   {rejectingId === submission.id ? (
-                    <div className="border-t pt-4 mt-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <div className="border-t-3 border-black pt-4 mt-4">
+                      <label className="block text-sm font-bold mb-2">
                         Rejection Reason *
                       </label>
                       <textarea
@@ -523,13 +557,13 @@ export default function AdminKeyInfoPage() {
                         onChange={(e) => setRejectionReason(e.target.value)}
                         placeholder="Why is this submission being rejected?"
                         rows={2}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mb-3 text-gray-900"
+                        className="w-full px-3 py-2 border-3 border-black text-sm mb-3 text-gray-900"
                       />
                       <div className="flex gap-2">
                         <button
                           onClick={() => handleReject(submission.id)}
                           disabled={processingId === submission.id}
-                          className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+                          className="btn-pop btn-pop-red flex-1 flex items-center justify-center gap-2 disabled:opacity-50"
                         >
                           {processingId === submission.id ? (
                             <Loader2 className="w-4 h-4 animate-spin" />
@@ -543,18 +577,18 @@ export default function AdminKeyInfoPage() {
                             setRejectingId(null);
                             setRejectionReason("");
                           }}
-                          className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+                          className="btn-pop btn-pop-white"
                         >
                           Cancel
                         </button>
                       </div>
                     </div>
                   ) : (
-                    <div className="flex gap-2 border-t pt-4 mt-4">
+                    <div className="flex gap-2 border-t-3 border-black pt-4 mt-4">
                       <button
                         onClick={() => handleApprove(submission.id)}
                         disabled={processingId === submission.id}
-                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+                        className="btn-pop btn-pop-green flex-1 flex items-center justify-center gap-2 disabled:opacity-50"
                       >
                         {processingId === submission.id ? (
                           <Loader2 className="w-4 h-4 animate-spin" />
@@ -566,7 +600,7 @@ export default function AdminKeyInfoPage() {
                       <button
                         onClick={() => setRejectingId(submission.id)}
                         disabled={processingId === submission.id}
-                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors disabled:opacity-50"
+                        className="btn-pop btn-pop-white flex-1 flex items-center justify-center gap-2 disabled:opacity-50"
                       >
                         <X className="w-4 h-4" />
                         Reject
@@ -578,16 +612,6 @@ export default function AdminKeyInfoPage() {
             ))}
           </div>
         )}
-
-        {/* Admin Links */}
-        <div className="mt-8 flex gap-4">
-          <Link href="/admin/users" className="text-sm text-blue-600 hover:underline">
-            → User Management
-          </Link>
-          <Link href="/admin/usage" className="text-sm text-blue-600 hover:underline">
-            → Service Usage Monitor
-          </Link>
-        </div>
       </main>
     </div>
   );

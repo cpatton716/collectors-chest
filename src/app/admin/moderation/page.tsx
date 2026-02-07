@@ -166,19 +166,14 @@ export default function ModerationPage() {
       {/* Header */}
       <header className="border-b-4 border-black mb-6" style={{ background: "var(--pop-red)" }}>
         <div className="max-w-6xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3 text-white">
-              <ShieldAlert className="w-8 h-8" />
-              <h1
-                className="text-2xl font-bold tracking-wide"
-                style={{ fontFamily: "var(--font-bangers)" }}
-              >
-                Message Moderation
-              </h1>
-            </div>
-            <Link href="/collection" className="btn-pop btn-pop-white text-sm">
-              Back to App
-            </Link>
+          <div className="flex items-center gap-3 text-white">
+            <ShieldAlert className="w-8 h-8" />
+            <h1
+              className="text-2xl font-bold tracking-wide"
+              style={{ fontFamily: "var(--font-bangers)" }}
+            >
+              Message Moderation
+            </h1>
           </div>
         </div>
       </header>

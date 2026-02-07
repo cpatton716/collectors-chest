@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Users, BarChart3, Key, MessageSquare, ScanLine, ArrowLeft } from "lucide-react";
+import { Users, BarChart3, BookKey, MessageSquare, ScanLine, ArrowLeft } from "lucide-react";
 
 const adminLinks = [
   { href: "/admin/users", label: "Users", icon: Users },
-  { href: "/admin/usage", label: "Usage", icon: BarChart3 },
-  { href: "/admin/key-info", label: "Key Info", icon: Key },
-  { href: "/admin/barcode-reviews", label: "Barcodes", icon: ScanLine },
   { href: "/admin/moderation", label: "Moderation", icon: MessageSquare },
+  { href: "/admin/key-info", label: "Key Info", icon: BookKey },
+  { href: "/admin/barcode-reviews", label: "Barcodes", icon: ScanLine },
+  { href: "/admin/usage", label: "Usage", icon: BarChart3 },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
