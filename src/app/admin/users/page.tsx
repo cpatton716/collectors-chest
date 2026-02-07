@@ -155,6 +155,7 @@ export default function AdminUsersPage() {
     setIsSearching(true);
     setError(null);
     setSuccessMessage(null);
+    setHasSearched(true);
 
     try {
       const response = await fetch(
@@ -169,7 +170,6 @@ export default function AdminUsersPage() {
       const data = await response.json();
       setSearchResults(data.users);
       setSelectedUser(null);
-      setHasSearched(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unknown error");
       setSearchResults([]);
@@ -403,7 +403,7 @@ export default function AdminUsersPage() {
               {searchResults.length === 0 ? (
                 <div className="p-8 text-center">
                   <Users className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                  <p className="text-gray-500">
+                  <p className={hasSearched ? "text-red-500 font-bold" : "text-gray-500"}>
                     {hasSearched
                       ? `No users found matching "${searchQuery}"`
                       : "Search for users by email"}

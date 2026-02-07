@@ -221,6 +221,14 @@ The `USE_STATIC_LIST` flag has been removed. The API now:
 
 ## Pending Enhancements
 
+### Admin: Remove Incorrect Key Info from Books
+**Priority:** High
+**Status:** Pending
+
+Admins need the ability to remove incorrect key info from individual books. User-imported data (e.g., CSV import saying "First full appearance of Gambit" on a Batman book) can pollute shared data. Key info from user imports should only display on the user's own books and never be stored in the shared database unless approved by an admin.
+
+---
+
 ### Peer-to-Peer Messaging
 **Priority:** Medium
 **Status:** ✅ Complete (Jan 27-28, 2026)

@@ -4,26 +4,26 @@
 
 | # | Issue | Status |
 |---|-------|--------|
-| 1 | CSV import: accept flexible boolean values (yes/no, Y/N, etc.) | ✅ Complete |
+| 1 | CSV import: accept flexible boolean values (yes/no, Y/N, etc.) | ✅ Tested |
 | 2 | Cover images being returned incorrectly | 📌 Pinned — needs specific examples |
-| 3 | Book details missing cover uses old Riddler style, not pop-art | ✅ Complete |
-| 4 | Edit mode publisher dropdown doesn't match stored publisher value | ✅ Complete — needs testing |
-| 5 | CSV import: dollar signs in price fields cause values to be dropped | ✅ Complete — needs testing |
-| 6 | Notify key info submitter on admin approval/rejection | ✅ Complete — needs testing |
-| 7 | Approving key info doesn't update submitter's reputation/feedback | ✅ Complete — needs testing |
-| 8 | Public share page missing covers use old Riddler style, not pop-art | ✅ Complete (same fix as #3) |
+| 3 | Book details missing cover uses old Riddler style, not pop-art | ✅ Tested |
+| 4 | Edit mode publisher dropdown doesn't match stored publisher value | ✅ Tested |
+| 5 | CSV import: dollar signs in price fields cause values to be dropped | ✅ Tested |
+| 6 | Notify key info submitter on admin approval/rejection | ✅ Completed — Needs Testing |
+| 7 | Approving key info doesn't update submitter's reputation/feedback | ✅ Completed — Needs Testing |
+| 8 | Public share page missing covers use old Riddler style, not pop-art | ✅ Tested |
 | 9 | Public view book details should show user profile info | ✅ Tested |
 | 10 | Admin user search: magnifying glass overlaps placeholder text | ✅ Tested |
-| 11 | Admin user search: no message when no results found | ✅ Complete — needs testing |
+| 11 | Admin user search: no message when no results found | ✅ Tested |
 | 12 | Premium user lost Key Hunt access after trial reset + reactivation | 📌 Pinned — needs DB investigation |
 | 13 | Admin portal needs better navigation to all admin tools | ✅ Tested |
-| 14 | Key Hunt list not showing up for guest/free user | ✅ Complete — needs testing |
-| 15 | "Start 7-day Trial" button on Key Hunt page not working | ✅ Closed — believed working, revisit if needed |
+| 14 | Key Hunt list not showing up for guest/free user | ✅ Tested |
+| 15 | "Start 7-day Trial" button on Key Hunt page not working | ✅ Closed |
 | 16 | Key Hunt page not in pop-art style and not scrollable | ✅ Tested |
-| 17 | Messages need real-time updates without page refresh | 📌 Pinned — future "Messaging v2" session |
-| 18 | Changing raw↔slabbed should re-evaluate book value | ✅ Complete — already reactive, no change needed |
+| 17 | Messages need real-time updates without page refresh | 📌 Pinned — Messaging v2 |
+| 18 | Changing raw↔slabbed should re-evaluate book value | ✅ Tested |
 | 19 | Sort by value not sorting correctly | ✅ Tested |
-| 20 | Message notification icon behavior is sporadic/broken | 📌 Pinned — future "Messaging v2" session |
+| 20 | Message notification icon behavior is sporadic/broken | 📌 Pinned — Messaging v2 |
 | 21 | No visible way to follow another user | ✅ Tested |
 
 ---
@@ -171,11 +171,11 @@
 
 ## 11. Admin user search: no message when no results found
 
-**Status:** ✅ Complete — needs testing
+**Status:** ✅ Tested
 
 **Issue:** No feedback when search returns no results — shows same prompt as initial state.
 
-**Fix applied:** Added `hasSearched` state tracking. After a search completes with no results, shows "No users found matching '[query]'" instead of the default prompt.
+**Fix applied:** Added `hasSearched` state tracking. After a search completes with no results, shows "No users found matching '[query]'" in bold red text instead of the default prompt. Fixed bug where `hasSearched` was only set on success path — moved to before the API call so it triggers on both success and failure.
 
 **Test cases:**
 - [ ] Go to Admin → Users → initial state shows "Search for users by email"
@@ -219,7 +219,7 @@
 
 ## 14. Key Hunt list not showing up for guest/free user
 
-**Status:** ✅ Complete — needs testing
+**Status:** ✅ Tested
 
 **Issue:** Key Hunt is intentionally gated to Premium/Trial users. However, the "Add to Hunt List" button appeared for all users without indicating it requires premium.
 

@@ -1,10 +1,11 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { AlertCircle, Check, Download, FileText, Loader2, Upload, X, Zap } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 
+import { getRandomFact } from "@/lib/comicFacts";
 import { parseCurrencyValue } from "@/lib/csvHelpers";
 import { CollectionItem, ComicDetails, normalizePublisher } from "@/types/comic";
 
@@ -79,7 +80,19 @@ export function CSVImport({ onImportComplete, onCancel }: CSVImportProps) {
   const [step, setStep] = useState<"upload" | "preview" | "importing" | "complete">("upload");
   const [quickImport, setQuickImport] = useState(false);
   const [importedItems, setImportedItems] = useState<CollectionItem[]>([]);
+  const [currentFact, setCurrentFact] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Rotate fun facts every 7 seconds during import
+  useEffect(() => {
+    if (step === "importing") {
+      setCurrentFact(getRandomFact());
+      const interval = setInterval(() => {
+        setCurrentFact(getRandomFact());
+      }, 7000);
+      return () => clearInterval(interval);
+    }
+  }, [step]);
 
   const parseCSV = (text: string): ParsedRow[] => {
     const lines = text.split(/\r?\n/).filter((line) => line.trim());
@@ -533,7 +546,14 @@ export function CSVImport({ onImportComplete, onCancel }: CSVImportProps) {
               style={{ width: `${importProgress}%` }}
             />
           </div>
-          <p className="text-sm font-comic text-pop-black/60">{importProgress}% complete</p>
+          <p className="text-sm font-comic text-pop-black/60 mb-6">{importProgress}% complete</p>
+          {currentFact && (
+            <div className="max-w-sm mx-auto p-3 border-2 border-pop-black/20 bg-pop-yellow/10">
+              <p className="text-xs font-comic text-pop-black/70 italic">
+                <span className="hidden sm:inline">Did you know? </span>{currentFact}
+              </p>
+            </div>
+          )}
         </div>
       )}
 
