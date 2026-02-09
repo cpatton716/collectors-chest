@@ -892,4 +892,44 @@ If you encounter bugs or unexpected behavior:
 | No results message | Admin → Users → search non-existent email | Red bold "No users found matching '...'" message |
 | Default state | Admin → Users → before any search | Gray "Search for users by email" message |
 
-*Last Updated: February 6, 2026*
+### Feb 8 Fixes
+
+#### Real-Time Messaging (#17)
+
+| Test Case | Steps | Expected Result |
+|-----------|-------|-----------------|
+| Conversation list refreshes | Open messages on two accounts, send from one | Other account's conversation list updates without refresh |
+| Loading spinner only on initial | Open /messages → wait for load → receive new message | Full spinner on first load only, no spinner on real-time updates |
+| Mark as read endpoint | Open conversation with unread messages | Messages marked as read via POST /api/messages/{id}/read |
+| Nav unread badge accurate | Receive message from another user | Badge increments; sending own message does NOT increment |
+
+#### Key Hunt Trial Access (#12)
+
+| Test Case | Steps | Expected Result |
+|-----------|-------|-----------------|
+| Trial user Key Hunt access | As trial user (isTrialing=true), tap Key Hunt in mobile nav | Navigates to /key-hunt (not /pricing) |
+| Trial user Key Hunt styling | As trial user, view bottom nav | Key Hunt shows amber color (not gray/locked) |
+| Free user Key Hunt locked | As free non-trial user, tap Key Hunt | Redirects to /pricing?feature=key-hunt |
+
+#### Tappable @Username
+
+| Test Case | Steps | Expected Result |
+|-----------|-------|-----------------|
+| MessageThread username | Open a conversation | @username next to "Message @username" is a link to /u/{username} |
+| SellerBadge username | View listing detail in Shop | @username in seller badge links to /u/{username} |
+| No public profile tooltip | View user without public profile | @username not tappable, hover shows "hasn't set up public collection" |
+
+#### Shop Following Button
+
+| Test Case | Steps | Expected Result |
+|-----------|-------|-----------------|
+| Following button color | On Shop page, click Follow on a seller | Button is blue (bg-pop-blue), not pink |
+
+#### Message Scroll Fix
+
+| Test Case | Steps | Expected Result |
+|-----------|-------|-----------------|
+| Messages stay in container | Send/receive many messages | All messages render within the message box, scrollable |
+| Back to conversations | In mobile thread view, tap "← Back to conversations" | Returns to conversation list (does not refresh same thread) |
+
+*Last Updated: February 8, 2026*

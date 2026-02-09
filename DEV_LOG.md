@@ -8,7 +8,48 @@ This log tracks session-by-session progress on Collectors Chest.
 
 **Sessions since last deploy:** 0
 **Deploy Readiness:** Deployed
-**Last Deploy:** February 6, 2026
+**Last Deploy:** February 8, 2026
+
+---
+
+## Feb 8, 2026 - Session 5 (Real-Time Messaging, Key Hunt Fix, UX Improvements)
+
+**Summary:** Addressed 3 new feedback items (Following button color, message scroll, back-to-conversations link), implemented real-time messaging (#17), fixed Key Hunt trial access (#12), made @username tappable in messages and seller badges, deployed to production.
+
+**Key Accomplishments:**
+- Real-time messaging: Supabase `postgres_changes` subscription refreshes conversation list on incoming messages
+- Created missing `POST /api/messages/{conversationId}/read` endpoint (was called but 404'd)
+- Fixed Nav unread badge (Clerk ID vs Supabase UUID mismatch — always incremented)
+- Fixed Key Hunt access for trial users (`isPremium` didn't check `isTrialing`)
+- Following button color: pink → blue on Shop page
+- Message container scroll fix (`overflow-hidden` + `min-h-0` on flex chain)
+- "Back to conversations" link no longer refreshes current message
+- @username tappable in MessageThread header → links to `/u/{username}`
+- @username tappable in SellerBadge → links to `/u/{username}`
+- 6 new unit tests for `markMessagesAsRead`
+
+**Files Created:**
+- `src/app/api/messages/[conversationId]/read/route.ts` - Mark-as-read endpoint
+- `src/lib/__tests__/messagingDb.test.ts` - 6 unit tests
+
+**Files Modified:**
+- `src/app/messages/page.tsx` - Real-time subscription, scroll fix, back link fix, loading spinner fix
+- `src/components/messaging/MessageThread.tsx` - Tappable @username, min-h-0 fix
+- `src/components/auction/SellerBadge.tsx` - Tappable @username link
+- `src/components/Navigation.tsx` - Fixed unread badge (fetchUnread instead of optimistic increment)
+- `src/components/MobileNav.tsx` - Fixed isPremium to include isTrialing
+- `src/lib/messagingDb.ts` - Extracted markMessagesAsRead helper
+- `src/app/shop/page.tsx` - Following button pink → blue
+
+**Issues Resolved:**
+- Real-time messaging: No subscription existed, messages only appeared on refresh
+- Missing read endpoint: `POST /api/messages/{id}/read` returned 404 silently
+- Nav badge mismatch: Compared Clerk `user_xxx` against Supabase UUID — never matched
+- Key Hunt trial: `MobileNav` checked `tier === "premium"` only, missing `isTrialing`
+- Message scroll: Flex container height chain broken (needed overflow-hidden + min-h-0)
+- Back link: `useSearchParams` doesn't update on `pushState`, causing re-selection
+
+**Deployed:** 1 deploy to Netlify (commit 06faa08)
 
 ---
 

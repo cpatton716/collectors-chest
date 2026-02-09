@@ -442,17 +442,17 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 
 ### 🟠 Feb 5 Feedback Items (21 items — see FEEDBACK_FEB_5.md)
 
-**Session 4 Progress:** 15 Tested, 2 Completed — Needs Testing, 4 Pinned, 1 Closed
+**Session 5 Progress:** 17 Tested, 2 Completed — Needs Testing, 1 Pinned, 1 Closed
 
-✅ Tested: #1, #3, #4, #5, #8, #9, #10, #11, #13, #14, #16, #18, #19, #21
-✅ Completed — Needs Testing: #6 (key info notifications), #7 (reputation updates)
-📌 Pinned: #2 (wrong covers), #12 (trial reset), #17 & #20 (Messaging v2)
+✅ Tested: #1, #3, #4, #5, #8, #9, #10, #11, #12, #13, #14, #16, #18, #19, #21
+✅ Completed — Needs Testing: #6 (key info notifications), #7 (reputation updates), #17 (real-time messaging), #20 (notification icon)
+📌 Pinned: #2 (wrong covers — needs specific examples)
 ✅ Closed: #15 (trial button believed working)
 
 **Remaining work:**
 - **Test #6 & #7**: Key info approval notifications and reputation increment
-- **Messaging v2**: Real-time updates (#17), notification icon bugs (#20) — dedicated session
-- **Investigation needed**: Wrong cover images (#2 — needs specific examples), trial reset bug (#12 — needs DB check for jsnaponte@yahoo.com)
+- **Test #17 & #20**: Real-time messaging updates and notification icon behavior
+- **Investigation needed**: Wrong cover images (#2 — needs specific examples from user)
 
 ### 🟡 Next Session Focus
 

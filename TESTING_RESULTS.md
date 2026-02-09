@@ -4,6 +4,25 @@ This document tracks testing sessions with platform and account context.
 
 ---
 
+## February 8, 2026 - Session Start
+- **Platform:** Both (Mobile + Web)
+- **Account Type:** Free
+- **Device(s):** Android, Mac Chrome
+- **Focus:** Real-time messaging (#17), Key Hunt trial fix (#12), UX improvements
+- **Results:**
+  - Fixed: Following button pink → blue on Shop page
+  - Fixed: Message container scroll overflow
+  - Fixed: "Back to conversations" link refreshing current thread
+  - Fixed: Real-time messaging (Supabase subscription)
+  - Fixed: Nav unread badge (Clerk vs Supabase ID mismatch)
+  - Fixed: Key Hunt access for trial users (MobileNav isPremium)
+  - Added: Tappable @username in MessageThread and SellerBadge
+  - Added: Missing POST /api/messages/{id}/read endpoint
+  - Added: 6 unit tests for markMessagesAsRead
+  - Deployed to production (commit 06faa08)
+
+---
+
 ## February 6, 2026 - Session Start
 - **Platform:** Both (Mobile + Web)
 - **Account Type:** Premium, Guest
