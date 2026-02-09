@@ -15,15 +15,15 @@
 | 9 | Public view book details should show user profile info | ✅ Tested |
 | 10 | Admin user search: magnifying glass overlaps placeholder text | ✅ Tested |
 | 11 | Admin user search: no message when no results found | ✅ Tested |
-| 12 | Premium user lost Key Hunt access after trial reset + reactivation | 📌 Pinned — needs DB investigation |
+| 12 | Premium user lost Key Hunt access after trial reset + reactivation | ✅ Tested |
 | 13 | Admin portal needs better navigation to all admin tools | ✅ Tested |
 | 14 | Key Hunt list not showing up for guest/free user | ✅ Tested |
 | 15 | "Start 7-day Trial" button on Key Hunt page not working | ✅ Closed |
 | 16 | Key Hunt page not in pop-art style and not scrollable | ✅ Tested |
-| 17 | Messages need real-time updates without page refresh | 📌 Pinned — Messaging v2 |
+| 17 | Messages need real-time updates without page refresh | ✅ Completed — Needs Testing |
 | 18 | Changing raw↔slabbed should re-evaluate book value | ✅ Tested |
 | 19 | Sort by value not sorting correctly | ✅ Tested |
-| 20 | Message notification icon behavior is sporadic/broken | 📌 Pinned — Messaging v2 |
+| 20 | Message notification icon behavior is sporadic/broken | ✅ Completed — Needs Testing |
 | 21 | No visible way to follow another user | ✅ Tested |
 
 ---
@@ -187,13 +187,13 @@
 
 ## 12. Premium user lost Key Hunt access after trial reset + reactivation
 
-**Status:** 📌 Pinned
+**Status:** ✅ Tested
 
 **Issue:** User `jsnaponte@yahoo.com` was on a Premium trial, admin reset their trial, then user reactivated Premium. After reactivation, Key Hunt is no longer accessible despite having Premium status.
 
-**Root cause identified:** Trial reset clears `trial_ends_at` to null, and the `isTrialing` check requires `trial_ends_at > now`. If reactivation doesn't fully restore the subscription state, feature gates fail.
+**Root cause:** `MobileNav.tsx` checked `tier === "premium"` to decide whether to navigate to `/key-hunt` or redirect to `/pricing`. Trial users have `tier = "free"` with `isTrialing = true`, so they were always redirected to the pricing page. The FeatureGate on the Key Hunt page itself was correct — users just never reached it.
 
-**Next steps:** Need to inspect actual DB state for the affected user in Supabase to confirm which fields are inconsistent.
+**Fix applied (Feb 8):** Changed `isPremium` in `MobileNav.tsx` from `tier === "premium"` to `tier === "premium" || isTrialing`. This also fixes the lock icon and grayed-out styling for trial users.
 
 ---
 
@@ -272,13 +272,19 @@
 
 ## 17. Messages need real-time updates without page refresh
 
-**Status:** 📌 Pinned — future session
+**Status:** ✅ Completed — Needs Testing
 
 **Issue:** New messages do not appear in real-time. Users must refresh the page to see incoming messages.
 
 **Root cause:** ConversationList has no real-time subscriptions or polling. MessagesPage only reloads conversations when the user sends a message. Missing `/api/messages/{id}/read` endpoint causes mark-as-read to fail silently.
 
-**Next steps:** Tackle as part of a "Messaging v2" session alongside #20.
+**Fix applied (Feb 8):**
+- Extracted `markMessagesAsRead()` helper in `messagingDb.ts`
+- Created `POST /api/messages/{conversationId}/read` endpoint (was missing, called but 404'd)
+- Added Supabase real-time subscription to `messages/page.tsx` — refreshes conversation list on incoming messages
+- Fixed loading spinner to only show on initial load (not on real-time refreshes)
+- Fixed Nav unread badge (broken Clerk vs Supabase ID comparison)
+- 6 new unit tests for `markMessagesAsRead`
 
 ---
 
@@ -318,13 +324,17 @@
 
 ## 20. Message notification icon behavior is sporadic/broken
 
-**Status:** 📌 Pinned — future session
+**Status:** ✅ Completed — Needs Testing
 
 **Issue:** Multiple problems with the message notification icon: appears on navigate-away only, doesn't clear on open, recipient never sees it.
 
 **Root cause:** Messages and notifications are completely separate systems. `NotificationType` has no message type. `messagingDb.ts` sends email notifications but never creates database notification records. NotificationBell and message unread count use different APIs with different polling intervals.
 
-**Next steps:** Tackle as part of a "Messaging v2" session alongside #17.
+**Fix applied (Feb 8 - as part of #17 real-time messaging):**
+- Fixed Nav badge sender ID comparison (was comparing Clerk ID vs Supabase UUID — always mismatched)
+- Replaced broken optimistic increment with accurate `fetchUnread()` server call
+- Created missing `POST /api/messages/{id}/read` endpoint so messages are marked as read in real-time
+- Nav badge may still need a periodic poll to clear after reading messages (add if testing reveals gap)
 
 ---
 

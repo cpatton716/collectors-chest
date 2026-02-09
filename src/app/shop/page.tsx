@@ -350,7 +350,7 @@ function ShopPageContent() {
                     onClick={() => setFollowingOnlyListings(!followingOnlyListings)}
                     className={`flex items-center gap-2 px-4 py-2 border-2 border-pop-black font-bold transition-all ${
                       followingOnlyListings
-                        ? "bg-pop-pink text-white shadow-[2px_2px_0px_#000]"
+                        ? "bg-pop-blue text-white shadow-[2px_2px_0px_#000]"
                         : "bg-pop-white text-pop-black hover:shadow-[2px_2px_0px_#000]"
                     }`}
                   >
@@ -467,7 +467,7 @@ function ShopPageContent() {
                     onClick={() => setFollowingOnlyAuctions(!followingOnlyAuctions)}
                     className={`flex items-center gap-2 px-4 py-2 border-2 border-pop-black font-bold transition-all ${
                       followingOnlyAuctions
-                        ? "bg-pop-pink text-white shadow-[2px_2px_0px_#000]"
+                        ? "bg-pop-blue text-white shadow-[2px_2px_0px_#000]"
                         : "bg-pop-white text-pop-black hover:shadow-[2px_2px_0px_#000]"
                     }`}
                   >

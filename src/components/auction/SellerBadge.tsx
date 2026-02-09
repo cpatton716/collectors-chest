@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { Shield, Skull, User } from "lucide-react";
 
 import { FollowButton } from "@/components/follows";
@@ -109,22 +111,43 @@ export function SellerBadge({
         onClick ? "cursor-pointer hover:opacity-80" : ""
       }`}
     >
-      <div
-        onClick={onClick}
-        className={`flex items-center gap-1 px-2 py-1 rounded-full ${styles.bgColor}`}
-      >
-        <Icon className={`${iconSizes[size]} ${styles.iconColor}`} />
-        <span className={`font-medium ${styles.textColor}`}>{name}</span>
-        {seller.communityContributionCount !== undefined &&
-          seller.communityContributionCount > 0 && (
-            <ContributorIcon
-              badge={calculateContributorBadge(seller.communityContributionCount)}
-            />
+      {seller.username ? (
+        <Link
+          href={`/u/${seller.username}`}
+          onClick={onClick}
+          className={`flex items-center gap-1 px-2 py-1 rounded-full ${styles.bgColor} hover:opacity-80 transition-opacity`}
+        >
+          <Icon className={`${iconSizes[size]} ${styles.iconColor}`} />
+          <span className={`font-medium ${styles.textColor}`}>{name}</span>
+          {seller.communityContributionCount !== undefined &&
+            seller.communityContributionCount > 0 && (
+              <ContributorIcon
+                badge={calculateContributorBadge(seller.communityContributionCount)}
+              />
+            )}
+          {showCount && totalRatings > 0 && (
+            <span className={`${styles.textColor} opacity-75`}>({positivePercentage}%)</span>
           )}
-        {showCount && totalRatings > 0 && (
-          <span className={`${styles.textColor} opacity-75`}>({positivePercentage}%)</span>
-        )}
-      </div>
+        </Link>
+      ) : (
+        <div
+          onClick={onClick}
+          className={`flex items-center gap-1 px-2 py-1 rounded-full ${styles.bgColor} cursor-default`}
+          title="This user hasn't set up a public collection"
+        >
+          <Icon className={`${iconSizes[size]} ${styles.iconColor}`} />
+          <span className={`font-medium ${styles.textColor}`}>{name}</span>
+          {seller.communityContributionCount !== undefined &&
+            seller.communityContributionCount > 0 && (
+              <ContributorIcon
+                badge={calculateContributorBadge(seller.communityContributionCount)}
+              />
+            )}
+          {showCount && totalRatings > 0 && (
+            <span className={`${styles.textColor} opacity-75`}>({positivePercentage}%)</span>
+          )}
+        </div>
+      )}
       {/* Follow button - only show when viewing another user's badge */}
       {currentUserId && seller.id && seller.id !== currentUserId && (
         <FollowButton userId={seller.id} size="sm" />

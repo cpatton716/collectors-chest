@@ -130,15 +130,9 @@ export function Navigation() {
           schema: "public",
           table: "messages",
         },
-        (payload) => {
-          // If the new message is NOT from the current user, increment count
-          // Note: We can't filter by recipient on the channel, so we do it here
-          const newMessage = payload.new as { sender_id: string };
-          if (user?.id && newMessage.sender_id !== user.id) {
-            // Optimistically increment - the actual count may be more accurate
-            // on next fetch, but this gives instant feedback
-            setUnreadCount((prev) => prev + 1);
-          }
+        () => {
+          // Re-fetch accurate count from server on any new message
+          fetchUnread();
         }
       )
       .subscribe();

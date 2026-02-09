@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { Flag, Loader2, MoreVertical, ShieldX } from "lucide-react";
@@ -181,15 +182,25 @@ export function MessageThread({
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full min-h-0 flex-col">
       {/* Header with participant info and menu */}
       {otherParticipant && (
         <div className="flex items-center justify-between border-b-2 border-pop-black bg-pop-white px-4 py-3">
-          <p className="font-bold">
-            {otherParticipant.username
-              ? `@${otherParticipant.username}`
-              : otherParticipant.displayName || "User"}
-          </p>
+          {otherParticipant.username ? (
+            <Link
+              href={`/u/${otherParticipant.username}`}
+              className="font-bold text-pop-blue hover:underline"
+            >
+              @{otherParticipant.username}
+            </Link>
+          ) : (
+            <p
+              className="font-bold text-gray-500 cursor-default"
+              title="This user hasn't set up a public collection"
+            >
+              {otherParticipant.displayName || "User"}
+            </p>
+          )}
 
           {/* Menu dropdown */}
           <div ref={menuRef} className="relative">

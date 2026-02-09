@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -10,6 +10,7 @@ import { Loader2, MessageSquare } from "lucide-react";
 
 import { ConversationList } from "@/components/messaging/ConversationList";
 import { MessageThread } from "@/components/messaging/MessageThread";
+import { supabase } from "@/lib/supabase";
 
 import { ConversationPreview, ConversationsResponse } from "@/types/messaging";
 
@@ -22,6 +23,7 @@ function MessagesContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const isInitialLoad = useRef(true);
 
   // Get conversation ID from URL if provided
   const urlConversationId = searchParams.get("id");
@@ -46,7 +48,36 @@ function MessagesContent() {
     } else if (conversations.length > 0 && !selectedConversationId) {
       setSelectedConversationId(conversations[0].id);
     }
-  }, [urlConversationId, conversations, selectedConversationId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlConversationId, conversations]);
+
+  // Real-time: refresh conversation list when new messages arrive
+  useEffect(() => {
+    if (!currentUserId) return;
+
+    const channel = supabase
+      .channel("conversations-refresh")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+        },
+        (payload) => {
+          const newMessage = payload.new as { sender_id: string };
+          // Only refresh when someone else sends a message
+          if (newMessage.sender_id !== currentUserId) {
+            loadConversations();
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentUserId]);
 
   const loadCurrentUser = async () => {
     try {
@@ -61,7 +92,9 @@ function MessagesContent() {
   };
 
   const loadConversations = async () => {
-    setIsLoading(true);
+    if (isInitialLoad.current) {
+      setIsLoading(true);
+    }
     try {
       const response = await fetch("/api/messages");
       if (response.ok) {
@@ -72,6 +105,7 @@ function MessagesContent() {
       console.error("Error loading conversations:", error);
     } finally {
       setIsLoading(false);
+      isInitialLoad.current = false;
     }
   };
 
@@ -128,15 +162,18 @@ function MessagesContent() {
           {/* Message thread */}
           <div className={`flex-1 ${!selectedConversationId ? "hidden md:flex" : "flex"}`}>
             {selectedConversationId && currentUserId ? (
-              <div className="flex w-full flex-col">
+              <div className="flex h-full w-full flex-col">
                 {/* Back button for mobile */}
                 <button
-                  onClick={() => setSelectedConversationId(null)}
+                  onClick={() => {
+                    setSelectedConversationId(null);
+                    window.history.replaceState({}, "", "/messages");
+                  }}
                   className="border-b-2 border-pop-black p-2 text-left text-sm font-bold text-pop-blue md:hidden"
                 >
                   ← Back to conversations
                 </button>
-                <div className="flex-1">
+                <div className="flex-1 min-h-0 overflow-hidden">
                   <MessageThread
                     conversationId={selectedConversationId}
                     currentUserId={currentUserId}

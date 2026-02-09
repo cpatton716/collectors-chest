@@ -138,6 +138,22 @@ export async function getUnreadMessageCount(userId: string): Promise<number> {
 // ============================================================================
 
 /**
+ * Mark all unread messages in a conversation as read for a specific user.
+ * Only marks messages where the user is the recipient (not the sender).
+ */
+export async function markMessagesAsRead(
+  conversationId: string,
+  userId: string
+): Promise<void> {
+  await supabaseAdmin
+    .from("messages")
+    .update({ is_read: true })
+    .eq("conversation_id", conversationId)
+    .neq("sender_id", userId)
+    .eq("is_read", false);
+}
+
+/**
  * Get messages for a conversation
  */
 export async function getConversationMessages(
@@ -225,12 +241,7 @@ export async function getConversationMessages(
   }));
 
   // Mark messages as read (where user is recipient)
-  await supabaseAdmin
-    .from("messages")
-    .update({ is_read: true })
-    .eq("conversation_id", conversationId)
-    .neq("sender_id", userId)
-    .eq("is_read", false);
+  await markMessagesAsRead(conversationId, userId);
 
   return {
     messages: transformedMessages,

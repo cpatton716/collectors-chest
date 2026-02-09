@@ -44,13 +44,13 @@ export function MobileNav() {
   const pathname = usePathname();
   const router = useRouter();
   const { isSignedIn } = useUser();
-  const { tier } = useSubscription();
+  const { tier, isTrialing } = useSubscription();
   const [isVisible, setIsVisible] = useState(true);
   const [showDrawer, setShowDrawer] = useState(false);
   const lastScrollY = useRef(0);
   const scrollThreshold = 10;
 
-  const isPremium = tier === "premium";
+  const isPremium = tier === "premium" || isTrialing;
 
   useEffect(() => {
     const handleScroll = () => {

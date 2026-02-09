@@ -8,13 +8,15 @@
 
 In addition to the global session start steps, also:
 
-4. **Ask about testing context** - Ask ALL 4 questions together using AskUserQuestion:
+4. **Start dev server** - Run `npm run dev` in the background so the user can test immediately
+
+5. **Ask about testing context** - Ask ALL 4 questions together using AskUserQuestion:
    - **Platform**: Mobile, Web, or Both
    - **Account type** (multiSelect): Guest (no account), Free (registered, not premium), Premium
    - **Mobile devices** (multiSelect): iPhone, Android
    - **Desktop browsers** (multiSelect): Mac Chrome, Mac Safari, Windows Chrome, Windows Edge
 
-5. **Log to Testing Results** - After getting answers, append to `TESTING_RESULTS.md`:
+6. **Log to Testing Results** - After getting answers, append to `TESTING_RESULTS.md`:
    ```markdown
    ## [Date] - Session Start
    - **Platform:** [Mobile/Web]
