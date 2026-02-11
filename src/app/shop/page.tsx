@@ -272,38 +272,38 @@ function ShopPageContent() {
         <p className="text-gray-600 mt-1">Find your next addition to the collection</p>
 
         {/* Tabs - Pop Art Style */}
-        <div className="flex gap-2 mt-6">
+        <div className="flex gap-2 mt-4">
           <button
             onClick={() => setActiveTab("buy-now")}
-            className={`flex items-center gap-2 px-4 py-2 font-bold border-2 border-pop-black transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-bold border-2 border-pop-black transition-all ${
               activeTab === "buy-now"
-                ? "bg-pop-green text-white shadow-[3px_3px_0px_#000]"
+                ? "bg-pop-green text-white shadow-[2px_2px_0px_#000]"
                 : "bg-pop-white text-pop-black hover:shadow-[2px_2px_0px_#000]"
             }`}
           >
-            <Tag className="w-4 h-4" />
+            <Tag className="w-3.5 h-3.5" />
             Buy Now
           </button>
           <button
             onClick={() => setActiveTab("auctions")}
-            className={`flex items-center gap-2 px-4 py-2 font-bold border-2 border-pop-black transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-bold border-2 border-pop-black transition-all ${
               activeTab === "auctions"
-                ? "bg-pop-blue text-white shadow-[3px_3px_0px_#000]"
+                ? "bg-pop-blue text-white shadow-[2px_2px_0px_#000]"
                 : "bg-pop-white text-pop-black hover:shadow-[2px_2px_0px_#000]"
             }`}
           >
-            <Gavel className="w-4 h-4" />
+            <Gavel className="w-3.5 h-3.5" />
             Auctions
           </button>
           <button
             onClick={() => setActiveTab("for-trade")}
-            className={`flex items-center gap-2 px-4 py-2 font-bold border-2 border-pop-black transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-bold border-2 border-pop-black transition-all ${
               activeTab === "for-trade"
-                ? "bg-pop-orange text-white shadow-[3px_3px_0px_#000]"
+                ? "bg-pop-orange text-white shadow-[2px_2px_0px_#000]"
                 : "bg-pop-white text-pop-black hover:shadow-[2px_2px_0px_#000]"
             }`}
           >
-            <ArrowLeftRight className="w-4 h-4" />
+            <ArrowLeftRight className="w-3.5 h-3.5" />
             For Trade
           </button>
         </div>

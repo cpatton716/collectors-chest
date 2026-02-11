@@ -589,7 +589,7 @@ export function ComicDetailModal({
                       <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
                       <span>
                         <span className="font-semibold">Technopathic Estimate:</span> No eBay sales
-                        data found. This price is a technopathic estimate and may not be accurate.
+                        data found. This price is an estimate and may not be accurate.
                       </span>
                     </p>
                   </div>
