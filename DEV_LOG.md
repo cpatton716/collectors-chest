@@ -8,7 +8,70 @@ This log tracks session-by-session progress on Collectors Chest.
 
 **Sessions since last deploy:** 0
 **Deploy Readiness:** Deployed
-**Last Deploy:** February 8, 2026
+**Last Deploy:** February 10, 2026
+
+---
+
+## Feb 10, 2026 - Session 6 (Mobile Testing Feedback - 14 Fixes)
+
+**Summary:** Android mobile testing session with Free/Registered user. Fixed 14 feedback items covering share modal, public profiles, messaging, admin nav, collection filters, shop page, account settings, Key Hunt, and technopathic text. Deployed 3 times to production for live testing.
+
+**Key Accomplishments:**
+- Share modal copy button: Fixed mobile overflow with `min-w-0` and `shrink-0`
+- Public profile "Marvel Comics" overflow: Added `min-w-0` container constraints
+- Mobile message badge: Added Supabase real-time subscription for unread count in MobileNav
+- Messages landing page: Removed auto-select of first conversation on mobile
+- Inquiry messages: Added listing details (title, issue, grade) + shop URL to initial message
+- URL auto-linking: Added `linkifyContent()` to MessageBubble for clickable links in messages
+- Report flag visibility: Changed from `text-pop-yellow` to `text-pop-red`
+- Admin menu on mobile: Added admin link to MobileNav drawer (was completely missing)
+- Admin nav layout: Split into two rows (header + tabs) for mobile readability
+- Collection filters: Reorganized into two rows for better mobile UX
+- Shop page: Fixed dropdown chevrons (removed `appearance-none`), reduced tab button sizes
+- Shop cards: Updated ListingCard and AuctionCard to pop-art styling (border-3, hover shadow)
+- Account settings: Updated to pop-art styling with comic fonts and bold borders
+- Key Hunt routing: Non-premium users now route to `/key-hunt` (FeatureGate handles gate)
+- Technopathic text: Removed duplicate "technopathic" from 3 price estimate disclaimers
+- Code cleanup: Removed 3 unused imports from collection/page.tsx
+
+**Files Modified:**
+- `src/components/ShareCollectionModal.tsx` - Mobile overflow fix
+- `src/app/u/[slug]/PublicCollectionView.tsx` - Publisher name overflow fix
+- `src/components/MobileNav.tsx` - Unread badge, admin link, Key Hunt routing
+- `src/app/messages/page.tsx` - Removed auto-select behavior
+- `src/components/messaging/MessageButton.tsx` - Rich inquiry messages with listing details
+- `src/components/messaging/MessageBubble.tsx` - URL auto-linking with linkifyContent()
+- `src/components/messaging/MessageThread.tsx` - Report flag color fix
+- `src/app/admin/layout.tsx` - Two-row mobile layout
+- `src/app/collection/page.tsx` - Two-row filter layout, removed unused imports
+- `src/app/shop/page.tsx` - Dropdown chevrons, tab button sizing
+- `src/components/auction/ListingCard.tsx` - Pop-art styling, rich MessageButton
+- `src/components/auction/AuctionCard.tsx` - Pop-art styling
+- `src/components/auction/ListingDetailModal.tsx` - Rich MessageButton props
+- `src/components/CustomProfilePage.tsx` - Pop-art styling
+- `src/components/ComicDetailsForm.tsx` - Removed duplicate "technopathic"
+- `src/components/ComicDetailModal.tsx` - Fixed "technopathic estimate" text
+- `src/components/KeyHuntPriceResult.tsx` - Fixed "technopathic estimate" text
+- `TESTING_RESULTS.md` - Added Feb 10 session entry
+
+**Issues Resolved:**
+- Share modal copy button cut off on mobile (horizontal scroll required)
+- "Marvel Comics" text overflowed stat box on public profile
+- No unread message badge on mobile nav
+- Messages page auto-selected first conversation, hiding list on mobile
+- Inquiry messages only showed "Re: Batman" with no details
+- URLs in messages rendered as plain text (not clickable)
+- Report flag invisible (yellow on white background)
+- Admin panel completely inaccessible from mobile nav
+- Admin nav tabs cramped on mobile
+- Collection filters cramped on mobile
+- Shop dropdown sort chevrons hidden by `appearance-none`
+- Shop tab buttons too large on mobile
+- Account settings didn't match pop-art design language
+- Key Hunt sent non-premium users to /pricing instead of /key-hunt with FeatureGate
+- "Technopathic estimate" text duplicated in 3 components
+
+**Deployed:** 3 deploys to Netlify (commits 2a9da2d, b8043a1, e27813e)
 
 ---
 

@@ -442,7 +442,7 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 
 ### 🟠 Feb 5 Feedback Items (21 items — see FEEDBACK_FEB_5.md)
 
-**Session 5 Progress:** 17 Tested, 2 Completed — Needs Testing, 1 Pinned, 1 Closed
+**Session 6 Progress:** 17 Tested, 2 Completed — Needs Testing, 1 Pinned, 1 Closed
 
 ✅ Tested: #1, #3, #4, #5, #8, #9, #10, #11, #12, #13, #14, #16, #18, #19, #21
 ✅ Completed — Needs Testing: #6 (key info notifications), #7 (reputation updates), #17 (real-time messaging), #20 (notification icon)
@@ -453,6 +453,26 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 - **Test #6 & #7**: Key info approval notifications and reputation increment
 - **Test #17 & #20**: Real-time messaging updates and notification icon behavior
 - **Investigation needed**: Wrong cover images (#2 — needs specific examples from user)
+
+### 🟠 Feb 10 Mobile Testing Feedback (14 items — all resolved)
+
+✅ All 14 items fixed and deployed. User confirmed all tested/working.
+
+Items addressed:
+1. Share modal copy button overflow on mobile
+2. Public profile "Marvel Comics" stat overflow
+3. Mobile message badge (unread count in MobileNav)
+4. Messages landing page auto-select on mobile
+5. Inquiry message details + clickable URLs in messages
+6. Report flag visibility (yellow → red)
+7. Admin menu missing from mobile nav + admin nav layout
+8. Collection filters mobile layout
+9. Shop page pop-art styling
+10. Shop dropdown chevron visibility
+11. Shop tab button sizing
+12. Account settings pop-art styling
+13. Key Hunt routing for non-premium users
+14. Technopathic estimate duplicate text
 
 ### 🟡 Next Session Focus
 

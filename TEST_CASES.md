@@ -932,4 +932,71 @@ If you encounter bugs or unexpected behavior:
 | Messages stay in container | Send/receive many messages | All messages render within the message box, scrollable |
 | Back to conversations | In mobile thread view, tap "← Back to conversations" | Returns to conversation list (does not refresh same thread) |
 
-*Last Updated: February 8, 2026*
+### Feb 10 Fixes
+
+#### Mobile Share Modal (#1)
+
+| Test Case | Steps | Expected Result |
+|-----------|-------|-----------------|
+| Copy button visible on mobile | Open share modal on mobile | Copy button fully visible without horizontal scroll |
+| URL truncates properly | View long share URL on mobile | URL text truncates with ellipsis, copy button accessible |
+
+#### Mobile Message Badge (#3)
+
+| Test Case | Steps | Expected Result |
+|-----------|-------|-----------------|
+| Unread badge on mobile More | Receive message, view mobile nav | Red badge on "More" button shows unread count |
+| Badge on Messages in drawer | Open "More" drawer | Messages item shows red unread count badge |
+| Real-time badge update | Receive message while app is open | Badge updates without page refresh |
+
+#### Messages Landing Page (#4)
+
+| Test Case | Steps | Expected Result |
+|-----------|-------|-----------------|
+| No auto-select on mobile | Open /messages on mobile | Conversation list shows, no thread auto-selected |
+| URL param selects thread | Open /messages?conversation=xxx | That specific conversation selected |
+
+#### Inquiry Messages (#5)
+
+| Test Case | Steps | Expected Result |
+|-----------|-------|-----------------|
+| Rich inquiry message | Tap "Message Seller" on a listing | Message includes title, issue #, grade, and shop URL |
+| URL is clickable | View message with shop URL | URL renders as tappable blue link |
+| Link opens listing | Tap the URL in message | Opens the shop listing page |
+
+#### Admin Mobile Nav (#7)
+
+| Test Case | Steps | Expected Result |
+|-----------|-------|-----------------|
+| Admin link in mobile drawer | As admin, open "More" drawer | "Admin" link with shield icon visible |
+| Admin nav tabs mobile | Visit admin page on mobile | Tabs on separate row below header, horizontally scrollable |
+
+#### Collection Filters Mobile (#8)
+
+| Test Case | Steps | Expected Result |
+|-----------|-------|-----------------|
+| Two-row filter layout | View collection on mobile | Row 1: Starred/Trade/List/Clear, Row 2: Publisher/Title/Sort/CSV |
+| All filters accessible | Tap each filter on mobile | All dropdowns work correctly |
+
+#### Shop Tab Buttons (#11)
+
+| Test Case | Steps | Expected Result |
+|-----------|-------|-----------------|
+| Tab button sizing | View shop on mobile | Buy Now/Auctions/For Trade buttons compact (not oversized) |
+| Sort dropdown chevrons | View sort dropdowns | Native chevron visible on all sort dropdowns |
+
+#### Account Settings (#12)
+
+| Test Case | Steps | Expected Result |
+|-----------|-------|-----------------|
+| Pop-art styling | View account settings | Comic fonts, bold borders, pop-art color scheme |
+| Tabs styled consistently | Click between settings tabs | Active tab uses pop-blue color, comic font |
+
+#### Key Hunt Routing (#13)
+
+| Test Case | Steps | Expected Result |
+|-----------|-------|-----------------|
+| Free user Key Hunt | As free user, tap Key Hunt in mobile nav | Goes to /key-hunt (FeatureGate shows premium gate) |
+| Premium user Key Hunt | As premium user, tap Key Hunt | Goes to /key-hunt with full access |
+
+*Last Updated: February 10, 2026*
