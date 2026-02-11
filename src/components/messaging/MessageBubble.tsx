@@ -2,6 +2,35 @@
 
 import { Message } from "@/types/messaging";
 
+// Auto-link URLs in message text
+function linkifyContent(text: string, isOwnMessage: boolean) {
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const parts = text.split(urlRegex);
+
+  if (parts.length === 1) return text;
+
+  return parts.map((part, i) => {
+    if (urlRegex.test(part)) {
+      // Reset lastIndex since we reuse the regex
+      urlRegex.lastIndex = 0;
+      return (
+        <a
+          key={i}
+          href={part}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`underline break-all ${
+            isOwnMessage ? "text-blue-100 hover:text-white" : "text-pop-blue hover:text-blue-700"
+          }`}
+        >
+          {part}
+        </a>
+      );
+    }
+    return part;
+  });
+}
+
 interface MessageBubbleProps {
   message: Message;
   isOwnMessage: boolean;
@@ -33,7 +62,7 @@ export function MessageBubble({ message, isOwnMessage }: MessageBubbleProps) {
         )}
 
         {/* Message content */}
-        <p className="whitespace-pre-wrap break-words text-sm">{message.content}</p>
+        <p className="whitespace-pre-wrap break-words text-sm">{linkifyContent(message.content, isOwnMessage)}</p>
 
         {/* Images */}
         {message.imageUrls && message.imageUrls.length > 0 && (
