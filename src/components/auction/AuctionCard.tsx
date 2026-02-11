@@ -68,7 +68,7 @@ export function AuctionCard({
   return (
     <div
       onClick={onClick}
-      className="bg-white rounded-xl shadow-md overflow-hidden cursor-pointer group hover:shadow-lg transition-shadow"
+      className="bg-pop-white border-3 border-pop-black overflow-hidden cursor-pointer group hover:shadow-[4px_4px_0px_#000] transition-all"
     >
       {/* Cover Image */}
       <div className="relative aspect-[2/3]">
@@ -162,6 +162,10 @@ export function AuctionCard({
                     sellerId={seller.id}
                     sellerName={seller.username ? `@${seller.username}` : undefined}
                     listingId={id}
+                    listingTitle={comic?.comic?.title || undefined}
+                    listingIssue={comic?.comic?.issueNumber || undefined}
+                    listingGrade={comic?.comic?.grade || undefined}
+                    listingGradingCompany={comic?.comic?.gradingCompany || undefined}
                     size="sm"
                     variant="icon"
                   />

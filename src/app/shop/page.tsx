@@ -335,7 +335,7 @@ function ShopPageContent() {
                 <select
                   value={listingSortBy}
                   onChange={(e) => setListingSortBy(e.target.value as ListingSortBy)}
-                  className="appearance-none bg-white border-2 border-pop-black px-4 py-2 pr-10 font-bold focus:ring-2 focus:ring-pop-green"
+                  className="bg-white border-2 border-pop-black px-4 py-2 pr-8 font-bold focus:ring-2 focus:ring-pop-green cursor-pointer"
                 >
                   {LISTING_SORT_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
@@ -427,7 +427,7 @@ function ShopPageContent() {
                 <select
                   value={auctionSortBy}
                   onChange={(e) => setAuctionSortBy(e.target.value as AuctionSortBy)}
-                  className="appearance-none bg-white border-2 border-pop-black px-4 py-2 pr-10 font-bold focus:ring-2 focus:ring-pop-blue"
+                  className="bg-white border-2 border-pop-black px-4 py-2 pr-8 font-bold focus:ring-2 focus:ring-pop-blue cursor-pointer"
                 >
                   {AUCTION_SORT_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>

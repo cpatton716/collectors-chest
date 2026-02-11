@@ -139,11 +139,11 @@ export function PublicCollectionView({ profile, comics, lists, stats }: Props) {
           </div>
         </div>
 
-        <div className="bg-white rounded-lg p-4 shadow-sm border border-purple-200 flex items-center gap-3">
-          <div className="p-3 bg-purple-100 rounded-lg">
+        <div className="bg-white rounded-lg p-4 shadow-sm border border-purple-200 flex items-center gap-3 min-w-0">
+          <div className="p-3 bg-purple-100 rounded-lg shrink-0">
             <Building className="w-5 h-5 text-purple-600" />
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="text-sm text-gray-500">Top Publisher</p>
             <p className="text-lg font-bold text-gray-900 truncate">
               {stats.topPublishers[0]?.publisher || "N/A"}

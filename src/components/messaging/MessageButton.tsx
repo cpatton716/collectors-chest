@@ -12,6 +12,10 @@ interface MessageButtonProps {
   sellerId: string;
   sellerName?: string;
   listingId?: string;
+  listingTitle?: string;
+  listingIssue?: string;
+  listingGrade?: string;
+  listingGradingCompany?: string;
   size?: "sm" | "md" | "lg";
   variant?: "icon" | "button";
   className?: string;
@@ -21,6 +25,10 @@ export function MessageButton({
   sellerId,
   sellerName,
   listingId,
+  listingTitle,
+  listingIssue,
+  listingGrade,
+  listingGradingCompany,
   size = "md",
   variant = "button",
   className = "",
@@ -49,15 +57,28 @@ export function MessageButton({
 
     setIsLoading(true);
     try {
+      // Build message with listing details if available
+      let content = listingId
+        ? "Hi! I'm interested in your listing."
+        : "Hi! I'd like to chat with you.";
+
+      if (listingId && listingTitle) {
+        const parts = [listingTitle];
+        if (listingIssue) parts.push(`#${listingIssue}`);
+        if (listingGradingCompany && listingGrade)
+          parts.push(`(${listingGradingCompany} ${listingGrade})`);
+        const bookInfo = parts.join(" ");
+        const listingUrl = `${window.location.origin}/shop?listing=${listingId}`;
+        content = `Hi! I'm interested in your listing: ${bookInfo}\n${listingUrl}`;
+      }
+
       // Send an initial message to create the conversation
       const response = await fetch("/api/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           recipientId: sellerId,
-          content: listingId
-            ? "Hi! I'm interested in your listing."
-            : "Hi! I'd like to chat with you.",
+          content,
           listingId,
         }),
       });

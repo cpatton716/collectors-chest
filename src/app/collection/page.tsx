@@ -728,12 +728,12 @@ export default function CollectionPage() {
             </div>
           </div>
 
-          {/* Bottom Row - Filters */}
-          <div className="flex flex-wrap items-center gap-2 md:gap-3">
+          {/* Filter Row 1 - Quick filters */}
+          <div className="flex flex-wrap items-center gap-2">
             {/* Starred Filter */}
             <button
               onClick={() => setShowStarredOnly(!showStarredOnly)}
-              className={`flex items-center gap-2 px-3 py-1.5 border-2 border-pop-black font-comic text-sm transition-all ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 border-2 border-pop-black font-comic text-sm transition-all ${
                 showStarredOnly
                   ? "bg-pop-yellow text-pop-black shadow-[2px_2px_0px_#000]"
                   : "bg-pop-white text-pop-black hover:shadow-[2px_2px_0px_#000]"
@@ -742,13 +742,13 @@ export default function CollectionPage() {
               <Star
                 className={`w-4 h-4 ${showStarredOnly ? "fill-pop-black" : ""}`}
               />
-              <span className="hidden sm:inline">Starred</span>
+              Starred
             </button>
 
             {/* For Trade Filter */}
             <button
               onClick={() => setShowForTradeOnly(!showForTradeOnly)}
-              className={`flex items-center gap-2 px-3 py-1.5 border-2 border-pop-black font-comic text-sm transition-all ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 border-2 border-pop-black font-comic text-sm transition-all ${
                 showForTradeOnly
                   ? "bg-pop-orange text-pop-white shadow-[2px_2px_0px_#000]"
                   : "bg-pop-white text-pop-black hover:shadow-[2px_2px_0px_#000]"
@@ -759,65 +759,69 @@ export default function CollectionPage() {
             </button>
 
             {/* List Filter */}
-            <div className="flex items-center gap-2">
-              <label className="text-sm font-comic text-pop-black hidden md:flex items-center gap-1">
-                <ListFilter className="w-4 h-4" />
-                List:
-              </label>
-              <select
-                value={selectedList}
-                onChange={(e) => setSelectedList(e.target.value)}
-                className="px-3 py-1.5 border-2 border-pop-black bg-pop-white text-sm font-comic text-pop-black focus:outline-none hover:shadow-[2px_2px_0px_#000] transition-all cursor-pointer"
-              >
-                {lists.map((list) => (
-                  <option key={list.id} value={list.id}>
-                    {list.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <select
+              value={selectedList}
+              onChange={(e) => setSelectedList(e.target.value)}
+              className="px-3 py-1.5 border-2 border-pop-black bg-pop-white text-sm font-comic text-pop-black focus:outline-none hover:shadow-[2px_2px_0px_#000] transition-all cursor-pointer"
+            >
+              {lists.map((list) => (
+                <option key={list.id} value={list.id}>
+                  {list.name}
+                </option>
+              ))}
+            </select>
 
-            {/* Publisher Filter */}
-            <div className="flex items-center gap-2">
-              <label className="text-sm font-comic text-pop-black hidden md:flex items-center gap-1">
-                <Building className="w-4 h-4" />
-                Publisher:
-              </label>
-              <select
-                value={publisherFilter}
-                onChange={(e) => setPublisherFilter(e.target.value)}
-                className="px-3 py-1.5 border-2 border-pop-black bg-pop-white text-sm font-comic text-pop-black focus:outline-none hover:shadow-[2px_2px_0px_#000] transition-all cursor-pointer"
+            {/* Clear Filters */}
+            {(publisherFilter !== "all" ||
+              titleFilter !== "all" ||
+              showStarredOnly ||
+              showForTradeOnly ||
+              searchQuery ||
+              selectedList !== "collection") && (
+              <button
+                onClick={() => {
+                  setPublisherFilter("all");
+                  setTitleFilter("all");
+                  setShowStarredOnly(false);
+                  setShowForTradeOnly(false);
+                  setSearchQuery("");
+                  setSelectedList("collection");
+                }}
+                className="text-sm text-primary-600 hover:text-primary-700 underline whitespace-nowrap"
               >
-                <option value="all">All Publishers</option>
-                {uniquePublishers.map((publisher) => (
-                  <option key={publisher} value={publisher}>
-                    {publisher}
-                  </option>
-                ))}
-              </select>
-            </div>
+                Clear
+              </button>
+            )}
+          </div>
 
-            {/* Title Filter */}
-            <div className="flex items-center gap-2">
-              <label className="text-sm font-comic text-pop-black hidden md:flex items-center gap-1">
-                <Book className="w-4 h-4" />
-                Title:
-              </label>
-              <select
-                value={titleFilter}
-                onChange={(e) => setTitleFilter(e.target.value)}
-                className="px-3 py-1.5 border-2 border-pop-black bg-pop-white text-sm font-comic text-pop-black focus:outline-none hover:shadow-[2px_2px_0px_#000] transition-all cursor-pointer"
-              >
-                <option value="all">All Titles</option>
-                {uniqueTitles.map((title) => (
-                  <option key={title} value={title}>
-                    {title}
-                  </option>
-                ))}
-              </select>
-            </div>
+          {/* Filter Row 2 - Dropdowns and Sort */}
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={publisherFilter}
+              onChange={(e) => setPublisherFilter(e.target.value)}
+              className="px-3 py-1.5 border-2 border-pop-black bg-pop-white text-sm font-comic text-pop-black focus:outline-none hover:shadow-[2px_2px_0px_#000] transition-all cursor-pointer"
+            >
+              <option value="all">All Publishers</option>
+              {uniquePublishers.map((publisher) => (
+                <option key={publisher} value={publisher}>
+                  {publisher}
+                </option>
+              ))}
+            </select>
 
-            {/* Sort */}
+            <select
+              value={titleFilter}
+              onChange={(e) => setTitleFilter(e.target.value)}
+              className="px-3 py-1.5 border-2 border-pop-black bg-pop-white text-sm font-comic text-pop-black focus:outline-none hover:shadow-[2px_2px_0px_#000] transition-all cursor-pointer"
+            >
+              <option value="all">All Titles</option>
+              {uniqueTitles.map((title) => (
+                <option key={title} value={title}>
+                  {title}
+                </option>
+              ))}
+            </select>
+
             <div className="flex items-center gap-2 ml-auto">
               <label className="text-sm font-comic text-pop-black flex items-center gap-1">
                 <SortAsc className="w-4 h-4" />
@@ -840,33 +844,11 @@ export default function CollectionPage() {
             <FeatureButton
               feature="csvExport"
               onClick={handleExportCSV}
-              className="flex items-center gap-2 px-3 py-1.5 border-2 border-pop-black bg-pop-white text-pop-black/60 font-comic text-sm hover:shadow-[2px_2px_0px_#000] transition-all"
+              className="flex items-center gap-1.5 px-3 py-1.5 border-2 border-pop-black bg-pop-white text-pop-black/60 font-comic text-sm hover:shadow-[2px_2px_0px_#000] transition-all"
             >
               <Download className="w-4 h-4" />
-              <span className="hidden sm:inline">Export CSV</span>
+              <span className="hidden sm:inline">CSV</span>
             </FeatureButton>
-
-            {/* Clear Filters */}
-            {(publisherFilter !== "all" ||
-              titleFilter !== "all" ||
-              showStarredOnly ||
-              showForTradeOnly ||
-              searchQuery ||
-              selectedList !== "collection") && (
-              <button
-                onClick={() => {
-                  setPublisherFilter("all");
-                  setTitleFilter("all");
-                  setShowStarredOnly(false);
-                  setShowForTradeOnly(false);
-                  setSearchQuery("");
-                  setSelectedList("collection");
-                }}
-                className="text-sm text-primary-600 hover:text-primary-700 underline whitespace-nowrap"
-              >
-                Clear filters
-              </button>
-            )}
           </div>
         </div>
       </div>

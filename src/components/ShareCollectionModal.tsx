@@ -240,13 +240,13 @@ export function ShareCollectionModal({ onClose }: ShareCollectionModalProps) {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Your Share Link
                   </label>
-                  <div className="flex gap-2">
-                    <div className="flex-1 flex items-center gap-2 px-3 py-2 bg-gray-100 rounded-lg border border-gray-200">
+                  <div className="flex gap-2 min-w-0">
+                    <div className="min-w-0 flex-1 flex items-center gap-2 px-3 py-2 bg-gray-100 rounded-lg border border-gray-200">
                       <span className="text-sm text-gray-600 truncate">{settings.shareUrl}</span>
                     </div>
                     <button
                       onClick={handleCopyLink}
-                      className={`px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-colors ${
+                      className={`shrink-0 px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-colors ${
                         copied
                           ? "bg-green-600 text-white"
                           : "bg-primary-600 text-white hover:bg-primary-700"

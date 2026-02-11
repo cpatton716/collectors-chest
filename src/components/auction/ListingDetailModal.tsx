@@ -314,6 +314,10 @@ export function ListingDetailModal({
                             listing.seller.username ? `@${listing.seller.username}` : undefined
                           }
                           listingId={listing.id}
+                          listingTitle={listing.comic?.comic?.title || undefined}
+                          listingIssue={listing.comic?.comic?.issueNumber || undefined}
+                          listingGrade={listing.comic?.comic?.grade || undefined}
+                          listingGradingCompany={listing.comic?.comic?.gradingCompany || undefined}
                           size="sm"
                         />
                       )}

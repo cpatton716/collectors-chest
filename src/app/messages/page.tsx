@@ -42,14 +42,11 @@ function MessagesContent() {
   }, [user]);
 
   useEffect(() => {
-    // Set selected conversation from URL or first conversation
+    // Only set selected conversation from URL param - don't auto-select on mobile
     if (urlConversationId) {
       setSelectedConversationId(urlConversationId);
-    } else if (conversations.length > 0 && !selectedConversationId) {
-      setSelectedConversationId(conversations[0].id);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [urlConversationId, conversations]);
+  }, [urlConversationId]);
 
   // Real-time: refresh conversation list when new messages arrive
   useEffect(() => {

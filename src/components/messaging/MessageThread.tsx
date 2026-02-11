@@ -236,7 +236,7 @@ export function MessageThread({
                   }}
                   className="flex w-full items-center gap-2 px-4 py-2 text-left font-medium hover:bg-gray-100"
                 >
-                  <Flag className="h-4 w-4 text-pop-yellow" />
+                  <Flag className="h-4 w-4 text-pop-red" />
                   Report
                 </button>
               </div>

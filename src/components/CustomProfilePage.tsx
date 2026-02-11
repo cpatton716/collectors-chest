@@ -485,14 +485,14 @@ export function CustomProfilePage() {
     <div className="max-w-2xl mx-auto py-4 px-4">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Account Settings</h1>
+        <h1 className="text-2xl font-black text-pop-black font-comic">ACCOUNT SETTINGS</h1>
         <p className="text-sm text-gray-600 mt-1">Manage your profile, security, and billing</p>
       </div>
 
       {/* Tabs */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <div className="bg-pop-white border-3 border-pop-black overflow-hidden" style={{ boxShadow: "4px 4px 0px #000" }}>
         {/* Tab Navigation */}
-        <div className="flex border-b border-gray-200">
+        <div className="flex border-b-2 border-pop-black">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -500,10 +500,10 @@ export function CustomProfilePage() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors ${
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-bold font-comic transition-colors ${
                   isActive
-                    ? "text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50/50"
-                    : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                    ? "text-pop-blue border-b-3 border-pop-blue bg-blue-50/50"
+                    : "text-gray-600 hover:text-pop-black hover:bg-gray-50"
                 }`}
               >
                 <Icon className="w-4 h-4" />
@@ -543,7 +543,7 @@ export function CustomProfilePage() {
                     </div>
                     <button
                       onClick={handleAvatarClick}
-                      className="absolute -bottom-1 -right-1 p-1.5 bg-indigo-600 rounded-full text-white hover:bg-indigo-700 transition-colors"
+                      className="absolute -bottom-1 -right-1 p-1.5 bg-pop-blue rounded-full text-white hover:bg-blue-700 transition-colors"
                     >
                       <Camera className="w-3.5 h-3.5" />
                     </button>
@@ -615,7 +615,7 @@ export function CustomProfilePage() {
                   <button
                     onClick={handleUpdateProfile}
                     disabled={!hasProfileChanges || isUpdatingProfile}
-                    className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    className="px-4 py-2 text-sm font-bold text-white bg-pop-blue border-2 border-pop-black hover:shadow-[2px_2px_0px_#000] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                   >
                     {isUpdatingProfile ? (
                       <>
@@ -717,7 +717,7 @@ export function CustomProfilePage() {
                       <button
                         onClick={handleSaveUsername}
                         disabled={!canSaveUsername}
-                        className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        className="px-4 py-2 text-sm font-bold text-white bg-pop-blue border-2 border-pop-black hover:shadow-[2px_2px_0px_#000] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                       >
                         {isSavingUsername ? (
                           <>
@@ -863,7 +863,7 @@ export function CustomProfilePage() {
                       <button
                         onClick={handleSaveLocation}
                         disabled={!canSaveLocation}
-                        className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        className="px-4 py-2 text-sm font-bold text-white bg-pop-blue border-2 border-pop-black hover:shadow-[2px_2px_0px_#000] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                       >
                         {isSavingLocation ? (
                           <>

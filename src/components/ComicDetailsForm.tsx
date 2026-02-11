@@ -1246,7 +1246,7 @@ export function ComicDetailsForm({
                     <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
                     <span>
                       <span className="font-semibold">Technopathic Estimate:</span> No eBay sales
-                      data found for this comic. This price is a technopathic estimate and may not
+                      data found for this comic. This price is an estimate and may not
                       be accurate. Use caution when making buying or selling decisions.
                     </span>
                   </p>

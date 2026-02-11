@@ -20,11 +20,13 @@ import {
   Lock,
   MessageSquare,
   MoreHorizontal,
+  Shield,
   ShoppingBag,
   X,
 } from "lucide-react";
 
 import { useSubscription } from "@/hooks/useSubscription";
+import { supabase } from "@/lib/supabase";
 
 interface NavItem {
   href: string;
@@ -44,13 +46,48 @@ export function MobileNav() {
   const pathname = usePathname();
   const router = useRouter();
   const { isSignedIn } = useUser();
-  const { tier, isTrialing } = useSubscription();
+  const { tier, isTrialing, isAdmin } = useSubscription();
   const [isVisible, setIsVisible] = useState(true);
   const [showDrawer, setShowDrawer] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const lastScrollY = useRef(0);
   const scrollThreshold = 10;
 
   const isPremium = tier === "premium" || isTrialing;
+
+  // Fetch unread message count
+  useEffect(() => {
+    if (!isSignedIn) return;
+
+    const fetchUnread = async () => {
+      try {
+        const res = await fetch("/api/messages/unread-count");
+        if (res.ok) {
+          const data = await res.json();
+          setUnreadCount(data.count);
+        }
+      } catch {
+        // Ignore errors silently
+      }
+    };
+
+    fetchUnread();
+
+    const channel = supabase
+      .channel("mobile-nav-messages")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "messages" },
+        () => {
+          fetchUnread();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [isSignedIn]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -118,8 +155,6 @@ export function MobileNav() {
   const handleKeyHuntClick = () => {
     if (!isSignedIn) {
       router.push("/sign-in?redirect=/key-hunt");
-    } else if (!isPremium) {
-      router.push("/pricing?feature=key-hunt");
     } else {
       router.push("/key-hunt");
     }
@@ -167,7 +202,14 @@ export function MobileNav() {
                   : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
               }`}
             >
-              <MoreHorizontal className="w-5 h-5" />
+              <div className="relative">
+                <MoreHorizontal className="w-5 h-5" />
+                {isSignedIn && unreadCount > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[8px] font-bold rounded-full h-4 w-4 flex items-center justify-center">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
+              </div>
               <span className="text-[10px] font-medium">More</span>
             </button>
 
@@ -227,6 +269,7 @@ export function MobileNav() {
               {drawerItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = pathname === item.href;
+                const isMessages = item.label === "Messages";
 
                 return (
                   <Link
@@ -241,12 +284,33 @@ export function MobileNav() {
                   >
                     <Icon className="w-5 h-5" />
                     <span className="font-medium">{item.label}</span>
+                    {isMessages && unreadCount > 0 && (
+                      <span className="ml-auto bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+                        {unreadCount > 9 ? "9+" : unreadCount}
+                      </span>
+                    )}
                     {item.requiresAuth && (
                       <Lock className="w-4 h-4 ml-auto text-gray-400" />
                     )}
                   </Link>
                 );
               })}
+
+              {/* Admin menu item */}
+              {isSignedIn && isAdmin && (
+                <Link
+                  href="/admin/users"
+                  onClick={() => setShowDrawer(false)}
+                  className={`flex items-center gap-3 px-4 py-3 border-t border-gray-100 transition-colors ${
+                    pathname.startsWith("/admin")
+                      ? "bg-red-50 text-red-600"
+                      : "text-gray-700 hover:bg-gray-50"
+                  }`}
+                >
+                  <Shield className="w-5 h-5" />
+                  <span className="font-medium">Admin</span>
+                </Link>
+              )}
             </div>
 
             {/* Sign in prompt for guests */}
