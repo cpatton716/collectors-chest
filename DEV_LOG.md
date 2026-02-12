@@ -12,6 +12,27 @@ This log tracks session-by-session progress on Collectors Chest.
 
 ---
 
+## Feb 12, 2026 - Session 7 (Claude Code Sound Notifications Setup)
+
+**Summary:** Tooling/workflow session - no Comic Tracker code changes. Configured Claude Code hooks to play custom sound notifications globally across all projects for 4 key events: waiting for input, permission requests, task completion, and pre-compaction warnings.
+
+**Key Accomplishments:**
+- Created `~/Library/Sounds/` directory for custom macOS notification sounds
+- Configured 4 global hooks in `~/.claude/settings.json`:
+  - `Notification` (idle_prompt) → `claude-needs-input.mp3` + popup
+  - `PermissionRequest` → `claude-permission.mp3` + popup
+  - `Stop` → `claude-task-done.m4a` + popup
+  - `PreCompact` (auto) → `claude-compacting.mp3` + popup with warning
+- Unhid `~/Library` folder in Finder for easier access
+
+**Files Modified:**
+- `~/.claude/settings.json` - Added hooks configuration (global, not project-specific)
+- `~/Library/Sounds/` - 4 custom sound files added
+
+**No Comic Tracker code changes this session.**
+
+---
+
 ## Feb 10, 2026 - Session 6 (Mobile Testing Feedback - 14 Fixes)
 
 **Summary:** Android mobile testing session with Free/Registered user. Fixed 14 feedback items covering share modal, public profiles, messaging, admin nav, collection filters, shop page, account settings, Key Hunt, and technopathic text. Deployed 3 times to production for live testing.
