@@ -496,3 +496,194 @@ export async function getSubmissionCounts(): Promise<{
     return { pending: 0, approved: 0, rejected: 0, total: 0 };
   }
 }
+
+// ==========================================
+// Admin CRUD Functions for key_comics
+// ==========================================
+
+/**
+ * Search/list key_comics entries with pagination
+ */
+export async function searchKeyComics(params: {
+  search?: string;
+  source?: string;
+  page?: number;
+  limit?: number;
+}): Promise<{
+  entries: Array<{
+    id: string;
+    title: string;
+    issueNumber: string;
+    publisher: string | null;
+    keyInfo: string[];
+    source: string;
+    contributedBy: string | null;
+    createdAt: string;
+    updatedAt: string;
+  }>;
+  total: number;
+  error?: string;
+}> {
+  if (!supabase) return { entries: [], total: 0, error: "Database not available" };
+
+  const page = params.page || 1;
+  const limit = params.limit || 25;
+  const offset = (page - 1) * limit;
+
+  try {
+    let query = supabase
+      .from("key_comics")
+      .select("*", { count: "exact" });
+
+    if (params.search) {
+      const normalized = normalizeTitle(params.search);
+      query = query.ilike("title_normalized", `%${normalized}%`);
+    }
+
+    if (params.source) {
+      query = query.eq("source", params.source);
+    }
+
+    const { data, count, error } = await query
+      .order("title", { ascending: true })
+      .range(offset, offset + limit - 1);
+
+    if (error) return { entries: [], total: 0, error: error.message };
+
+    return {
+      entries: (data || []).map((e) => ({
+        id: e.id,
+        title: e.title,
+        issueNumber: e.issue_number,
+        publisher: e.publisher,
+        keyInfo: e.key_info || [],
+        source: e.source,
+        contributedBy: e.contributed_by,
+        createdAt: e.created_at,
+        updatedAt: e.updated_at,
+      })),
+      total: count || 0,
+    };
+  } catch (error) {
+    return {
+      entries: [],
+      total: 0,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+}
+
+/**
+ * Create a new key_comics entry
+ */
+export async function createKeyComic(params: {
+  title: string;
+  issueNumber: string;
+  publisher?: string;
+  keyInfo: string[];
+}): Promise<{ success: boolean; id?: string; error?: string }> {
+  if (!supabase) return { success: false, error: "Database not available" };
+
+  try {
+    const normalizedTitle = normalizeTitle(params.title);
+
+    // Check for duplicates
+    const { data: existing } = await supabase
+      .from("key_comics")
+      .select("id")
+      .eq("title_normalized", normalizedTitle)
+      .eq("issue_number", params.issueNumber)
+      .single();
+
+    if (existing) {
+      return { success: false, error: "An entry for this comic already exists" };
+    }
+
+    const { data, error } = await supabase
+      .from("key_comics")
+      .insert({
+        title: params.title,
+        title_normalized: normalizedTitle,
+        issue_number: params.issueNumber,
+        publisher: params.publisher || null,
+        key_info: params.keyInfo,
+        source: "curated",
+      })
+      .select("id")
+      .single();
+
+    if (error) return { success: false, error: error.message };
+    return { success: true, id: data.id };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+}
+
+/**
+ * Update a key_comics entry
+ */
+export async function updateKeyComic(
+  id: string,
+  params: {
+    title?: string;
+    issueNumber?: string;
+    publisher?: string;
+    keyInfo?: string[];
+  }
+): Promise<{ success: boolean; error?: string }> {
+  if (!supabase) return { success: false, error: "Database not available" };
+
+  try {
+    const updateData: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    };
+
+    if (params.title !== undefined) {
+      updateData.title = params.title;
+      updateData.title_normalized = normalizeTitle(params.title);
+    }
+    if (params.issueNumber !== undefined) updateData.issue_number = params.issueNumber;
+    if (params.publisher !== undefined) updateData.publisher = params.publisher;
+    if (params.keyInfo !== undefined) updateData.key_info = params.keyInfo;
+
+    const { error } = await supabase
+      .from("key_comics")
+      .update(updateData)
+      .eq("id", id);
+
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+}
+
+/**
+ * Delete a key_comics entry
+ */
+export async function deleteKeyComic(
+  id: string
+): Promise<{ success: boolean; error?: string }> {
+  if (!supabase) return { success: false, error: "Database not available" };
+
+  try {
+    const { error } = await supabase
+      .from("key_comics")
+      .delete()
+      .eq("id", id);
+
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+}
