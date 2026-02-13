@@ -459,99 +459,79 @@ export default function AdminKeyInfoPage() {
 
       <main className="max-w-6xl mx-auto px-4">
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <div className="comic-panel p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <Database className="w-4 h-4" />
-              <span className="text-sm font-medium">Total Key Comics</span>
+        <div className="grid grid-cols-4 gap-2 md:gap-4 mb-4">
+          <div className="comic-panel p-2 md:p-4">
+            <div className="flex items-center gap-1 mb-0.5">
+              <Database className="w-3 h-3 md:w-4 md:h-4" />
+              <span className="text-xs md:text-sm font-medium">Total</span>
             </div>
-            <p className="text-2xl font-bold">{keyComicsCount}</p>
+            <p className="text-lg md:text-2xl font-bold">{keyComicsCount}</p>
           </div>
-          <div className="comic-panel p-4" style={{ borderColor: "#d97706" }}>
-            <div className="flex items-center gap-2 mb-1" style={{ color: "#d97706" }}>
-              <Clock className="w-4 h-4" />
-              <span className="text-sm font-medium">Pending</span>
+          <div className="comic-panel p-2 md:p-4" style={{ borderColor: "#d97706" }}>
+            <div className="flex items-center gap-1 mb-0.5" style={{ color: "#d97706" }}>
+              <Clock className="w-3 h-3 md:w-4 md:h-4" />
+              <span className="text-xs md:text-sm font-medium">Pending</span>
             </div>
-            <p className="text-2xl font-bold" style={{ color: "#d97706" }}>
-              {counts.pending}
+            <p className="text-lg md:text-2xl font-bold" style={{ color: "#d97706" }}>
+              {counts.pending + customCounts.pending}
             </p>
           </div>
-          <div className="comic-panel p-4" style={{ borderColor: "var(--pop-green)" }}>
-            <div className="flex items-center gap-2 mb-1" style={{ color: "var(--pop-green)" }}>
-              <CheckCircle className="w-4 h-4" />
-              <span className="text-sm font-medium">Approved</span>
+          <div className="comic-panel p-2 md:p-4" style={{ borderColor: "var(--pop-green)" }}>
+            <div className="flex items-center gap-1 mb-0.5" style={{ color: "var(--pop-green)" }}>
+              <CheckCircle className="w-3 h-3 md:w-4 md:h-4" />
+              <span className="text-xs md:text-sm font-medium">Approved</span>
             </div>
-            <p className="text-2xl font-bold" style={{ color: "var(--pop-green)" }}>
+            <p className="text-lg md:text-2xl font-bold" style={{ color: "var(--pop-green)" }}>
               {counts.approved}
             </p>
           </div>
-          <div className="comic-panel p-4" style={{ borderColor: "var(--pop-red)" }}>
-            <div className="flex items-center gap-2 mb-1" style={{ color: "var(--pop-red)" }}>
-              <XCircle className="w-4 h-4" />
-              <span className="text-sm font-medium">Rejected</span>
+          <div className="comic-panel p-2 md:p-4" style={{ borderColor: "var(--pop-red)" }}>
+            <div className="flex items-center gap-1 mb-0.5" style={{ color: "var(--pop-red)" }}>
+              <XCircle className="w-3 h-3 md:w-4 md:h-4" />
+              <span className="text-xs md:text-sm font-medium">Rejected</span>
             </div>
-            <p className="text-2xl font-bold" style={{ color: "var(--pop-red)" }}>
+            <p className="text-lg md:text-2xl font-bold" style={{ color: "var(--pop-red)" }}>
               {counts.rejected}
             </p>
           </div>
         </div>
 
         {/* Tabs */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex gap-2">
-            <button
-              onClick={() => setActiveTab("submissions")}
-              className={`px-4 py-2 font-bold transition-colors border-3 border-black ${
-                activeTab === "submissions"
-                  ? "text-white"
-                  : "bg-white hover:bg-gray-100"
-              }`}
-              style={
-                activeTab === "submissions"
-                  ? { background: "var(--pop-blue)", fontFamily: "var(--font-bangers)" }
-                  : { fontFamily: "var(--font-bangers)" }
-              }
-            >
-              Suggestions ({counts.pending})
-            </button>
-            <button
-              onClick={() => setActiveTab("custom")}
-              className={`px-4 py-2 font-bold transition-colors border-3 border-black ${
-                activeTab === "custom"
-                  ? "text-white"
-                  : "bg-white hover:bg-gray-100"
-              }`}
-              style={
-                activeTab === "custom"
-                  ? { background: "var(--pop-blue)", fontFamily: "var(--font-bangers)" }
-                  : { fontFamily: "var(--font-bangers)" }
-              }
-            >
-              From Comics ({customCounts.pending})
-            </button>
-            <button
-              onClick={() => setActiveTab("database")}
-              className={`px-4 py-2 font-bold transition-colors border-3 border-black ${
-                activeTab === "database"
-                  ? "text-white"
-                  : "bg-white hover:bg-gray-100"
-              }`}
-              style={
-                activeTab === "database"
-                  ? { background: "var(--pop-blue)", fontFamily: "var(--font-bangers)" }
-                  : { fontFamily: "var(--font-bangers)" }
-              }
-            >
-              Database ({keyComicsCount})
-            </button>
+        <div className="flex items-center gap-2 mb-4">
+          <div className="flex gap-1 flex-1 min-w-0">
+            {(["submissions", "custom", "database"] as const).map((tab) => {
+              const labels = {
+                submissions: `Suggest (${counts.pending})`,
+                custom: `Comics (${customCounts.pending})`,
+                database: `DB (${keyComicsCount})`,
+              };
+              return (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`px-2 md:px-4 py-1.5 text-sm font-bold transition-colors border-2 border-black whitespace-nowrap ${
+                    activeTab === tab
+                      ? "text-white"
+                      : "bg-white hover:bg-gray-100"
+                  }`}
+                  style={
+                    activeTab === tab
+                      ? { background: "var(--pop-blue)", fontFamily: "var(--font-bangers)" }
+                      : { fontFamily: "var(--font-bangers)" }
+                  }
+                >
+                  {labels[tab]}
+                </button>
+              );
+            })}
           </div>
           <button
             onClick={fetchData}
             disabled={isLoading}
-            className="btn-pop btn-pop-white text-sm flex items-center gap-2"
+            className="p-2 rounded hover:bg-gray-100 flex-shrink-0"
+            title="Refresh"
           >
             <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
-            Refresh
           </button>
         </div>
 

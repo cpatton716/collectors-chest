@@ -202,6 +202,8 @@ export async function updateComic(comicId: string, updates: Partial<CollectionIt
   if (updates.forSale !== undefined) dbUpdates.for_sale = updates.forSale;
   if (updates.askingPrice !== undefined) dbUpdates.asking_price = updates.askingPrice;
   if (updates.isStarred !== undefined) dbUpdates.is_starred = updates.isStarred;
+  if (updates.customKeyInfo !== undefined) dbUpdates.custom_key_info = updates.customKeyInfo;
+  if (updates.customKeyInfoStatus !== undefined) dbUpdates.custom_key_info_status = updates.customKeyInfoStatus;
 
   const { error } = await supabase.from("comics").update(dbUpdates).eq("id", comicId);
 
