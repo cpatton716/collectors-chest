@@ -138,7 +138,7 @@ export function MessageThread({
     }
   };
 
-  const handleSendMessage = async (content: string) => {
+  const handleSendMessage = async (content: string, imageUrls?: string[]) => {
     if (!otherParticipant) return;
 
     const response = await fetch("/api/messages", {
@@ -147,6 +147,7 @@ export function MessageThread({
       body: JSON.stringify({
         recipientId: otherParticipant.id,
         content,
+        imageUrls,
       }),
     });
 

@@ -45,7 +45,7 @@ export function MessageComposer({
     e.preventDefault();
 
     const trimmedContent = content.trim();
-    if (!trimmedContent || isSending || disabled) return;
+    if ((!trimmedContent && images.length === 0) || isSending || disabled) return;
 
     setIsSending(true);
     try {
@@ -139,7 +139,7 @@ export function MessageComposer({
         </button>
         <button
           type="submit"
-          disabled={!content.trim() || isSending || disabled}
+          disabled={(!content.trim() && images.length === 0) || isSending || disabled}
           className="flex h-10 w-10 items-center justify-center rounded-lg border-2 border-pop-black bg-pop-blue text-white transition-all hover:shadow-[2px_2px_0px_#000] disabled:opacity-50 disabled:hover:shadow-none"
         >
           {isSending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}

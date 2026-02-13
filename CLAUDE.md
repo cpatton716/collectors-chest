@@ -16,7 +16,9 @@ In addition to the global session start steps, also:
    - **Mobile devices** (multiSelect): iPhone, Android
    - **Desktop browsers** (multiSelect): Mac Chrome, Mac Safari, Windows Chrome, Windows Edge
 
-6. **Log to Testing Results** - After getting answers, append to `TESTING_RESULTS.md`:
+6. **Show Mobile Dev Server URL** - If platform is **Mobile** or **Both**, display the Network URL from the dev server output (e.g. `http://10.0.0.34:3000`) so the user can open it on their phone. If the dev server output isn't available yet, run `ifconfig | grep 'inet ' | grep -v 127.0.0.1` and construct the URL with the active port.
+
+7. **Log to Testing Results** - After getting answers, append to `TESTING_RESULTS.md`:
    ```markdown
    ## [Date] - Session Start
    - **Platform:** [Mobile/Web]

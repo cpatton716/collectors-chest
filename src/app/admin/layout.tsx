@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Users, BarChart3, BookKey, MessageSquare, ScanLine, ArrowLeft } from "lucide-react";
+import { Users, BarChart3, KeyRound, MessageSquare, ArrowLeft, Barcode } from "lucide-react";
 
 const adminLinks = [
   { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/moderation", label: "Moderation", icon: MessageSquare },
-  { href: "/admin/key-info", label: "Key Info", icon: BookKey },
-  { href: "/admin/barcode-reviews", label: "Barcodes", icon: ScanLine },
+  { href: "/admin/key-info", label: "Key Info", icon: KeyRound },
+  { href: "/admin/barcode-reviews", label: "Barcodes", icon: Barcode },
   { href: "/admin/usage", label: "Usage", icon: BarChart3 },
 ];
 
@@ -36,21 +36,22 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </Link>
           </div>
           {/* Tab navigation */}
-          <div className="flex gap-1 overflow-x-auto pb-1 -mb-1">
+          <div className="flex gap-1">
             {adminLinks.map(({ href, label, icon: Icon }) => {
               const isActive = pathname === href;
               return (
                 <Link
                   key={href}
                   href={href}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
+                  title={label}
+                  className={`flex items-center gap-1.5 px-2 py-1.5 md:px-3 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
                     isActive
                       ? "bg-black text-white"
                       : "hover:bg-black/10"
                   }`}
                 >
                   <Icon className="w-4 h-4" />
-                  {label}
+                  <span className="hidden md:inline">{label}</span>
                 </Link>
               );
             })}

@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 
-import Link from "next/link";
-
 import { useUser } from "@clerk/nextjs";
+
+import Link from "next/link";
 
 import {
   AlertTriangle,
@@ -164,10 +164,10 @@ export default function ModerationPage() {
   return (
     <div className="min-h-screen pb-8">
       {/* Header */}
-      <header className="border-b-4 border-black mb-6" style={{ background: "var(--pop-red)" }}>
+      <header className="border-b-4 border-black mb-6" style={{ background: "var(--pop-yellow)" }}>
         <div className="max-w-6xl mx-auto px-4 py-4">
-          <div className="flex items-center gap-3 text-white">
-            <ShieldAlert className="w-8 h-8" />
+          <div className="flex items-center gap-3">
+            <MessageSquare className="w-8 h-8" />
             <h1
               className="text-2xl font-bold tracking-wide"
               style={{ fontFamily: "var(--font-bangers)" }}
@@ -350,30 +350,6 @@ export default function ModerationPage() {
           </div>
         )}
 
-        {/* Admin Links */}
-        <div className="mt-8 pt-4 border-t-2 border-black flex flex-wrap gap-4">
-          <Link
-            href="/admin/users"
-            className="text-sm font-bold hover:underline"
-            style={{ color: "var(--pop-blue)" }}
-          >
-            User Management
-          </Link>
-          <Link
-            href="/admin/usage"
-            className="text-sm font-bold hover:underline"
-            style={{ color: "var(--pop-blue)" }}
-          >
-            Service Usage Monitor
-          </Link>
-          <Link
-            href="/admin/key-info"
-            className="text-sm font-bold hover:underline"
-            style={{ color: "var(--pop-blue)" }}
-          >
-            Key Info Moderation
-          </Link>
-        </div>
       </div>
     </div>
   );

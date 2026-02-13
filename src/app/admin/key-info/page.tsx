@@ -67,7 +67,7 @@ export default function AdminKeyInfoPage() {
   // Custom key info from user comics
   const [customKeyInfoComics, setCustomKeyInfoComics] = useState<CustomKeyInfoComic[]>([]);
   const [customCounts, setCustomCounts] = useState({ pending: 0, approved: 0, rejected: 0 });
-  const [activeTab, setActiveTab] = useState<"submissions" | "custom" | "database">("submissions");
+  const [activeTab, setActiveTab] = useState<"review" | "database">("review");
   // Database tab state
   const [dbEntries, setDbEntries] = useState<Array<{
     id: string;
@@ -440,6 +440,15 @@ export default function AdminKeyInfoPage() {
     );
   }
 
+  // Merge submissions and custom key info into a single review list
+  const reviewItems: Array<
+    | { type: "suggestion"; id: string; date: number; submission: Submission }
+    | { type: "comic"; id: string; date: number; comic: CustomKeyInfoComic }
+  > = [
+    ...submissions.map(s => ({ type: "suggestion" as const, id: `s-${s.id}`, date: new Date(s.createdAt).getTime(), submission: s })),
+    ...customKeyInfoComics.map(c => ({ type: "comic" as const, id: `c-${c.id}`, date: new Date(c.createdAt).getTime(), comic: c })),
+  ].sort((a, b) => a.date - b.date);
+
   return (
     <div className="min-h-screen pb-8">
       {/* Header */}
@@ -482,7 +491,7 @@ export default function AdminKeyInfoPage() {
               <span className="text-xs md:text-sm font-medium">Approved</span>
             </div>
             <p className="text-lg md:text-2xl font-bold" style={{ color: "var(--pop-green)" }}>
-              {counts.approved}
+              {counts.approved + customCounts.approved}
             </p>
           </div>
           <div className="comic-panel p-2 md:p-4" style={{ borderColor: "var(--pop-red)" }}>
@@ -491,7 +500,7 @@ export default function AdminKeyInfoPage() {
               <span className="text-xs md:text-sm font-medium">Rejected</span>
             </div>
             <p className="text-lg md:text-2xl font-bold" style={{ color: "var(--pop-red)" }}>
-              {counts.rejected}
+              {counts.rejected + customCounts.rejected}
             </p>
           </div>
         </div>
@@ -499,10 +508,10 @@ export default function AdminKeyInfoPage() {
         {/* Tabs */}
         <div className="flex items-center gap-2 mb-4">
           <div className="flex gap-1 flex-1 min-w-0">
-            {(["submissions", "custom", "database"] as const).map((tab) => {
+            {(["review", "database"] as const).map((tab) => {
+              const totalPending = counts.pending + customCounts.pending;
               const labels = {
-                submissions: `Suggest (${counts.pending})`,
-                custom: `Comics (${customCounts.pending})`,
+                review: `Review (${totalPending})`,
                 database: `DB (${keyComicsCount})`,
               };
               return (
@@ -547,7 +556,7 @@ export default function AdminKeyInfoPage() {
           >
             <p className="font-bold" style={{ color: "var(--pop-red)" }}>{error}</p>
           </div>
-        ) : activeTab === "submissions" && submissions.length === 0 ? (
+        ) : activeTab === "review" && reviewItems.length === 0 ? (
           <div className="comic-panel p-8 text-center">
             <CheckCircle className="w-12 h-12 mx-auto mb-4" style={{ color: "var(--pop-green)" }} />
             <h3
@@ -556,7 +565,7 @@ export default function AdminKeyInfoPage() {
             >
               All caught up!
             </h3>
-            <p>No pending submissions to review.</p>
+            <p>No pending key info to review.</p>
           </div>
         ) : activeTab === "database" ? (
           <div>
@@ -826,203 +835,203 @@ export default function AdminKeyInfoPage() {
               </div>
             )}
           </div>
-        ) : activeTab === "custom" && customKeyInfoComics.length === 0 ? (
-          <div className="comic-panel p-8 text-center">
-            <CheckCircle className="w-12 h-12 mx-auto mb-4" style={{ color: "var(--pop-green)" }} />
-            <h3
-              className="text-xl font-bold mb-1"
-              style={{ fontFamily: "var(--font-bangers)" }}
-            >
-              All caught up!
-            </h3>
-            <p>No pending custom key info to review.</p>
-          </div>
-        ) : activeTab === "custom" ? (
-          <div className="space-y-4">
-            {customKeyInfoComics.map((comic) => (
-              <div key={comic.id} className="comic-panel overflow-hidden">
-                <div
-                  className="p-4 border-b-3 border-black"
-                  style={{ background: "var(--pop-cream)" }}
-                >
-                  <div className="flex items-start gap-4">
-                    {comic.coverImageUrl && (
-                      <img
-                        src={comic.coverImageUrl}
-                        alt={comic.title}
-                        className="w-16 h-24 object-cover border-2 border-black"
-                      />
-                    )}
-                    <div>
-                      <h3 className="font-bold">
-                        {comic.title} #{comic.issueNumber}
-                      </h3>
-                      {comic.publisher && (
-                        <p className="text-sm text-gray-600">{comic.publisher}</p>
-                      )}
-                      <p className="text-xs text-gray-500 mt-1">
-                        Added {new Date(comic.createdAt).toLocaleDateString()}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="p-4">
-                  {/* Existing Key Info */}
-                  {comic.existingKeyInfo.length > 0 && (
-                    <div className="mb-3">
-                      <p className="text-sm font-bold mb-2">Existing Key Info:</p>
-                      <div className="flex flex-wrap gap-2">
-                        {comic.existingKeyInfo.map((info, idx) => (
-                          <span key={idx} className="badge-pop badge-pop-yellow text-xs">
-                            {info}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Custom Key Info to Review */}
-                  <p className="text-sm font-bold mb-2">Custom Key Info (Pending):</p>
-                  <div className="flex flex-wrap gap-2 mb-4">
-                    {comic.customKeyInfo.map((info, idx) => (
-                      <span key={idx} className="badge-pop badge-pop-blue text-sm">
-                        <KeyRound className="w-3 h-3" />
-                        {info}
-                      </span>
-                    ))}
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex gap-2 border-t-3 border-black pt-4 mt-4">
-                    <button
-                      onClick={() => handleApproveCustom(comic.id)}
-                      disabled={processingId === comic.id}
-                      className="btn-pop btn-pop-green flex-1 flex items-center justify-center gap-2 disabled:opacity-50"
-                    >
-                      {processingId === comic.id ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Check className="w-4 h-4" />
-                      )}
-                      Approve
-                    </button>
-                    <button
-                      onClick={() => handleRejectCustom(comic.id)}
-                      disabled={processingId === comic.id}
-                      className="btn-pop btn-pop-white flex-1 flex items-center justify-center gap-2 disabled:opacity-50"
-                    >
-                      <X className="w-4 h-4" />
-                      Reject
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
         ) : (
           <div className="space-y-4">
-            {submissions.map((submission) => (
-              <div key={submission.id} className="comic-panel overflow-hidden">
-                {/* Submission Header */}
-                <div
-                  className="p-4 border-b-3 border-black"
-                  style={{ background: "var(--pop-cream)" }}
-                >
-                  <div>
-                    <h3 className="font-bold">
-                      {submission.title} #{submission.issueNumber}
-                    </h3>
-                    {submission.publisher && (
-                      <p className="text-sm text-gray-600">{submission.publisher}</p>
-                    )}
-                    <p className="text-xs text-gray-500 mt-1">
-                      Submitted {new Date(submission.createdAt).toLocaleDateString()}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Suggested Key Info */}
-                <div className="p-4">
-                  <p className="text-sm font-bold mb-2">Suggested Key Info:</p>
-                  <div className="flex flex-wrap gap-2 mb-4">
-                    {submission.suggestedKeyInfo.map((info, idx) => (
-                      <span key={idx} className="badge-pop badge-pop-blue text-sm">
-                        <KeyRound className="w-3 h-3" />
-                        {info}
+            {reviewItems.map((item) =>
+              item.type === "suggestion" ? (
+                <div key={item.id} className="comic-panel overflow-hidden">
+                  {/* Suggestion Header */}
+                  <div
+                    className="p-4 border-b-3 border-black"
+                    style={{ background: "var(--pop-cream)" }}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h3 className="font-bold">
+                          {item.submission.title} #{item.submission.issueNumber}
+                        </h3>
+                        {item.submission.publisher && (
+                          <p className="text-sm text-gray-600">{item.submission.publisher}</p>
+                        )}
+                        <p className="text-xs text-gray-500 mt-1">
+                          Submitted {new Date(item.submission.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <span className="text-xs px-2 py-0.5 rounded font-medium bg-purple-100 text-purple-700 whitespace-nowrap">
+                        Suggestion
                       </span>
-                    ))}
+                    </div>
                   </div>
 
-                  {/* Source URL */}
-                  {submission.sourceUrl && (
-                    <div className="flex items-center gap-2 text-sm mb-2">
-                      <ExternalLink className="w-4 h-4" />
-                      <a
-                        href={submission.sourceUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="hover:underline truncate"
-                        style={{ color: "var(--pop-blue)" }}
-                      >
-                        {submission.sourceUrl}
-                      </a>
+                  {/* Suggested Key Info */}
+                  <div className="p-4">
+                    <p className="text-sm font-bold mb-2">Suggested Key Info:</p>
+                    <div className="flex flex-wrap gap-2 mb-4">
+                      {item.submission.suggestedKeyInfo.map((info, idx) => (
+                        <span key={idx} className="badge-pop badge-pop-blue text-sm">
+                          <KeyRound className="w-3 h-3" />
+                          {info}
+                        </span>
+                      ))}
                     </div>
-                  )}
 
-                  {/* Notes */}
-                  {submission.notes && (
-                    <div className="flex items-start gap-2 text-sm text-gray-600 mb-4">
-                      <MessageSquare className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                      <p className="whitespace-pre-wrap">{submission.notes}</p>
-                    </div>
-                  )}
-
-                  {/* Actions */}
-                  {rejectingId === submission.id ? (
-                    <div className="border-t-3 border-black pt-4 mt-4">
-                      <label className="block text-sm font-bold mb-2">
-                        Rejection Reason *
-                      </label>
-                      <textarea
-                        value={rejectionReason}
-                        onChange={(e) => setRejectionReason(e.target.value)}
-                        placeholder="Why is this submission being rejected?"
-                        rows={2}
-                        className="w-full px-3 py-2 border-3 border-black text-sm mb-3 text-gray-900"
-                      />
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => handleReject(submission.id)}
-                          disabled={processingId === submission.id}
-                          className="btn-pop btn-pop-red flex-1 flex items-center justify-center gap-2 disabled:opacity-50"
+                    {/* Source URL */}
+                    {item.submission.sourceUrl && (
+                      <div className="flex items-center gap-2 text-sm mb-2">
+                        <ExternalLink className="w-4 h-4" />
+                        <a
+                          href={item.submission.sourceUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:underline truncate"
+                          style={{ color: "var(--pop-blue)" }}
                         >
-                          {processingId === submission.id ? (
+                          {item.submission.sourceUrl}
+                        </a>
+                      </div>
+                    )}
+
+                    {/* Notes */}
+                    {item.submission.notes && (
+                      <div className="flex items-start gap-2 text-sm text-gray-600 mb-4">
+                        <MessageSquare className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                        <p className="whitespace-pre-wrap">{item.submission.notes}</p>
+                      </div>
+                    )}
+
+                    {/* Actions */}
+                    {rejectingId === item.submission.id ? (
+                      <div className="border-t-3 border-black pt-4 mt-4">
+                        <label className="block text-sm font-bold mb-2">
+                          Rejection Reason *
+                        </label>
+                        <textarea
+                          value={rejectionReason}
+                          onChange={(e) => setRejectionReason(e.target.value)}
+                          placeholder="Why is this submission being rejected?"
+                          rows={2}
+                          className="w-full px-3 py-2 border-3 border-black text-sm mb-3 text-gray-900"
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleReject(item.submission.id)}
+                            disabled={processingId === item.submission.id}
+                            className="btn-pop btn-pop-red flex-1 flex items-center justify-center gap-2 disabled:opacity-50"
+                          >
+                            {processingId === item.submission.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <X className="w-4 h-4" />
+                            )}
+                            Confirm Reject
+                          </button>
+                          <button
+                            onClick={() => {
+                              setRejectingId(null);
+                              setRejectionReason("");
+                            }}
+                            className="btn-pop btn-pop-white"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex gap-2 border-t-3 border-black pt-4 mt-4">
+                        <button
+                          onClick={() => handleApprove(item.submission.id)}
+                          disabled={processingId === item.submission.id}
+                          className="btn-pop btn-pop-green flex-1 flex items-center justify-center gap-2 disabled:opacity-50"
+                        >
+                          {processingId === item.submission.id ? (
                             <Loader2 className="w-4 h-4 animate-spin" />
                           ) : (
-                            <X className="w-4 h-4" />
+                            <Check className="w-4 h-4" />
                           )}
-                          Confirm Reject
+                          Approve
                         </button>
                         <button
-                          onClick={() => {
-                            setRejectingId(null);
-                            setRejectionReason("");
-                          }}
-                          className="btn-pop btn-pop-white"
+                          onClick={() => setRejectingId(item.submission.id)}
+                          disabled={processingId === item.submission.id}
+                          className="btn-pop btn-pop-white flex-1 flex items-center justify-center gap-2 disabled:opacity-50"
                         >
-                          Cancel
+                          <X className="w-4 h-4" />
+                          Reject
                         </button>
                       </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div key={item.id} className="comic-panel overflow-hidden">
+                  {/* Comic Header */}
+                  <div
+                    className="p-4 border-b-3 border-black"
+                    style={{ background: "var(--pop-cream)" }}
+                  >
+                    <div className="flex items-start gap-4">
+                      {item.comic.coverImageUrl && (
+                        <img
+                          src={item.comic.coverImageUrl}
+                          alt={item.comic.title}
+                          className="w-16 h-24 object-cover border-2 border-black"
+                        />
+                      )}
+                      <div className="flex-1">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <h3 className="font-bold">
+                              {item.comic.title} #{item.comic.issueNumber}
+                            </h3>
+                            {item.comic.publisher && (
+                              <p className="text-sm text-gray-600">{item.comic.publisher}</p>
+                            )}
+                            <p className="text-xs text-gray-500 mt-1">
+                              Added {new Date(item.comic.createdAt).toLocaleDateString()}
+                            </p>
+                          </div>
+                          <span className="text-xs px-2 py-0.5 rounded font-medium bg-blue-100 text-blue-700 whitespace-nowrap">
+                            From Comic
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                  ) : (
+                  </div>
+
+                  <div className="p-4">
+                    {/* Existing Key Info */}
+                    {item.comic.existingKeyInfo.length > 0 && (
+                      <div className="mb-3">
+                        <p className="text-sm font-bold mb-2">Existing Key Info:</p>
+                        <div className="flex flex-wrap gap-2">
+                          {item.comic.existingKeyInfo.map((info, idx) => (
+                            <span key={idx} className="badge-pop badge-pop-yellow text-xs">
+                              {info}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Custom Key Info to Review */}
+                    <p className="text-sm font-bold mb-2">Custom Key Info (Pending):</p>
+                    <div className="flex flex-wrap gap-2 mb-4">
+                      {item.comic.customKeyInfo.map((info, idx) => (
+                        <span key={idx} className="badge-pop badge-pop-blue text-sm">
+                          <KeyRound className="w-3 h-3" />
+                          {info}
+                        </span>
+                      ))}
+                    </div>
+
+                    {/* Actions */}
                     <div className="flex gap-2 border-t-3 border-black pt-4 mt-4">
                       <button
-                        onClick={() => handleApprove(submission.id)}
-                        disabled={processingId === submission.id}
+                        onClick={() => handleApproveCustom(item.comic.id)}
+                        disabled={processingId === item.comic.id}
                         className="btn-pop btn-pop-green flex-1 flex items-center justify-center gap-2 disabled:opacity-50"
                       >
-                        {processingId === submission.id ? (
+                        {processingId === item.comic.id ? (
                           <Loader2 className="w-4 h-4 animate-spin" />
                         ) : (
                           <Check className="w-4 h-4" />
@@ -1030,18 +1039,18 @@ export default function AdminKeyInfoPage() {
                         Approve
                       </button>
                       <button
-                        onClick={() => setRejectingId(submission.id)}
-                        disabled={processingId === submission.id}
+                        onClick={() => handleRejectCustom(item.comic.id)}
+                        disabled={processingId === item.comic.id}
                         className="btn-pop btn-pop-white flex-1 flex items-center justify-center gap-2 disabled:opacity-50"
                       >
                         <X className="w-4 h-4" />
                         Reject
                       </button>
                     </div>
-                  )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            )}
           </div>
         )}
       </main>

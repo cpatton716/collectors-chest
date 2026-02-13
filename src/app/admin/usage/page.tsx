@@ -167,7 +167,7 @@ export default function AdminUsagePage() {
         <div className="max-w-6xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Activity className="w-8 h-8" />
+              <BarChart3 className="w-8 h-8" />
               <h1
                 className="text-2xl font-bold tracking-wide"
                 style={{ fontFamily: "var(--font-bangers)" }}

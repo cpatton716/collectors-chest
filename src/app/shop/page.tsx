@@ -272,38 +272,38 @@ function ShopPageContent() {
         <p className="text-gray-600 mt-1">Find your next addition to the collection</p>
 
         {/* Tabs - Pop Art Style */}
-        <div className="flex gap-2 mt-4">
+        <div className="flex flex-wrap gap-2 mt-4">
           <button
             onClick={() => setActiveTab("buy-now")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-bold border-2 border-pop-black transition-all ${
+            className={`flex items-center gap-1 px-3 py-1 text-sm font-bold border-2 border-pop-black transition-all whitespace-nowrap ${
               activeTab === "buy-now"
                 ? "bg-pop-green text-white shadow-[2px_2px_0px_#000]"
                 : "bg-pop-white text-pop-black hover:shadow-[2px_2px_0px_#000]"
             }`}
           >
-            <Tag className="w-3.5 h-3.5" />
+            <Tag className="w-3 h-3" />
             Buy Now
           </button>
           <button
             onClick={() => setActiveTab("auctions")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-bold border-2 border-pop-black transition-all ${
+            className={`flex items-center gap-1 px-3 py-1 text-sm font-bold border-2 border-pop-black transition-all whitespace-nowrap ${
               activeTab === "auctions"
                 ? "bg-pop-blue text-white shadow-[2px_2px_0px_#000]"
                 : "bg-pop-white text-pop-black hover:shadow-[2px_2px_0px_#000]"
             }`}
           >
-            <Gavel className="w-3.5 h-3.5" />
+            <Gavel className="w-3 h-3" />
             Auctions
           </button>
           <button
             onClick={() => setActiveTab("for-trade")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-bold border-2 border-pop-black transition-all ${
+            className={`flex items-center gap-1 px-3 py-1 text-sm font-bold border-2 border-pop-black transition-all whitespace-nowrap ${
               activeTab === "for-trade"
                 ? "bg-pop-orange text-white shadow-[2px_2px_0px_#000]"
                 : "bg-pop-white text-pop-black hover:shadow-[2px_2px_0px_#000]"
             }`}
           >
-            <ArrowLeftRight className="w-3.5 h-3.5" />
+            <ArrowLeftRight className="w-3 h-3" />
             For Trade
           </button>
         </div>

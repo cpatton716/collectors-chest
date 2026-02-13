@@ -6,9 +6,50 @@ This log tracks session-by-session progress on Collectors Chest.
 
 ## Changes Since Last Deploy
 
-**Sessions since last deploy:** 0
-**Deploy Readiness:** Deployed
+**Sessions since last deploy:** 1
+**Deploy Readiness:** Ready
 **Last Deploy:** February 10, 2026
+
+### Changes:
+- Admin key info management: custom key info sandboxing, CRUD for key_comics database, unified review tab
+- Fixed custom key info not saving on comic updates
+- Fixed admin key info stats combining both submission sources
+- Fixed messagingDb type error in content check fallback
+
+---
+
+## Feb 13, 2026 - Session 8 (Admin Key Info Management + Custom Key Info Sandboxing)
+
+**Summary:** Major feature session implementing admin key info management. Built custom key info sandboxing (user-submitted key info only shows publicly when admin-approved), full CRUD for the key_comics database, and a consolidated admin review tab merging two separate approval flows into one.
+
+**Key Accomplishments:**
+- Sandboxed custom key info: `filterCustomKeyInfoForPublic()` filters unapproved custom key info from shop/auctions/trades
+- Admin CRUD API for key_comics database: search, create, update, delete entries
+- Admin "Database" tab with search/filter, create form, inline editing, delete confirmation
+- Consolidated "Suggestions" and "From Comics" tabs into single "Review" tab with source badges
+- Fixed critical bug: `updateComic()` was missing `custom_key_info` and `custom_key_info_status` fields
+- Fixed stats cards to combine counts from both submission sources
+- Fixed pre-existing type error in messagingDb content check fallback
+- 5 new unit tests for key info sandboxing (all passing, 230 total)
+
+**Files Added:**
+- `src/lib/keyInfoHelpers.ts` - filterCustomKeyInfoForPublic helper
+- `src/lib/__tests__/keyInfoSandbox.test.ts` - 5 unit tests
+- `src/app/api/admin/key-comics/route.ts` - GET/POST API
+- `src/app/api/admin/key-comics/[id]/route.ts` - PATCH/DELETE API
+- `docs/plans/2026-02-13-admin-key-info-management-design.md` - Design doc
+
+**Files Modified:**
+- `src/app/admin/key-info/page.tsx` - Database tab, unified Review tab, mobile layout fixes, combined stats
+- `src/lib/db.ts` - Custom key info sandboxing in getPublicComics, added fields to updateComic
+- `src/lib/auctionDb.ts` - Custom key info sandboxing in auction transform
+- `src/lib/keyComicsDb.ts` - Added searchKeyComics, createKeyComic, updateKeyComic, deleteKeyComic
+- `src/lib/messagingDb.ts` - Fixed type error in content check fallback
+
+**Issues Resolved:**
+- Custom key info not persisting when users edited comics (missing fields in updateComic)
+- Rejected count only showing submissions, not custom key info rejections
+- Pre-existing TypeScript error in messagingDb content check
 
 ---
 

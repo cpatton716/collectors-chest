@@ -999,4 +999,37 @@ If you encounter bugs or unexpected behavior:
 | Free user Key Hunt | As free user, tap Key Hunt in mobile nav | Goes to /key-hunt (FeatureGate shows premium gate) |
 | Premium user Key Hunt | As premium user, tap Key Hunt | Goes to /key-hunt with full access |
 
-*Last Updated: February 10, 2026*
+---
+
+### Admin Key Info Management (Feb 13, 2026)
+
+#### Custom Key Info Sandboxing
+
+| Test Case | Steps | Expected Result |
+|-----------|-------|-----------------|
+| Custom key info hidden when pending | As User 2, edit a comic and add custom key info | Custom key info shows on user's own comic but NOT in shop/auctions/trades |
+| Custom key info visible when approved | As admin, approve the custom key info | Custom key info now visible in shop/auctions/trades |
+| Custom key info hidden when rejected | As admin, reject the custom key info | Custom key info hidden from public views |
+
+#### Admin Review Tab
+
+| Test Case | Steps | Expected Result |
+|-----------|-------|-----------------|
+| Unified review list | Navigate to Admin > Key Info | Single "Review" tab shows items from both sources |
+| Source badges | View review items | "Suggestion" badge (purple) and "From Comic" badge (blue) visible |
+| Approve suggestion | Click Approve on a suggestion item | Item removed from list, approved count increments |
+| Reject suggestion | Click Reject, enter reason, confirm | Item removed from list, rejected count increments |
+| Approve custom key info | Click Approve on a "From Comic" item | Item removed from list, approved count increments |
+| Combined stats | View stats cards | Pending/Approved/Rejected counts combine both sources |
+
+#### Admin Database Tab
+
+| Test Case | Steps | Expected Result |
+|-----------|-------|-----------------|
+| Search key comics | Switch to DB tab, type title, click Search | Filtered results shown with match count |
+| Create key comic | Click "+ Add Entry", fill form, Create | New entry appears in list |
+| Edit key comic | Click pencil icon, modify fields, Save | Entry updated with new values |
+| Delete key comic | Click trash icon, confirm deletion | Entry removed from list |
+| Source filter | Select "Curated" or "Community" filter | Results filtered by source |
+
+*Last Updated: February 13, 2026*

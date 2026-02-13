@@ -32,14 +32,10 @@ Added rate limiting (20 requests/min) to protect Anthropic API costs.
 
 ### Fix Verification Email Branding
 **Priority:** High
-**Status:** Pending
+**Status:** ✅ Complete (Feb 13, 2026)
 **Added:** Feb 4, 2026
 
-The email verification emails sent for bonus scan claims still reference "Collector's Catalog" instead of "Collector's Chest". Update the email template to use the correct branding.
-
-**Files to Check:**
-- `src/app/api/email-capture/route.ts` - Look for email template content
-- Any Resend email templates or utilities
+Verified all email templates already use correct "Collectors Chest" branding. No "Collector's Catalog" references remain in code.
 
 ---
 
@@ -223,9 +219,20 @@ The `USE_STATIC_LIST` flag has been removed. The API now:
 
 ### Admin: Remove Incorrect Key Info from Books
 **Priority:** High
-**Status:** Pending
+**Status:** ✅ Complete (Feb 13, 2026)
 
-Admins need the ability to remove incorrect key info from individual books. User-imported data (e.g., CSV import saying "First full appearance of Gambit" on a Batman book) can pollute shared data. Key info from user imports should only display on the user's own books and never be stored in the shared database unless approved by an admin.
+Implemented two-part solution:
+1. **Custom key info sandboxing** - User-added custom key info only shows publicly when admin-approved (status: pending → approved/rejected)
+2. **Admin CRUD for key_comics database** - Full search, create, edit, delete for the global key comics database
+3. **Unified admin review tab** - Consolidated two separate approval flows into single "Review" tab with source badges
+
+**Design Document:** `docs/plans/2026-02-13-admin-key-info-management-design.md`
+
+**Key Files:**
+- `src/lib/keyInfoHelpers.ts` - filterCustomKeyInfoForPublic helper
+- `src/lib/keyComicsDb.ts` - CRUD functions for key_comics
+- `src/app/api/admin/key-comics/` - Admin CRUD API routes
+- `src/app/admin/key-info/page.tsx` - Unified Review + Database tabs
 
 ---
 

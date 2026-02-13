@@ -76,8 +76,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Recipient ID is required" }, { status: 400 });
     }
 
-    if (!content || content.trim().length === 0) {
-      return NextResponse.json({ error: "Message content is required" }, { status: 400 });
+    if ((!content || content.trim().length === 0) && (!imageUrls || imageUrls.length === 0)) {
+      return NextResponse.json({ error: "Message content or image is required" }, { status: 400 });
     }
 
     debugStep = "send-message";
