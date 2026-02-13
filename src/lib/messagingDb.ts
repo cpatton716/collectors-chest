@@ -263,12 +263,12 @@ export async function getConversationMessages(
 export async function sendMessage(senderId: string, input: SendMessageInput): Promise<Message> {
   const { recipientId, content, listingId, imageUrls, embeddedListingId } = input;
 
-  // Validate content
-  if (!content || content.trim().length === 0) {
-    throw new Error("Message content is required");
+  // Validate content - require text or images
+  if ((!content || content.trim().length === 0) && (!imageUrls || imageUrls.length === 0)) {
+    throw new Error("Message content or image is required");
   }
 
-  if (content.length > 2000) {
+  if (content && content.length > 2000) {
     throw new Error("Message is too long (max 2000 characters)");
   }
 
@@ -278,7 +278,7 @@ export async function sendMessage(senderId: string, input: SendMessageInput): Pr
   }
 
   // Check content filters
-  const contentCheck = checkMessageContent(content);
+  const contentCheck = content ? checkMessageContent(content) : { blocked: false, flagged: false, reason: undefined };
 
   if (contentCheck.blocked) {
     throw new Error(contentCheck.reason || "Message not allowed");
@@ -305,7 +305,7 @@ export async function sendMessage(senderId: string, input: SendMessageInput): Pr
     .insert({
       conversation_id: conversationId,
       sender_id: senderId,
-      content: content.trim(),
+      content: content ? content.trim() : "",
       listing_id: listingId || null,
       image_urls: imageUrls || [],
       embedded_listing_id: embeddedListingId || null,
@@ -336,7 +336,8 @@ export async function sendMessage(senderId: string, input: SendMessageInput): Pr
           .single();
 
         const senderName = senderProfile?.display_name || "Someone";
-        const messagePreview = content.length > 100 ? content.slice(0, 100) + "..." : content;
+        const messageText = content || (imageUrls?.length ? "[Image]" : "");
+        const messagePreview = messageText.length > 100 ? messageText.slice(0, 100) + "..." : messageText;
 
         await sendNotificationEmail({
           to: recipientProfile.email,
