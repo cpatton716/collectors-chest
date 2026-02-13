@@ -16,7 +16,9 @@ import {
   KeyRound,
   Loader2,
   MessageSquare,
+  Pencil,
   RefreshCw,
+  Trash2,
   X,
   XCircle,
 } from "lucide-react";
@@ -65,7 +67,38 @@ export default function AdminKeyInfoPage() {
   // Custom key info from user comics
   const [customKeyInfoComics, setCustomKeyInfoComics] = useState<CustomKeyInfoComic[]>([]);
   const [customCounts, setCustomCounts] = useState({ pending: 0, approved: 0, rejected: 0 });
-  const [activeTab, setActiveTab] = useState<"submissions" | "custom">("submissions");
+  const [activeTab, setActiveTab] = useState<"submissions" | "custom" | "database">("submissions");
+  // Database tab state
+  const [dbEntries, setDbEntries] = useState<Array<{
+    id: string;
+    title: string;
+    issueNumber: string;
+    publisher: string | null;
+    keyInfo: string[];
+    source: string;
+    contributedBy: string | null;
+    createdAt: string;
+    updatedAt: string;
+  }>>([]);
+  const [dbTotal, setDbTotal] = useState(0);
+  const [dbPage, setDbPage] = useState(1);
+  const [dbSearch, setDbSearch] = useState("");
+  const [dbSourceFilter, setDbSourceFilter] = useState("");
+  const [dbLoading, setDbLoading] = useState(false);
+  // Create form
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [createTitle, setCreateTitle] = useState("");
+  const [createIssue, setCreateIssue] = useState("");
+  const [createPublisher, setCreatePublisher] = useState("");
+  const [createKeyInfo, setCreateKeyInfo] = useState("");
+  // Edit state
+  const [editingEntry, setEditingEntry] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editIssue, setEditIssue] = useState("");
+  const [editPublisher, setEditPublisher] = useState("");
+  const [editKeyInfo, setEditKeyInfo] = useState("");
+  // Delete confirmation
+  const [deletingEntry, setDeletingEntry] = useState<{id: string; title: string; issueNumber: string} | null>(null);
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -229,6 +262,142 @@ export default function AdminKeyInfoPage() {
     }
   };
 
+  // Database tab: fetch key comics
+  const fetchKeyComics = async (page = 1) => {
+    setDbLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (dbSearch) params.set("search", dbSearch);
+      if (dbSourceFilter) params.set("source", dbSourceFilter);
+      params.set("page", String(page));
+      params.set("limit", "25");
+
+      const res = await fetch(`/api/admin/key-comics?${params}`);
+      const data = await res.json();
+
+      if (res.ok) {
+        setDbEntries(data.entries);
+        setDbTotal(data.total);
+        setDbPage(page);
+      }
+    } catch (err) {
+      console.error("Failed to fetch key comics:", err);
+    } finally {
+      setDbLoading(false);
+    }
+  };
+
+  // Load database tab data when switching to it
+  useEffect(() => {
+    if (activeTab === "database" && dbEntries.length === 0) {
+      fetchKeyComics();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+
+  const handleCreateKeyComic = async () => {
+    const keyInfoArray = createKeyInfo.split("\n").map(s => s.trim()).filter(Boolean);
+    if (!createTitle || !createIssue || keyInfoArray.length === 0) {
+      alert("Title, issue number, and at least one key info line are required");
+      return;
+    }
+
+    setProcessingId("create");
+    try {
+      const res = await fetch("/api/admin/key-comics", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: createTitle,
+          issueNumber: createIssue,
+          publisher: createPublisher || undefined,
+          keyInfo: keyInfoArray,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to create");
+      }
+
+      setCreateTitle("");
+      setCreateIssue("");
+      setCreatePublisher("");
+      setCreateKeyInfo("");
+      setShowCreateForm(false);
+      fetchKeyComics(dbPage);
+      setKeyComicsCount(prev => prev + 1);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to create");
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleEditKeyComic = async (id: string) => {
+    const keyInfoArray = editKeyInfo.split("\n").map(s => s.trim()).filter(Boolean);
+    if (keyInfoArray.length === 0) {
+      alert("At least one key info line is required");
+      return;
+    }
+
+    setProcessingId(id);
+    try {
+      const res = await fetch(`/api/admin/key-comics/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: editTitle,
+          issueNumber: editIssue,
+          publisher: editPublisher || undefined,
+          keyInfo: keyInfoArray,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to update");
+      }
+
+      setEditingEntry(null);
+      fetchKeyComics(dbPage);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to update");
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleDeleteKeyComic = async (id: string) => {
+    setProcessingId(id);
+    try {
+      const res = await fetch(`/api/admin/key-comics/${id}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to delete");
+      }
+
+      setDeletingEntry(null);
+      fetchKeyComics(dbPage);
+      setKeyComicsCount(prev => prev - 1);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to delete");
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const startEdit = (entry: (typeof dbEntries)[0]) => {
+    setEditingEntry(entry.id);
+    setEditTitle(entry.title);
+    setEditIssue(entry.issueNumber);
+    setEditPublisher(entry.publisher || "");
+    setEditKeyInfo(entry.keyInfo.join("\n"));
+  };
+
   if (!isLoaded) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -360,6 +529,21 @@ export default function AdminKeyInfoPage() {
             >
               From Comics ({customCounts.pending})
             </button>
+            <button
+              onClick={() => setActiveTab("database")}
+              className={`px-4 py-2 font-bold transition-colors border-3 border-black ${
+                activeTab === "database"
+                  ? "text-white"
+                  : "bg-white hover:bg-gray-100"
+              }`}
+              style={
+                activeTab === "database"
+                  ? { background: "var(--pop-blue)", fontFamily: "var(--font-bangers)" }
+                  : { fontFamily: "var(--font-bangers)" }
+              }
+            >
+              Database ({keyComicsCount})
+            </button>
           </div>
           <button
             onClick={fetchData}
@@ -393,6 +577,274 @@ export default function AdminKeyInfoPage() {
               All caught up!
             </h3>
             <p>No pending submissions to review.</p>
+          </div>
+        ) : activeTab === "database" ? (
+          <div>
+            {/* Search + Filters + Add button */}
+            <div className="flex flex-col sm:flex-row gap-3 mb-4">
+              <input
+                type="text"
+                value={dbSearch}
+                onChange={(e) => setDbSearch(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && fetchKeyComics(1)}
+                placeholder="Search by title..."
+                className="flex-1 px-3 py-2 border-3 border-black text-sm"
+              />
+              <select
+                value={dbSourceFilter}
+                onChange={(e) => {
+                  setDbSourceFilter(e.target.value);
+                }}
+                className="px-3 py-2 border-3 border-black text-sm bg-white"
+              >
+                <option value="">All Sources</option>
+                <option value="curated">Curated</option>
+                <option value="community">Community</option>
+              </select>
+              <button
+                onClick={() => fetchKeyComics(1)}
+                className="btn-pop btn-pop-blue text-sm"
+              >
+                Search
+              </button>
+              <button
+                onClick={() => setShowCreateForm(!showCreateForm)}
+                className="btn-pop btn-pop-green text-sm whitespace-nowrap"
+              >
+                + Add Entry
+              </button>
+            </div>
+
+            {/* Create Form */}
+            {showCreateForm && (
+              <div className="comic-panel p-4 mb-4" style={{ background: "var(--pop-cream)" }}>
+                <h3 className="font-bold mb-3" style={{ fontFamily: "var(--font-bangers)" }}>
+                  Add New Key Comic
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+                  <input
+                    type="text"
+                    value={createTitle}
+                    onChange={(e) => setCreateTitle(e.target.value)}
+                    placeholder="Title (e.g. Amazing Spider-Man)"
+                    className="px-3 py-2 border-3 border-black text-sm"
+                  />
+                  <input
+                    type="text"
+                    value={createIssue}
+                    onChange={(e) => setCreateIssue(e.target.value)}
+                    placeholder="Issue # (e.g. 300)"
+                    className="px-3 py-2 border-3 border-black text-sm"
+                  />
+                  <input
+                    type="text"
+                    value={createPublisher}
+                    onChange={(e) => setCreatePublisher(e.target.value)}
+                    placeholder="Publisher (optional)"
+                    className="px-3 py-2 border-3 border-black text-sm"
+                  />
+                </div>
+                <textarea
+                  value={createKeyInfo}
+                  onChange={(e) => setCreateKeyInfo(e.target.value)}
+                  placeholder={"Key info (one per line)\ne.g. First appearance of Venom\nFirst full appearance of Venom (Eddie Brock)"}
+                  rows={3}
+                  className="w-full px-3 py-2 border-3 border-black text-sm mb-3"
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleCreateKeyComic}
+                    disabled={processingId === "create"}
+                    className="btn-pop btn-pop-green flex items-center gap-2 disabled:opacity-50"
+                  >
+                    {processingId === "create" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                    Create
+                  </button>
+                  <button
+                    onClick={() => setShowCreateForm(false)}
+                    className="btn-pop btn-pop-white"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Results info */}
+            <p className="text-sm text-gray-600 mb-3">
+              Showing {dbEntries.length} of {dbTotal} entries
+              {dbSearch && ` matching "${dbSearch}"`}
+            </p>
+
+            {/* Loading */}
+            {dbLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin" style={{ color: "var(--pop-blue)" }} />
+              </div>
+            ) : dbEntries.length === 0 ? (
+              <div className="comic-panel p-8 text-center">
+                <Database className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+                <p>No entries found.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {dbEntries.map((entry) => (
+                  <div key={entry.id} className="comic-panel overflow-hidden">
+                    {editingEntry === entry.id ? (
+                      /* Edit Mode */
+                      <div className="p-4" style={{ background: "var(--pop-cream)" }}>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+                          <input
+                            type="text"
+                            value={editTitle}
+                            onChange={(e) => setEditTitle(e.target.value)}
+                            placeholder="Title"
+                            className="px-3 py-2 border-3 border-black text-sm"
+                          />
+                          <input
+                            type="text"
+                            value={editIssue}
+                            onChange={(e) => setEditIssue(e.target.value)}
+                            placeholder="Issue #"
+                            className="px-3 py-2 border-3 border-black text-sm"
+                          />
+                          <input
+                            type="text"
+                            value={editPublisher}
+                            onChange={(e) => setEditPublisher(e.target.value)}
+                            placeholder="Publisher"
+                            className="px-3 py-2 border-3 border-black text-sm"
+                          />
+                        </div>
+                        <textarea
+                          value={editKeyInfo}
+                          onChange={(e) => setEditKeyInfo(e.target.value)}
+                          placeholder="Key info (one per line)"
+                          rows={3}
+                          className="w-full px-3 py-2 border-3 border-black text-sm mb-3"
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleEditKeyComic(entry.id)}
+                            disabled={processingId === entry.id}
+                            className="btn-pop btn-pop-green flex items-center gap-2 disabled:opacity-50"
+                          >
+                            {processingId === entry.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                            Save
+                          </button>
+                          <button
+                            onClick={() => setEditingEntry(null)}
+                            className="btn-pop btn-pop-white"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      /* View Mode */
+                      <div className="p-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h3 className="font-bold">
+                                {entry.title} #{entry.issueNumber}
+                              </h3>
+                              <span className={`text-xs px-2 py-0.5 rounded font-medium ${
+                                entry.source === "curated"
+                                  ? "bg-purple-100 text-purple-700"
+                                  : "bg-blue-100 text-blue-700"
+                              }`}>
+                                {entry.source}
+                              </span>
+                            </div>
+                            {entry.publisher && (
+                              <p className="text-sm text-gray-600">{entry.publisher}</p>
+                            )}
+                            <div className="flex flex-wrap gap-1.5 mt-2">
+                              {entry.keyInfo.map((info, idx) => (
+                                <span key={idx} className="badge-pop badge-pop-yellow text-xs">
+                                  {info}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="flex gap-1.5 flex-shrink-0">
+                            <button
+                              onClick={() => startEdit(entry)}
+                              className="p-2 rounded hover:bg-gray-100 transition-colors"
+                              title="Edit"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => setDeletingEntry({ id: entry.id, title: entry.title, issueNumber: entry.issueNumber })}
+                              className="p-2 rounded hover:bg-red-50 transition-colors"
+                              title="Delete"
+                              style={{ color: "var(--pop-red)" }}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                {/* Pagination */}
+                {dbTotal > 25 && (
+                  <div className="flex items-center justify-center gap-3 pt-4">
+                    <button
+                      onClick={() => fetchKeyComics(dbPage - 1)}
+                      disabled={dbPage <= 1 || dbLoading}
+                      className="btn-pop btn-pop-white text-sm disabled:opacity-50"
+                    >
+                      Previous
+                    </button>
+                    <span className="text-sm font-medium">
+                      Page {dbPage} of {Math.ceil(dbTotal / 25)}
+                    </span>
+                    <button
+                      onClick={() => fetchKeyComics(dbPage + 1)}
+                      disabled={dbPage >= Math.ceil(dbTotal / 25) || dbLoading}
+                      className="btn-pop btn-pop-white text-sm disabled:opacity-50"
+                    >
+                      Next
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Delete Confirmation Modal */}
+            {deletingEntry && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                <div className="comic-panel p-6 max-w-sm w-full bg-white">
+                  <h3 className="font-bold text-lg mb-2" style={{ fontFamily: "var(--font-bangers)" }}>
+                    Delete Entry?
+                  </h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Are you sure you want to delete <strong>{deletingEntry.title} #{deletingEntry.issueNumber}</strong> from the key comics database? This cannot be undone.
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleDeleteKeyComic(deletingEntry.id)}
+                      disabled={processingId === deletingEntry.id}
+                      className="btn-pop btn-pop-red flex-1 flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                      {processingId === deletingEntry.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                      Delete
+                    </button>
+                    <button
+                      onClick={() => setDeletingEntry(null)}
+                      className="btn-pop btn-pop-white flex-1"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         ) : activeTab === "custom" && customKeyInfoComics.length === 0 ? (
           <div className="comic-panel p-8 text-center">
