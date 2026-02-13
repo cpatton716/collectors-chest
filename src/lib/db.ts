@@ -1,6 +1,7 @@
 import { CollectionItem, SaleRecord, UserList } from "@/types/comic";
 
 import { cacheDelete, cacheGet, cacheSet } from "./cache";
+import { filterCustomKeyInfoForPublic } from "./keyInfoHelpers";
 import { supabase, supabaseAdmin } from "./supabase";
 
 // Profile management
@@ -738,7 +739,14 @@ export async function getPublicComics(profileId: string): Promise<CollectionItem
 
   if (error) return [];
 
-  return (data || []).map(transformDbComicToCollectionItem);
+  return (data || []).map((row) => {
+    const item = transformDbComicToCollectionItem(row);
+    item.customKeyInfo = filterCustomKeyInfoForPublic(
+      item.customKeyInfo,
+      item.customKeyInfoStatus
+    );
+    return item;
+  });
 }
 
 /**

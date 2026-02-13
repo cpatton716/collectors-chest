@@ -29,6 +29,7 @@ import { CollectionItem, ConditionLabel, PriceData } from "@/types/comic";
 import { sendNotificationEmail } from "./email";
 import { createFeedbackReminders } from "./reputationDb";
 import { getAllFollowerIds } from "./followDb";
+import { filterCustomKeyInfoForPublic } from "./keyInfoHelpers";
 import { getSubscriptionStatus, getTransactionFeePercent } from "./subscription";
 import { supabase, supabaseAdmin } from "./supabase";
 
@@ -1804,7 +1805,14 @@ function transformDbAuction(data: Record<string, unknown>): Auction {
       dateAdded: comics.date_added as string,
       listIds: [],
       isStarred: comics.is_starred as boolean,
-      customKeyInfo: (comics.custom_key_info as string[]) || [],
+      customKeyInfo: filterCustomKeyInfoForPublic(
+        (comics.custom_key_info as string[]) || [],
+        comics.custom_key_info_status as
+          | "pending"
+          | "approved"
+          | "rejected"
+          | null
+      ),
       customKeyInfoStatus: comics.custom_key_info_status as "pending" | "approved" | "rejected" | null,
     };
   }
