@@ -48,9 +48,12 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 |------|--------|-------|
 | **Cloud sync for signed-in users** | ✅ Done | Signed-in users now sync to Supabase; guests use localStorage |
 | **Form LLC business entity** | ❌ Missing | Required for liability protection & legal pages |
-| Privacy Policy page | ⏳ Blocked | Page structure done; waiting on LLC for official business name |
-| Terms of Service page | ⏳ Blocked | Page structure done; waiting on LLC for official business name |
-| Premium subscription billing | ⏳ Code complete | Waiting on Stripe account setup |
+| Privacy Policy page | ⏳ Content ready | Full content written; placeholders need LLC info |
+| Terms of Service page | ⏳ Content ready | Full content written; placeholders need LLC info |
+| Acceptable Use Policy page | ⏳ Content ready | Full content written; placeholders need LLC info |
+| Cookie & Tracking Policy page | ⏳ Content ready | Full content written; placeholders need LLC info |
+| Premium subscription billing | ⏳ Code complete | Waiting on Stripe account setup (includes Connect for seller payouts) |
+| Age gate (18+) for marketplace | ❌ Missing | Buying, selling, bidding, and trading require users to be 18+. Enforce at account level or marketplace entry. |
 | Re-enable Clerk bot protection | ✅ Done | Re-enabled Jan 13, 2026 |
 
 ### High Priority
@@ -58,7 +61,7 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 | Item | Status | Notes |
 |------|--------|-------|
 | Connect waitlist to Resend | ✅ Done | API route created, connected to Resend Contacts |
-| Test payment flows end-to-end | ❌ Untested | Auction bids, Buy Now, seller payouts |
+| Test payment flows end-to-end | ❌ Untested | Auction bids, Buy Now, Stripe Connect seller payouts, subscription billing |
 | Database backup strategy | ⚠️ Planned | **Upgrade to Supabase Pro ($25/mo) before opening registration** - daily backups + 7-day retention |
 | Rate limit on registered user scans | ✅ Done | Free: 10/month, Premium: unlimited |
 
@@ -148,7 +151,7 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 | Issue | Severity | Notes |
 |-------|----------|--------|
 | No dispute resolution | 🟡 Medium | Need buyer protection |
-| No escrow system | 🟡 Medium | Stripe direct payment only |
+| Stripe Connect (pending) | 🟡 Medium | Seller payouts via Connect — needs onboarding flow + setup |
 | No shipping tracking | 🟡 Medium | Manual coordination |
 | Payment deadline enforcement | ⚠️ Unclear | Logic in place but untested |
 | Auction sniping protection | ❌ Missing | No auto-extend on last-minute bids |
@@ -324,6 +327,7 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 - Scan packs: $1.99 for 10 scans
 - Auction marketplace (8% free / 5% premium transaction fee)
 - ⏳ Stripe account setup pending
+- ⏳ Stripe Connect for automated seller payouts (pending)
 
 ### Premium Tier Value Props (Ready)
 - Unlimited scans
@@ -417,11 +421,13 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
    - ~$100-300 filing fee + potential annual fees
    - Effort: 30 min online, 1-2 weeks processing
 
-2. **Privacy Policy + Terms of Service pages** (BLOCKED BY #1)
-   - ✅ Page structure created (`/privacy`, `/terms`)
-   - ⏳ Waiting on LLC formation for official business name
-   - Generate final content via Termly after LLC
-   - Effort: 0.5 session after LLC
+2. **Legal pages (ToS, Privacy, AUP, Cookies)** (PARTIALLY BLOCKED BY #1)
+   - ✅ Full content written for all 4 pages (`/privacy`, `/terms`, `/acceptable-use`, `/cookies`)
+   - ✅ All content verified accurate against codebase (18/20 claims exact match)
+   - ✅ Cross-linked footers on all 4 pages
+   - ⏳ Placeholder fields remain: [LEGAL BUSINESS NAME], [ADDRESS], [SUPPORT EMAIL], [DATE], [STATE], [STATE/COUNTY]
+   - ⏳ Replace placeholders once LLC is formed (see BACKLOG.md)
+   - ⏳ Implement 3-listing cap for free users (referenced in ToS but not yet enforced)
 
 3. **Premium subscription billing** ⏳ CODE COMPLETE
    - ✅ Database migration (subscription fields, scan tracking, fee columns)
@@ -433,11 +439,13 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
    - ✅ UI components (pricing page, upgrade modal, trial prompts)
    - ✅ Transaction fees (8% free, 5% premium)
    - ⏳ **Waiting on:** Stripe account setup (see BACKLOG.md)
+   - ⏳ Stripe Connect setup for seller payouts (onboarding flow, payout configuration)
 
 4. **Test payment flows end-to-end**
    - Test auction bid flow
    - Test Buy Now flow
    - Test Stripe webhooks
+   - Test Stripe Connect seller onboarding and payout flow
    - Effort: 0.5 session
 
 ### 🟠 Feb 5 Feedback Items (21 items — see FEEDBACK_FEB_5.md)

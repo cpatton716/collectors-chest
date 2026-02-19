@@ -6,7 +6,7 @@ This log tracks session-by-session progress on Collectors Chest.
 
 ## Changes Since Last Deploy
 
-**Sessions since last deploy:** 1
+**Sessions since last deploy:** 2
 **Deploy Readiness:** Ready
 **Last Deploy:** February 10, 2026
 
@@ -15,6 +15,37 @@ This log tracks session-by-session progress on Collectors Chest.
 - Fixed custom key info not saving on comic updates
 - Fixed admin key info stats combining both submission sources
 - Fixed messagingDb type error in content check fallback
+- Full legal pages: Terms of Service, Privacy Policy, Acceptable Use Policy, Cookie & Tracking Policy
+- Added Stripe Connect references to EVALUATION.md and clipboard brief for Claude Chat
+- Added 18+ age gate requirement to EVALUATION.md critical items
+- Added "Finalize Legal Pages" backlog item with placeholder replacement checklist
+
+---
+
+## Feb 18, 2026 - Session 9 (Legal Pages + Stripe Connect Planning)
+
+**Summary:** Researched the entire codebase to compile a comprehensive platform briefing for Claude Chat to draft legal documents. Received and deployed all 4 legal pages (Terms of Service, Privacy Policy, Acceptable Use Policy, Cookie & Tracking Policy). Verified 18/20 document claims against actual code. Updated EVALUATION.md with Stripe Connect plans and 18+ marketplace age gate.
+
+**Key Accomplishments:**
+- Compiled detailed platform briefing covering auction/trade flows, AI features, tier breakdown, Stripe structure, third-party services, and data collection
+- Deployed all 4 legal pages with full content (placeholders remain for LLC info)
+- Verified legal document accuracy: 18/20 claims exact match, 2 describe planned but unenforced features
+- Updated EVALUATION.md: Stripe Connect referenced in 6 places, 18+ age gate added as Critical item
+- Added comprehensive BACKLOG item for placeholder replacement post-LLC formation
+- Updated Stripe section across docs to reflect Connect for automated seller payouts
+
+**Files Added:**
+- `src/app/acceptable-use/page.tsx` - Acceptable Use Policy page
+- `src/app/cookies/page.tsx` - Cookie & Tracking Policy page
+
+**Files Modified:**
+- `src/app/privacy/page.tsx` - Replaced placeholder content with full Privacy Policy
+- `src/app/terms/page.tsx` - Replaced placeholder content with full Terms of Service
+- `EVALUATION.md` - Stripe Connect (6 locations), 18+ age gate, legal page status updates
+- `BACKLOG.md` - Added "Finalize Legal Pages" pre-launch item
+
+**Issues Resolved:**
+- None (no bugs this session — documentation and content only)
 
 ---
 

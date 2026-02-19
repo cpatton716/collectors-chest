@@ -18,174 +18,479 @@ export default function TermsOfServicePage() {
             Back to Home
           </Link>
           <h1 className="text-3xl font-bold text-gray-900">Terms of Service</h1>
-          <p className="text-gray-600 mt-2">Last updated: January 27, 2026</p>
+          <p className="text-gray-600 mt-2">Last updated: February 18, 2026</p>
         </div>
       </div>
 
       {/* Content */}
       <div className="container mx-auto px-4 py-8 max-w-4xl">
         <div className="bg-white rounded-xl shadow-sm p-8 prose prose-gray max-w-none">
-          {/* REPLACE THIS SECTION WITH YOUR GENERATED TERMS OF SERVICE */}
+          <h2>Collector&apos;s Chest - Terms of Service</h2>
 
-          <h2>1. Acceptance of Terms</h2>
           <p>
-            By accessing or using Collectors Chest (&quot;Service&quot;), you agree to be bound by
-            these Terms of Service (&quot;Terms&quot;). If you do not agree to these Terms, please
-            do not use our Service.
+            <strong>Effective Date:</strong> [DATE]
           </p>
 
-          <h2>2. Description of Service</h2>
-          <p>Collectors Chest is a comic book collection management platform that provides:</p>
-          <ul>
-            <li>AI-powered comic cover recognition</li>
-            <li>Collection tracking and management</li>
-            <li>Price estimates based on market data</li>
-            <li>A marketplace for buying and selling comics</li>
-          </ul>
-
-          <h2>3. User Accounts</h2>
-          <p>To access certain features, you must create an account. You are responsible for:</p>
-          <ul>
-            <li>Maintaining the confidentiality of your account credentials</li>
-            <li>All activities that occur under your account</li>
-            <li>Providing accurate and complete information</li>
-          </ul>
-
-          <h2>4. Marketplace Terms</h2>
-          <h3>4.1 Seller Responsibilities</h3>
-          <p>As a seller, you agree to:</p>
-          <ul>
-            <li>Accurately describe items listed for sale</li>
-            <li>Ship items within the specified timeframe</li>
-            <li>Honor accepted bids and completed purchases</li>
-            <li>Comply with all applicable laws regarding online sales</li>
-          </ul>
-
-          <h3>4.2 Buyer Responsibilities</h3>
-          <p>As a buyer, you agree to:</p>
-          <ul>
-            <li>Pay for items you purchase or win at auction</li>
-            <li>Provide accurate shipping information</li>
-            <li>Review items promptly upon receipt</li>
-          </ul>
-
-          <h3>4.3 Transaction Fees</h3>
           <p>
-            Collectors Chest may charge transaction fees on marketplace sales. Current fee
-            structures will be clearly displayed before listing or purchasing.
+            Welcome to Collector&apos;s Chest (the &quot;Service&quot;), a comic book collection
+            management and marketplace platform operated by [LEGAL BUSINESS NAME], a [STATE] limited
+            liability company (&quot;Company,&quot; &quot;we,&quot; &quot;us,&quot; or
+            &quot;our&quot;). The Service is accessible via our website at collectors-chest.com and
+            our mobile application (collectively, the &quot;Platform&quot;).
           </p>
 
-          <h3>4.4 Disputes</h3>
           <p>
-            We encourage buyers and sellers to resolve disputes directly. Collectors Chest may, at
-            its discretion, mediate disputes but is not obligated to do so.
+            By accessing or using the Service, you agree to be bound by these Terms of Service
+            (&quot;Terms&quot;). If you do not agree, you may not use the Service. We reserve the
+            right to update these Terms at any time. Continued use after changes constitutes
+            acceptance.
           </p>
 
-          <h3>4.5 Listing Cancellation Policy</h3>
-          <p>The following rules govern the cancellation of marketplace listings:</p>
+          <h2>1. Eligibility</h2>
+          <p>
+            You must be at least 18 years of age to create an account or use any feature of the
+            Service. By registering, you represent and warrant that you are at least 18 years old
+            and have the legal capacity to enter into a binding agreement. We reserve the right to
+            request verification of age at any time and to terminate accounts that we reasonably
+            believe belong to individuals under 18.
+          </p>
+
+          <h2>2. Account Registration and Security</h2>
+
+          <h3>2.1 Account Creation</h3>
+          <p>
+            To access certain features of the Service, you must create a registered account.
+            Registration requires the following information: a valid email address (not displayed
+            publicly), your first and last name, and a username of your choosing (displayed
+            publicly). Usernames are subject to our content filtering system, which prohibits
+            vulgar, offensive, or otherwise inappropriate usernames. We reserve the right to reject
+            or require modification of any username at our sole discretion.
+          </p>
+
+          <h3>2.2 Optional Information</h3>
+          <p>
+            You may optionally share your location (city, state/province, and/or country). Location
+            sharing is entirely voluntary and can be configured at the following privacy levels: full
+            location (city, state, country), state and country only, country only, or hidden.
+            Location data, when shared, is used to facilitate trade and marketplace features.
+          </p>
+
+          <h3>2.3 Account Security</h3>
+          <p>
+            You are responsible for maintaining the confidentiality of your account credentials and
+            for all activities that occur under your account. You agree to notify us immediately of
+            any unauthorized use of your account. We are not liable for any loss or damage arising
+            from your failure to protect your account information.
+          </p>
+
+          <h3>2.4 Account Tiers</h3>
+          <p>The Service offers the following account tiers:</p>
           <ul>
             <li>
-              <strong>Auctions:</strong> Once a bid has been placed on an auction, the listing
-              cannot be cancelled. Sellers must honor all bids and complete the transaction with the
-              winning bidder.
+              <strong>Guest Access:</strong> Limited functionality without account registration.
+              Guest data is stored locally in your browser and is not synced to the cloud. Guest
+              access includes a lifetime maximum of 5 AI-powered comic scans, with the option to
+              earn 5 additional scans by providing an email address (10 maximum). Guests cannot
+              participate in marketplace, messaging, or trading features.
             </li>
             <li>
-              <strong>Auctions without bids:</strong> Auctions that have received no bids may be
-              cancelled at any time before the auction ends.
+              <strong>Free Registered Account:</strong> Includes 10 AI-powered comic scans per
+              calendar month (resetting on the 1st of each month), cloud-synced collection storage,
+              the ability to buy and bid in the marketplace (with a maximum of 3 active sale
+              listings), CSV import functionality, public profile, messaging, following, and trading
+              features. Free accounts are subject to an 8% seller transaction fee on marketplace
+              sales.
             </li>
             <li>
-              <strong>Fixed-price listings:</strong> Fixed-price listings may be cancelled at any
-              time. If there are pending offers on the listing, all offer-makers will be notified of
-              the cancellation.
-            </li>
-            <li>
-              <strong>Duplicate listings:</strong> Each comic may only have one active listing at a
-              time. Creating duplicate listings for the same item is prohibited.
+              <strong>Premium Account ($4.99/month or $49.99/year):</strong> Includes all Free tier
+              features plus unlimited AI-powered comic scans, unlimited active sale listings, CSV
+              export functionality, Key Hunt mode (offline convention lookup tool), advanced
+              collection statistics, and a reduced 5% seller transaction fee. A 7-day free trial is
+              available once per account.
             </li>
           </ul>
+
+          <h2>3. Subscriptions, Payments, and Billing</h2>
+
+          <h3>3.1 Subscription Billing</h3>
           <p>
-            Repeated bad-faith cancellations or failure to honor completed transactions may result
-            in account suspension or negative reputation impact.
+            Premium subscriptions are billed on a recurring basis (monthly or annually) through our
+            third-party payment processor, Stripe. By subscribing, you authorize Stripe to charge
+            your selected payment method at the applicable rate. All fees are quoted in U.S. dollars
+            unless otherwise stated.
           </p>
 
-          <h2>5. Prohibited Conduct</h2>
-          <p>You agree not to:</p>
-          <ul>
-            <li>Use the Service for any illegal purpose</li>
-            <li>Post fraudulent listings or engage in bid manipulation</li>
-            <li>Harass, abuse, or harm other users</li>
-            <li>Attempt to circumvent security measures</li>
-            <li>Use automated systems to access the Service without permission</li>
-            <li>Infringe on intellectual property rights</li>
-          </ul>
-
-          <h2>6. Intellectual Property</h2>
+          <h3>3.2 Free Trial</h3>
           <p>
-            The Service, including its design, features, and content created by Collectors Chest, is
-            protected by copyright and other intellectual property laws. Comic book images and
-            information are the property of their respective owners.
+            New users may be eligible for a one-time, 7-day free trial of the Premium tier. You will
+            not be charged during the trial period. If you do not cancel before the trial expires,
+            your subscription will automatically convert to a paid Premium subscription and your
+            payment method will be charged. Only one free trial is permitted per account.
           </p>
 
-          <h2>7. User Content</h2>
+          <h3>3.3 Scan Packs</h3>
           <p>
-            You retain ownership of content you upload (such as collection data and images). By
-            uploading content, you grant us a license to use it to provide and improve the Service.
+            Free and Guest users may purchase additional AI scan credits in packs of 10 scans for
+            $1.99 per pack. Purchased scan credits do not expire and are separate from the monthly
+            allocation provided to Free registered accounts.
           </p>
 
-          <h2>8. Price Estimates Disclaimer</h2>
+          <h3>3.4 Cancellation and Refunds</h3>
           <p>
-            Price estimates provided by Collectors Chest are for informational purposes only and are
-            based on recent eBay sales data and AI analysis. We do not guarantee the accuracy of any
-            price estimate, and actual market values may vary significantly.
+            You may cancel your Premium subscription at any time through the Stripe Customer Portal
+            accessible within your account settings. Upon cancellation, you will retain access to
+            Premium features until the end of your current billing period. No prorated refunds are
+            provided for partial billing periods. Scan pack purchases are non-refundable.
           </p>
 
-          <h2>9. Limitation of Liability</h2>
+          <h3>3.5 Price Changes</h3>
           <p>
-            TO THE MAXIMUM EXTENT PERMITTED BY LAW, COLLECTORS CHEST SHALL NOT BE LIABLE FOR ANY
+            We reserve the right to change subscription pricing at any time. We will provide at
+            least 30 days&apos; notice of any price increase. If you do not agree to the new
+            pricing, you may cancel your subscription before the new rate takes effect.
+          </p>
+
+          <h2>4. Marketplace</h2>
+
+          <h3>4.1 General Marketplace Terms</h3>
+          <p>
+            The Service includes marketplace features that allow registered users to buy, sell, and
+            trade comic books. The Company acts solely as a platform facilitator and is not a party
+            to any transaction between users. We do not take possession of, inspect, authenticate,
+            or guarantee any physical items listed on the marketplace. All transactions are between
+            the buyer and seller (or trading parties) directly.
+          </p>
+
+          <h3>4.2 Fixed-Price Listings</h3>
+          <p>
+            Sellers may create fixed-price listings with a set asking price. Listings may include an
+            &quot;accepts offers&quot; option with an optional minimum offer threshold. Offers and
+            counter-offers are limited to three rounds of negotiation per listing, with each offer or
+            counter-offer expiring after 48 hours if not responded to. Accepted offers follow the
+            standard payment flow. Fixed-price listings auto-expire after 30 days if unsold.
+          </p>
+
+          <h3>4.3 Auction Listings</h3>
+          <p>
+            Sellers may create auction-style listings with a minimum starting price of $0.99 and a
+            duration of 1 to 14 days. Auctions use a proxy bidding system: buyers enter a maximum
+            bid amount, and the system automatically places incremental bids on their behalf. Bid
+            increments are $1.00 for items under $100, $5.00 for items between $100 and $999, and
+            $25.00 for items $1,000 and above. Bidder identities are anonymized (displayed as Bidder
+            1, Bidder 2, etc.). Sellers may optionally set a Buy It Now price, which immediately
+            ends the auction when exercised. A winning bidder has 48 hours to complete payment.
+            Failure to pay within this period may result in account restrictions.
+          </p>
+
+          <h3>4.4 Transaction Fees</h3>
+          <p>
+            The Company charges the following seller transaction fees on completed marketplace sales:
+            8% for Free tier accounts and 5% for Premium tier accounts. Transaction fees are
+            calculated on the total sale amount (excluding shipping) and are deducted from the
+            seller&apos;s payout. Payment processing fees charged by Stripe are separate and in
+            addition to platform transaction fees.
+          </p>
+
+          <h3>4.5 Seller Payouts</h3>
+          <p>
+            Seller payouts for marketplace transactions are processed through Stripe Connect. The
+            timing and method of payouts are subject to Stripe&apos;s terms and policies. We are not
+            responsible for delays in payouts caused by Stripe or by a seller&apos;s failure to
+            properly configure their payout information.
+          </p>
+
+          <h3>4.6 Shipping and Delivery</h3>
+          <p>
+            Buyers and sellers are solely responsible for coordinating shipping, including selecting
+            carriers, providing tracking information, and ensuring adequate packaging and insurance.
+            The Company is not responsible for items that are lost, damaged, or stolen during
+            shipping. Sellers are required to mark items as shipped and provide tracking information
+            within the Platform. Buyers are required to confirm receipt upon delivery.
+          </p>
+
+          <h3>4.7 Trading</h3>
+          <p>
+            Users may mark comics in their collection as available for trade. The Platform provides
+            an algorithm-assisted matching system to identify potential trade partners with mutual
+            interests. Trade proposals require both parties to agree to the proposed exchange. Once a
+            trade is accepted, both parties must provide shipping carrier and tracking information. A
+            trade is considered complete when both parties confirm receipt, at which point comic
+            ownership is transferred in the Platform&apos;s database. Either party may cancel a
+            trade at any time before both parties have shipped. The Company does not guarantee the
+            value, condition, or authenticity of traded items.
+          </p>
+
+          <h3>4.8 Feedback and Ratings</h3>
+          <p>
+            After a completed transaction, buyers may leave a positive or negative rating along with
+            a written comment for the seller. Feedback must comply with our Acceptable Use Policy.
+            The Company reserves the right to remove feedback that violates these Terms or our
+            Acceptable Use Policy.
+          </p>
+
+          <h3>4.9 Listing Cancellation</h3>
+          <p>
+            Auction listings may be cancelled only if no bids have been placed. Fixed-price listings
+            may be cancelled at any time; any pending offers will be automatically rejected upon
+            cancellation.
+          </p>
+
+          <h2>5. AI-Powered Features</h2>
+
+          <h3>5.1 Comic Identification and Analysis</h3>
+          <p>
+            The Service uses artificial intelligence (powered by Anthropic&apos;s Claude API) to
+            identify comic books from user-uploaded photographs. The AI attempts to extract metadata
+            including title, issue number, publisher, release year, variant information, creator
+            credits, grading information, and barcode data. AI-identified information is provided as
+            a starting point and may contain errors. Users are responsible for reviewing and
+            verifying all AI-generated data before saving it to their collection or using it for
+            marketplace purposes.
+          </p>
+
+          <h3>5.2 Pricing Information</h3>
+          <p>
+            The Service provides pricing data sourced from completed eBay sales and, where available,
+            other third-party pricing services. When market data is unavailable, the AI may provide
+            an estimated value with an appropriate disclaimer. All pricing information, whether
+            sourced from market data or AI estimation, is provided for informational purposes only
+            and does not constitute an appraisal, guarantee of value, or recommendation to buy or
+            sell at any particular price. The Company is not liable for decisions made based on
+            pricing information displayed on the Platform.
+          </p>
+
+          <h3>5.3 Image Processing</h3>
+          <p>
+            When you use the AI scan feature, your uploaded image is processed in-memory on our
+            servers and transmitted to Anthropic&apos;s API for analysis. Images are compressed
+            client-side before upload (target approximately 400KB). Images are not permanently stored
+            on our servers. Anthropic does not retain images after processing per their data
+            retention policy. AI analysis results may be cached for up to 30 days (indexed by image
+            hash) to improve performance. No personal user data is transmitted to Anthropic; only
+            the comic book image is sent for analysis.
+          </p>
+
+          <h3>5.4 Content Moderation</h3>
+          <p>
+            The Service uses AI-powered content moderation to review user messages and other
+            user-generated content for compliance with our Acceptable Use Policy. This moderation
+            occurs automatically and is supplemented by manual review when necessary.
+          </p>
+
+          <h3>5.5 Disclaimer of AI Accuracy</h3>
+          <p>
+            AI-generated results, including but not limited to comic identification, grading
+            information, key comic significance, and pricing estimates, are provided on an
+            &quot;as-is&quot; basis without warranty of accuracy or completeness. The Company does
+            not guarantee the correctness of any AI-generated output. You acknowledge that AI
+            technology has inherent limitations and that errors may occur.
+          </p>
+
+          <h2>6. User Content and Conduct</h2>
+
+          <h3>6.1 User-Generated Content</h3>
+          <p>
+            You retain ownership of content you upload to the Service, including comic book
+            photographs, listing descriptions, messages, and feedback comments. By uploading content
+            to the Service, you grant the Company a non-exclusive, worldwide, royalty-free license to
+            use, display, reproduce, and distribute your content solely for the purpose of operating
+            and improving the Service. This license terminates when you delete your content or your
+            account, except where your content has been shared with other users (e.g., marketplace
+            listings, feedback, messages) and reasonably needs to be retained for the integrity of
+            those interactions.
+          </p>
+
+          <h3>6.2 Prohibited Conduct</h3>
+          <p>
+            You agree not to: use the Service for any unlawful purpose; post false, misleading, or
+            fraudulent listings; manipulate bidding through shill bidding or other deceptive
+            practices; harass, threaten, or abuse other users; attempt to circumvent platform fees by
+            conducting transactions outside the Platform for items listed on the Platform; create
+            multiple accounts to abuse free tier benefits, trial periods, or scan allocations; use
+            automated tools, bots, or scripts to access the Service without our written permission;
+            attempt to reverse-engineer, decompile, or otherwise extract the source code of the
+            Service; upload content that infringes on the intellectual property rights of others; or
+            otherwise violate our Acceptable Use Policy.
+          </p>
+
+          <h3>6.3 Enforcement</h3>
+          <p>
+            We reserve the right, at our sole discretion, to remove content, restrict features,
+            suspend, or permanently terminate any account that violates these Terms or our Acceptable
+            Use Policy, with or without notice. In cases of fraud, illegal activity, or severe
+            violations, termination may be immediate.
+          </p>
+
+          <h2>7. Intellectual Property</h2>
+
+          <h3>7.1 Company IP</h3>
+          <p>
+            The Service, including its design, features, code, AI models and integrations,
+            algorithms, trade matching system, curated key comics database, and all related
+            intellectual property, is owned by or licensed to the Company. Nothing in these Terms
+            grants you any right, title, or interest in the Company&apos;s intellectual property
+            except the limited right to use the Service in accordance with these Terms.
+          </p>
+
+          <h3>7.2 Third-Party IP</h3>
+          <p>
+            Comic book titles, cover artwork, character names, publisher names, and related
+            intellectual property displayed on the Platform belong to their respective owners. The
+            Service displays such materials for the purpose of collection management and marketplace
+            transactions. Users are responsible for ensuring that their use of third-party
+            intellectual property through the Service complies with applicable law.
+          </p>
+
+          <h3>7.3 Feedback and Suggestions</h3>
+          <p>
+            Any feedback, suggestions, or ideas you provide regarding the Service may be used by the
+            Company without restriction or compensation to you.
+          </p>
+
+          <h2>8. Disclaimers and Limitation of Liability</h2>
+
+          <h3>8.1 Disclaimer of Warranties</h3>
+          <p>
+            THE SERVICE IS PROVIDED &quot;AS IS&quot; AND &quot;AS AVAILABLE&quot; WITHOUT WARRANTIES
+            OF ANY KIND, WHETHER EXPRESS, IMPLIED, STATUTORY, OR OTHERWISE. TO THE FULLEST EXTENT
+            PERMITTED BY LAW, THE COMPANY DISCLAIMS ALL WARRANTIES, INCLUDING IMPLIED WARRANTIES OF
+            MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, AND NON-INFRINGEMENT. WE DO
+            NOT WARRANT THAT THE SERVICE WILL BE UNINTERRUPTED, ERROR-FREE, SECURE, OR FREE OF
+            VIRUSES OR OTHER HARMFUL COMPONENTS.
+          </p>
+
+          <h3>8.2 Limitation of Liability</h3>
+          <p>
+            TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE COMPANY, ITS OFFICERS,
+            DIRECTORS, MEMBERS, EMPLOYEES, AGENTS, AND AFFILIATES SHALL NOT BE LIABLE FOR ANY
             INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, INCLUDING BUT NOT
-            LIMITED TO LOSS OF PROFITS, DATA, OR GOODWILL, ARISING OUT OF OR IN CONNECTION WITH YOUR
-            USE OF THE SERVICE.
+            LIMITED TO LOSS OF PROFITS, DATA, GOODWILL, OR OTHER INTANGIBLE LOSSES, ARISING OUT OF
+            OR RELATED TO YOUR USE OF OR INABILITY TO USE THE SERVICE, ANY TRANSACTION OR TRADE
+            CONDUCTED THROUGH THE SERVICE, ANY AI-GENERATED CONTENT OR PRICING INFORMATION, OR ANY
+            CONDUCT OF OTHER USERS. OUR TOTAL AGGREGATE LIABILITY FOR ALL CLAIMS ARISING OUT OF OR
+            RELATING TO THESE TERMS OR THE SERVICE SHALL NOT EXCEED THE GREATER OF (A) THE AMOUNT
+            YOU PAID TO US IN THE TWELVE (12) MONTHS PRECEDING THE CLAIM, OR (B) ONE HUNDRED U.S.
+            DOLLARS ($100.00).
           </p>
 
-          <h2>10. Disclaimer of Warranties</h2>
+          <h3>8.3 Marketplace Disclaimer</h3>
           <p>
-            THE SERVICE IS PROVIDED &quot;AS IS&quot; AND &quot;AS AVAILABLE&quot; WITHOUT
-            WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO IMPLIED
-            WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.
+            The Company does not authenticate, inspect, appraise, or guarantee the condition, value,
+            legality, or authenticity of any item listed on the marketplace. We are not responsible
+            for the accuracy of listings, the quality or condition of items, the ability of sellers
+            to complete a sale, or the ability of buyers to pay. Users transact at their own risk.
           </p>
 
-          <h2>11. Indemnification</h2>
+          <h2>9. Indemnification</h2>
           <p>
-            You agree to indemnify and hold harmless Collectors Chest and its affiliates from any
-            claims, damages, or expenses arising from your use of the Service or violation of these
-            Terms.
+            You agree to indemnify, defend, and hold harmless the Company and its officers,
+            directors, members, employees, agents, and affiliates from and against any and all
+            claims, damages, losses, liabilities, costs, and expenses (including reasonable
+            attorneys&apos; fees) arising out of or related to: your use of the Service; your
+            violation of these Terms or any applicable law; your marketplace transactions, trades, or
+            interactions with other users; any content you upload or submit to the Service; or any
+            dispute between you and another user.
           </p>
 
-          <h2>12. Termination</h2>
+          <h2>10. Dispute Resolution</h2>
+
+          <h3>10.1 Between Users</h3>
           <p>
-            We may suspend or terminate your account at any time for violation of these Terms. You
-            may delete your account at any time through your profile settings.
+            The Company does not provide formal dispute resolution services for transactions between
+            users. Buyers and sellers are encouraged to communicate directly to resolve any issues.
+            If you are unable to resolve a dispute, you may seek remedies available to you under
+            applicable law. The Company may, but is not obligated to, assist in facilitating
+            communication between disputing parties.
           </p>
 
-          <h2>13. Changes to Terms</h2>
+          <h3>10.2 Between You and the Company</h3>
           <p>
-            We may modify these Terms at any time. Continued use of the Service after changes
-            constitutes acceptance of the modified Terms.
+            Any dispute, claim, or controversy arising out of or relating to these Terms or the
+            Service shall first be attempted to be resolved through informal negotiation by
+            contacting us at [SUPPORT EMAIL]. If the dispute cannot be resolved informally within 30
+            days, either party may pursue resolution through binding arbitration administered by the
+            American Arbitration Association (AAA) under its Consumer Arbitration Rules, conducted in
+            [STATE/COUNTY]. You agree that any arbitration will be conducted on an individual basis
+            and not as a class, consolidated, or representative action. The arbitrator&apos;s
+            decision shall be final and binding.
           </p>
 
-          <h2>14. Governing Law</h2>
+          <h3>10.3 Exceptions to Arbitration</h3>
           <p>
-            These Terms shall be governed by the laws of the State of California, without regard to
-            its conflict of law provisions.
+            Either party may seek injunctive or other equitable relief in a court of competent
+            jurisdiction to prevent the actual or threatened infringement or misappropriation of
+            intellectual property rights. Small claims court actions are also excluded from the
+            arbitration requirement.
           </p>
 
-          <h2>15. Contact</h2>
-          <p>For questions about these Terms, please contact us at:</p>
-          <ul>
-            <li>Email: legal@collectors-chest.com</li>
-          </ul>
+          <h2>11. Termination</h2>
+          <p>
+            You may terminate your account at any time through the account deletion process provided
+            in the Service. Upon account deletion, all of your data will be permanently removed from
+            our systems, including your profile, collection, marketplace listings, messages, trades,
+            feedback, and follows. Certain transaction records may be retained by our payment
+            processor (Stripe) in accordance with their policies and applicable legal requirements.
+          </p>
+          <p>
+            We may suspend or terminate your account at any time for any reason, including but not
+            limited to violation of these Terms. If your account is terminated by us for cause, you
+            are not entitled to any refund of prepaid subscription fees or purchased scan credits.
+          </p>
 
-          {/* END REPLACEMENT SECTION */}
+          <h2>12. Governing Law</h2>
+          <p>
+            These Terms shall be governed by and construed in accordance with the laws of the
+            Commonwealth of Pennsylvania, without regard to its conflict of law provisions.
+          </p>
+
+          <h2>13. Miscellaneous</h2>
+
+          <h3>13.1 Entire Agreement</h3>
+          <p>
+            These Terms, together with our Privacy Policy, Cookie Policy, and Acceptable Use Policy,
+            constitute the entire agreement between you and the Company regarding your use of the
+            Service.
+          </p>
+
+          <h3>13.2 Severability</h3>
+          <p>
+            If any provision of these Terms is found to be unenforceable or invalid, that provision
+            shall be limited or eliminated to the minimum extent necessary, and the remaining
+            provisions shall remain in full force and effect.
+          </p>
+
+          <h3>13.3 Waiver</h3>
+          <p>
+            The failure of the Company to enforce any right or provision of these Terms shall not
+            constitute a waiver of that right or provision.
+          </p>
+
+          <h3>13.4 Assignment</h3>
+          <p>
+            You may not assign or transfer these Terms or your rights under them without our prior
+            written consent. We may assign our rights and obligations under these Terms without
+            restriction.
+          </p>
+
+          <h3>13.5 Notices</h3>
+          <p>
+            We may provide notices to you via the email address associated with your account or
+            through the Platform. You are responsible for keeping your email address current.
+          </p>
+
+          <h3>13.6 Contact Information</h3>
+          <p>
+            If you have any questions about these Terms, please contact us at:
+          </p>
+          <p>
+            [LEGAL BUSINESS NAME]
+            <br />
+            [ADDRESS]
+            <br />
+            [SUPPORT EMAIL]
+            <br />
+            Website: collectors-chest.com
+          </p>
         </div>
       </div>
 
@@ -193,6 +498,14 @@ export default function TermsOfServicePage() {
       <div className="container mx-auto px-4 py-8 text-center text-gray-500 text-sm">
         <Link href="/privacy" className="hover:text-gray-700">
           Privacy Policy
+        </Link>
+        <span className="mx-2">|</span>
+        <Link href="/acceptable-use" className="hover:text-gray-700">
+          Acceptable Use
+        </Link>
+        <span className="mx-2">|</span>
+        <Link href="/cookies" className="hover:text-gray-700">
+          Cookies
         </Link>
         <span className="mx-2">|</span>
         <Link href="/" className="hover:text-gray-700">

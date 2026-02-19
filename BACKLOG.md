@@ -141,6 +141,42 @@ Configure webhook at `https://collectors-chest.com/api/webhooks/stripe` for even
 
 ---
 
+### Finalize Legal Pages (Placeholder Replacement)
+**Priority:** Critical
+**Status:** Pending (Blocked by LLC Formation + Stripe Setup)
+**Added:** Feb 18, 2026
+
+All four legal pages (Terms of Service, Privacy Policy, Acceptable Use Policy, Cookie & Tracking Policy) are deployed with placeholder fields that must be updated once the business is formed and Stripe is configured.
+
+**Placeholders to Replace:**
+
+| Placeholder | Replace With | Source |
+|-------------|-------------|--------|
+| `[LEGAL BUSINESS NAME]` | LLC name | LLC filing |
+| `[ADDRESS]` | Business address | LLC filing |
+| `[SUPPORT EMAIL]` | Support email (e.g., support@collectors-chest.com) | Create email alias |
+| `[DATE]` | Effective date (launch day or when finalized) | Set at launch |
+| `[STATE]` | State of LLC incorporation | LLC filing |
+| `[STATE/COUNTY]` | Arbitration venue (state + county) | LLC filing |
+
+**Pages to Update:**
+- `/privacy` - Privacy Policy
+- `/terms` - Terms of Service
+- `/acceptable-use` - Acceptable Use Policy
+- `/cookies` - Cookie & Tracking Policy
+
+**Additional Steps:**
+1. Replace all placeholders across all 4 pages
+2. Set the effective date to the day of public launch
+3. Implement the 3-listing cap enforcement for free users (referenced in ToS but not yet in code)
+4. Set up Stripe Connect and verify seller payout flow described in ToS Section 4.5
+5. Consider attorney review once revenue allows (cheaper to review/refine than draft from scratch)
+6. Add age verification gate for marketplace (18+ requirement referenced in ToS Section 1)
+
+**Blocks:** LLC formation, Stripe account setup, Stripe Connect configuration
+
+---
+
 ### Free Trial Not Working
 **Priority:** High
 **Status:** ✅ Complete (Jan 24, 2026)
