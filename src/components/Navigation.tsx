@@ -34,6 +34,7 @@ import { supabase } from "@/lib/supabase";
 
 import { useSubscription } from "@/hooks/useSubscription";
 
+import AdminAlertBadge from "@/components/AdminAlertBadge";
 import { NotificationBell } from "./NotificationBell";
 import { ChestIcon } from "./icons/ChestIcon";
 
@@ -363,6 +364,7 @@ export function Navigation() {
                       >
                         <Shield className="w-5 h-5" />
                         <span className="font-comic text-sm tracking-wide">ADMIN</span>
+                        <AdminAlertBadge variant="count" />
                       </Link>
                     )}
                   </div>
