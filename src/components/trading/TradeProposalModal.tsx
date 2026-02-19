@@ -6,6 +6,10 @@ import Image from "next/image";
 
 import { ArrowLeftRight, Check, Loader2, X } from "lucide-react";
 
+import { isAgeVerificationError } from "@/lib/ageVerification";
+
+import AgeVerificationModal from "@/components/AgeVerificationModal";
+
 interface Comic {
   id: string;
   title: string;
@@ -40,6 +44,7 @@ export function TradeProposalModal({
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showAgeGate, setShowAgeGate] = useState(false);
 
   // Load comics when modal opens
   useEffect(() => {
@@ -121,6 +126,10 @@ export function TradeProposalModal({
         setSelectedTheirComics([]);
       } else {
         const data = await response.json();
+        if (isAgeVerificationError(data)) {
+          setShowAgeGate(true);
+          return;
+        }
         setError(data.error || "Failed to create trade");
       }
     } catch {
@@ -237,6 +246,17 @@ export function TradeProposalModal({
           </button>
         </div>
       </div>
+
+      {showAgeGate && (
+        <AgeVerificationModal
+          action="propose a trade"
+          onVerified={() => {
+            setShowAgeGate(false);
+            handleSubmit();
+          }}
+          onDismiss={() => setShowAgeGate(false)}
+        />
+      )}
     </div>
   );
 }
