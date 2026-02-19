@@ -18,6 +18,7 @@ import { getComicMetadata, getProfileByClerkId, saveComicMetadata } from "@/lib/
 import { isFindingApiConfigured, lookupEbaySoldPrices } from "@/lib/ebayFinding";
 import { ComicMetadata, mergeMetadataIntoDetails, buildMetadataSavePayload } from "@/lib/metadataCache";
 import { lookupKeyInfo } from "@/lib/keyComicsDatabase";
+import { estimateScanCostCents, trackScanServer } from "@/lib/analyticsServer";
 import { MODEL_PRIMARY } from "@/lib/models";
 import { checkRateLimit, getRateLimitIdentifier, rateLimiters } from "@/lib/rateLimit";
 import {
@@ -116,6 +117,7 @@ function parseBarcode(barcodeRaw: string): ParsedBarcode | null {
 export async function POST(request: NextRequest) {
   // Track profile for scan counting at the end
   let profileId: string | null = null;
+  let subscriptionTier: string = "free";
 
   try {
     // Rate limit check - protect expensive AI endpoint
@@ -152,6 +154,7 @@ export async function POST(request: NextRequest) {
       const profile = await getProfileByClerkId(userId);
       if (profile) {
         profileId = profile.id;
+        subscriptionTier = profile.subscription_tier || "free";
         const canScan = await canUserScan(profile.id);
 
         if (!canScan) {
@@ -218,6 +221,13 @@ export async function POST(request: NextRequest) {
 
     // Remove data URL prefix if present
     const base64Data = image.replace(/^data:image\/\w+;base64,/, "");
+
+    // ============================================
+    // Scan Tracking Variables (for PostHog analytics)
+    // ============================================
+    const scanStartTime = Date.now();
+    let aiCallsMade = 0;
+    let ebayLookupMade = false;
 
     // ============================================
     // Image Hash Caching (Phase 2 optimization)
@@ -330,6 +340,7 @@ Important:
           },
         ],
       });
+      aiCallsMade++;
 
       // Extract the text content from the response
       const textContent = response.content.find((block) => block.type === "text");
@@ -708,6 +719,7 @@ Rules:
             },
           ],
         });
+        aiCallsMade++;
 
         const verifyTextContent = verifyResponse.content.find((block) => block.type === "text");
         if (verifyTextContent && verifyTextContent.type === "text") {
@@ -788,6 +800,7 @@ Rules:
               isSlabbed,
               comicDetails.gradingCompany || undefined
             );
+            ebayLookupMade = true;
 
             if (ebayPriceData && ebayPriceData.estimatedValue) {
               comicDetails.priceData = {
@@ -1012,6 +1025,34 @@ Important:
         cacheSet(metaSaveKey, savePayload, "comicMetadata"),
       ]).catch((err) => {
         console.error("Metadata cache save failed:", err);
+      });
+    }
+
+    // ============================================
+    // Server-Side Analytics (fire-and-forget)
+    // ============================================
+    const scanDuration = Date.now() - scanStartTime;
+    const costCents = estimateScanCostCents({
+      metadataCacheHit,
+      aiCallsMade,
+      ebayLookup: ebayLookupMade,
+    });
+
+    if (profileId) {
+      trackScanServer(profileId, {
+        scanMethod: "camera",
+        metadataCacheHit,
+        redisCacheHit: false,
+        supabaseCacheHit: false,
+        aiCallsMade,
+        ebayLookup: ebayLookupMade,
+        durationMs: scanDuration,
+        estimatedCostCents: costCents,
+        success: true,
+        userId: profileId,
+        subscriptionTier,
+      }).catch((err) => {
+        console.error("PostHog tracking failed:", err);
       });
     }
 
