@@ -8,7 +8,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 export async function GET(req: NextRequest) {
   const accountId = req.nextUrl.searchParams.get("account_id");
   if (!accountId) {
-    return NextResponse.redirect(new URL("/settings?connect=error", req.url));
+    return NextResponse.redirect(new URL("/profile?connect=error", req.url));
   }
 
   try {
@@ -24,6 +24,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(accountLink.url);
   } catch (error) {
     console.error("Onboarding refresh error:", error);
-    return NextResponse.redirect(new URL("/settings?connect=error", req.url));
+    return NextResponse.redirect(new URL("/profile?connect=error", req.url));
   }
 }

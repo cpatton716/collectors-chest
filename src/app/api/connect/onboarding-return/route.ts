@@ -9,7 +9,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 export async function GET(req: NextRequest) {
   const accountId = req.nextUrl.searchParams.get("account_id");
   if (!accountId) {
-    return NextResponse.redirect(new URL("/settings?connect=error", req.url));
+    return NextResponse.redirect(new URL("/profile?connect=error", req.url));
   }
 
   try {
@@ -23,10 +23,10 @@ export async function GET(req: NextRequest) {
 
     const status = isComplete ? "success" : "incomplete";
     return NextResponse.redirect(
-      new URL(`/settings?connect=${status}`, req.url)
+      new URL(`/profile?connect=${status}`, req.url)
     );
   } catch (error) {
     console.error("Onboarding return error:", error);
-    return NextResponse.redirect(new URL("/settings?connect=error", req.url));
+    return NextResponse.redirect(new URL("/profile?connect=error", req.url));
   }
 }
