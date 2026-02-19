@@ -2,11 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabase";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2025-12-15.clover",
-});
+const stripe = process.env.STRIPE_SECRET_KEY
+  ? new Stripe(process.env.STRIPE_SECRET_KEY, {
+      apiVersion: "2025-12-15.clover",
+    })
+  : null;
 
 export async function GET(req: NextRequest) {
+  if (!stripe) {
+    return NextResponse.redirect(new URL("/profile?connect=error", req.url));
+  }
+
   const accountId = req.nextUrl.searchParams.get("account_id");
   if (!accountId) {
     return NextResponse.redirect(new URL("/profile?connect=error", req.url));
