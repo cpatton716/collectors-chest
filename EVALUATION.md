@@ -52,7 +52,8 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 | Terms of Service page | ⏳ Content ready | Full content written; placeholders need LLC info |
 | Acceptable Use Policy page | ⏳ Content ready | Full content written; placeholders need LLC info |
 | Cookie & Tracking Policy page | ⏳ Content ready | Full content written; placeholders need LLC info |
-| Premium subscription billing | ⏳ Code complete | Waiting on Stripe account setup (includes Connect for seller payouts) |
+| Premium subscription billing | ⏳ Code complete | Waiting on Stripe account setup |
+| Stripe Connect for seller payouts | ⏳ Code complete | Enable Connect in Stripe dashboard, configure Express accounts |
 | Age gate (18+) for marketplace | ❌ Missing | Buying, selling, bidding, and trading require users to be 18+. Enforce at account level or marketplace entry. |
 | Re-enable Clerk bot protection | ✅ Done | Re-enabled Jan 13, 2026 |
 
@@ -61,7 +62,8 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 | Item | Status | Notes |
 |------|--------|-------|
 | Connect waitlist to Resend | ✅ Done | API route created, connected to Resend Contacts |
-| Test payment flows end-to-end | ❌ Untested | Auction bids, Buy Now, Stripe Connect seller payouts, subscription billing |
+| Test payment flows end-to-end | ❌ Untested | Auction bids, Buy Now, subscription billing |
+| Test Stripe Connect seller flow | ❌ Untested | Seller onboarding, sandbox purchase, verify fee split, test payout to seller bank |
 | Database backup strategy | ⚠️ Planned | **Upgrade to Supabase Pro ($25/mo) before opening registration** - daily backups + 7-day retention |
 | Rate limit on registered user scans | ✅ Done | Free: 10/month, Premium: unlimited |
 
@@ -71,7 +73,7 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 |------|--------|-------|
 | Enable live Hottest Books API | ⚠️ Static | `USE_STATIC_LIST = true` in production |
 | Verify Resend DNS | ✅ Done | Verified Jan 15, 2026 |
-| Cost monitoring alerts | ❌ Missing | Alert on unusual AI usage |
+| Cost monitoring alerts | ✅ Done | Metadata cache, admin alert badge, PostHog instrumentation (Feb 19, 2026) |
 | Remove waitlist API debug info | ✅ Done | Removed debug object from error responses |
 
 ---
@@ -458,13 +460,13 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 **Session 6 Progress:** 17 Tested, 2 Completed — Needs Testing, 1 Pinned, 1 Closed
 
 ✅ Tested: #1, #3, #4, #5, #8, #9, #10, #11, #12, #13, #14, #16, #18, #19, #21
-✅ Completed — Needs Testing: #6 (key info notifications), #7 (reputation updates)
+✅ Completed & Verified: #6 (key info notifications), #7 (reputation updates)
 ✅ Completed & Verified: #17 (real-time messaging — migrated to Broadcast), #20 (notification icon — supabaseAdmin fix)
 📌 Pinned: #2 (wrong covers — needs specific examples)
 ✅ Closed: #15 (trial button believed working)
 
 **Remaining work:**
-- **Test #6 & #7**: Key info approval notifications and reputation increment
+- ✅ **#6 & #7 verified** (Feb 19): Key info approval notifications and reputation increment — both passing
 - **Investigation needed**: Wrong cover images (#2 — needs specific examples from user)
 
 ### 🟠 Feb 10 Mobile Testing Feedback (14 items — all resolved)
@@ -506,9 +508,10 @@ Items addressed:
 
 ### 🟡 Next Session Focus
 
-1. **Reactivate Sentry Error Tracking**
-   - Evaluate current Sentry setup and ensure it's capturing errors in production
-   - Verify error reporting is working end-to-end
+1. **Reactivate Sentry Error Tracking** ✅ Complete
+   - Reactivated on free Developer plan (5K errors/month)
+   - Added SENTRY_DSN + NEXT_PUBLIC_SENTRY_DSN to Netlify environment variables
+   - Verified error reporting is working end-to-end
 
 2. **GoCollect API Integration** ⏸️ BLOCKED
    - ✅ API token created (Jan 27)
@@ -527,9 +530,10 @@ Items addressed:
    - Extend the Ask the Professor concept to other areas of the app
    - Consistent branding for AI-powered features
 
-5. **Pre-seed Barcode Database**
-   - Build out barcode lookup database for faster scans
-   - Reduce reliance on AI calls for common comics
+5. **Configure PostHog Dashboard with Scan Cost Insights and Email Alerts**
+   - Set up PostHog dashboard with scan cost metrics (cost per scan, daily/weekly spend)
+   - Configure email alerts for spending thresholds
+   - Visualize cache hit rates and AI call patterns
 
 ### ✅ Previously Completed Focus Items
 
@@ -553,11 +557,30 @@ Items addressed:
    - ✅ /trades page with Matches, Active, History tabs
    - ✅ Trades link in navigation
 
-### Post-Launch
-- Price alerts
-- Pull lists
-- Sales trend graphs
-- Shipping integration
+### Post-Launch Revisit Items
+
+> Consolidated list of features and improvements deferred to post-launch. Review after initial traction.
+
+| # | Item | Category | Notes |
+|---|------|----------|-------|
+| 1 | PayPal/Venmo payment options | Payments | Revisit if users request alternative payment methods |
+| 2 | Price alerts | Feature | Key Collector differentiator — notify when values spike/drop |
+| 3 | Pull lists | Feature | Series tracking with auto-add for new issues |
+| 4 | Sales trend graphs | Feature | CovrPrice-style visual price history |
+| 5 | Shipping integration (EasyPost) | Marketplace | Label generation, tracking numbers |
+| 6 | Dispute/refund workflow | Marketplace | Buyer protection for bad transactions |
+| 7 | Auction sniping protection | Marketplace | Auto-extend on last-minute bids |
+| 8 | Demo mode for guests | Onboarding | Explore app with sample data before scanning |
+| 9 | Social proof / testimonials | Marketing | User reviews on homepage |
+| 10 | Native mobile apps (iOS/Android) | Platform | Capacitor or React Native wrapper — needs developer accounts post-LLC |
+| 11 | Dedicated barcode scanning | Feature | Re-enable when barcode catalog reaches 5,000+ verified entries |
+| 12 | Dynamsoft Barcode Reader SDK | Feature | Evaluate if html5-qrcode proves unreliable at scale |
+| 13 | Customizable initial message | Messaging | Let users edit "I'm interested" default when messaging sellers |
+| 14 | Professor persona expansion | UX | Tips, empty states, loading messages throughout app |
+| 15 | Expand to all collectibles | Platform | Funko Pops, sports cards, trading cards, etc. |
+| 16 | Custom email templates (Clerk) | Branding | Match email formatting to Collectors Chest design |
+| 17 | Copy polish pass | UX | Comprehensive review of all user-facing text |
+| 18 | Search by creative team | Feature | Requires Marvel API integration |
 
 ---
 

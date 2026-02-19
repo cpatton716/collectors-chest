@@ -194,11 +194,48 @@ Fixed free trial functionality to work without Stripe configuration.
 
 ---
 
+### Cost Monitoring & API Optimization
+**Priority:** High
+**Status:** ✅ Complete (Feb 19, 2026)
+
+Three-layer cost monitoring and API spend reduction system.
+
+**Layer 1 — Metadata Cache (cost reduction):**
+- Dual-layer cache (Redis 7-day + Supabase permanent) in analyze route
+- Wired existing `comic_metadata` table + `cache.ts` infrastructure (previously unused)
+- Fill-only merge: cached values populate empty fields, never overwrite AI results
+- Estimated 40-60% reduction in Anthropic API calls for repeat scans
+
+**Layer 2 — Admin Alert Badge (in-app visibility):**
+- Lightweight `GET /api/admin/usage/alert-status` endpoint with 5-min Redis cache
+- `AdminAlertBadge` component with dot/count variants (60s polling)
+- Wired into admin layout (Usage tab), desktop nav, and mobile nav
+
+**Layer 3 — Server-Side PostHog (passive monitoring):**
+- Installed `posthog-node` for serverless-optimized server-side tracking
+- `analyticsServer.ts` with `trackScanServer()` + `estimateScanCostCents()`
+- Instrumented analyze route with timing, AI call counting, cache hit tracking, cost estimation
+- PostHog dashboard + email alerts configured manually post-implementation
+
+**Additional:** Set Anthropic dashboard monthly spending cap ($100)
+
+**Files Created:**
+- `src/lib/metadataCache.ts`, `src/lib/alertBadgeHelpers.ts`, `src/lib/analyticsServer.ts`
+- `src/components/AdminAlertBadge.tsx`
+- `src/app/api/admin/usage/alert-status/route.ts`
+- Tests: `metadataCache.test.ts`, `alertBadgeHelpers.test.ts`, `analyticsServer.test.ts` (18 new tests)
+
+**Files Modified:**
+- `src/app/api/analyze/route.ts` — cache lookup, save, PostHog instrumentation
+- `src/app/admin/layout.tsx`, `src/components/Navigation.tsx`, `src/components/MobileNav.tsx` — badge wiring
+
+---
+
 ### Reactivate Sentry Error Tracking
 **Priority:** High
-**Status:** Pending
+**Status:** ✅ Complete (Feb 19, 2026)
 
-Trial expired. Need to set up Sentry free tier (or paid) before public launch for error visibility.
+Reactivated on free Developer plan (5K errors/month). Added SENTRY_DSN and NEXT_PUBLIC_SENTRY_DSN to Netlify environment variables.
 
 **What Sentry Provides:**
 - Error tracking and alerts
@@ -208,20 +245,7 @@ Trial expired. Need to set up Sentry free tier (or paid) before public launch fo
 **Current State:**
 - Sentry is integrated and configured in codebase
 - Only enabled in production (`NODE_ENV === "production"`)
-- Trial expired - errors likely not being captured
-
-**Options:**
-
-| Tier | Cost | Limits |
-|------|------|--------|
-| Free | $0 | 5K errors/mo |
-| Team | $26/mo | 50K errors/mo |
-
-**Action Required:**
-1. Log into Sentry dashboard
-2. Select free tier or upgrade
-3. Verify `SENTRY_DSN` env var is still valid in Netlify
-4. Test that errors are being captured
+- Active on free Developer plan (5K errors/month)
 
 **Files:**
 - `sentry.client.config.ts`
@@ -353,7 +377,7 @@ Allow users to customize the initial message when starting a conversation via th
 
 ### Evaluate Dynamsoft Barcode Reader SDK
 **Priority:** Low
-**Status:** Pending
+**Status:** ✅ Closed (Feb 19, 2026) — Premature until barcode catalog reaches 5,000+ verified entries. Revisit post-launch.
 **Added:** Feb 4, 2026
 
 Evaluate upgrading from html5-qrcode to Dynamsoft Barcode Reader for more reliable barcode scanning, especially for UPC/EAN supplemental (add-on) codes.
@@ -377,40 +401,13 @@ Evaluate upgrading from html5-qrcode to Dynamsoft Barcode Reader for more reliab
 
 ### Pre-Seed Barcode Database
 **Priority:** Medium
-**Status:** Pending
+**Status:** ✅ Closed (Feb 19, 2026) — External APIs are not viable. Moving forward with proprietary crowd-sourced catalog.
 **Added:** Feb 4, 2026
 
-Pre-populate the barcode cache with UPC codes from popular/valuable comics to enable instant lookups without hitting Comic Vine API.
+**Why Closed:**
+No reliable external UPC-to-comic API exists. Comic Vine returns 1.1M wildcard results instead of exact matches. Metron.cloud was unreliable (server down). comiccover.org offline. UPCitemdb has zero comic data. Pre-seeding from external sources is a dead end.
 
-**Potential Data Sources:**
-1. **Comic Vine API bulk export** - Query their API for top series and cache all UPCs
-2. **User collection mining** - When users add comics manually, store any barcode data
-3. **GoCollect integration** - If their API provides UPCs, cache during price lookups
-4. **Community contribution** - Let users submit barcode → comic mappings
-5. **Web scraping** - Scrape UPC lists from comic databases (check ToS)
-
-**Implementation Ideas:**
-- Create a seed script that queries Comic Vine for top 1000 series
-- For each series, get all issues with UPCs
-- Store in Redis with 1-year TTL (or permanent in Supabase)
-- Run as one-time migration or scheduled job
-
-**Considerations:**
-- Comic Vine API rate limits (may need to spread over multiple days)
-- Storage costs for large dataset
-- Cache invalidation strategy (comic data rarely changes)
-- Could store in Supabase `comic_metadata` table instead of Redis for permanence
-
-**Estimated Impact:**
-- Pre-seeding top 5,000 comics would cover ~80% of scans
-- Instant lookups vs 500ms+ API calls
-- Reduced Comic Vine API usage
-
-**Chosen Approach:** Comic Vine bulk query over multiple days
-- Create seed script to query top series (Marvel, DC, Image, Dark Horse, etc.)
-- Respect rate limits by spreading queries over 3-5 days
-- Store results in Redis barcode cache with long TTL
-- Run as background job or manual script
+**Current Approach:** Proprietary barcode catalog built from user scans. Claude extracts barcodes during cover analysis, stores in `barcode_catalog` table with confidence scoring and admin review. Dedicated barcode scanner will be re-enabled once catalog reaches 5,000+ verified entries. See "Re-introduce Dedicated Barcode Scanning" backlog item for re-enablement criteria.
 
 ---
 

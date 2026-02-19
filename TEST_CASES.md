@@ -1074,4 +1074,25 @@ If you encounter bugs or unexpected behavior:
 | Click notification | Click on the approval notification | Marks notification as read |
 | Mark all as read | Click "Mark all as read" | Badge clears |
 
-*Last Updated: February 18, 2026*
+### Age Gate (18+ Verification) (Feb 19, 2026)
+
+| Test Case | Steps | Expected Result |
+|-----------|-------|-----------------|
+| Age modal on list | Attempt to create a listing without age confirmation | Age verification modal appears with pop-art styling |
+| Age modal on bid | Attempt to place a bid without age confirmation | Age verification modal appears |
+| Age modal on buy | Attempt to buy now without age confirmation | Age verification modal appears |
+| Age modal on trade | Attempt to propose a trade without age confirmation | Age verification modal appears |
+| Confirm age dismisses modal | Click "I confirm I am 18+" in modal | Modal dismisses and retries the original action |
+| Dismiss modal prevents action | Click "Cancel" or close the age verification modal | Action is prevented, user stays on current page |
+| Age-verified user bypasses | Complete age verification once, then attempt marketplace actions | No further age prompts; marketplace actions proceed normally |
+
+### Cost Monitoring (Feb 19, 2026)
+
+| Test Case | Steps | Expected Result |
+|-----------|-------|-----------------|
+| Admin alert badge appears | As admin, trigger usage above threshold | Alert badge appears on Usage tab (dot) and Admin nav link (count) |
+| Alert badge on Usage tab | As admin, navigate to Admin dashboard | Dot-style alert badge visible on Usage tab when thresholds exceeded |
+| Alert badge on Admin nav | As admin, view desktop/mobile nav | Count-style alert badge visible on Admin link when thresholds exceeded |
+| Non-admin no badge | As non-admin user, view navigation | No alert badges visible anywhere |
+
+*Last Updated: February 19, 2026*

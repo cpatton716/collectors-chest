@@ -6,29 +6,52 @@ This log tracks session-by-session progress on Collectors Chest.
 
 ## Changes Since Last Deploy
 
-**Sessions since last deploy:** 3
-**Deploy Readiness:** Ready
-**Last Deploy:** February 10, 2026
+**Sessions since last deploy:** 0
+**Deploy Readiness:** N/A (just deployed)
+**Last Deploy:** February 19, 2026
 
 ### Changes:
-- Admin key info management: custom key info sandboxing, CRUD for key_comics database, unified review tab
-- Fixed custom key info not saving on comic updates
-- Fixed admin key info stats combining both submission sources
-- Fixed messagingDb type error in content check fallback
-- Full legal pages: Terms of Service, Privacy Policy, Acceptable Use Policy, Cookie & Tracking Policy
-- Added Stripe Connect references to EVALUATION.md and clipboard brief for Claude Chat
-- Added 18+ age gate requirement to EVALUATION.md critical items
-- Added "Finalize Legal Pages" backlog item with placeholder replacement checklist
-- Real-time messaging migrated to Supabase Broadcast (instant messages, nav badge updates)
-- Notifications fixed (supabaseAdmin for all read functions)
-- Per-item approve/reject for custom key info with color-coded buttons
-- Search optimization: abbreviation expansion, batch CSV imports, popularity suggestions
-- New site icons (blue comic-style chest replacing old brown chest)
-- Ask the Professor FAQ expanded to 20 questions with font fix
-- "More" dropdown active state bug fix
-- Deprecated model IDs fixed (centralized in models.ts)
-- DB constraint fix for partially_approved status
-- 18 new unit tests (248 total)
+*(None yet — just deployed)*
+
+---
+
+## Feb 19, 2026 - Session 2 (Cost Monitoring, Age Gate, Sentry, Deploy)
+
+### Summary
+- Implemented 18+ age gate with just-in-time marketplace gating (8 tasks)
+- Built 3-layer cost monitoring system: metadata cache, admin alert badge, PostHog server-side instrumentation (8 tasks)
+- Updated EVALUATION.md with Post-Launch Revisit section (18 items)
+- Closed Dynamsoft SDK backlog item
+- Reactivated Sentry error tracking (added SENTRY_DSN + NEXT_PUBLIC_SENTRY_DSN to Netlify)
+- Set Anthropic dashboard spending cap ($100/month)
+- Deployed to production
+
+### Key Files Added
+- `src/lib/metadataCache.ts` — fill-only merge helper for metadata cache
+- `src/lib/alertBadgeHelpers.ts` — badge color mapping
+- `src/lib/analyticsServer.ts` — server-side PostHog with cost estimation
+- `src/components/AdminAlertBadge.tsx` — dot/count alert badge variants
+- `src/app/api/admin/usage/alert-status/route.ts` — lightweight polling endpoint
+- `src/components/AgeVerificationModal.tsx` — pop-art age verification modal
+- `src/lib/ageVerification.ts` — age gate helpers
+- `src/app/api/age-verification/route.ts` — age verification API
+- `supabase/migrations/20260219_add_age_confirmed_at.sql` — age gate migration
+- `docs/plans/2026-02-19-cost-monitoring-api-optimization.md` — implementation plan
+
+### Key Files Modified
+- `src/app/api/analyze/route.ts` — dual-layer metadata cache + PostHog instrumentation
+- `src/app/admin/layout.tsx`, `Navigation.tsx`, `MobileNav.tsx` — alert badge wiring
+- 5 marketplace API routes — age verification gate (403 AGE_VERIFICATION_REQUIRED)
+- 7 UI components — age verification modal integration
+- `src/app/my-auctions/page.tsx` — listing cap UI badge
+
+### Issues Encountered
+- None — all 16 tasks (8 age gate + 8 cost monitoring) completed cleanly
+
+### Deploy
+- Deployed to Netlify (pushed to main)
+- Added SENTRY_DSN + NEXT_PUBLIC_SENTRY_DSN to Netlify env vars
+- Sentry now active on free Developer plan (5K errors/month)
 
 ---
 
