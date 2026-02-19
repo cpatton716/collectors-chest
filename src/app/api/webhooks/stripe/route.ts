@@ -13,7 +13,7 @@ import {
   updateSubscriptionStatus,
   upgradeToPremium,
 } from "@/lib/subscription";
-import { supabase } from "@/lib/supabase";
+import { supabase, supabaseAdmin } from "@/lib/supabase";
 
 // Initialize Stripe (conditionally)
 const stripe = process.env.STRIPE_SECRET_KEY
@@ -105,6 +105,21 @@ export async function POST(request: NextRequest) {
       case "invoice.payment_failed": {
         const invoice = event.data.object as Stripe.Invoice;
         await handleInvoicePaymentFailed(invoice);
+        break;
+      }
+
+      // ============================================
+      // Connect Account Events
+      // ============================================
+      case "account.updated": {
+        const account = event.data.object as Stripe.Account;
+        const isComplete = account.charges_enabled && account.details_submitted;
+
+        await supabaseAdmin
+          .from("profiles")
+          .update({ stripe_connect_onboarding_complete: isComplete })
+          .eq("stripe_connect_account_id", account.id);
+
         break;
       }
 
@@ -213,6 +228,11 @@ async function handleAuctionPayment(metadata: Record<string, string>) {
 
   // Request rating from buyer
   await createNotification(buyerId, "rating_request", auctionId);
+
+  // Increment seller's completed sales count
+  await supabaseAdmin.rpc("increment_completed_sales", {
+    profile_id: sellerId,
+  });
 }
 
 // ============================================
