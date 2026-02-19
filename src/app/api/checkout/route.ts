@@ -6,6 +6,8 @@ import Stripe from "stripe";
 
 import { getAuction } from "@/lib/auctionDb";
 import { getProfileByClerkId } from "@/lib/db";
+import { supabaseAdmin } from "@/lib/supabase";
+import { calculateDestinationAmount } from "@/lib/stripeConnect";
 
 // Initialize Stripe (conditionally - only if key exists)
 const stripe = process.env.STRIPE_SECRET_KEY
@@ -58,8 +60,34 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "This auction is not awaiting payment" }, { status: 400 });
     }
 
+    // Fetch seller's Connect account
+    const { data: sellerProfile } = await supabaseAdmin
+      .from("profiles")
+      .select("stripe_connect_account_id, stripe_connect_onboarding_complete")
+      .eq("id", auction.sellerId)
+      .single();
+
+    if (!sellerProfile?.stripe_connect_account_id || !sellerProfile.stripe_connect_onboarding_complete) {
+      return NextResponse.json(
+        { error: "Seller has not completed payment setup" },
+        { status: 400 }
+      );
+    }
+
+    // Fetch platform fee percent from the auction row
+    const { data: auctionRow } = await supabaseAdmin
+      .from("auctions")
+      .select("platform_fee_percent")
+      .eq("id", auctionId)
+      .single();
+
     // Calculate total (winning bid + shipping)
     const total = (auction.winningBid || 0) + (auction.shippingCost || 0);
+    const totalCents = Math.round(total * 100);
+    const { sellerAmount } = calculateDestinationAmount(
+      totalCents,
+      auctionRow?.platform_fee_percent || 8
+    );
 
     // Create Stripe checkout session
     const session = await stripe.checkout.sessions.create({
@@ -79,6 +107,12 @@ export async function POST(request: NextRequest) {
         },
       ],
       mode: "payment",
+      payment_intent_data: {
+        transfer_data: {
+          destination: sellerProfile.stripe_connect_account_id,
+          amount: sellerAmount,
+        },
+      },
       success_url: `${process.env.NEXT_PUBLIC_APP_URL}/my-auctions?payment=success&auction=${auctionId}`,
       cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/my-auctions?payment=cancelled&auction=${auctionId}`,
       metadata: {

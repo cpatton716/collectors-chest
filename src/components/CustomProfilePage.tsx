@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import Image from "next/image";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 import { useClerk, useUser } from "@clerk/nextjs";
 
@@ -25,6 +26,7 @@ import {
   Monitor,
   Shield,
   Smartphone,
+  Store,
   Trash2,
   User,
   X,
@@ -59,6 +61,15 @@ interface UsernameAvailability {
   available: boolean;
   error?: string;
   display?: string;
+}
+
+// Connect status state
+interface ConnectStatus {
+  connected: boolean;
+  onboardingComplete: boolean;
+  chargesEnabled?: boolean;
+  payoutsEnabled?: boolean;
+  completedSales: number;
 }
 
 export function CustomProfilePage() {
@@ -139,6 +150,11 @@ export function CustomProfilePage() {
     openBillingPortal,
     isLoading: isSubscriptionLoading,
   } = useSubscription();
+
+  // Connect status state
+  const searchParams = useSearchParams();
+  const [connectStatus, setConnectStatus] = useState<ConnectStatus | null>(null);
+  const [connectBanner, setConnectBanner] = useState<"success" | "incomplete" | "error" | null>(null);
 
   // Initialize user data
   useEffect(() => {
@@ -263,6 +279,42 @@ export function CustomProfilePage() {
     }
     checkAvailability();
   }, [debouncedUsername, originalUsername]);
+
+  // Fetch Connect status on mount
+  useEffect(() => {
+    async function fetchConnectStatus() {
+      try {
+        const res = await fetch("/api/connect/status");
+        if (res.ok) {
+          const data: ConnectStatus = await res.json();
+          setConnectStatus(data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch connect status:", error);
+      }
+    }
+    fetchConnectStatus();
+  }, []);
+
+  // Handle ?connect= query param from onboarding return
+  useEffect(() => {
+    const connectParam = searchParams.get("connect");
+    if (connectParam === "success" || connectParam === "incomplete" || connectParam === "error") {
+      setConnectBanner(connectParam);
+      setActiveTab("billing");
+      // Clear the query param from URL without navigation
+      const url = new URL(window.location.href);
+      url.searchParams.delete("connect");
+      window.history.replaceState({}, "", url.toString());
+      // Auto-dismiss after 8 seconds
+      setTimeout(() => setConnectBanner(null), 8000);
+      // Refresh connect status
+      fetch("/api/connect/status")
+        .then((res) => res.ok ? res.json() : null)
+        .then((data) => { if (data) setConnectStatus(data); })
+        .catch(() => {});
+    }
+  }, [searchParams]);
 
   // Load sessions when security tab is active
   useEffect(() => {
@@ -437,6 +489,37 @@ export function CustomProfilePage() {
       console.error("Failed to revoke session:", error);
     } finally {
       setIsRevokingSession(null);
+    }
+  };
+
+  // Connect handlers
+  const handleSetupConnect = async () => {
+    try {
+      const res = await fetch("/api/connect/create-account", { method: "POST" });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else if (data.alreadyComplete) {
+        // Refresh status
+        const statusRes = await fetch("/api/connect/status");
+        if (statusRes.ok) {
+          setConnectStatus(await statusRes.json());
+        }
+      }
+    } catch (error) {
+      console.error("Failed to set up connect:", error);
+    }
+  };
+
+  const handleOpenDashboard = async () => {
+    try {
+      const res = await fetch("/api/connect/dashboard", { method: "POST" });
+      const data = await res.json();
+      if (data.url) {
+        window.open(data.url, "_blank");
+      }
+    } catch (error) {
+      console.error("Failed to open dashboard:", error);
     }
   };
 
@@ -1116,6 +1199,41 @@ export function CustomProfilePage() {
           {/* Billing Tab */}
           {activeTab === "billing" && (
             <div className="space-y-6">
+              {/* Connect Onboarding Banner */}
+              {connectBanner === "success" && (
+                <div className="bg-green-50 border-2 border-green-300 rounded-lg p-3 flex items-center gap-2">
+                  <Check className="w-5 h-5 text-green-600 flex-shrink-0" />
+                  <p className="font-body text-sm text-green-800">
+                    Seller payments set up successfully! You&apos;re ready to sell.
+                  </p>
+                  <button onClick={() => setConnectBanner(null)} className="ml-auto text-green-600 hover:text-green-800">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+              {connectBanner === "incomplete" && (
+                <div className="bg-amber-50 border-2 border-amber-300 rounded-lg p-3 flex items-center gap-2">
+                  <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
+                  <p className="font-body text-sm text-amber-800">
+                    Seller setup is not yet complete. Please finish the remaining steps.
+                  </p>
+                  <button onClick={() => setConnectBanner(null)} className="ml-auto text-amber-600 hover:text-amber-800">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+              {connectBanner === "error" && (
+                <div className="bg-red-50 border-2 border-red-300 rounded-lg p-3 flex items-center gap-2">
+                  <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+                  <p className="font-body text-sm text-red-800">
+                    Something went wrong during seller setup. Please try again.
+                  </p>
+                  <button onClick={() => setConnectBanner(null)} className="ml-auto text-red-600 hover:text-red-800">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
               {/* Current Plan */}
               <div className="flex items-start justify-between">
                 <div>
@@ -1254,6 +1372,58 @@ export function CustomProfilePage() {
                   >
                     View all pricing details →
                   </Link>
+                )}
+              </div>
+
+              {/* Seller Payments */}
+              <div className="bg-pop-white border-3 border-pop-black shadow-[4px_4px_0px_#000] rounded-lg p-4">
+                <h3 className="font-comic text-lg mb-3 flex items-center gap-2">
+                  <Store className="w-5 h-5" />
+                  SELLER PAYMENTS
+                </h3>
+                {connectStatus === null ? (
+                  <p className="font-body text-sm text-pop-black/60">Loading...</p>
+                ) : connectStatus.onboardingComplete ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-pop-green rounded-full" />
+                      <span className="font-body text-sm">Payment setup complete</span>
+                    </div>
+                    <p className="font-body text-sm text-pop-black/60">
+                      {connectStatus.completedSales} sale{connectStatus.completedSales !== 1 ? "s" : ""} completed
+                    </p>
+                    <button
+                      onClick={handleOpenDashboard}
+                      className="btn-pop btn-pop-blue py-2 px-4 text-sm font-comic"
+                    >
+                      VIEW PAYOUT DASHBOARD
+                    </button>
+                  </div>
+                ) : connectStatus.connected ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-pop-yellow rounded-full" />
+                      <span className="font-body text-sm">Setup incomplete</span>
+                    </div>
+                    <button
+                      onClick={handleSetupConnect}
+                      className="btn-pop btn-pop-green py-2 px-4 text-sm font-comic"
+                    >
+                      COMPLETE SETUP
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <p className="font-body text-sm text-pop-black/60">
+                      Set up payments to start selling comics on the marketplace.
+                    </p>
+                    <button
+                      onClick={handleSetupConnect}
+                      className="btn-pop btn-pop-green py-2 px-4 text-sm font-comic"
+                    >
+                      SET UP SELLER PAYMENTS
+                    </button>
+                  </div>
                 )}
               </div>
             </div>

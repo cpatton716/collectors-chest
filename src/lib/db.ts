@@ -43,6 +43,9 @@ interface CachedProfile {
   public_display_name: string | null;
   public_bio: string | null;
   is_admin: boolean;
+  stripe_connect_account_id?: string | null;
+  stripe_connect_onboarding_complete?: boolean;
+  completed_sales_count?: number;
   created_at: string;
   updated_at: string;
 }

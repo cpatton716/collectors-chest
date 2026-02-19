@@ -15,7 +15,9 @@ import {
   ListingCard,
   ListingDetailModal,
 } from "@/components/auction";
+import PremiumSellerUpsell from "@/components/auction/PremiumSellerUpsell";
 
+import { shouldShowPremiumUpsell } from "@/lib/stripeConnect";
 import { Auction, formatPrice } from "@/types/auction";
 
 type ListingsTab = "active" | "ended";
@@ -29,6 +31,11 @@ export default function MyListingsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedAuctionId, setSelectedAuctionId] = useState<string | null>(null);
   const [selectedListingId, setSelectedListingId] = useState<string | null>(null);
+  const [showUpsell, setShowUpsell] = useState(false);
+  const [upsellData, setUpsellData] = useState<{
+    totalFeesPaid: number;
+    totalSales: number;
+  } | null>(null);
 
   useEffect(() => {
     if (isLoaded && !isSignedIn) {
@@ -40,6 +47,34 @@ export default function MyListingsPage() {
     if (isSignedIn) {
       loadListings();
     }
+  }, [isSignedIn]);
+
+  // Check if we should show the premium seller upsell modal
+  useEffect(() => {
+    if (!isSignedIn) return;
+    if (typeof window === "undefined") return;
+    if (sessionStorage.getItem("premium-upsell-dismissed")) return;
+
+    async function checkUpsell() {
+      try {
+        const res = await fetch("/api/connect/status");
+        if (!res.ok) return;
+        const data = await res.json();
+
+        const tier = data.subscriptionTier || "free";
+
+        if (shouldShowPremiumUpsell(tier, data.completedSales)) {
+          setUpsellData({
+            totalFeesPaid: data.totalFeesPaid || 0,
+            totalSales: data.completedSales,
+          });
+          setShowUpsell(true);
+        }
+      } catch {
+        // Silent fail - upsell is non-critical
+      }
+    }
+    checkUpsell();
   }, [isSignedIn]);
 
   const loadListings = async () => {
@@ -320,6 +355,20 @@ export default function MyListingsPage() {
         onClose={() => setSelectedListingId(null)}
         onListingUpdated={loadListings}
       />
+
+      {/* Premium Seller Upsell Modal */}
+      {showUpsell && upsellData && (
+        <PremiumSellerUpsell
+          totalFeesPaid={upsellData.totalFeesPaid}
+          totalSales={upsellData.totalSales}
+          currentFeePercent={8}
+          premiumFeePercent={5}
+          onDismiss={() => {
+            setShowUpsell(false);
+            sessionStorage.setItem("premium-upsell-dismissed", "true");
+          }}
+        />
+      )}
     </div>
   );
 }
