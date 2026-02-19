@@ -8,7 +8,9 @@ import { AlertCircle, Calendar, Camera, Check, DollarSign, Package, X } from "lu
 
 import { AUCTION_DURATION_OPTIONS, MAX_DETAIL_IMAGES, MIN_STARTING_PRICE } from "@/types/auction";
 import { CollectionItem } from "@/types/comic";
+import { isAgeVerificationError } from "@/lib/ageVerification";
 
+import AgeVerificationModal from "@/components/AgeVerificationModal";
 import { ComicImage } from "../ComicImage";
 
 interface CreateAuctionModalProps {
@@ -30,6 +32,7 @@ export function CreateAuctionModal({ comic, isOpen, onClose, onCreated }: Create
   const [shippingCost, setShippingCost] = useState<string>("7");
   const [description, setDescription] = useState<string>("");
   const [detailImages, setDetailImages] = useState<string[]>([]);
+  const [showAgeGate, setShowAgeGate] = useState(false);
 
   const totalSteps = 3;
 
@@ -98,6 +101,10 @@ export function CreateAuctionModal({ comic, isOpen, onClose, onCreated }: Create
         onCreated?.(data.auction.id);
         onClose();
       } else {
+        if (isAgeVerificationError(data)) {
+          setShowAgeGate(true);
+          return;
+        }
         setError(data.error || "Failed to create auction");
       }
     } catch (err) {
@@ -404,6 +411,17 @@ export function CreateAuctionModal({ comic, isOpen, onClose, onCreated }: Create
           </div>
         </div>
       </div>
+
+      {showAgeGate && (
+        <AgeVerificationModal
+          action="create an auction"
+          onVerified={() => {
+            setShowAgeGate(false);
+            handleSubmit();
+          }}
+          onDismiss={() => setShowAgeGate(false)}
+        />
+      )}
     </div>
   );
 }

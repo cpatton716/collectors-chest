@@ -5,7 +5,9 @@ import { useState } from "react";
 import { AlertCircle, DollarSign, Send, X } from "lucide-react";
 
 import { Auction, MIN_FIXED_PRICE, formatPrice } from "@/types/auction";
+import { isAgeVerificationError } from "@/lib/ageVerification";
 
+import AgeVerificationModal from "@/components/AgeVerificationModal";
 import { ComicImage } from "../ComicImage";
 
 interface MakeOfferModalProps {
@@ -20,6 +22,7 @@ export function MakeOfferModal({ listing, isOpen, onClose, onOfferMade }: MakeOf
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [showAgeGate, setShowAgeGate] = useState(false);
 
   const handleSubmit = async () => {
     const amount = parseFloat(offerAmount);
@@ -56,6 +59,10 @@ export function MakeOfferModal({ listing, isOpen, onClose, onOfferMade }: MakeOf
           onClose();
         }, 2000);
       } else {
+        if (isAgeVerificationError(data)) {
+          setShowAgeGate(true);
+          return;
+        }
         setError(data.error || "Failed to submit offer");
       }
     } catch {
@@ -178,6 +185,17 @@ export function MakeOfferModal({ listing, isOpen, onClose, onOfferMade }: MakeOf
           </div>
         )}
       </div>
+
+      {showAgeGate && (
+        <AgeVerificationModal
+          action="make an offer"
+          onVerified={() => {
+            setShowAgeGate(false);
+            handleSubmit();
+          }}
+          onDismiss={() => setShowAgeGate(false)}
+        />
+      )}
     </div>
   );
 }

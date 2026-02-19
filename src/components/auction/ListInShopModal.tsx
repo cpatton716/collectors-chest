@@ -24,7 +24,9 @@ import { useSubscription } from "@/hooks/useSubscription";
 
 import { AUCTION_DURATION_OPTIONS, MIN_FIXED_PRICE, MIN_STARTING_PRICE } from "@/types/auction";
 import { CollectionItem } from "@/types/comic";
+import { isAgeVerificationError } from "@/lib/ageVerification";
 
+import AgeVerificationModal from "@/components/AgeVerificationModal";
 import { ComicImage } from "../ComicImage";
 
 type ListingMode = "sell" | "auction";
@@ -48,6 +50,7 @@ export function ListInShopModal({ comic, isOpen, onClose, onCreated }: ListInSho
     limit: number;
   } | null>(null);
   const [checkingLimit, setCheckingLimit] = useState(false);
+  const [showAgeGate, setShowAgeGate] = useState(false);
 
   // Check listing limit when modal opens
   useEffect(() => {
@@ -222,6 +225,10 @@ export function ListInShopModal({ comic, isOpen, onClose, onCreated }: ListInSho
         onCreated?.(data.auction.id);
         handleClose();
       } else {
+        if (isAgeVerificationError(data)) {
+          setShowAgeGate(true);
+          return;
+        }
         setError(data.error || "Failed to create listing");
       }
     } catch {
@@ -655,6 +662,17 @@ export function ListInShopModal({ comic, isOpen, onClose, onCreated }: ListInSho
           </div>
         )}
       </div>
+
+      {showAgeGate && (
+        <AgeVerificationModal
+          action="list an item for sale"
+          onVerified={() => {
+            setShowAgeGate(false);
+            handleSubmit();
+          }}
+          onDismiss={() => setShowAgeGate(false)}
+        />
+      )}
     </div>
   );
 }

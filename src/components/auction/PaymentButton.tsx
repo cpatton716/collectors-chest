@@ -5,6 +5,9 @@ import { useState } from "react";
 import { AlertCircle, CreditCard, Loader2 } from "lucide-react";
 
 import { formatPrice } from "@/types/auction";
+import { isAgeVerificationError } from "@/lib/ageVerification";
+
+import AgeVerificationModal from "@/components/AgeVerificationModal";
 
 interface PaymentButtonProps {
   auctionId: string;
@@ -21,6 +24,7 @@ export function PaymentButton({
 }: PaymentButtonProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showAgeGate, setShowAgeGate] = useState(false);
 
   const total = amount + shippingCost;
 
@@ -41,6 +45,10 @@ export function PaymentButton({
         // Redirect to Stripe checkout
         window.location.href = data.url;
       } else {
+        if (isAgeVerificationError(data)) {
+          setShowAgeGate(true);
+          return;
+        }
         setError(data.error || "Failed to start checkout");
       }
     } catch (err) {
@@ -99,6 +107,17 @@ export function PaymentButton({
 
       {/* Security Note */}
       <p className="text-xs text-center text-gray-500">Secure payment powered by Stripe</p>
+
+      {showAgeGate && (
+        <AgeVerificationModal
+          action="make a purchase"
+          onVerified={() => {
+            setShowAgeGate(false);
+            handlePayment();
+          }}
+          onDismiss={() => setShowAgeGate(false)}
+        />
+      )}
     </div>
   );
 }

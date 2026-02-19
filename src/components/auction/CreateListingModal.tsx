@@ -8,7 +8,9 @@ import { AlertCircle, Camera, Check, DollarSign, Package, Tag, X } from "lucide-
 
 import { MAX_DETAIL_IMAGES, MIN_FIXED_PRICE } from "@/types/auction";
 import { CollectionItem } from "@/types/comic";
+import { isAgeVerificationError } from "@/lib/ageVerification";
 
+import AgeVerificationModal from "@/components/AgeVerificationModal";
 import { ComicImage } from "../ComicImage";
 
 interface CreateListingModalProps {
@@ -28,6 +30,7 @@ export function CreateListingModal({ comic, isOpen, onClose, onCreated }: Create
   const [shippingCost, setShippingCost] = useState<string>("5");
   const [description, setDescription] = useState<string>("");
   const [detailImages, setDetailImages] = useState<string[]>([]);
+  const [showAgeGate, setShowAgeGate] = useState(false);
 
   const totalSteps = 2;
 
@@ -83,6 +86,10 @@ export function CreateListingModal({ comic, isOpen, onClose, onCreated }: Create
         onCreated?.(data.auction.id);
         onClose();
       } else {
+        if (isAgeVerificationError(data)) {
+          setShowAgeGate(true);
+          return;
+        }
         setError(data.error || "Failed to create listing");
       }
     } catch (err) {
@@ -339,6 +346,17 @@ export function CreateListingModal({ comic, isOpen, onClose, onCreated }: Create
           </div>
         </div>
       </div>
+
+      {showAgeGate && (
+        <AgeVerificationModal
+          action="list an item for sale"
+          onVerified={() => {
+            setShowAgeGate(false);
+            handleSubmit();
+          }}
+          onDismiss={() => setShowAgeGate(false)}
+        />
+      )}
     </div>
   );
 }

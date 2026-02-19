@@ -5,6 +5,9 @@ import { useState } from "react";
 import { AlertCircle, CheckCircle, DollarSign, Gavel } from "lucide-react";
 
 import { calculateMinimumBid, formatPrice, getBidIncrement } from "@/types/auction";
+import { isAgeVerificationError } from "@/lib/ageVerification";
+
+import AgeVerificationModal from "@/components/AgeVerificationModal";
 
 interface BidFormProps {
   auctionId: string;
@@ -43,6 +46,8 @@ export function BidForm({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [showAgeGate, setShowAgeGate] = useState(false);
+  const [pendingAction, setPendingAction] = useState<"bid" | "buyNow" | null>(null);
 
   const handleBidChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.replace(/[^0-9]/g, "");
@@ -92,6 +97,11 @@ export function BidForm({
           setBidAmount(calculateMinimumBid(data.currentBid, startingPrice).toString());
         }
       } else {
+        if (isAgeVerificationError(data)) {
+          setPendingAction("bid");
+          setShowAgeGate(true);
+          return;
+        }
         setError(data.error || data.message || "Failed to place bid");
       }
     } catch (err) {
@@ -118,10 +128,52 @@ export function BidForm({
         setSuccess("Purchase complete! Check your notifications.");
         onBuyItNow?.();
       } else {
+        if (isAgeVerificationError(data)) {
+          setPendingAction("buyNow");
+          setShowAgeGate(true);
+          return;
+        }
         setError(data.error || "Failed to complete purchase");
       }
     } catch (err) {
       setError("Failed to complete purchase. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const submitBid = async () => {
+    if (!validateBid()) return;
+
+    setIsLoading(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const response = await fetch(`/api/auctions/${auctionId}/bid`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ maxBid: parseInt(bidAmount, 10) }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setSuccess(data.message);
+        onBidPlaced?.(data);
+        if (data.currentBid) {
+          setBidAmount(calculateMinimumBid(data.currentBid, startingPrice).toString());
+        }
+      } else {
+        if (isAgeVerificationError(data)) {
+          setPendingAction("bid");
+          setShowAgeGate(true);
+          return;
+        }
+        setError(data.error || data.message || "Failed to place bid");
+      }
+    } catch (err) {
+      setError("Failed to place bid. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -220,6 +272,25 @@ export function BidForm({
             Buy It Now - {formatPrice(buyItNowPrice)}
           </button>
         </div>
+      )}
+
+      {showAgeGate && (
+        <AgeVerificationModal
+          action="place a bid"
+          onVerified={() => {
+            setShowAgeGate(false);
+            if (pendingAction === "buyNow") {
+              handleBuyItNow();
+            } else {
+              submitBid();
+            }
+            setPendingAction(null);
+          }}
+          onDismiss={() => {
+            setShowAgeGate(false);
+            setPendingAction(null);
+          }}
+        />
       )}
     </div>
   );
