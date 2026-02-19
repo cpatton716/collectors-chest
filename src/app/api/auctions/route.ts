@@ -6,6 +6,7 @@ import { isUserSuspended } from "@/lib/adminAuth";
 import { createAuction, createFixedPriceListing, getActiveAuctions } from "@/lib/auctionDb";
 import { ensureComicInSupabase, getProfileByClerkId } from "@/lib/db";
 import { getFollowingIds } from "@/lib/followDb";
+import { supabaseAdmin } from "@/lib/supabase";
 
 import {
   AuctionFilters,
@@ -115,6 +116,20 @@ export async function POST(request: NextRequest) {
     const profile = await getProfileByClerkId(userId);
     if (!profile) {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+    }
+
+    // Check seller has completed Stripe Connect onboarding
+    const { data: connectCheck } = await supabaseAdmin
+      .from("profiles")
+      .select("stripe_connect_account_id, stripe_connect_onboarding_complete")
+      .eq("id", profile.id)
+      .single();
+
+    if (!connectCheck?.stripe_connect_account_id || !connectCheck.stripe_connect_onboarding_complete) {
+      return NextResponse.json(
+        { error: "CONNECT_REQUIRED", message: "You must set up seller payments before listing items." },
+        { status: 403 }
+      );
     }
 
     const body = await request.json();
