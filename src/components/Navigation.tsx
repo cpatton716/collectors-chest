@@ -402,7 +402,7 @@ export function Navigation() {
               <SignedOut>
                 <Link
                   href="/sign-in"
-                  className="btn-pop btn-pop-red flex items-center gap-1.5 px-3 py-1.5 text-sm"
+                  className="btn-pop btn-pop-blue flex items-center gap-1.5 px-3 py-1.5 text-sm"
                 >
                   <LogIn className="w-4 h-4" />
                   <span className="hidden sm:inline font-comic">SIGN IN</span>

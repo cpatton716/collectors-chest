@@ -199,3 +199,10 @@ This document tracks testing sessions with platform and account context.
 - **Account Type:** Free
 - **Device(s):** Android, Mac Chrome
 - **Focus:** To be filled as session progresses
+
+## Feb 19, 2026 - Session Start
+- **Platform:** Web
+- **Account Type:** Free & Premium
+- **Device(s):** N/A (desktop only)
+- **Browser(s):** Mac Chrome
+- **Focus:** To be filled as session progresses
