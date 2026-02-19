@@ -46,6 +46,7 @@ interface CachedProfile {
   stripe_connect_account_id?: string | null;
   stripe_connect_onboarding_complete?: boolean;
   completed_sales_count?: number;
+  age_confirmed_at?: string | null;
   created_at: string;
   updated_at: string;
 }
