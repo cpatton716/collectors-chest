@@ -16,7 +16,7 @@ export async function GET() {
 
     const { data: profile } = await supabaseAdmin
       .from("profiles")
-      .select("stripe_connect_account_id, stripe_connect_onboarding_complete, completed_sales_count")
+      .select("id, subscription_tier, stripe_connect_account_id, stripe_connect_onboarding_complete, completed_sales_count")
       .eq("clerk_id", userId)
       .single();
 
@@ -24,11 +24,31 @@ export async function GET() {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
+    // Calculate total fees paid from sold auctions
+    const { data: soldAuctions } = await supabaseAdmin
+      .from("auctions")
+      .select("winning_bid, current_bid, starting_price, platform_fee_percent")
+      .eq("seller_id", profile.id)
+      .eq("status", "sold");
+
+    const totalFeesPaid = (soldAuctions || []).reduce(
+      (sum: number, auction: { winning_bid: number | null; current_bid: number | null; starting_price: number | null; platform_fee_percent: number | null }) => {
+        const salePrice = auction.winning_bid || auction.current_bid || auction.starting_price || 0;
+        const feePercent = auction.platform_fee_percent || 8;
+        return sum + Math.round(salePrice * (feePercent / 100) * 100) / 100;
+      },
+      0
+    );
+
+    const subscriptionTier = profile.subscription_tier || "free";
+
     if (!profile.stripe_connect_account_id) {
       return NextResponse.json({
         connected: false,
         onboardingComplete: false,
         completedSales: profile.completed_sales_count || 0,
+        totalFeesPaid,
+        subscriptionTier,
       });
     }
 
@@ -53,6 +73,8 @@ export async function GET() {
       chargesEnabled: account.charges_enabled,
       payoutsEnabled: account.payouts_enabled,
       completedSales: profile.completed_sales_count || 0,
+      totalFeesPaid,
+      subscriptionTier,
     });
   } catch (error) {
     console.error("Connect status error:", error);
