@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { AlertCircle, Check, Download, FileText, Loader2, Upload, X, Zap } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 
+import { batchLookup, dedupKey, type ImportLookupResult } from "@/lib/batchImport";
 import { getRandomFact } from "@/lib/comicFacts";
 import { parseCurrencyValue } from "@/lib/csvHelpers";
 import { CollectionItem, ComicDetails, normalizePublisher } from "@/types/comic";
@@ -81,6 +82,8 @@ export function CSVImport({ onImportComplete, onCancel }: CSVImportProps) {
   const [quickImport, setQuickImport] = useState(false);
   const [importedItems, setImportedItems] = useState<CollectionItem[]>([]);
   const [currentFact, setCurrentFact] = useState("");
+  const [importPhase, setImportPhase] = useState<"lookup" | "building">("lookup");
+  const [uniqueLookupCount, setUniqueLookupCount] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Rotate fun facts every 7 seconds during import
@@ -244,13 +247,29 @@ export function CSVImport({ onImportComplete, onCancel }: CSVImportProps) {
     setStep("importing");
     setIsImporting(true);
     setImportProgress(0);
+    setImportPhase("lookup");
 
     const results: ImportResult[] = [];
     const successfulItems: CollectionItem[] = [];
 
+    // Phase 1: Batch lookup (0-80% progress) - only when not quick import
+    let lookupResults = new Map<string, ImportLookupResult | null>();
+
+    if (!quickImport) {
+      // Calculate unique count for progress display
+      const uniqueKeys = new Set(parsedRows.map((r) => dedupKey(r.title, r.issueNumber)));
+      setUniqueLookupCount(uniqueKeys.size);
+
+      lookupResults = await batchLookup(parsedRows, 5, (done, total) => {
+        setImportProgress(Math.round((done / total) * 80));
+      });
+    }
+
+    // Phase 2: Build items (80-100% progress, or 0-100% for quick import)
+    setImportPhase("building");
+
     for (let i = 0; i < parsedRows.length; i++) {
       const row = parsedRows[i];
-      setImportProgress(Math.round(((i + 1) / parsedRows.length) * 100));
 
       try {
         let priceData = null;
@@ -262,22 +281,12 @@ export function CSVImport({ onImportComplete, onCancel }: CSVImportProps) {
         let enrichedReleaseYear = row.releaseYear || null;
         let enrichedCoverImageUrl = "";
 
-        // Only call API for enrichment if Quick Import is disabled
+        // Apply lookup data if available (non-quick import)
         if (!quickImport) {
-          const response = await fetch("/api/import-lookup", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              title: row.title,
-              issueNumber: row.issueNumber,
-              variant: row.variant,
-              publisher: row.publisher,
-              releaseYear: row.releaseYear,
-            }),
-          });
+          const key = dedupKey(row.title, row.issueNumber);
+          const lookupData = lookupResults.get(key);
 
-          if (response.ok) {
-            const lookupData = await response.json();
+          if (lookupData) {
             priceData = lookupData.priceData || null;
             keyInfo = lookupData.keyInfo || [];
             // Use API data only if CSV didn't provide it
@@ -352,9 +361,11 @@ export function CSVImport({ onImportComplete, onCancel }: CSVImportProps) {
         });
       }
 
-      // Small delay to prevent rate limiting (skip delay for quick import)
-      if (!quickImport) {
-        await new Promise((resolve) => setTimeout(resolve, 200));
+      // Update progress for Phase 2
+      if (quickImport) {
+        setImportProgress(Math.round(((i + 1) / parsedRows.length) * 100));
+      } else {
+        setImportProgress(80 + Math.round(((i + 1) / parsedRows.length) * 20));
       }
     }
 
@@ -538,7 +549,9 @@ export function CSVImport({ onImportComplete, onCancel }: CSVImportProps) {
           <p className="text-sm text-pop-black/70 mb-4">
             {quickImport
               ? "Adding comics to your collection..."
-              : "Looking up price data, key info, and covers for each comic..."}
+              : importPhase === "lookup"
+                ? `Looking up ${uniqueLookupCount} unique titles (${parsedRows.length} total)...`
+                : "Building collection items..."}
           </p>
           <div className="w-full max-w-xs mx-auto bg-pop-black/20 h-3 border-2 border-pop-black mb-2">
             <div

@@ -37,6 +37,19 @@ export async function POST(
 
     await markMessagesAsRead(conversationId, profile.id);
 
+    // Fire-and-forget: broadcast unread-update so the current user's badge decreases
+    try {
+      const userChannel = supabaseAdmin.channel(`user:${profile.id}:messages`);
+      await userChannel.send({
+        type: "broadcast",
+        event: "unread-update",
+        payload: {},
+      });
+      supabaseAdmin.removeChannel(userChannel);
+    } catch {
+      // Non-critical: don't fail the request if broadcast fails
+    }
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Error marking messages as read:", error);

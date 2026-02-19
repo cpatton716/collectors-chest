@@ -6,6 +6,7 @@ import Anthropic from "@anthropic-ai/sdk";
 
 import { cacheGet, cacheSet, generateEbayPriceCacheKey } from "@/lib/cache";
 import { isFindingApiConfigured, lookupEbaySoldPrices } from "@/lib/ebayFinding";
+import { MODEL_PRIMARY } from "@/lib/models";
 
 import { PriceData } from "@/types/comic";
 
@@ -194,7 +195,7 @@ async function refreshHotBooksListWithAI(): Promise<HotBook[]> {
   }
 
   const response = await anthropic.messages.create({
-    model: "claude-sonnet-4-20250514",
+    model: MODEL_PRIMARY,
     max_tokens: 2048,
     messages: [
       {

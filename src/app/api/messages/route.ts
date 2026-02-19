@@ -4,7 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 
 import { isUserSuspended } from "@/lib/adminAuth";
 import { getProfileByClerkId } from "@/lib/db";
-import { getUnreadMessageCount, getUserConversations, sendMessage } from "@/lib/messagingDb";
+import { broadcastNewMessage, getUnreadMessageCount, getUserConversations, sendMessage } from "@/lib/messagingDb";
 
 // GET - List user's conversations
 export async function GET() {
@@ -88,6 +88,9 @@ export async function POST(request: NextRequest) {
       imageUrls,
       embeddedListingId,
     });
+
+    // Fire-and-forget: broadcast to recipient for real-time updates
+    broadcastNewMessage(message.conversationId, recipientId, message).catch(() => {});
 
     return NextResponse.json({ message }, { status: 201 });
   } catch (error: unknown) {

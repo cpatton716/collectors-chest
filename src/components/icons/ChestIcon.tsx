@@ -7,93 +7,37 @@ export function ChestIcon({ className = "", size = 32 }: ChestIconProps) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 192 192"
+      viewBox="0 0 128 128"
       width={size}
       height={size}
       className={className}
     >
-      <defs>
-        <linearGradient id="chestGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" style={{ stopColor: "#8B4513", stopOpacity: 1 }} />
-          <stop offset="100%" style={{ stopColor: "#5D2E0C", stopOpacity: 1 }} />
-        </linearGradient>
-        <linearGradient id="lidGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" style={{ stopColor: "#A0522D", stopOpacity: 1 }} />
-          <stop offset="100%" style={{ stopColor: "#8B4513", stopOpacity: 1 }} />
-        </linearGradient>
-        <linearGradient id="goldGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" style={{ stopColor: "#FFD700", stopOpacity: 1 }} />
-          <stop offset="100%" style={{ stopColor: "#DAA520", stopOpacity: 1 }} />
-        </linearGradient>
-      </defs>
-
-      {/* Background circle */}
-      <circle cx="96" cy="96" r="88" fill="#1e40af" />
-
       {/* Chest body */}
-      <rect
-        x="36"
-        y="95"
-        width="120"
-        height="65"
-        rx="8"
-        fill="url(#chestGrad)"
-        stroke="#3D1F0D"
-        strokeWidth="3"
-      />
+      <rect x="14" y="54" width="100" height="58" rx="5" fill="#3388FF" stroke="#1a1a1a" strokeWidth="6" />
 
       {/* Chest lid */}
-      <path
-        d="M36 95 Q36 60 96 55 Q156 60 156 95 L156 95 L36 95 Z"
-        fill="url(#lidGrad)"
-        stroke="#3D1F0D"
-        strokeWidth="3"
-      />
+      <path d="M14 58 Q14 30 64 25 Q114 30 114 58" fill="#2266DD" stroke="#1a1a1a" strokeWidth="6" />
 
-      {/* Lid highlight arc */}
-      <path
-        d="M46 90 Q46 68 96 64 Q146 68 146 90"
-        fill="none"
-        stroke="#CD853F"
-        strokeWidth="2"
-        opacity="0.6"
-      />
+      {/* Lid-body divider */}
+      <line x1="14" y1="58" x2="114" y2="58" stroke="#1a1a1a" strokeWidth="5" />
 
-      {/* Metal bands */}
-      <rect x="36" y="92" width="120" height="8" fill="#DAA520" stroke="#B8860B" strokeWidth="1" />
-      <rect x="36" y="130" width="120" height="6" fill="#DAA520" stroke="#B8860B" strokeWidth="1" />
+      {/* Metal band */}
+      <rect x="14" y="74" width="100" height="9" fill="#1a1a1a" />
 
       {/* Lock plate */}
-      <rect
-        x="80"
-        y="98"
-        width="32"
-        height="28"
-        rx="4"
-        fill="url(#goldGrad)"
-        stroke="#B8860B"
-        strokeWidth="2"
-      />
+      <rect x="47" y="62" width="34" height="30" rx="4" fill="#FFD700" stroke="#1a1a1a" strokeWidth="4" />
 
       {/* Keyhole */}
-      <circle cx="96" cy="108" r="5" fill="#3D1F0D" />
-      <rect x="93" y="108" width="6" height="12" fill="#3D1F0D" />
+      <circle cx="64" cy="73" r="5" fill="#1a1a1a" />
+      <rect x="61" y="76" width="6" height="10" rx="1.5" fill="#1a1a1a" />
 
-      {/* Corner accents */}
-      <circle cx="44" cy="100" r="6" fill="#DAA520" stroke="#B8860B" strokeWidth="1" />
-      <circle cx="148" cy="100" r="6" fill="#DAA520" stroke="#B8860B" strokeWidth="1" />
-      <circle cx="44" cy="152" r="6" fill="#DAA520" stroke="#B8860B" strokeWidth="1" />
-      <circle cx="148" cy="152" r="6" fill="#DAA520" stroke="#B8860B" strokeWidth="1" />
-
-      {/* Sparkle effects */}
-      <g fill="#FFFFFF" opacity="0.8">
-        <polygon points="50,45 52,50 57,50 53,54 55,59 50,56 45,59 47,54 43,50 48,50" />
-        <polygon
-          points="142,40 143.5,44 148,44 144.5,47 146,51 142,48.5 138,51 139.5,47 136,44 140.5,44"
-          transform="scale(0.8) translate(30,10)"
-        />
-        <polygon points="130,55 131,58 134,58 131.5,60 132.5,63 130,61 127.5,63 128.5,60 126,58 129,58" />
-      </g>
+      {/* Sparkle star */}
+      <polygon
+        points="105,18 108.5,27 117,23 110.5,29.5 119,34 110.5,33 108.5,41 106.5,33 98,34 104,29.5 99,23 106.5,27"
+        fill="#FF3333"
+        stroke="#1a1a1a"
+        strokeWidth="1.5"
+      />
     </svg>
   );
 }

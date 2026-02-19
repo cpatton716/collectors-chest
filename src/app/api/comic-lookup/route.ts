@@ -4,6 +4,7 @@ import Anthropic from "@anthropic-ai/sdk";
 
 import { cacheGet, cacheSet, generateComicMetadataCacheKey } from "@/lib/cache";
 import { getComicMetadata, incrementComicLookupCount, saveComicMetadata } from "@/lib/db";
+import { MODEL_PRIMARY } from "@/lib/models";
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -165,7 +166,7 @@ If you're not sure, return {"publisher": null}`;
 
   try {
     const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model: MODEL_PRIMARY,
       max_tokens: 256,
       messages: [{ role: "user", content: prompt }],
     });
@@ -242,7 +243,7 @@ For priceData:
 Use null for any field you're not confident about. Most issues should have empty keyInfo array.`;
 
   const response = await anthropic.messages.create({
-    model: "claude-sonnet-4-20250514",
+    model: MODEL_PRIMARY,
     max_tokens: 1024,
     messages: [{ role: "user", content: prompt }],
   });

@@ -61,15 +61,7 @@ Implemented Lichtenstein pop-art design theme with distinct visual identity.
 
 ### Color Palette Refinement
 **Priority:** Low
-**Status:** Pending (future consideration)
-
-Current palette uses Yellow for branding + Red for accents. May revisit with a more dramatic "Red & Black Only" palette for a mature, classic comic feel (like Sin City).
-
-**Option 1 - Red & Black Only (saved for future):**
-- Keep cream background and black borders
-- Use red as the ONLY accent color for all icons, buttons, badges
-- Remove blue, green, orange, yellow from accent uses
-- Very sophisticated, classic newspaper comics aesthetic
+**Status:** ✅ Closed (Feb 18, 2026) — Decided to keep current Lichtenstein pop-art palette. Red & Black alternative was considered but current colorful design better fits the brand.
 
 ---
 
@@ -248,6 +240,45 @@ The `USE_STATIC_LIST` flag has been removed. The API now:
 - Uses eBay Finding API for real-time price data
 - Caches results with 24-hour TTL via Redis
 - Falls back gracefully when price data is unavailable
+
+---
+
+## Bugs
+
+### Title Autocomplete Returns Empty Suggestions
+**Priority:** High
+**Status:** ✅ Complete (Feb 18, 2026)
+**Added:** Feb 18, 2026
+
+Root cause: deprecated model ID (`claude-haiku-3-5-20241022`) returning 404, then incorrect alias (`claude-haiku-4-5-latest`). Fixed by centralizing all model IDs in `src/lib/models.ts` and pinning `MODEL_LIGHTWEIGHT` to `claude-haiku-4-5-20251001`. Any stale Redis cached empties will expire via TTL.
+
+---
+
+### "More" Dropdown Highlights "Lists" When on Collection Page
+**Priority:** Low
+**Status:** ✅ Complete (Feb 18, 2026)
+**Added:** Feb 18, 2026
+
+The "More" dropdown menu in the top nav incorrectly highlights "Lists" with a yellow background when the user is on the `/collection` page. Lists is not the active page and should not be highlighted.
+
+**Steps to Reproduce:**
+1. Navigate to `/collection`
+2. Click "... More" in the top nav
+3. "Lists" is highlighted yellow as if it's the active item
+
+**Expected:** No item in the dropdown should be highlighted, or "Collection" in the main nav should be the only active indicator.
+
+**File to Investigate:**
+- `src/components/Navigation.tsx` — active route matching logic for the More dropdown
+
+---
+
+### Comic Details Not Refreshing When Issue Number Changes
+**Priority:** High
+**Status:** ✅ Complete (Feb 18, 2026)
+**Added:** Feb 18, 2026
+
+Root cause: related to model ID issues causing API failures. Resolved after centralizing model configuration in `src/lib/models.ts`.
 
 ---
 
@@ -726,17 +757,19 @@ Custom branding implemented as part of the Lichtenstein pop-art design system.
 
 ### Further Optimize Search Results
 **Priority:** Medium
-**Status:** Pending
+**Status:** ✅ Partially Complete (Feb 18, 2026)
 
 Enhance the comic search and lookup experience with additional optimizations.
 
-**Potential Improvements:**
-- Fuzzy matching for title searches (handle typos, abbreviations)
-- Search by creative team (writer, artist)
-- Popularity-based suggestions (show most-looked-up comics first)
-- Pre-populate common titles in database from external sources
-- Batch lookups for CSV imports
-- Search history and favorites
+**Completed:**
+- Fuzzy matching for title searches (abbreviation expansion: ASM → Amazing Spider-Man, FF → Fantastic Four, etc.)
+- Batch lookups for CSV imports (deduplication + parallel lookups for faster imports)
+- Popularity-based suggestions (trending titles shown on empty autocomplete focus)
+
+**Remaining:**
+- Search by creative team (writer, artist) — needs Marvel API integration
+- Pre-populate common titles in database from external sources — needs data source decision
+- Search history and favorites — UX decision needed
 
 ---
 
@@ -959,7 +992,7 @@ Create a consistent "Professor" character/persona that provides tips, guidance, 
 ---
 
 ### Expand to Support All Collectibles
-**Priority:** Medium
+**Priority:** Low
 **Status:** Pending
 
 Extend the platform beyond comic books to support other collectible categories, transforming the app into a universal collectibles tracker.
@@ -1007,7 +1040,7 @@ Customize the email templates sent by Clerk for authentication flows (welcome, v
 
 ### Update "Ask the Professor" FAQ Content
 **Priority:** Low
-**Status:** Pending
+**Status:** ✅ Complete (Feb 18, 2026)
 
 Review and update the FAQ questions and answers in the "Ask the Professor" help feature to match the live production environment and actual user needs.
 

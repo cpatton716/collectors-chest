@@ -2,7 +2,7 @@
 
 > **Comprehensive map of pages, features, and service dependencies**
 
-*Last Updated: January 28, 2026 (Trading feature added)*
+*Last Updated: February 18, 2026 (Title autocomplete, batch import, real-time messaging updates)*
 
 ---
 
@@ -49,7 +49,7 @@
 | Suggest Key Info | 🗄️ 🔐 | Community submissions for key facts |
 | Scan Limits | 💾 🗄️ | Guest 5, Free 10/mo, Pro unlimited |
 | Email Capture | 📧 | 5 bonus scans for email signup |
-| CSV Import | 🤖 🗄️ | Bulk import with AI enrichment |
+| CSV Import | 🤖 🗄️ | Bulk import with dedup + parallel batch lookups (batches of 5) |
 | Image Optimization | — | Client-side compression to 400KB |
 
 ---
@@ -150,14 +150,14 @@ Manage comic trades with three tabs:
 | Feature | Services | Notes |
 |---------|----------|-------|
 | Conversation List | 🗄️ 🔐 | Preview with last message, unread count |
-| Message Thread | 🗄️ 🔐 | Real-time via Supabase Realtime |
+| Message Thread | 🗄️ 🔐 | Real-time via Supabase Broadcast (bypasses RLS) |
 | Send Messages | 🗄️ 🔐 | Text content up to 2000 chars |
 | Image Attachments | 🗄️ 🔐 | Up to 4 images per message (Supabase Storage) |
 | Embedded Listings | 🗄️ | Share listing cards in messages |
 | Block User | 🗄️ 🔐 | Prevents messaging from blocked users |
 | Report Message | 🗄️ 🔐 | Flags for admin review |
 | Content Filtering | 🤖 | Blocks phone/email, flags payment mentions |
-| Unread Badge | 🗄️ | Real-time updates in navigation |
+| Unread Badge | 🗄️ | Real-time updates via Supabase Broadcast |
 | Email Notifications | 📧 🗄️ | Configurable per-user preference |
 
 ---
@@ -305,7 +305,8 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
 | `/api/comic-lookup` | POST | Title/issue lookup | 🤖 🗄️ 🔴 |
 | `/api/con-mode-lookup` | POST | Key Hunt pricing | 🏷️ 🤖 🗄️ 📚 |
 | `/api/import-lookup` | POST | CSV enrichment | 🤖 🗄️ |
-| `/api/titles/suggest` | POST | Title autocomplete | 🤖 |
+| `/api/titles/suggest` | POST | Title autocomplete with abbreviation guidance | 🤖 |
+| `/api/titles/popular` | POST | Top 20 most-searched titles (cached 1hr in Redis) | 🗄️ 🔴 |
 | `/api/cover-search` | POST | Cover image search | Open Library |
 | `/api/cert-lookup` | POST | CGC/CBCS verification | Web scrape |
 
@@ -346,9 +347,9 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
 
 | Route | Method | Purpose | Services |
 |-------|--------|---------|----------|
-| `/api/messages` | GET/POST | List conversations / Send message | 🗄️ 🔐 |
+| `/api/messages` | GET/POST | List conversations / Send message (broadcasts via Supabase) | 🗄️ 🔐 |
 | `/api/messages/[conversationId]` | GET | Get messages in conversation | 🗄️ 🔐 |
-| `/api/messages/[conversationId]/read` | POST | Mark messages as read | 🗄️ 🔐 |
+| `/api/messages/[conversationId]/read` | POST | Mark messages as read (broadcasts unread-update) | 🗄️ 🔐 |
 | `/api/messages/unread-count` | GET | Get unread message count | 🗄️ 🔐 |
 | `/api/messages/upload-image` | POST | Upload message image | 🗄️ 🔐 |
 | `/api/messages/[messageId]/report` | POST | Report a message | 🗄️ 🔐 |
@@ -571,6 +572,30 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
 - `createList`, `deleteList`, `addItemToList`, `removeItemFromList` - list management
 - `recordSale` - sales tracking
 - `isCloudEnabled` - true when signed in and syncing to Supabase
+
+---
+
+## Key Components
+
+| Component | Notable Features |
+|-----------|-----------------|
+| `src/components/TitleAutocomplete.tsx` | Abbreviation expansion with "Searching for..." hint, popular titles on empty input, keyboard navigation |
+| `src/components/CSVImport.tsx` | Batch lookups with dedup + parallel processing, shows unique lookup count in progress |
+| `src/components/messaging/MessageThread.tsx` | Real-time via Supabase Broadcast (replaced postgres_changes) |
+| `src/components/Navigation.tsx` | Broadcast subscriptions for message badge, profileId from `/api/username/current`, 20 FAQs, fixed "More" dropdown active state |
+| `src/components/MobileNav.tsx` | Broadcast subscriptions for message badge updates |
+| `src/components/AskProfessor.tsx` | 20 FAQs, improved font readability |
+
+---
+
+## Key Library Files
+
+| File | Purpose |
+|------|---------|
+| `src/lib/titleNormalization.ts` | Comic title abbreviation expansion (34 abbreviations, e.g. "ASM" -> "Amazing Spider-Man") |
+| `src/lib/batchImport.ts` | Batch import utility — deduplicates CSV rows by title+issue, parallel lookups in batches of 5 |
+| `src/lib/messagingDb.ts` | Messaging DB helpers including `broadcastNewMessage()` via Supabase Broadcast |
+| `src/lib/cache.ts` | Redis cache helpers including `popularTitles` prefix with 1-hour TTL |
 
 ---
 

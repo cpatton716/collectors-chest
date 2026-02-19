@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 
 import { cacheGet, cacheSet } from "@/lib/cache";
+import { MODEL_LIGHTWEIGHT } from "@/lib/models";
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -38,7 +39,7 @@ export async function POST(request: NextRequest) {
 
     // Use Haiku for title suggestions - cheaper model, sufficient for this task
     const response = await anthropic.messages.create({
-      model: "claude-haiku-3-5-20241022",
+      model: MODEL_LIGHTWEIGHT,
       max_tokens: 512, // Reduced from 1024 - simple JSON array output
       messages: [
         {
@@ -54,6 +55,8 @@ Also handle common typos and variations:
 - "Spiderman" or "spider man" → match "Spider-Man" titles
 - "Xmen" → match "X-Men" titles
 - "Batmam" → match "Batman" titles
+
+Handle common comic abbreviations: ASM = Amazing Spider-Man, TEC = Detective Comics, FF = Fantastic Four, JLA = Justice League of America, UXM = Uncanny X-Men, TMNT = Teenage Mutant Ninja Turtles, IH = Incredible Hulk, NM = New Mutants, GL = Green Lantern, WD = The Walking Dead.
 
 CRITICAL: Many comic series have been relaunched multiple times with the same name. Include ALL major runs as separate entries with their year ranges. For example:
 - "Amazing Spider-Man (1963-1998)" - Original run

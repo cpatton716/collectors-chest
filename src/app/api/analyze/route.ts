@@ -16,6 +16,7 @@ import { lookupCertification } from "@/lib/certLookup";
 import { getProfileByClerkId } from "@/lib/db";
 import { isFindingApiConfigured, lookupEbaySoldPrices } from "@/lib/ebayFinding";
 import { lookupKeyInfo } from "@/lib/keyComicsDatabase";
+import { MODEL_PRIMARY } from "@/lib/models";
 import { checkRateLimit, getRateLimitIdentifier, rateLimiters } from "@/lib/rateLimit";
 import {
   GUEST_SCAN_LIMIT,
@@ -248,7 +249,7 @@ export async function POST(request: NextRequest) {
     } else {
       // No cache hit - run the AI image analysis
       const response = await anthropic.messages.create({
-        model: "claude-sonnet-4-20250514",
+        model: MODEL_PRIMARY,
         max_tokens: 1024,
         messages: [
           {
@@ -640,7 +641,7 @@ Important:
         if (needsKeyInfoFromAI) missingFields.push("key collector facts");
 
         const verifyResponse = await anthropic.messages.create({
-          model: "claude-sonnet-4-20250514",
+          model: MODEL_PRIMARY,
           max_tokens: 384, // Combined call needs slightly more tokens (~300 actual)
           messages: [
             {
@@ -780,7 +781,7 @@ Rules:
             : "";
 
           const priceResponse = await anthropic.messages.create({
-            model: "claude-sonnet-4-20250514",
+            model: MODEL_PRIMARY,
             max_tokens: 512, // Reduced from 1024 - actual responses are ~200 tokens
             messages: [
               {

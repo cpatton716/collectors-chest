@@ -412,6 +412,11 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 9. ~~**Offers System**~~ ✅ (API routes, modals)
 10. ~~**Email integration**~~ ✅ (Resend setup)
 11. ~~**Disable public registration**~~ ✅ (Private Beta mode)
+12. ~~**Real-time messaging fix**~~ ✅ (Supabase Broadcast migration — 7 files, instant messages without refresh)
+13. ~~**Notification display fix**~~ ✅ (supabaseAdmin for all read functions, RLS bypass)
+14. ~~**Search optimization**~~ ✅ (3 features: fuzzy matching with 34 abbreviations, batch CSV imports, popularity-based suggestions)
+15. ~~**Site icon replacement**~~ ✅ (New blue comic-style chest design across all icon files)
+16. ~~**FAQ update**~~ ✅ (Ask the Professor expanded to 20 questions, font fix)
 
 ### 🔴 Before Opening Registration (See Section 0)
 
@@ -453,13 +458,13 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 **Session 6 Progress:** 17 Tested, 2 Completed — Needs Testing, 1 Pinned, 1 Closed
 
 ✅ Tested: #1, #3, #4, #5, #8, #9, #10, #11, #12, #13, #14, #16, #18, #19, #21
-✅ Completed — Needs Testing: #6 (key info notifications), #7 (reputation updates), #17 (real-time messaging), #20 (notification icon)
+✅ Completed — Needs Testing: #6 (key info notifications), #7 (reputation updates)
+✅ Completed & Verified: #17 (real-time messaging — migrated to Broadcast), #20 (notification icon — supabaseAdmin fix)
 📌 Pinned: #2 (wrong covers — needs specific examples)
 ✅ Closed: #15 (trial button believed working)
 
 **Remaining work:**
 - **Test #6 & #7**: Key info approval notifications and reputation increment
-- **Test #17 & #20**: Real-time messaging updates and notification icon behavior
 - **Investigation needed**: Wrong cover images (#2 — needs specific examples from user)
 
 ### 🟠 Feb 10 Mobile Testing Feedback (14 items — all resolved)
@@ -488,9 +493,24 @@ Items addressed:
 - **Fixed critical bug** - Custom key info not saving on comic updates (missing fields in updateComic)
 - **Fixed stats** - Approved/Rejected counts now combine both submission sources
 
+### ✅ Feb 18 Session Completed
+
+- **Real-time messaging** - Migrated to Supabase Broadcast (7 files), instant messages without refresh
+- **Notification display fix** - supabaseAdmin for all read functions, bypasses RLS
+- **Search optimization** - Abbreviation expansion (34 abbrevs), batch CSV imports, popularity-based suggestions
+- **Site icons** - New blue comic-style chest design replacing old brown chest
+- **FAQ update** - Ask the Professor expanded to 20 questions with font fix
+- **Per-item approve/reject** - Custom key info with color-coded buttons
+- **Bug fixes** - Model IDs centralized, nav dropdown active state, DB constraint for partially_approved
+- **18 new unit tests** (248 total)
+
 ### 🟡 Next Session Focus
 
-1. **GoCollect API Integration** ⏸️ BLOCKED
+1. **Reactivate Sentry Error Tracking**
+   - Evaluate current Sentry setup and ensure it's capturing errors in production
+   - Verify error reporting is working end-to-end
+
+2. **GoCollect API Integration** ⏸️ BLOCKED
    - ✅ API token created (Jan 27)
    - ✅ `GOCOLLECT_API_KEY` added to `.env.local` and Netlify
    - ⏳ **Waiting on GoCollect to approve API access** (ticket open)
@@ -498,7 +518,22 @@ Items addressed:
    - ⏳ Implement FMV lookup integration
    - ⏳ Add GoCollect pricing alongside eBay prices
 
-2. **Messaging Phases 2-7** ✅ COMPLETE (Jan 28)
+3. **Marvel API Integration** ⏸️ BLOCKED
+   - ⏳ **Waiting on Marvel developer portal access**
+   - ⏳ Integrate comic metadata, covers, and creator info
+   - ⏳ Supplement AI recognition with Marvel database lookups
+
+4. **Add "Professor" Persona Throughout Site**
+   - Extend the Ask the Professor concept to other areas of the app
+   - Consistent branding for AI-powered features
+
+5. **Pre-seed Barcode Database**
+   - Build out barcode lookup database for faster scans
+   - Reduce reliance on AI calls for common comics
+
+### ✅ Previously Completed Focus Items
+
+1. **Messaging Phases 2-7** ✅ COMPLETE (Jan 28)
    - Phase 1: Basic DMs ✅
    - Phase 2: Rich Content (images, embedded listings) ✅
    - Phase 3: Block & Report ✅
@@ -507,7 +542,7 @@ Items addressed:
    - Phase 6: Admin Moderation Dashboard ✅
    - Phase 7: AI-Assisted Moderation ✅
 
-3. **Book Trading Feature** ✅ COMPLETE (Jan 28)
+2. **Book Trading Feature** ✅ COMPLETE (Jan 28)
    - ✅ Mark comics as "For Trade" from collection
    - ✅ For Trade tab in Shop showing tradeable comics
    - ✅ Hunt List matching system with quality scoring

@@ -55,6 +55,17 @@ export function MobileNav() {
 
   const isPremium = tier === "premium" || isTrialing;
 
+  const [profileId, setProfileId] = useState<string | null>(null);
+
+  // Fetch profile ID for broadcast subscription
+  useEffect(() => {
+    if (!isSignedIn) return;
+    fetch("/api/username/current")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data?.profileId) setProfileId(data.profileId); })
+      .catch(() => {});
+  }, [isSignedIn]);
+
   // Fetch unread message count
   useEffect(() => {
     if (!isSignedIn) return;
@@ -72,22 +83,35 @@ export function MobileNav() {
     };
 
     fetchUnread();
+  }, [isSignedIn]);
+
+  // Subscribe to broadcast for unread message updates
+  useEffect(() => {
+    if (!profileId) return;
+
+    const fetchUnread = async () => {
+      try {
+        const res = await fetch("/api/messages/unread-count");
+        if (res.ok) {
+          const data = await res.json();
+          setUnreadCount(data.count);
+        }
+      } catch {
+        // Ignore errors silently
+      }
+    };
 
     const channel = supabase
-      .channel("mobile-nav-messages")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "messages" },
-        () => {
-          fetchUnread();
-        }
-      )
+      .channel(`user:${profileId}:messages`)
+      .on("broadcast", { event: "unread-update" }, () => {
+        fetchUnread();
+      })
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [isSignedIn]);
+  }, [profileId]);
 
   useEffect(() => {
     const handleScroll = () => {

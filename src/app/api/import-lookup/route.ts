@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 
 import { getComicMetadata, saveComicMetadata } from "@/lib/db";
+import { MODEL_PRIMARY } from "@/lib/models";
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -63,7 +64,7 @@ export async function POST(request: Request) {
 
     // Use Claude to get full details including price data
     const message = await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model: MODEL_PRIMARY,
       max_tokens: 1024,
       messages: [
         {

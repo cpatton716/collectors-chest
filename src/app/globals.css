@@ -239,6 +239,15 @@ body {
   background: var(--pop-blue-dark);
 }
 
+.btn-pop-green {
+  background: var(--pop-green);
+  color: var(--pop-white);
+}
+
+.btn-pop-green:hover {
+  background: #00b359;
+}
+
 .btn-pop-white {
   background: var(--pop-white);
   color: var(--pop-black);

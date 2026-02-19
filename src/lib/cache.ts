@@ -19,6 +19,7 @@ const CACHE_PREFIX = {
   profile: "cache:profile:", // Phase 3: User profiles (short TTL for freshness)
   titleSuggest: "cache:title:", // Phase 4: Title autocomplete (reduce AI calls)
   webhook: "cache:webhook:", // Webhook idempotency (prevent duplicate processing)
+  popularTitles: "cache:popular:", // Popular titles suggestions (hourly refresh)
 } as const;
 
 // TTL values in seconds
@@ -31,6 +32,7 @@ const CACHE_TTL = {
   profile: 60 * 5, // 5 minutes (short for subscription/settings changes)
   titleSuggest: 60 * 60 * 24, // 24 hours (title data is stable)
   webhook: 60 * 60, // 1 hour (prevent duplicate webhook processing)
+  popularTitles: 60 * 60, // 1 hour (refresh popular titles hourly)
 } as const;
 
 /**

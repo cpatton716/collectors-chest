@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 
 import { getComicMetadata, saveComicMetadata } from "@/lib/db";
+import { MODEL_PRIMARY } from "@/lib/models";
 import { checkRateLimit, getRateLimitIdentifier, rateLimiters } from "@/lib/rateLimit";
 
 const anthropic = new Anthropic({
@@ -169,7 +170,7 @@ export async function POST(request: NextRequest) {
 
     // Combined lookup for key info + prices (faster than separate calls)
     const lookupResponse = await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model: MODEL_PRIMARY,
       max_tokens: 1024,
       messages: [
         {

@@ -367,3 +367,41 @@ export async function sendMessage(senderId: string, input: SendMessageInput): Pr
     embeddedListingId: data.embedded_listing_id || null,
   };
 }
+
+// ============================================================================
+// BROADCAST HELPERS
+// ============================================================================
+
+/**
+ * Broadcast a new message via Supabase Broadcast channels.
+ * Called from API routes after inserting a message.
+ * Uses supabaseAdmin so no RLS dependency on the browser client.
+ */
+export async function broadcastNewMessage(
+  conversationId: string,
+  recipientId: string,
+  message: Message
+): Promise<void> {
+  try {
+    // Broadcast full message to the conversation channel
+    const conversationChannel = supabaseAdmin.channel(`conversation:${conversationId}`);
+    await conversationChannel.send({
+      type: "broadcast",
+      event: "new-message",
+      payload: { message },
+    });
+    supabaseAdmin.removeChannel(conversationChannel);
+
+    // Broadcast to recipient's personal channel for badge updates
+    const userChannel = supabaseAdmin.channel(`user:${recipientId}:messages`);
+    await userChannel.send({
+      type: "broadcast",
+      event: "unread-update",
+      payload: {},
+    });
+    supabaseAdmin.removeChannel(userChannel);
+  } catch (error) {
+    // Non-critical: don't fail the request if broadcast fails
+    console.error("[messagingDb] Broadcast error:", error);
+  }
+}

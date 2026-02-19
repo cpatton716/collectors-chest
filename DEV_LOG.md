@@ -6,7 +6,7 @@ This log tracks session-by-session progress on Collectors Chest.
 
 ## Changes Since Last Deploy
 
-**Sessions since last deploy:** 2
+**Sessions since last deploy:** 3
 **Deploy Readiness:** Ready
 **Last Deploy:** February 10, 2026
 
@@ -19,6 +19,72 @@ This log tracks session-by-session progress on Collectors Chest.
 - Added Stripe Connect references to EVALUATION.md and clipboard brief for Claude Chat
 - Added 18+ age gate requirement to EVALUATION.md critical items
 - Added "Finalize Legal Pages" backlog item with placeholder replacement checklist
+- Real-time messaging migrated to Supabase Broadcast (instant messages, nav badge updates)
+- Notifications fixed (supabaseAdmin for all read functions)
+- Per-item approve/reject for custom key info with color-coded buttons
+- Search optimization: abbreviation expansion, batch CSV imports, popularity suggestions
+- New site icons (blue comic-style chest replacing old brown chest)
+- Ask the Professor FAQ expanded to 20 questions with font fix
+- "More" dropdown active state bug fix
+- Deprecated model IDs fixed (centralized in models.ts)
+- DB constraint fix for partially_approved status
+- 18 new unit tests (248 total)
+
+---
+
+## Feb 18, 2026 - Session 10 (Real-Time Messaging, Search Optimization, Icons, Bug Fixes)
+
+**Summary:** Major session covering 7 bug fixes, 3 new features, and extensive testing. Migrated real-time messaging from postgres_changes to Supabase Broadcast (fixing fundamental RLS/Clerk auth incompatibility). Built 3 search optimization features: abbreviation expansion, batch CSV imports, and popularity-based suggestions. Replaced all site icons. Updated FAQ to 20 questions. Fixed multiple bugs including notifications, model IDs, and nav highlighting.
+
+**Key Accomplishments:**
+- Migrated real-time messaging to Supabase Broadcast (7 files) — messages now instant without refresh
+- Fixed notifications not showing in UI (supabaseAdmin for all read functions)
+- Built fuzzy matching with 34 comic abbreviations (ASM, TEC, FF, etc.)
+- Built batch CSV import with dedup + parallel processing (5-10 min → ~15 seconds)
+- Built popularity-based autocomplete suggestions from comic_metadata.lookup_count
+- Replaced all site icons with new blue comic-style chest design
+- Updated Ask the Professor FAQ from 7 to 20 questions
+- Fixed "More" dropdown incorrectly highlighting "Lists" on Collection page
+- Fixed deprecated model IDs causing 404s (centralized in models.ts)
+- Added partially_approved to custom_key_info_status DB constraint
+- Per-item approve/reject for custom key info with color-coded buttons
+- 18 new unit tests (248 total)
+
+**Files Added:**
+- `src/lib/titleNormalization.ts` — Abbreviation expansion utility
+- `src/lib/batchImport.ts` — Batch import with dedup + parallel processing
+- `src/app/api/titles/popular/route.ts` — Popular titles API endpoint
+- `src/lib/__tests__/titleNormalization.test.ts` — 12 tests
+- `src/lib/__tests__/batchImport.test.ts` — 6 tests
+- `supabase/migrations/20260218_fix_custom_key_info_status_check.sql`
+
+**Files Modified:**
+- `src/lib/messagingDb.ts` — Added broadcastNewMessage() helper
+- `src/app/api/messages/route.ts` — Broadcast after send
+- `src/app/api/messages/[conversationId]/read/route.ts` — Broadcast after mark-read
+- `src/components/messaging/MessageThread.tsx` — Broadcast subscription
+- `src/app/messages/page.tsx` — Broadcast subscription
+- `src/components/Navigation.tsx` — Broadcast subscription, profileId fetch, FAQ update, dropdown fix
+- `src/components/MobileNav.tsx` — Broadcast subscription
+- `src/components/TitleAutocomplete.tsx` — Abbreviation expansion, popular titles
+- `src/components/CSVImport.tsx` — Batch import refactor
+- `src/lib/cache.ts` — Added popularTitles cache prefix
+- `src/app/api/titles/suggest/route.ts` — Enhanced AI prompt
+- `src/components/AskProfessor.tsx` — 20 FAQs, font fix
+- `src/components/icons/ChestIcon.tsx` — New icon SVG
+- `src/app/layout.tsx` — Updated favicon reference
+- `src/lib/auctionDb.ts` — supabaseAdmin for notification reads
+- `src/app/admin/key-info/page.tsx` — Per-item approve/reject, color-coded buttons
+- `src/app/api/admin/custom-key-info/[id]/route.ts` — Per-item decisions support
+- Multiple icon files in public/ replaced
+
+**Issues Resolved:**
+- Real-time messaging broken (Clerk auth + RLS blocks postgres_changes)
+- Notifications in DB but not visible in UI (anon client blocked by RLS)
+- Batman #1 incorrect verified key info (wrong comic ID + constraint missing)
+- Deprecated model IDs causing title autocomplete and comic details 404s
+- "More" dropdown highlighting "Lists" when on Collection page
+- FAQ font using comic font in all caps (hard to read)
 
 ---
 

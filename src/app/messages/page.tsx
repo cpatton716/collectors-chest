@@ -53,22 +53,10 @@ function MessagesContent() {
     if (!currentUserId) return;
 
     const channel = supabase
-      .channel("conversations-refresh")
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "messages",
-        },
-        (payload) => {
-          const newMessage = payload.new as { sender_id: string };
-          // Only refresh when someone else sends a message
-          if (newMessage.sender_id !== currentUserId) {
-            loadConversations();
-          }
-        }
-      )
+      .channel(`user:${currentUserId}:messages`)
+      .on("broadcast", { event: "unread-update" }, () => {
+        loadConversations();
+      })
       .subscribe();
 
     return () => {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import Anthropic from "@anthropic-ai/sdk";
 
+import { MODEL_LIGHTWEIGHT } from "@/lib/models";
 import { supabaseAdmin } from "@/lib/supabase";
 
 const anthropic = new Anthropic({
@@ -32,7 +33,7 @@ async function analyzeMessage(
   flagReason: string | null
 ): Promise<ModerationResult> {
   const response = await anthropic.messages.create({
-    model: "claude-3-5-haiku-20241022",
+    model: MODEL_LIGHTWEIGHT,
     max_tokens: 500,
     messages: [
       {

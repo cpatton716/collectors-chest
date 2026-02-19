@@ -1032,4 +1032,46 @@ If you encounter bugs or unexpected behavior:
 | Delete key comic | Click trash icon, confirm deletion | Entry removed from list |
 | Source filter | Select "Curated" or "Community" filter | Results filtered by source |
 
-*Last Updated: February 13, 2026*
+### Fuzzy Matching / Abbreviation Expansion (Feb 18, 2026)
+
+| Test Case | Steps | Expected Result |
+|-----------|-------|-----------------|
+| Abbreviation expansion - ASM | Type "ASM" in title autocomplete | Shows "Amazing Spider-Man" results with "Searching for..." hint |
+| Abbreviation expansion - tec | Type "tec" in title autocomplete | Shows "Detective Comics" results |
+| Abbreviation expansion - FF | Type "FF" in title autocomplete | Shows "Fantastic Four" results |
+| Regular title unaffected | Type "Batman" in title autocomplete | Works as before with no expansion hint |
+
+### Popularity-Based Suggestions (Feb 18, 2026)
+
+| Test Case | Steps | Expected Result |
+|-----------|-------|-----------------|
+| Popular titles on focus | Focus the title autocomplete with empty input | Shows "Popular" section with trending titles (if data exists in comic_metadata) |
+| Popular section disappears | Start typing in title autocomplete | Popular section disappears after 2 characters |
+| Click popular title | Click a title in the Popular section | Populates the search and triggers autocomplete |
+
+### Batch CSV Import Optimizations (Feb 18, 2026)
+
+| Test Case | Steps | Expected Result |
+|-----------|-------|-----------------|
+| Duplicate title dedup | Import CSV with duplicate titles (e.g., 5 copies of Amazing Spider-Man #1) | Shows "Looking up X unique titles (Y total)" and completes faster |
+| Quick Import toggle | Import with Quick Import toggle ON | Skips lookups entirely (same as before) |
+| Partial lookup failures | Import with some failed lookups | Comics still import with CSV-only data |
+
+### Real-Time Messaging via Supabase Broadcast (Feb 18, 2026)
+
+| Test Case | Steps | Expected Result |
+|-----------|-------|-----------------|
+| Instant message delivery | Send message from User A to User B | User B sees it instantly without refresh |
+| Real-time nav badge | Send message to User B | User B's nav bar badge updates in real-time |
+| Bidirectional real-time | User B replies to User A | User A sees the reply instantly |
+| Read receipt badge update | Mark messages as read | Badge count decreases |
+
+### Notifications - Key Info Approval (Feb 18, 2026)
+
+| Test Case | Steps | Expected Result |
+|-----------|-------|-----------------|
+| Approval notification | Submit custom key info, have admin approve it | Notification appears in bell icon |
+| Click notification | Click on the approval notification | Marks notification as read |
+| Mark all as read | Click "Mark all as read" | Badge clears |
+
+*Last Updated: February 18, 2026*

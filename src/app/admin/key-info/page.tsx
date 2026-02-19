@@ -67,6 +67,8 @@ export default function AdminKeyInfoPage() {
   // Custom key info from user comics
   const [customKeyInfoComics, setCustomKeyInfoComics] = useState<CustomKeyInfoComic[]>([]);
   const [customCounts, setCustomCounts] = useState({ pending: 0, approved: 0, rejected: 0 });
+  // Per-item decisions for custom key info: { comicId: { "fact text": "approve"|"reject" } }
+  const [customDecisions, setCustomDecisions] = useState<Record<string, Record<string, "approve" | "reject">>>({});
   const [activeTab, setActiveTab] = useState<"review" | "database">("review");
   // Database tab state
   const [dbEntries, setDbEntries] = useState<Array<{
@@ -208,55 +210,56 @@ export default function AdminKeyInfoPage() {
   };
 
   // Custom key info handlers
-  const handleApproveCustom = async (comicId: string) => {
-    setProcessingId(comicId);
-    try {
-      const response = await fetch(`/api/admin/custom-key-info/${comicId}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "approve" }),
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Failed to approve");
+  const toggleCustomDecision = (comicId: string, fact: string, decision: "approve" | "reject") => {
+    setCustomDecisions((prev) => {
+      const current = prev[comicId] || {};
+      // Toggle off if clicking the same decision
+      if (current[fact] === decision) {
+        const { [fact]: _, ...rest } = current;
+        return { ...prev, [comicId]: rest };
       }
-
-      setCustomKeyInfoComics((prev) => prev.filter((c) => c.id !== comicId));
-      setCustomCounts((prev) => ({
-        ...prev,
-        pending: prev.pending - 1,
-        approved: prev.approved + 1,
-      }));
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to approve");
-    } finally {
-      setProcessingId(null);
-    }
+      return { ...prev, [comicId]: { ...current, [fact]: decision } };
+    });
   };
 
-  const handleRejectCustom = async (comicId: string) => {
+  const handleSubmitCustomDecisions = async (comicId: string, facts: string[]) => {
+    const decisions_map = customDecisions[comicId] || {};
+
+    // Ensure every fact has a decision
+    const undecided = facts.filter((f) => !decisions_map[f]);
+    if (undecided.length > 0) {
+      alert(`Please approve or reject all items before submitting.`);
+      return;
+    }
+
     setProcessingId(comicId);
     try {
       const response = await fetch(`/api/admin/custom-key-info/${comicId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "reject", reason: "Key info not accurate" }),
+        body: JSON.stringify({ decisions: decisions_map }),
       });
 
       if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.error || "Failed to reject");
+        throw new Error(data.error || "Failed to process");
       }
 
+      const result = await response.json();
       setCustomKeyInfoComics((prev) => prev.filter((c) => c.id !== comicId));
       setCustomCounts((prev) => ({
         ...prev,
         pending: prev.pending - 1,
-        rejected: prev.rejected + 1,
+        approved: prev.approved + (result.approved > 0 ? 1 : 0),
+        rejected: prev.rejected + (result.approved === 0 ? 1 : 0),
       }));
+      // Clean up decisions state
+      setCustomDecisions((prev) => {
+        const { [comicId]: _, ...rest } = prev;
+        return rest;
+      });
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to reject");
+      alert(err instanceof Error ? err.message : "Failed to process");
     } finally {
       setProcessingId(null);
     }
@@ -843,7 +846,7 @@ export default function AdminKeyInfoPage() {
                   {/* Suggestion Header */}
                   <div
                     className="p-4 border-b-3 border-black"
-                    style={{ background: "var(--pop-cream)" }}
+                    style={{ background: "var(--pop-white)" }}
                   >
                     <div className="flex items-start justify-between">
                       <div>
@@ -953,7 +956,7 @@ export default function AdminKeyInfoPage() {
                         <button
                           onClick={() => setRejectingId(item.submission.id)}
                           disabled={processingId === item.submission.id}
-                          className="btn-pop btn-pop-white flex-1 flex items-center justify-center gap-2 disabled:opacity-50"
+                          className="btn-pop btn-pop-red flex-1 flex items-center justify-center gap-2 disabled:opacity-50"
                         >
                           <X className="w-4 h-4" />
                           Reject
@@ -967,7 +970,7 @@ export default function AdminKeyInfoPage() {
                   {/* Comic Header */}
                   <div
                     className="p-4 border-b-3 border-black"
-                    style={{ background: "var(--pop-cream)" }}
+                    style={{ background: "var(--pop-white)" }}
                   >
                     <div className="flex items-start gap-4">
                       {item.comic.coverImageUrl && (
@@ -1013,38 +1016,68 @@ export default function AdminKeyInfoPage() {
                       </div>
                     )}
 
-                    {/* Custom Key Info to Review */}
+                    {/* Custom Key Info - Per-Item Review */}
                     <p className="text-sm font-bold mb-2">Custom Key Info (Pending):</p>
-                    <div className="flex flex-wrap gap-2 mb-4">
-                      {item.comic.customKeyInfo.map((info, idx) => (
-                        <span key={idx} className="badge-pop badge-pop-blue text-sm">
-                          <KeyRound className="w-3 h-3" />
-                          {info}
-                        </span>
-                      ))}
+                    <div className="space-y-2 mb-4">
+                      {item.comic.customKeyInfo.map((info, idx) => {
+                        const decision = (customDecisions[item.comic.id] || {})[info];
+                        return (
+                          <div
+                            key={idx}
+                            className={`flex items-center justify-between gap-2 p-2 border-2 border-black rounded ${
+                              decision === "approve"
+                                ? "bg-green-50"
+                                : decision === "reject"
+                                  ? "bg-red-50"
+                                  : "bg-white"
+                            }`}
+                          >
+                            <span className="flex items-center gap-2 text-sm font-medium">
+                              <KeyRound className="w-3 h-3 flex-shrink-0" />
+                              {info}
+                            </span>
+                            <div className="flex gap-1 flex-shrink-0">
+                              <button
+                                onClick={() => toggleCustomDecision(item.comic.id, info, "approve")}
+                                className={`p-1.5 rounded border-2 transition-colors ${
+                                  decision === "approve"
+                                    ? "bg-green-500 text-white border-green-600"
+                                    : "bg-white text-green-600 border-green-500 hover:bg-green-50"
+                                }`}
+                                title="Approve"
+                              >
+                                <Check className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => toggleCustomDecision(item.comic.id, info, "reject")}
+                                className={`p-1.5 rounded border-2 transition-colors ${
+                                  decision === "reject"
+                                    ? "bg-red-500 text-white border-red-600"
+                                    : "bg-white text-red-500 border-red-400 hover:bg-red-50"
+                                }`}
+                                title="Reject"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
 
-                    {/* Actions */}
-                    <div className="flex gap-2 border-t-3 border-black pt-4 mt-4">
+                    {/* Submit Decisions */}
+                    <div className="border-t-3 border-black pt-4 mt-4">
                       <button
-                        onClick={() => handleApproveCustom(item.comic.id)}
+                        onClick={() => handleSubmitCustomDecisions(item.comic.id, item.comic.customKeyInfo)}
                         disabled={processingId === item.comic.id}
-                        className="btn-pop btn-pop-green flex-1 flex items-center justify-center gap-2 disabled:opacity-50"
+                        className="btn-pop btn-pop-blue w-full flex items-center justify-center gap-2 disabled:opacity-50"
                       >
                         {processingId === item.comic.id ? (
                           <Loader2 className="w-4 h-4 animate-spin" />
                         ) : (
                           <Check className="w-4 h-4" />
                         )}
-                        Approve
-                      </button>
-                      <button
-                        onClick={() => handleRejectCustom(item.comic.id)}
-                        disabled={processingId === item.comic.id}
-                        className="btn-pop btn-pop-white flex-1 flex items-center justify-center gap-2 disabled:opacity-50"
-                      >
-                        <X className="w-4 h-4" />
-                        Reject
+                        Submit Decisions
                       </button>
                     </div>
                   </div>

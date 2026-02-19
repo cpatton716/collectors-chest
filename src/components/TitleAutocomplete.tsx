@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { Clock, Loader2 } from "lucide-react";
+import { Clock, Loader2, TrendingUp } from "lucide-react";
+
+import { expandAbbreviation, normalizeSearchQuery } from "@/lib/titleNormalization";
 
 const RECENT_TITLES_KEY = "comic-tracker-recent-titles-v2";
 const MAX_RECENT_TITLES = 5;
@@ -69,10 +71,14 @@ export function TitleAutocomplete({
 }: TitleAutocompleteProps) {
   const [suggestions, setSuggestions] = useState<TitleSuggestion[]>([]);
   const [recentTitles, setRecentTitles] = useState<TitleSuggestion[]>([]);
+  const [popularTitles, setPopularTitles] = useState<
+    Array<{ title: string; publisher: string | null }>
+  >([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const [hasFocused, setHasFocused] = useState(false);
+  const [expandedFrom, setExpandedFrom] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
@@ -80,6 +86,14 @@ export function TitleAutocomplete({
   // Load recent titles on mount
   useEffect(() => {
     setRecentTitles(getRecentTitles());
+  }, []);
+
+  // Fetch popular titles on mount
+  useEffect(() => {
+    fetch("/api/titles/popular")
+      .then((res) => res.json())
+      .then((data) => setPopularTitles(data.titles || []))
+      .catch(() => {});
   }, []);
 
   // Fetch suggestions when value changes (only if user has focused)
@@ -95,12 +109,18 @@ export function TitleAutocomplete({
 
     if (!value || value.length < 2) {
       setSuggestions([]);
-      setShowDropdown(false);
+      // Keep dropdown open if we have popular titles or recent titles to show
+      if (!recentTitles.length && popularTitles.length < 5) {
+        setShowDropdown(false);
+      }
       return;
     }
 
     // Clear stale suggestions immediately when input changes
     setSuggestions([]);
+
+    const expanded = expandAbbreviation(value);
+    setExpandedFrom(expanded ? value.trim() : null);
 
     debounceRef.current = setTimeout(async () => {
       setIsLoading(true);
@@ -108,7 +128,7 @@ export function TitleAutocomplete({
         const response = await fetch("/api/titles/suggest", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query: value }),
+          body: JSON.stringify({ query: normalizeSearchQuery(value) }),
         });
 
         if (response.ok) {
@@ -129,7 +149,7 @@ export function TitleAutocomplete({
         clearTimeout(debounceRef.current);
       }
     };
-  }, [value, hasFocused]);
+  }, [value, hasFocused, recentTitles.length, popularTitles.length]);
 
   // Handle click outside to close dropdown
   useEffect(() => {
@@ -155,6 +175,19 @@ export function TitleAutocomplete({
     return recentTitles.filter((t) => t.title.toLowerCase().includes(query));
   };
 
+  // Determine if we should show the popular section
+  const showPopular = value.length < 2 && popularTitles.length >= 5;
+
+  // Filter popular titles to exclude any that appear in recent titles
+  const filteredPopular = showPopular
+    ? popularTitles
+        .filter(
+          (p) =>
+            !recentTitles.some((r) => r.title.toLowerCase() === p.title.toLowerCase())
+        )
+        .slice(0, 8)
+    : [];
+
   // Combine recent titles with API suggestions, removing duplicates
   const filteredRecent = getFilteredRecent();
   const apiSuggestionsFiltered = suggestions
@@ -165,7 +198,7 @@ export function TitleAutocomplete({
         )
     )
     .sort((a, b) => a.title.localeCompare(b.title)); // Sort alphabetically by title
-  const allSuggestions: TitleSuggestion[] = [...filteredRecent, ...apiSuggestionsFiltered];
+  const allSuggestions: TitleSuggestion[] = [...filteredRecent, ...filteredPopular.map((p) => ({ title: p.title, years: "", publisher: p.publisher ?? undefined })), ...apiSuggestionsFiltered];
   const hasAnySuggestions = allSuggestions.length > 0;
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -219,8 +252,9 @@ export function TitleAutocomplete({
           onChange={(e) => onChange(e.target.value)}
           onFocus={() => {
             setHasFocused(true);
-            // Show dropdown if we have suggestions or recent titles
-            if (hasAnySuggestions || recentTitles.length > 0) setShowDropdown(true);
+            // Show dropdown if we have suggestions, recent titles, or popular titles
+            if (hasAnySuggestions || recentTitles.length > 0 || popularTitles.length >= 5)
+              setShowDropdown(true);
           }}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
@@ -239,6 +273,13 @@ export function TitleAutocomplete({
           ref={dropdownRef}
           className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto"
         >
+          {/* Abbreviation expansion hint */}
+          {expandedFrom && (
+            <div className="px-3 py-1.5 text-xs text-gray-500 bg-gray-50 border-b border-gray-100">
+              Searching for &ldquo;{normalizeSearchQuery(expandedFrom)}&rdquo;
+            </div>
+          )}
+
           {/* Recent titles section */}
           {filteredRecent.length > 0 && (
             <>
@@ -267,6 +308,39 @@ export function TitleAutocomplete({
             </>
           )}
 
+          {/* Popular titles section */}
+          {filteredPopular.length > 0 && (
+            <>
+              <div className="px-3 py-1.5 text-xs font-medium text-gray-500 bg-gray-50 border-b border-gray-100 flex items-center gap-1">
+                <TrendingUp className="w-3 h-3" />
+                Popular
+              </div>
+              {filteredPopular.map((popular, index) => {
+                const globalIndex = filteredRecent.length + index;
+                return (
+                  <button
+                    key={`popular-${popular.title}`}
+                    type="button"
+                    onClick={() =>
+                      handleSelect({ title: popular.title, years: "", publisher: popular.publisher ?? undefined })
+                    }
+                    className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-100 transition-colors flex items-center gap-2 ${
+                      globalIndex === highlightedIndex ? "bg-gray-100" : ""
+                    }`}
+                  >
+                    <TrendingUp className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                    <span className="flex-1">
+                      <span className="text-gray-900">{popular.title}</span>
+                      {popular.publisher && (
+                        <span className="text-gray-400 ml-1.5 text-xs">{popular.publisher}</span>
+                      )}
+                    </span>
+                  </button>
+                );
+              })}
+            </>
+          )}
+
           {/* API suggestions section */}
           {apiSuggestionsFiltered.length > 0 && (
             <>
@@ -276,7 +350,7 @@ export function TitleAutocomplete({
                 </div>
               )}
               {apiSuggestionsFiltered.map((suggestion, index) => {
-                const globalIndex = filteredRecent.length + index;
+                const globalIndex = filteredRecent.length + filteredPopular.length + index;
                 // Check if there are multiple runs of the same title to show volume indicator
                 const sameTitle = apiSuggestionsFiltered.filter(
                   (s) => s.title.toLowerCase() === suggestion.title.toLowerCase()

@@ -40,39 +40,104 @@ import { ChestIcon } from "./icons/ChestIcon";
 // FAQ content for Ask the Professor
 const faqs = [
   {
+    question: "What is Collectors Chest?",
+    answer:
+      "Collectors Chest is an all-in-one comic book collection manager. Scan covers with AI recognition, track your collection's value, discover key issues, buy and sell in the marketplace, and connect with fellow collectors.",
+  },
+  {
+    question: "Is it free to use?",
+    answer:
+      "Yes! You can create a free account and access most features including collection tracking, cover scanning (limited scans per month), custom lists, and the marketplace. Premium unlocks unlimited scans, Key Hunt, CSV export, advanced stats, and more.",
+  },
+  {
+    question: "Do I need to create an account?",
+    answer:
+      "Guests can explore the app and try scanning a comic, but to save your collection, track values, use the marketplace, create lists, and access your data across devices, you'll need a free account.",
+  },
+  {
     question: "How do I add a comic to my collection?",
     answer:
-      "Click the '+' button or go to 'Scan'. You can either upload a photo of the cover for technopathic recognition, scan a barcode, or enter details manually. After reviewing the details, click 'Add to Collection'.",
+      "Go to 'Scan' and either upload a photo of the cover for AI recognition or enter details manually. Review the auto-detected title, issue, creator credits, and price estimate, then click 'Add to Collection'.",
   },
   {
-    question: "What features are available for guests vs registered users?",
+    question: "How does cover scanning work?",
     answer:
-      "Guests can explore the app, view the 'How It Works' guide, check out Professor's Hottest Books, and try scanning a comic. However, to save comics to your collection, track values, create custom lists, mark items as sold, and access your data across devices, you'll need to create a free account.",
-  },
-  {
-    question: "What does 'Slabbed' mean?",
-    answer:
-      "A 'slabbed' comic is one that has been professionally graded by a service like CGC, CBCS, or PGX. The comic is sealed in a protective case with a grade label.",
+      "Upload or take a photo of a comic cover and our AI identifies the title, issue number, publisher, creators, key info, and estimated value. It works with raw and slabbed comics, and even detects grading labels on slabs.",
   },
   {
     question: "How accurate are the price estimates?",
     answer:
-      "Price estimates are generated using technopathy based on recent market trends. They provide a general guideline but actual prices can vary based on condition, demand, and where you sell.",
+      "Prices are AI estimates based on recent market trends and eBay sold listings. They provide a solid guideline but actual prices vary based on condition, demand, and where you sell. For the most accurate values, check recent eBay completed sales.",
   },
   {
     question: "What is Key Hunt?",
     answer:
-      "Key Hunt is a quick price lookup feature designed for finding key comics at conventions. Scan a cover, scan a barcode, or manually enter a title to instantly see the average price for any grade.",
+      "Key Hunt is a quick price lookup tool designed for conventions and comic shops. Scan a cover or manually enter a title and issue to instantly see prices across different grades. Perfect for making quick buying decisions on the go.",
   },
   {
-    question: "Can I create custom lists?",
+    question: "What does 'Slabbed' mean?",
     answer:
-      "Yes! Go to your Collection page and look for the option to create a new list. You can organize comics by series, favorites, want list, or any category you choose.",
+      "A 'slabbed' comic has been professionally graded by a service like CGC, CBCS, or PGX and sealed in a protective case with a grade label. When you check 'Professionally Graded' in your comic details, it's automatically added to your Slabbed list.",
+  },
+  {
+    question: "What grades should I use for my comics?",
+    answer:
+      "For raw (ungraded) comics, use standard terms: NM (Near Mint), VF (Very Fine), FN (Fine), VG (Very Good), G (Good), FR (Fair), PR (Poor). For slabbed comics, enter the numeric grade from the certification label (e.g., 9.8, 9.6, 9.4).",
+  },
+  {
+    question: "Can I buy and sell comics here?",
+    answer:
+      "Yes! The Shop features auctions and fixed-price listings. You can list comics from your collection for sale, bid on auctions, make offers on listings, and complete purchases via secure Stripe checkout.",
+  },
+  {
+    question: "Can I trade comics with other collectors?",
+    answer:
+      "Yes! Mark comics as 'For Trade' in your collection, then browse the Trade tab in the Shop to find matches. The system suggests trades based on your want list and what other collectors have available.",
+  },
+  {
+    question: "How do I message another collector?",
+    answer:
+      "Click 'Message Seller' on any listing, or visit a collector's profile and send them a direct message. You can share images and discuss deals privately. Messages appear in your inbox under the Messages page.",
   },
   {
     question: "How do I mark a comic as sold?",
     answer:
-      "View the comic in your collection and look for the 'Mark as Sold' option. Enter the sale price and date, and it will be moved to your sales history.",
+      "Open any comic in your collection, tap 'Mark as Sold', and enter the sale price. It moves to your Sales History where you can track profit and loss across all your sales.",
+  },
+  {
+    question: "Can I import my existing collection?",
+    answer:
+      "Yes! Go to Collection and use the Import feature. Upload a CSV, JSON, or Excel file from other apps like CLZ Comics, League of Comic Geeks, or your own spreadsheet. Map your columns to our fields and import in bulk.",
+  },
+  {
+    question: "Can I create custom lists?",
+    answer:
+      "Yes! From your Collection page, create lists to organize comics however you like \u2014 by series, want list, favorites, reading order, or any category. Comics can belong to multiple lists.",
+  },
+  {
+    question: "What is the Hottest Books feature?",
+    answer:
+      "Professor's Hottest Books is a weekly market analysis showing the top trending comics based on recent sales activity. It includes key facts about each book, why it's hot, and current price ranges to help you spot opportunities.",
+  },
+  {
+    question: "What is Key Info and why does it matter?",
+    answer:
+      "Key Info highlights significant events in a comic \u2014 first appearances, origin stories, deaths, team changes, and more. Key issues are typically worth more than regular issues. We maintain a curated database and you can suggest additions for community review.",
+  },
+  {
+    question: "How do I track my collection's value?",
+    answer:
+      "Your collection page shows total estimated value, cost basis, and profit/loss. Each comic displays its estimated value, and the Stats page (premium) provides detailed breakdowns by publisher, trends over time, and portfolio analysis.",
+  },
+  {
+    question: "Can I use this on my phone?",
+    answer:
+      "Absolutely! Collectors Chest is fully mobile-responsive and works as a Progressive Web App. Add it to your home screen from your browser for an app-like experience with quick access to scanning, Key Hunt, and your collection.",
+  },
+  {
+    question: "Is my data safe?",
+    answer:
+      "Your collection data is stored securely in the cloud and synced across all your devices. We use industry-standard encryption, secure authentication via Clerk, and your payment info is handled entirely by Stripe \u2014 we never store credit card details.",
   },
 ];
 
@@ -83,6 +148,7 @@ export function Navigation() {
   const [showProfessor, setShowProfessor] = useState(false);
   const [expandedFAQ, setExpandedFAQ] = useState<number | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [profileId, setProfileId] = useState<string | null>(null);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
 
@@ -103,6 +169,16 @@ export function Navigation() {
     };
   }, [showMoreMenu]);
 
+  // Fetch profile ID for broadcast subscription
+  useEffect(() => {
+    if (!isSignedIn) return;
+    fetch("/api/username/current")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data?.profileId) setProfileId(data.profileId); })
+      .catch(() => {});
+  }, [isSignedIn]);
+
+  // Fetch initial unread count
   useEffect(() => {
     if (!isSignedIn) return;
 
@@ -119,28 +195,35 @@ export function Navigation() {
     };
 
     fetchUnread();
+  }, [isSignedIn]);
 
-    // Subscribe to new messages for realtime badge updates
-    const channel = supabase
-      .channel("navigation-messages")
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "messages",
-        },
-        () => {
-          // Re-fetch accurate count from server on any new message
-          fetchUnread();
+  // Subscribe to broadcast for unread message updates
+  useEffect(() => {
+    if (!profileId) return;
+
+    const fetchUnread = async () => {
+      try {
+        const res = await fetch("/api/messages/unread-count");
+        if (res.ok) {
+          const data = await res.json();
+          setUnreadCount(data.count);
         }
-      )
+      } catch {
+        // Ignore errors silently
+      }
+    };
+
+    const channel = supabase
+      .channel(`user:${profileId}:messages`)
+      .on("broadcast", { event: "unread-update" }, () => {
+        fetchUnread();
+      })
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [isSignedIn, user?.id]);
+  }, [profileId]);
 
   // Guest primary nav links
   const guestPrimaryLinks = [
@@ -243,7 +326,7 @@ export function Navigation() {
                   <div className="absolute top-full right-0 mt-2 w-48 bg-pop-white border-3 border-pop-black shadow-comic z-50">
                     {secondaryLinks.map((link) => {
                       const Icon = link.icon;
-                      const isActive = pathname === link.href;
+                      const isActive = pathname === link.href && !primaryLinks.some((p) => p.href === link.href);
                       return (
                         <Link
                           key={link.href}
@@ -380,7 +463,7 @@ export function Navigation() {
                       onClick={() => setExpandedFAQ(expandedFAQ === index ? null : index)}
                       className="w-full flex items-center justify-between p-4 text-left hover:bg-pop-yellow/20 transition-colors"
                     >
-                      <span className="font-comic text-pop-black pr-4">{faq.question}</span>
+                      <span className="font-sans font-medium text-pop-black pr-4 normal-case">{faq.question}</span>
                       {expandedFAQ === index ? (
                         <ChevronUp className="w-5 h-5 text-pop-blue flex-shrink-0" />
                       ) : (

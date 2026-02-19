@@ -1342,7 +1342,7 @@ export async function createNotification(
     key_info_rejected: "Your key info suggestion was reviewed but not accepted. Thank you for contributing!",
   };
 
-  await supabase.from("notifications").insert({
+  await supabaseAdmin.from("notifications").insert({
     user_id: userId,
     type,
     title: titles[type],
@@ -1470,7 +1470,7 @@ export async function getUserNotifications(
   userId: string,
   unreadOnly = false
 ): Promise<Notification[]> {
-  let query = supabase
+  let query = supabaseAdmin
     .from("notifications")
     .select("*")
     .eq("user_id", userId)
@@ -1501,14 +1501,14 @@ export async function getUserNotifications(
  * Mark notification as read
  */
 export async function markNotificationRead(notificationId: string): Promise<void> {
-  await supabase.from("notifications").update({ is_read: true }).eq("id", notificationId);
+  await supabaseAdmin.from("notifications").update({ is_read: true }).eq("id", notificationId);
 }
 
 /**
  * Mark all notifications as read
  */
 export async function markAllNotificationsRead(userId: string): Promise<void> {
-  await supabase
+  await supabaseAdmin
     .from("notifications")
     .update({ is_read: true })
     .eq("user_id", userId)
@@ -1519,7 +1519,7 @@ export async function markAllNotificationsRead(userId: string): Promise<void> {
  * Get unread notification count
  */
 export async function getUnreadNotificationCount(userId: string): Promise<number> {
-  const { count, error } = await supabase
+  const { count, error } = await supabaseAdmin
     .from("notifications")
     .select("*", { count: "exact", head: true })
     .eq("user_id", userId)

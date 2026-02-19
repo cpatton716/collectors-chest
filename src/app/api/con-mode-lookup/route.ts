@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 
 import { getComicMetadata, incrementComicLookupCount, saveComicMetadata } from "@/lib/db";
+import { MODEL_PRIMARY } from "@/lib/models";
 import { isFindingApiConfigured, lookupEbaySoldPrices } from "@/lib/ebayFinding";
 
 const anthropic = new Anthropic({
@@ -171,7 +172,7 @@ export async function POST(request: NextRequest) {
 
     // Get price data from Claude
     const lookupResponse = await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model: MODEL_PRIMARY,
       max_tokens: 1024,
       messages: [
         {
@@ -338,7 +339,7 @@ async function fetchKeyInfoFromAI(title: string, issueNumber: string): Promise<s
 
   try {
     const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model: MODEL_PRIMARY,
       max_tokens: 256,
       messages: [
         {
