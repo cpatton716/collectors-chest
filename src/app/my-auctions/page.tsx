@@ -32,6 +32,7 @@ export default function MyListingsPage() {
   const [selectedAuctionId, setSelectedAuctionId] = useState<string | null>(null);
   const [selectedListingId, setSelectedListingId] = useState<string | null>(null);
   const [showUpsell, setShowUpsell] = useState(false);
+  const [subscriptionTier, setSubscriptionTier] = useState<string>("free");
   const [upsellData, setUpsellData] = useState<{
     totalFeesPaid: number;
     totalSales: number;
@@ -62,6 +63,7 @@ export default function MyListingsPage() {
         const data = await res.json();
 
         const tier = data.subscriptionTier || "free";
+        setSubscriptionTier(tier);
 
         if (shouldShowPremiumUpsell(tier, data.completedSales)) {
           setUpsellData({
@@ -125,15 +127,37 @@ export default function MyListingsPage() {
           <div>
             <h1 className="text-3xl font-black text-pop-black font-comic">MY LISTINGS</h1>
             <p className="text-gray-600 mt-1">Manage your auctions and items for sale</p>
+            {subscriptionTier === "free" && (
+              <p className="text-sm mt-1">
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border-2 border-pop-black font-comic text-xs ${
+                  activeListings.length >= 3
+                    ? "bg-pop-red text-white"
+                    : "bg-pop-yellow text-pop-black"
+                }`}>
+                  {activeListings.length} OF 3 LISTINGS USED
+                </span>
+              </p>
+            )}
           </div>
-          <button
-            onClick={() => router.push("/collection")}
-            className="flex items-center gap-2 px-4 py-2 bg-pop-blue border-2 border-pop-black text-white font-bold transition-all"
-            style={{ boxShadow: "3px 3px 0px #000" }}
-          >
-            <Plus className="w-4 h-4" />
-            <span className="hidden sm:inline">Create Listing</span>
-          </button>
+          {subscriptionTier === "free" && activeListings.length >= 3 ? (
+            <button
+              onClick={() => router.push("/pricing")}
+              className="flex items-center gap-2 px-4 py-2 bg-pop-green border-2 border-pop-black text-white font-bold transition-all"
+              style={{ boxShadow: "3px 3px 0px #000" }}
+            >
+              <span className="hidden sm:inline">UPGRADE TO LIST MORE</span>
+              <span className="sm:hidden">UPGRADE</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => router.push("/collection")}
+              className="flex items-center gap-2 px-4 py-2 bg-pop-blue border-2 border-pop-black text-white font-bold transition-all"
+              style={{ boxShadow: "3px 3px 0px #000" }}
+            >
+              <Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">Create Listing</span>
+            </button>
+          )}
         </div>
 
         {/* Tabs - Pop Art Style */}
