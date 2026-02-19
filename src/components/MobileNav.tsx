@@ -27,6 +27,7 @@ import {
 
 import { useSubscription } from "@/hooks/useSubscription";
 import { supabase } from "@/lib/supabase";
+import AdminAlertBadge from "@/components/AdminAlertBadge";
 
 interface NavItem {
   href: string;
@@ -333,6 +334,7 @@ export function MobileNav() {
                 >
                   <Shield className="w-5 h-5" />
                   <span className="font-medium">Admin</span>
+                  <AdminAlertBadge variant="count" />
                 </Link>
               )}
             </div>

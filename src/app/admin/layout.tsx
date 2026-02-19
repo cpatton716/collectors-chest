@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Users, BarChart3, KeyRound, MessageSquare, ArrowLeft, Barcode } from "lucide-react";
+import AdminAlertBadge from "@/components/AdminAlertBadge";
 
 const adminLinks = [
   { href: "/admin/users", label: "Users", icon: Users },
@@ -50,7 +51,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                       : "hover:bg-black/10"
                   }`}
                 >
-                  <Icon className="w-4 h-4" />
+                  <div className="relative">
+                    <Icon className="w-4 h-4" />
+                    {label === "Usage" && <AdminAlertBadge variant="dot" />}
+                  </div>
                   <span className="hidden md:inline">{label}</span>
                 </Link>
               );

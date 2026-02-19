@@ -8,14 +8,17 @@ import { isUserSuspended } from "@/lib/adminAuth";
 import {
   cacheGet,
   cacheSet,
+  generateComicMetadataCacheKey,
   generateEbayPriceCacheKey,
   hashImageData,
   isCacheAvailable,
 } from "@/lib/cache";
 import { lookupCertification } from "@/lib/certLookup";
-import { getProfileByClerkId } from "@/lib/db";
+import { getComicMetadata, getProfileByClerkId, saveComicMetadata } from "@/lib/db";
 import { isFindingApiConfigured, lookupEbaySoldPrices } from "@/lib/ebayFinding";
+import { ComicMetadata, mergeMetadataIntoDetails, buildMetadataSavePayload } from "@/lib/metadataCache";
 import { lookupKeyInfo } from "@/lib/keyComicsDatabase";
+import { estimateScanCostCents, trackScanServer } from "@/lib/analyticsServer";
 import { MODEL_PRIMARY } from "@/lib/models";
 import { checkRateLimit, getRateLimitIdentifier, rateLimiters } from "@/lib/rateLimit";
 import {
@@ -114,6 +117,7 @@ function parseBarcode(barcodeRaw: string): ParsedBarcode | null {
 export async function POST(request: NextRequest) {
   // Track profile for scan counting at the end
   let profileId: string | null = null;
+  let subscriptionTier: string = "free";
 
   try {
     // Rate limit check - protect expensive AI endpoint
@@ -150,6 +154,7 @@ export async function POST(request: NextRequest) {
       const profile = await getProfileByClerkId(userId);
       if (profile) {
         profileId = profile.id;
+        subscriptionTier = profile.subscription_tier || "free";
         const canScan = await canUserScan(profile.id);
 
         if (!canScan) {
@@ -216,6 +221,13 @@ export async function POST(request: NextRequest) {
 
     // Remove data URL prefix if present
     const base64Data = image.replace(/^data:image\/\w+;base64,/, "");
+
+    // ============================================
+    // Scan Tracking Variables (for PostHog analytics)
+    // ============================================
+    const scanStartTime = Date.now();
+    let aiCallsMade = 0;
+    let ebayLookupMade = false;
 
     // ============================================
     // Image Hash Caching (Phase 2 optimization)
@@ -328,6 +340,7 @@ Important:
           },
         ],
       });
+      aiCallsMade++;
 
       // Extract the text content from the response
       const textContent = response.content.find((block) => block.type === "text");
@@ -610,11 +623,6 @@ Important:
     // This saves 30-35% on Anthropic costs vs. 3 separate calls
     // ============================================
 
-    // Check what info is missing
-    const missingCreatorInfo =
-      !comicDetails.writer || !comicDetails.coverArtist || !comicDetails.interiorArtist;
-    const missingBasicInfo = !comicDetails.publisher || !comicDetails.releaseYear;
-
     // First, check our curated key comics database (fast, guaranteed accurate, FREE)
     let databaseKeyInfo: string[] | null = null;
     if (comicDetails.title && comicDetails.issueNumber) {
@@ -624,20 +632,61 @@ Important:
       }
     }
 
-    // Only call AI if we need to fill in missing information
-    const needsKeyInfoFromAI = !databaseKeyInfo || databaseKeyInfo.length === 0;
+    // ============================================
+    // Metadata Cache Lookup (dual-layer: Redis → Supabase)
+    // ============================================
+    let metadataCacheHit = false;
+    if (comicDetails.title && comicDetails.issueNumber) {
+      try {
+        const metaCacheKey = generateComicMetadataCacheKey(
+          comicDetails.title,
+          comicDetails.issueNumber
+        );
+
+        // Layer 1: Redis (fast, 7-day TTL)
+        let cachedMetadata = await cacheGet<ComicMetadata>(metaCacheKey, "comicMetadata");
+
+        // Layer 2: Supabase fallback (permanent)
+        if (!cachedMetadata) {
+          const dbMetadata = await getComicMetadata(comicDetails.title, comicDetails.issueNumber);
+          if (dbMetadata) {
+            cachedMetadata = dbMetadata as ComicMetadata;
+            // Backfill Redis for next time (fire-and-forget)
+            cacheSet(metaCacheKey, dbMetadata, "comicMetadata").catch(() => {});
+          }
+        }
+
+        if (cachedMetadata) {
+          metadataCacheHit = true;
+          mergeMetadataIntoDetails(
+            comicDetails as unknown as Record<string, unknown>,
+            cachedMetadata
+          );
+        }
+      } catch (cacheError) {
+        console.error("Metadata cache lookup failed:", cacheError);
+      }
+    }
+
+    // Recheck missing fields after cache merge
+    const missingCreatorInfoAfterCache =
+      !comicDetails.writer || !comicDetails.coverArtist || !comicDetails.interiorArtist;
+    const missingBasicInfoAfterCache = !comicDetails.publisher || !comicDetails.releaseYear;
+
+    // Only call AI if we STILL need to fill in missing information after cache
+    const needsKeyInfoFromAI = !comicDetails.keyInfo || comicDetails.keyInfo.length === 0;
     const needsAIVerification =
       comicDetails.title &&
       comicDetails.issueNumber &&
-      (missingCreatorInfo || missingBasicInfo || needsKeyInfoFromAI);
+      (missingCreatorInfoAfterCache || missingBasicInfoAfterCache || needsKeyInfoFromAI);
 
     if (needsAIVerification) {
       try {
         // Build a list of what we need
         const missingFields: string[] = [];
-        if (missingCreatorInfo)
+        if (missingCreatorInfoAfterCache)
           missingFields.push("creators (writer, coverArtist, interiorArtist)");
-        if (missingBasicInfo) missingFields.push("publication info (publisher, releaseYear)");
+        if (missingBasicInfoAfterCache) missingFields.push("publication info (publisher, releaseYear)");
         if (needsKeyInfoFromAI) missingFields.push("key collector facts");
 
         const verifyResponse = await anthropic.messages.create({
@@ -670,6 +719,7 @@ Rules:
             },
           ],
         });
+        aiCallsMade++;
 
         const verifyTextContent = verifyResponse.content.find((block) => block.type === "text");
         if (verifyTextContent && verifyTextContent.type === "text") {
@@ -750,6 +800,7 @@ Rules:
               isSlabbed,
               comicDetails.gradingCompany || undefined
             );
+            ebayLookupMade = true;
 
             if (ebayPriceData && ebayPriceData.estimatedValue) {
               comicDetails.priceData = {
@@ -955,6 +1006,53 @@ Important:
       // Fire and forget - don't block the response
       incrementScanCount(profileId, "scan").catch((err) => {
         console.error("Failed to increment scan count:", err);
+      });
+    }
+
+    // ============================================
+    // Save to Metadata Cache (fire-and-forget)
+    // ============================================
+    const savePayload = buildMetadataSavePayload(
+      comicDetails as unknown as Record<string, unknown>
+    );
+    if (savePayload) {
+      const metaSaveKey = generateComicMetadataCacheKey(
+        savePayload.title,
+        savePayload.issueNumber
+      );
+      Promise.all([
+        saveComicMetadata(savePayload),
+        cacheSet(metaSaveKey, savePayload, "comicMetadata"),
+      ]).catch((err) => {
+        console.error("Metadata cache save failed:", err);
+      });
+    }
+
+    // ============================================
+    // Server-Side Analytics (fire-and-forget)
+    // ============================================
+    const scanDuration = Date.now() - scanStartTime;
+    const costCents = estimateScanCostCents({
+      metadataCacheHit,
+      aiCallsMade,
+      ebayLookup: ebayLookupMade,
+    });
+
+    if (profileId) {
+      trackScanServer(profileId, {
+        scanMethod: "camera",
+        metadataCacheHit,
+        redisCacheHit: false,
+        supabaseCacheHit: false,
+        aiCallsMade,
+        ebayLookup: ebayLookupMade,
+        durationMs: scanDuration,
+        estimatedCostCents: costCents,
+        success: true,
+        userId: profileId,
+        subscriptionTier,
+      }).catch((err) => {
+        console.error("PostHog tracking failed:", err);
       });
     }
 
