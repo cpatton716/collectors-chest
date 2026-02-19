@@ -42,6 +42,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
+    // Age verification gate
+    if (!profile.age_confirmed_at) {
+      return NextResponse.json(
+        { error: "AGE_VERIFICATION_REQUIRED", message: "You must confirm you are 18+ to use the marketplace." },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const { listingId, amount } = body;
 
