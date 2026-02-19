@@ -8,13 +8,15 @@ import { isUserSuspended } from "@/lib/adminAuth";
 import {
   cacheGet,
   cacheSet,
+  generateComicMetadataCacheKey,
   generateEbayPriceCacheKey,
   hashImageData,
   isCacheAvailable,
 } from "@/lib/cache";
 import { lookupCertification } from "@/lib/certLookup";
-import { getProfileByClerkId } from "@/lib/db";
+import { getComicMetadata, getProfileByClerkId, saveComicMetadata } from "@/lib/db";
 import { isFindingApiConfigured, lookupEbaySoldPrices } from "@/lib/ebayFinding";
+import { ComicMetadata, mergeMetadataIntoDetails, buildMetadataSavePayload } from "@/lib/metadataCache";
 import { lookupKeyInfo } from "@/lib/keyComicsDatabase";
 import { MODEL_PRIMARY } from "@/lib/models";
 import { checkRateLimit, getRateLimitIdentifier, rateLimiters } from "@/lib/rateLimit";
@@ -610,11 +612,6 @@ Important:
     // This saves 30-35% on Anthropic costs vs. 3 separate calls
     // ============================================
 
-    // Check what info is missing
-    const missingCreatorInfo =
-      !comicDetails.writer || !comicDetails.coverArtist || !comicDetails.interiorArtist;
-    const missingBasicInfo = !comicDetails.publisher || !comicDetails.releaseYear;
-
     // First, check our curated key comics database (fast, guaranteed accurate, FREE)
     let databaseKeyInfo: string[] | null = null;
     if (comicDetails.title && comicDetails.issueNumber) {
@@ -624,20 +621,61 @@ Important:
       }
     }
 
-    // Only call AI if we need to fill in missing information
-    const needsKeyInfoFromAI = !databaseKeyInfo || databaseKeyInfo.length === 0;
+    // ============================================
+    // Metadata Cache Lookup (dual-layer: Redis → Supabase)
+    // ============================================
+    let metadataCacheHit = false;
+    if (comicDetails.title && comicDetails.issueNumber) {
+      try {
+        const metaCacheKey = generateComicMetadataCacheKey(
+          comicDetails.title,
+          comicDetails.issueNumber
+        );
+
+        // Layer 1: Redis (fast, 7-day TTL)
+        let cachedMetadata = await cacheGet<ComicMetadata>(metaCacheKey, "comicMetadata");
+
+        // Layer 2: Supabase fallback (permanent)
+        if (!cachedMetadata) {
+          const dbMetadata = await getComicMetadata(comicDetails.title, comicDetails.issueNumber);
+          if (dbMetadata) {
+            cachedMetadata = dbMetadata as ComicMetadata;
+            // Backfill Redis for next time (fire-and-forget)
+            cacheSet(metaCacheKey, dbMetadata, "comicMetadata").catch(() => {});
+          }
+        }
+
+        if (cachedMetadata) {
+          metadataCacheHit = true;
+          mergeMetadataIntoDetails(
+            comicDetails as unknown as Record<string, unknown>,
+            cachedMetadata
+          );
+        }
+      } catch (cacheError) {
+        console.error("Metadata cache lookup failed:", cacheError);
+      }
+    }
+
+    // Recheck missing fields after cache merge
+    const missingCreatorInfoAfterCache =
+      !comicDetails.writer || !comicDetails.coverArtist || !comicDetails.interiorArtist;
+    const missingBasicInfoAfterCache = !comicDetails.publisher || !comicDetails.releaseYear;
+
+    // Only call AI if we STILL need to fill in missing information after cache
+    const needsKeyInfoFromAI = !comicDetails.keyInfo || comicDetails.keyInfo.length === 0;
     const needsAIVerification =
       comicDetails.title &&
       comicDetails.issueNumber &&
-      (missingCreatorInfo || missingBasicInfo || needsKeyInfoFromAI);
+      (missingCreatorInfoAfterCache || missingBasicInfoAfterCache || needsKeyInfoFromAI);
 
     if (needsAIVerification) {
       try {
         // Build a list of what we need
         const missingFields: string[] = [];
-        if (missingCreatorInfo)
+        if (missingCreatorInfoAfterCache)
           missingFields.push("creators (writer, coverArtist, interiorArtist)");
-        if (missingBasicInfo) missingFields.push("publication info (publisher, releaseYear)");
+        if (missingBasicInfoAfterCache) missingFields.push("publication info (publisher, releaseYear)");
         if (needsKeyInfoFromAI) missingFields.push("key collector facts");
 
         const verifyResponse = await anthropic.messages.create({
@@ -955,6 +993,25 @@ Important:
       // Fire and forget - don't block the response
       incrementScanCount(profileId, "scan").catch((err) => {
         console.error("Failed to increment scan count:", err);
+      });
+    }
+
+    // ============================================
+    // Save to Metadata Cache (fire-and-forget)
+    // ============================================
+    const savePayload = buildMetadataSavePayload(
+      comicDetails as unknown as Record<string, unknown>
+    );
+    if (savePayload) {
+      const metaSaveKey = generateComicMetadataCacheKey(
+        savePayload.title,
+        savePayload.issueNumber
+      );
+      Promise.all([
+        saveComicMetadata(savePayload),
+        cacheSet(metaSaveKey, savePayload, "comicMetadata"),
+      ]).catch((err) => {
+        console.error("Metadata cache save failed:", err);
       });
     }
 
