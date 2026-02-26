@@ -31,6 +31,9 @@ const LIMITS = {
   coverSearch: {
     monthlyBudgetCents: 1000, // $10 budget
   },
+  netlify: {
+    bandwidthGB: 100, // Personal plan ~100GB/month
+  },
 };
 
 // Alert thresholds (percentage of limit)
@@ -285,6 +288,42 @@ export async function GET() {
       });
     } catch (e) {
       errors.push(`Cover Search: ${e instanceof Error ? e.message : "Unknown error"}`);
+    }
+
+    // Netlify Bandwidth
+    try {
+      const netlifyToken = process.env.NETLIFY_API_TOKEN;
+      if (netlifyToken) {
+        const accountRes = await fetch(
+          "https://api.netlify.com/api/v1/accounts/695e636ba27a6f671da765b4/bandwidth",
+          {
+            headers: { Authorization: `Bearer ${netlifyToken}` },
+            signal: AbortSignal.timeout(5000),
+          }
+        );
+        if (accountRes.ok) {
+          const bwData = await accountRes.json();
+          const usedGB = (bwData.used || 0) / (1024 * 1024 * 1024);
+          const limitGB = LIMITS.netlify.bandwidthGB;
+          const percentage = usedGB / limitGB;
+          metrics.push({
+            name: "Netlify Bandwidth",
+            current: Math.round(usedGB * 100) / 100,
+            limit: limitGB,
+            unit: "GB",
+            percentage,
+            status:
+              percentage >= ALERT_THRESHOLDS.critical
+                ? "critical"
+                : percentage >= ALERT_THRESHOLDS.warning
+                  ? "warning"
+                  : "ok",
+            dashboard: "https://app.netlify.com/teams/cpatton716/billing/usage",
+          });
+        }
+      }
+    } catch (e) {
+      errors.push(`Netlify: ${e instanceof Error ? e.message : "Unknown error"}`);
     }
 
     // Calculate overall status

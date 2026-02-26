@@ -23,6 +23,9 @@ const LIMITS = {
   coverSearch: {
     monthlyBudgetCents: 1000,
   },
+  netlify: {
+    bandwidthGB: 100,
+  },
 };
 
 const ALERT_THRESHOLDS = {
@@ -218,6 +221,45 @@ export async function GET(request: NextRequest) {
       }
     } catch (e) {
       console.error("Error checking cover search costs:", e);
+    }
+
+    // Check 6: Netlify Bandwidth
+    try {
+      const netlifyToken = process.env.NETLIFY_API_TOKEN;
+      if (netlifyToken) {
+        const accountRes = await fetch(
+          "https://api.netlify.com/api/v1/accounts/695e636ba27a6f671da765b4/bandwidth",
+          {
+            headers: { Authorization: `Bearer ${netlifyToken}` },
+            signal: AbortSignal.timeout(5000),
+          }
+        );
+        if (accountRes.ok) {
+          const bwData = await accountRes.json();
+          const usedGB = (bwData.used || 0) / (1024 * 1024 * 1024);
+          const percentage = usedGB / LIMITS.netlify.bandwidthGB;
+
+          if (percentage >= ALERT_THRESHOLDS.critical) {
+            alerts.push({
+              name: "Netlify Bandwidth",
+              current: Math.round(usedGB * 100) / 100,
+              limit: LIMITS.netlify.bandwidthGB,
+              percentage,
+              alertType: "critical" as const,
+            });
+          } else if (percentage >= ALERT_THRESHOLDS.warning) {
+            alerts.push({
+              name: "Netlify Bandwidth",
+              current: Math.round(usedGB * 100) / 100,
+              limit: LIMITS.netlify.bandwidthGB,
+              percentage,
+              alertType: "warning" as const,
+            });
+          }
+        }
+      }
+    } catch (e) {
+      console.error("Error checking Netlify bandwidth:", e);
     }
 
     // Filter out alerts we've already sent today
