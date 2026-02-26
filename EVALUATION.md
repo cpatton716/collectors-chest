@@ -551,6 +551,9 @@ Items addressed:
    - Harvest cover images from graded book scans
    - Create implementation plan before starting
 
+7. **Revisit beta mode planning**
+   - Review current private beta status and plan next steps for opening registration
+
 ### ✅ Feb 25 Session Completed
 
 - **Cover image search system** - Google CSE + Claude search query generation + community cover DB with admin approval

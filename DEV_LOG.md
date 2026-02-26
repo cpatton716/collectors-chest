@@ -19,6 +19,8 @@ This log tracks session-by-session progress on Collectors Chest.
 - Created beta mode planning doc
 - Created cover image harvesting design doc (auto-harvest from graded book scans)
 - Updated Close Up Shop skill with Usage page validation step
+- Added Netlify bandwidth tracking to admin Usage page (100GB limit, live API)
+- Added NETLIFY_API_TOKEN to services infrastructure
 
 ---
 
