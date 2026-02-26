@@ -711,16 +711,18 @@ Integrate Marvel API for accurate comic metadata and high-quality cover images o
 
 **Implementation:**
 1. Create `src/lib/marvel.ts` service with hash-based auth
-2. Bulk-seed Supabase `marvel_comics` table (~50K comics)
-3. Enrich scan results with Marvel data when matched
-4. Use Marvel covers as fallback when user photo is poor quality
-5. Display attribution on pages using Marvel data
+2. Build background indexing job to crawl all Marvel series/issues (3K calls/day)
+3. Bulk-populate community `cover_images` table with official Marvel cover art
+4. Enrich scan results with Marvel data when matched
+5. Use Marvel covers as primary source for cover image lookups (community DB)
+6. Display attribution on pages using Marvel data: "Data provided by Marvel"
 
 **Considerations:**
 - Marvel API only covers Marvel titles (no DC, Image, indie)
 - Need to handle non-Marvel publishers separately
 - Storage costs for bulk image hosting if we cache covers
 - Could expand to DC/others later via different APIs
+- Storage: ~50K covers at ~50-100KB each = 2.5-5GB. Will require Supabase Pro ($25/mo) or external CDN
 
 **Blocked By:** Developer portal access (reached out to Marvel support)
 

@@ -6,12 +6,19 @@ This log tracks session-by-session progress on Collectors Chest.
 
 ## Changes Since Last Deploy
 
-**Sessions since last deploy:** 0
-**Deploy Readiness:** N/A (just deployed)
 **Last Deploy:** February 25, 2026
+**Sessions Since Last Deploy:** 1 (continued same session post-deploy)
+**Deploy Readiness:** Needs Testing — new usage tracking metrics added
 
 ### Changes:
-*(None yet — just deployed)*
+- Added Google CSE daily query tracking to admin Usage page (100/day free tier limit)
+- Added Cover Search cost tracking to admin Usage page ($10/month budget, 30-day rolling)
+- Instrumented cover-candidates route with Redis counters for both metrics
+- Added alert thresholds for new metrics (70% warning, 90% critical)
+- Updated Marvel API backlog item with bulk cover database population plan
+- Created beta mode planning doc
+- Created cover image harvesting design doc (auto-harvest from graded book scans)
+- Updated Close Up Shop skill with Usage page validation step
 
 ---
 

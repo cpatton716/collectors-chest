@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { Redis } from "@upstash/redis";
 import { MODEL_LIGHTWEIGHT } from "@/lib/models";
 import { getCommunityCovers } from "@/lib/coverImageDb";
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
+
+const redis = Redis.fromEnv();
 
 interface CoverCandidate {
   url: string;
@@ -42,6 +45,13 @@ ${context}`,
 
   const text =
     message.content[0].type === "text" ? message.content[0].text.trim() : "";
+
+  const today = new Date().toISOString().split("T")[0];
+  try {
+    await redis.incr(`usage:cover-haiku:${today}`);
+    await redis.expire(`usage:cover-haiku:${today}`, 86400 * 2);
+  } catch {}
+
   // Strip quotes if Claude wraps the query
   return text.replace(/^["']|["']$/g, "");
 }
@@ -74,6 +84,12 @@ async function searchGoogleImages(
     console.error("Google CSE error:", response.status, await response.text());
     return [];
   }
+
+  const today = new Date().toISOString().split("T")[0];
+  try {
+    await redis.incr(`usage:google-cse:${today}`);
+    await redis.expire(`usage:google-cse:${today}`, 86400 * 2);
+  } catch {}
 
   const data = await response.json();
   if (!data.items || !Array.isArray(data.items)) return [];

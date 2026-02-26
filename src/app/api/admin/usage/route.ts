@@ -25,6 +25,12 @@ const LIMITS = {
     // No hard limit, but track spend
     warningThreshold: 5, // $5 remaining
   },
+  googleCSE: {
+    queriesPerDay: 100,
+  },
+  coverSearch: {
+    monthlyBudgetCents: 1000, // $10 budget
+  },
 };
 
 // Alert thresholds (percentage of limit)
@@ -216,6 +222,69 @@ export async function GET() {
       });
     } catch (e) {
       errors.push(`Scan metrics: ${e instanceof Error ? e.message : "Unknown error"}`);
+    }
+
+    // 4. Google CSE Daily Queries
+    try {
+      const redis = new Redis({
+        url: process.env.UPSTASH_REDIS_REST_URL!,
+        token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+      });
+
+      const today = new Date().toISOString().split("T")[0];
+      const cseQueries = (await redis.get<number>(`usage:google-cse:${today}`)) || 0;
+      const csePercentage = cseQueries / LIMITS.googleCSE.queriesPerDay;
+      metrics.push({
+        name: "Google CSE Daily Queries",
+        current: cseQueries,
+        limit: LIMITS.googleCSE.queriesPerDay,
+        unit: "queries",
+        percentage: csePercentage,
+        status:
+          csePercentage >= ALERT_THRESHOLDS.critical
+            ? "critical"
+            : csePercentage >= ALERT_THRESHOLDS.warning
+              ? "warning"
+              : "ok",
+        dashboard: "https://console.cloud.google.com/apis/dashboard",
+      });
+    } catch (e) {
+      errors.push(`Google CSE: ${e instanceof Error ? e.message : "Unknown error"}`);
+    }
+
+    // 5. Cover Search Cost (30 days)
+    try {
+      const redis = new Redis({
+        url: process.env.UPSTASH_REDIS_REST_URL!,
+        token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+      });
+
+      let totalHaikuCalls = 0;
+      const now = new Date();
+      for (let i = 0; i < 30; i++) {
+        const date = new Date(now);
+        date.setDate(date.getDate() - i);
+        const key = `usage:cover-haiku:${date.toISOString().split("T")[0]}`;
+        const count = (await redis.get<number>(key)) || 0;
+        totalHaikuCalls += count;
+      }
+      const coverCostCents = totalHaikuCalls * 0.2; // ~$0.002 per call
+      const coverPercentage = coverCostCents / LIMITS.coverSearch.monthlyBudgetCents;
+      metrics.push({
+        name: "Cover Search Cost (30d)",
+        current: coverCostCents / 100,
+        limit: LIMITS.coverSearch.monthlyBudgetCents / 100,
+        unit: "USD",
+        percentage: coverPercentage,
+        status:
+          coverPercentage >= ALERT_THRESHOLDS.critical
+            ? "critical"
+            : coverPercentage >= ALERT_THRESHOLDS.warning
+              ? "warning"
+              : "ok",
+      });
+    } catch (e) {
+      errors.push(`Cover Search: ${e instanceof Error ? e.message : "Unknown error"}`);
     }
 
     // Calculate overall status

@@ -17,6 +17,12 @@ const LIMITS = {
   supabase: { database: 500 * 1024 * 1024 },
   upstash: { commandsPerDay: 10000 },
   anthropic: { monthlyBudget: 10 },
+  googleCSE: {
+    queriesPerDay: 100,
+  },
+  coverSearch: {
+    monthlyBudgetCents: 1000,
+  },
 };
 
 const ALERT_THRESHOLDS = {
@@ -138,6 +144,80 @@ export async function GET(request: NextRequest) {
       }
     } catch (e) {
       console.error("Error checking API costs:", e);
+    }
+
+    // 4. Check Google CSE daily queries
+    try {
+      const redis = new Redis({
+        url: process.env.UPSTASH_REDIS_REST_URL!,
+        token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+      });
+
+      const today = new Date().toISOString().split("T")[0];
+      const cseQueries =
+        (await redis.get<number>(`usage:google-cse:${today}`)) || 0;
+      const csePercentage = cseQueries / LIMITS.googleCSE.queriesPerDay;
+
+      if (csePercentage >= ALERT_THRESHOLDS.critical) {
+        alerts.push({
+          name: "Google CSE Daily Queries",
+          current: cseQueries,
+          limit: LIMITS.googleCSE.queriesPerDay,
+          percentage: csePercentage,
+          alertType: "critical" as const,
+        });
+      } else if (csePercentage >= ALERT_THRESHOLDS.warning) {
+        alerts.push({
+          name: "Google CSE Daily Queries",
+          current: cseQueries,
+          limit: LIMITS.googleCSE.queriesPerDay,
+          percentage: csePercentage,
+          alertType: "warning" as const,
+        });
+      }
+    } catch (e) {
+      console.error("Error checking Google CSE usage:", e);
+    }
+
+    // 5. Check Cover Search cost (last 30 days)
+    try {
+      const redis = new Redis({
+        url: process.env.UPSTASH_REDIS_REST_URL!,
+        token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+      });
+
+      let totalHaikuCalls = 0;
+      const now = new Date();
+      for (let i = 0; i < 30; i++) {
+        const date = new Date(now);
+        date.setDate(date.getDate() - i);
+        const key = `usage:cover-haiku:${date.toISOString().split("T")[0]}`;
+        const count = (await redis.get<number>(key)) || 0;
+        totalHaikuCalls += count;
+      }
+      const coverCostCents = totalHaikuCalls * 0.2;
+      const coverPercentage =
+        coverCostCents / LIMITS.coverSearch.monthlyBudgetCents;
+
+      if (coverPercentage >= ALERT_THRESHOLDS.critical) {
+        alerts.push({
+          name: "Cover Search Cost (30d)",
+          current: coverCostCents / 100,
+          limit: LIMITS.coverSearch.monthlyBudgetCents / 100,
+          percentage: coverPercentage,
+          alertType: "critical" as const,
+        });
+      } else if (coverPercentage >= ALERT_THRESHOLDS.warning) {
+        alerts.push({
+          name: "Cover Search Cost (30d)",
+          current: coverCostCents / 100,
+          limit: LIMITS.coverSearch.monthlyBudgetCents / 100,
+          percentage: coverPercentage,
+          alertType: "warning" as const,
+        });
+      }
+    } catch (e) {
+      console.error("Error checking cover search costs:", e);
     }
 
     // Filter out alerts we've already sent today

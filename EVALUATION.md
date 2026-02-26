@@ -547,6 +547,10 @@ Items addressed:
    - Configure email alerts for spending thresholds
    - Visualize cache hit rates and AI call patterns
 
+6. **Implement cover image harvesting from graded book scans** (design approved, needs implementation plan)
+   - Harvest cover images from graded book scans
+   - Create implementation plan before starting
+
 ### ✅ Feb 25 Session Completed
 
 - **Cover image search system** - Google CSE + Claude search query generation + community cover DB with admin approval
