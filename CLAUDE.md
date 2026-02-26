@@ -131,11 +131,11 @@ For ad-hoc use during development:
 ## Services & Infrastructure
 
 ### Domain & Hosting
-| Service | Purpose | Dashboard |
-|---------|---------|-----------|
-| **Netlify** | Hosting, domain, DNS | [app.netlify.com](https://app.netlify.com) |
-| **Domain** | collectors-chest.com | Purchased via Netlify (Jan 2026) |
-| **SSL** | HTTPS certificate | Let's Encrypt (auto-renewed) |
+| Service | Purpose | Dashboard | Env Variable |
+|---------|---------|-----------|--------------|
+| **Netlify** | Hosting, domain, DNS, bandwidth | [app.netlify.com](https://app.netlify.com) | `NETLIFY_API_TOKEN` |
+| **Domain** | collectors-chest.com | Purchased via Netlify (Jan 2026) | |
+| **SSL** | HTTPS certificate | Let's Encrypt (auto-renewed) | |
 
 ### Core Services
 | Service | Purpose | Dashboard | Env Variable |
