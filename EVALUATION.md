@@ -2,7 +2,7 @@
 
 > **This document is the guiding light for development priorities. It takes precedence over BACKLOG.md.**
 
-*Last Updated: January 28, 2026*
+*Last Updated: February 25, 2026*
 
 ---
 
@@ -422,6 +422,15 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 14. ~~**Search optimization**~~ ✅ (3 features: fuzzy matching with 34 abbreviations, batch CSV imports, popularity-based suggestions)
 15. ~~**Site icon replacement**~~ ✅ (New blue comic-style chest design across all icon files)
 16. ~~**FAQ update**~~ ✅ (Ask the Professor expanded to 20 questions, font fix)
+17. ~~**Cover image search system**~~ ✅ (Google CSE + Claude + community DB) (Feb 25, 2026)
+18. ~~**Comic Vine removal from import-lookup**~~ ✅ (Feb 25, 2026)
+19. ~~**CSV drag-and-drop fix**~~ ✅ (Feb 25, 2026)
+20. ~~**Collection deletion safety**~~ ✅ (Blocks delete if active shop listing) (Feb 25, 2026)
+21. ~~**Single delete soft delete + undo toast**~~ ✅ (Feb 25, 2026)
+22. ~~**Grade normalization fix**~~ ✅ (Feb 25, 2026)
+23. ~~**Footer on all pages**~~ ✅ (Feb 25, 2026)
+24. ~~**Delete confirmation overlay modal**~~ ✅ (Feb 25, 2026)
+25. ~~**Undo toast timer fix**~~ ✅ (Feb 25, 2026)
 
 ### 🔴 Before Opening Registration (See Section 0)
 
@@ -511,10 +520,10 @@ Items addressed:
 
 ### 🟡 Next Session Focus
 
-1. **Reactivate Sentry Error Tracking** ✅ Complete
-   - Reactivated on free Developer plan (5K errors/month)
-   - Added SENTRY_DSN + NEXT_PUBLIC_SENTRY_DSN to Netlify environment variables
-   - Verified error reporting is working end-to-end
+1. **Verify Google CSE API is working** ⏳ WAITING
+   - Was returning 403 during setup on Feb 25 — waiting on propagation
+   - Test cover image search end-to-end once Google API is active
+   - Run Supabase migration for `cover_images` table in production
 
 2. **GoCollect API Integration** ⏸️ BLOCKED
    - ✅ API token created (Jan 27)
@@ -524,7 +533,40 @@ Items addressed:
    - ⏳ Implement FMV lookup integration
    - ⏳ Add GoCollect pricing alongside eBay prices
 
-3. **Cover Image Search for CSV Import** ✅ Complete
+3. **Marvel API Integration** ⏸️ BLOCKED
+   - ⏳ **Waiting on Marvel developer portal access**
+   - ⏳ Integrate comic metadata, covers, and creator info
+   - ⏳ Supplement AI recognition with Marvel database lookups
+
+4. **Add "Professor" Persona Throughout Site**
+   - Extend the Ask the Professor concept to other areas of the app
+   - Consistent branding for AI-powered features
+
+5. **Configure PostHog Dashboard with Scan Cost Insights and Email Alerts**
+   - Set up PostHog dashboard with scan cost metrics (cost per scan, daily/weekly spend)
+   - Configure email alerts for spending thresholds
+   - Visualize cache hit rates and AI call patterns
+
+### ✅ Feb 25 Session Completed
+
+- **Cover image search system** - Google CSE + Claude search query generation + community cover DB with admin approval
+- **Collection deletion safety** - Blocks delete if active shop listing exists
+- **Single delete soft delete + undo toast** - Non-destructive deletion with undo option
+- **CSV drag-and-drop fix** - Resolved file upload issues
+- **Grade normalization fix** - Consistent grade handling
+- **Footer on all pages** - Site-wide footer added
+- **Delete confirmation overlay modal** - User confirmation before destructive actions
+- **Undo toast timer fix** - Corrected countdown behavior
+- **Comic Vine removal** - Removed from import-lookup, replaced by Google CSE
+- **Deployed Feb 25, 2026**
+
+### ✅ Previously Completed Focus Items
+
+1. **Reactivate Sentry Error Tracking** ✅ Complete (Feb 19, 2026)
+   - Reactivated on free Developer plan (5K errors/month)
+   - Added SENTRY_DSN + NEXT_PUBLIC_SENTRY_DSN to Netlify environment variables
+
+2. **Cover Image Search for CSV Import** ✅ Complete (Feb 25, 2026)
    - Community cover database (cover_images table) with admin approval
    - Claude-powered search query generation + Google Custom Search
    - CoverReviewQueue modal after CSV import
@@ -532,23 +574,7 @@ Items addressed:
    - Removed Comic Vine API from import-lookup
    - Single-match auto-approve; multi-match goes to admin queue
 
-4. **Marvel API Integration** ⏸️ BLOCKED
-   - ⏳ **Waiting on Marvel developer portal access**
-   - ⏳ Integrate comic metadata, covers, and creator info
-   - ⏳ Supplement AI recognition with Marvel database lookups
-
-5. **Add "Professor" Persona Throughout Site**
-   - Extend the Ask the Professor concept to other areas of the app
-   - Consistent branding for AI-powered features
-
-6. **Configure PostHog Dashboard with Scan Cost Insights and Email Alerts**
-   - Set up PostHog dashboard with scan cost metrics (cost per scan, daily/weekly spend)
-   - Configure email alerts for spending thresholds
-   - Visualize cache hit rates and AI call patterns
-
-### ✅ Previously Completed Focus Items
-
-1. **Messaging Phases 2-7** ✅ COMPLETE (Jan 28)
+3. **Messaging Phases 2-7** ✅ COMPLETE (Jan 28)
    - Phase 1: Basic DMs ✅
    - Phase 2: Rich Content (images, embedded listings) ✅
    - Phase 3: Block & Report ✅
@@ -557,7 +583,7 @@ Items addressed:
    - Phase 6: Admin Moderation Dashboard ✅
    - Phase 7: AI-Assisted Moderation ✅
 
-2. **Book Trading Feature** ✅ COMPLETE (Jan 28)
+4. **Book Trading Feature** ✅ COMPLETE (Jan 28)
    - ✅ Mark comics as "For Trade" from collection
    - ✅ For Trade tab in Shop showing tradeable comics
    - ✅ Hunt List matching system with quality scoring
@@ -604,6 +630,7 @@ Items addressed:
 | Jan 11, 2026 (AM) | 6.8/10 | +Auctions, +Payments, -Code quality issues identified |
 | Jan 11, 2026 (PM) | 8.2/10 | +Sentry, +PostHog, +Rate limiting, +Redis cache, +Buy Now, +CGC/CBCS enhancements, Fixed all code quality issues |
 | Jan 15, 2026 | 8.4/10 | +Premium subscription billing (code complete), +Scan limits for registered users, +Feature gating, +Pricing page |
+| Feb 25, 2026 | 8.4/10 | +Cover image search (Google CSE), +Collection deletion safety, +Soft delete with undo, +Grade normalization, +Footer, +CSV fix. Deployed Feb 25, 2026 |
 
 ---
 

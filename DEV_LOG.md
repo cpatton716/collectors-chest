@@ -8,10 +8,56 @@ This log tracks session-by-session progress on Collectors Chest.
 
 **Sessions since last deploy:** 0
 **Deploy Readiness:** N/A (just deployed)
-**Last Deploy:** February 19, 2026
+**Last Deploy:** February 25, 2026
 
 ### Changes:
 *(None yet — just deployed)*
+
+---
+
+## Feb 25, 2026 - Cover Image Search System, Admin Cover Queue, UX Fixes, Deploy
+
+### Summary
+- Built complete cover image search system replacing Comic Vine with Google CSE + Claude AI + community cover database
+- Added admin cover queue for variant approval
+- Removed Comic Vine API from import-lookup
+- Fixed CSV drag-and-drop (was opening file in browser)
+- Fixed grade normalization ("3" → "3.0")
+- Added Footer component to all pages
+- Added collection deletion safety (blocks delete if active shop listing)
+- Changed single delete to soft delete with undo toast
+- Redesigned delete confirmation as centered overlay modal
+- Fixed undo toast timer resetting on click
+- Set up Google Cloud Console + Programmable Search Engine (14 comic domains)
+- Upgraded Google Cloud from Free Trial to paid account
+- Added GOOGLE_CSE_API_KEY and GOOGLE_CSE_CX to Netlify
+
+### Key Files Added
+- `src/lib/coverImageDb.ts` — Cover image database helpers
+- `src/lib/__tests__/coverImageDb.test.ts` — Cover image DB tests
+- `src/app/api/cover-candidates/route.ts` — Cover candidate search API
+- `src/app/api/cover-images/route.ts` — Cover images API
+- `src/app/api/admin/cover-queue/route.ts` — Admin cover queue API
+- `src/app/admin/cover-queue/page.tsx` — Admin cover queue page
+- `src/components/CoverReviewQueue.tsx` — Cover review queue component
+- `src/components/Footer.tsx` — Site-wide footer component
+- `supabase/migrations/20260225_cover_images.sql` — Cover images migration
+- `docs/plans/2026-02-25-cover-image-search-design.md` — Cover image search design plan
+
+### Key Files Modified
+- `src/components/ComicDetailModal.tsx` — Delete modal redesign, active listing warning
+- `src/components/CSVImport.tsx` — Drag-drop fix, grade normalization
+- `src/app/collection/page.tsx` — Soft delete with undo toast
+- `src/app/api/comics/bulk-delete/route.ts` — Active listing check before delete
+- `src/lib/db.ts` — deleteComic uses API route
+
+### Issues Encountered
+- Google CSE returning 403 — billing propagation delay after upgrading to paid account, still waiting
+- Comic Vine was still referenced in import-lookup despite being "removed" previously
+
+### Deploy
+- Deployed to Netlify, February 25, 2026
+- Added GOOGLE_CSE_API_KEY and GOOGLE_CSE_CX to Netlify env vars
 
 ---
 

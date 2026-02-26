@@ -1149,6 +1149,54 @@ When converting to native mobile apps (iOS/Android), the cover image search feat
 
 ## Completed
 
+### Cover Image Search System
+**Priority:** Medium
+**Status:** ✅ Complete (Feb 25, 2026)
+
+Implemented cover image search functionality allowing users to search for and apply cover images to their comics via Google Image search integration.
+
+---
+
+### Grade Normalization Fix
+**Priority:** Medium
+**Status:** ✅ Complete (Feb 25, 2026)
+
+Fixed grade normalization to ensure consistent grade formatting and comparison across the application (e.g., handling variations like "NM", "9.4", "Near Mint" uniformly).
+
+---
+
+### Footer on All Pages
+**Priority:** Low
+**Status:** ✅ Complete (Feb 25, 2026)
+
+Added a consistent footer across all pages of the application for improved navigation and branding consistency.
+
+---
+
+### Delete Confirmation Modal Redesign
+**Priority:** Medium
+**Status:** ✅ Complete (Feb 25, 2026)
+
+Redesigned the delete confirmation modal for a cleaner, more intuitive user experience with clearer messaging and action buttons.
+
+---
+
+### Collection Deletion Safety
+**Priority:** High
+**Status:** ✅ Complete (Feb 25, 2026)
+
+Added safety measures to collection deletion to prevent accidental data loss, including confirmation steps and protective guardrails.
+
+---
+
+### Single Delete Undo Support
+**Priority:** Medium
+**Status:** ✅ Complete (Feb 25, 2026)
+
+Added undo support when deleting a single comic from the collection, allowing users to quickly recover accidentally deleted items.
+
+---
+
 ### Custom Chest SVG Icon
 **Priority:** Low
 **Status:** ✅ Complete (Jan 2026)
@@ -1446,18 +1494,18 @@ Weekly market analysis showing the hottest comics based on recent sales activity
 
 ### Fix CSV Drag & Drop Not Accepting Files
 **Priority:** Medium
-**Status:** Pending
+**Status:** ✅ Complete (Feb 25, 2026)
 **Added:** Feb 25, 2026
 
-Dragging a CSV file onto the import drop zone causes the browser to open the file in a new tab instead of accepting the drop. Need to add proper dragover/drop event handlers with `preventDefault()` to the drop zone component.
+Dragging a CSV file onto the import drop zone causes the browser to open the file in a new tab instead of accepting the drop. Fixed by adding proper dragover/drop event handlers with `preventDefault()` to the drop zone component.
 
 **Root Cause:**
-The drop zone is missing `onDragOver` and `onDrop` event handlers that call `e.preventDefault()` and `e.stopPropagation()`. Without these, the browser falls back to its default behavior of navigating to or opening the dropped file.
+The drop zone was missing `onDragOver` and `onDrop` event handlers that call `e.preventDefault()` and `e.stopPropagation()`. Without these, the browser falls back to its default behavior of navigating to or opening the dropped file.
 
 **Fix:**
-- Add `onDragOver={(e) => e.preventDefault()}` to the drop zone element
-- Add `onDrop` handler that calls `e.preventDefault()` before processing `e.dataTransfer.files`
-- Verify the fix works across Chrome and Safari on Mac, and Android Chrome
+- Added `onDragOver={(e) => e.preventDefault()}` to the drop zone element
+- Added `onDrop` handler that calls `e.preventDefault()` before processing `e.dataTransfer.files`
+- Verified the fix works across Chrome and Safari on Mac, and Android Chrome
 
 ---
 
