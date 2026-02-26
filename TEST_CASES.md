@@ -755,6 +755,33 @@ A guide for testing the main and secondary features of the application.
 
 ---
 
+## Cover Image Search (CSV Import)
+
+### Automated Tests
+- [x] normalizeTitle lowercases and trims
+- [x] normalizeTitle removes special characters except hyphens
+- [x] normalizeTitle collapses multiple spaces
+- [x] normalizeIssueNumber strips leading hash
+- [x] normalizeIssueNumber preserves decimals and letters
+- [x] buildCoverLookupKey combines normalized title and issue
+
+### Manual Tests
+- [ ] CSV import triggers Cover Review Queue for comics without covers
+- [ ] Community DB hit returns cached cover (skips Claude + Google)
+- [ ] Single-match auto-approves to community DB
+- [ ] Multiple matches go to admin approval queue
+- [ ] Admin can approve a pending cover
+- [ ] Admin can reject a pending cover
+- [ ] Rejected cover stays visible to submitting user only
+- [ ] Skip button advances to next comic without setting cover
+- [ ] Cancel exits Cover Review Queue gracefully
+- [ ] Cover Review Queue shows progress (X of Y comics)
+- [ ] Broken image URLs are filtered out of candidate grid
+- [ ] Admin cover queue page accessible at /admin/cover-queue
+- [ ] Admin nav shows "Covers" link
+
+---
+
 ## Mobile Responsiveness
 
 | Test Case | Steps | Expected Result |

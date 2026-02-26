@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 
 import { useRouter } from "next/navigation";
 
@@ -259,6 +259,10 @@ export default function CollectionPage() {
     }
   };
 
+  const handleExpireUndo = useCallback(() => {
+    setUndoState(null);
+  }, []);
+
   // Bulk mark for trade handler
   const handleBulkMarkForTrade = async () => {
     const idsToUpdate = Array.from(selectedIds);
@@ -343,11 +347,36 @@ export default function CollectionPage() {
 
   const handleRemove = async (id: string) => {
     const item = collection.find((c) => c.id === id);
+    const title = item?.comic?.title || "Comic";
     try {
-      await removeFromCollection(id);
-      showToast(`"${item?.comic.title}" removed from collection`, "success");
-    } catch {
-      showToast("Failed to remove comic", "error");
+      const response = await fetch("/api/comics/bulk-delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ comicIds: [id] }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        if (data.error === "active_listing") {
+          const error = new Error(data.message) as Error & { code: string };
+          error.code = "active_listing";
+          throw error;
+        }
+        throw new Error("Failed to delete");
+      }
+
+      // Show undo toast (same as bulk delete)
+      setUndoState({
+        message: `"${title}" deleted`,
+        comicIds: [id],
+      });
+
+      refresh();
+    } catch (err) {
+      if (err instanceof Error && (err as Error & { code?: string }).code === "active_listing") {
+        throw err;
+      }
+      showToast("Failed to delete comic", "error");
     }
   };
 
@@ -1150,7 +1179,7 @@ export default function CollectionPage() {
         <UndoToast
           message={undoState.message}
           onUndo={handleUndoDelete}
-          onExpire={() => setUndoState(null)}
+          onExpire={handleExpireUndo}
         />
       )}
     </div>

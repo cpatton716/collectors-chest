@@ -36,6 +36,14 @@ import { AddToKeyHuntButton } from "./AddToKeyHuntButton";
 import { GradePricingBreakdown } from "./GradePricingBreakdown";
 import { TitleAutocomplete } from "./TitleAutocomplete";
 
+// Helper to normalize grade values to match GRADE_SCALE format (e.g., "3" → "3.0")
+function normalizeGrade(value: string): string {
+  const num = parseFloat(value);
+  if (isNaN(num)) return value;
+  if (Number.isInteger(num) && num !== 10) return num.toFixed(1);
+  return String(num);
+}
+
 // Helper to generate certification verification URLs
 function getCertVerificationUrl(certNumber: string, gradingCompany: string): string | null {
   if (!certNumber || !gradingCompany) return null;
@@ -89,9 +97,10 @@ export function ComicDetailsForm({
   const [gradingCompany, setGradingCompany] = useState<GradingCompany | "">(
     (existingItem?.gradingCompany as GradingCompany) || initialComic.gradingCompany || ""
   );
-  const [grade, setGrade] = useState(
-    existingItem?.conditionGrade?.toString() || initialComic.grade || ""
-  );
+  const [grade, setGrade] = useState(() => {
+    const raw = existingItem?.conditionGrade?.toString() || initialComic.grade || "";
+    return raw ? normalizeGrade(raw) : "";
+  });
   const [isSignatureSeries, setIsSignatureSeries] = useState(
     initialComic.isSignatureSeries || false
   );

@@ -29,6 +29,7 @@ import { StorageQuotaError, storage } from "@/lib/storage";
 import { useCollection } from "@/hooks/useCollection";
 import { MilestoneType, useGuestScans } from "@/hooks/useGuestScans";
 
+import CoverReviewQueue from "@/components/CoverReviewQueue";
 import { CSVImport } from "@/components/CSVImport";
 import { ComicDetailsForm } from "@/components/ComicDetailsForm";
 import { GuestLimitBanner } from "@/components/GuestLimitBanner";
@@ -96,7 +97,7 @@ export default function ScanPage() {
   const { showToast } = useToast();
   const { isLimitReached, isGuest, incrementScan, count, markMilestoneShown, addBonusScans } =
     useGuestScans();
-  const { addToCollection } = useCollection();
+  const { addToCollection, collection, updateCollectionItem } = useCollection();
   const [state, setState] = useState<ScanState>("upload");
   const [imagePreview, setImagePreview] = useState<string>("");
   const [comicDetails, setComicDetails] = useState<ComicDetails | null>(null);
@@ -105,6 +106,10 @@ export default function ScanPage() {
   const [savedComic, setSavedComic] = useState<CollectionItem | null>(null);
   const [currentFact, setCurrentFact] = useState("");
   const [showCSVImport, setShowCSVImport] = useState(false);
+  const [coverReviewItems, setCoverReviewItems] = useState<
+    { id: string; title: string; issueNumber: string; publisher?: string; releaseYear?: string; coverImageUrl?: string }[]
+  >([]);
+  const [showCoverReview, setShowCoverReview] = useState(false);
   const [milestoneToShow, setMilestoneToShow] = useState<MilestoneType>(null);
   const [showEnlargedImage, setShowEnlargedImage] = useState(false);
 
@@ -755,14 +760,56 @@ export default function ScanPage() {
                 } else if (forSaleItems.length > 0 && listingsCreated === 0) {
                   message = `Imported ${items.length} comics. Shop listings could not be created - check console for details.`;
                 }
-                showToast(message, "success");
-                setShowCSVImport(false);
-                router.push("/collection");
+                const itemsNeedingCovers = items.filter((item) => !item.coverImageUrl);
+
+                if (itemsNeedingCovers.length > 0) {
+                  setCoverReviewItems(
+                    itemsNeedingCovers.map((item) => ({
+                      id: item.id,
+                      title: item.comic.title || "Unknown Title",
+                      issueNumber: item.comic.issueNumber || "1",
+                      publisher: item.comic.publisher || undefined,
+                      releaseYear: item.comic.releaseYear || undefined,
+                      coverImageUrl: item.coverImageUrl || undefined,
+                    }))
+                  );
+                  setShowCSVImport(false);
+                  setShowCoverReview(true);
+                } else {
+                  showToast(message, "success");
+                  setShowCSVImport(false);
+                  router.push("/collection");
+                }
               }}
               onCancel={() => setShowCSVImport(false)}
             />
           </div>
         </div>
+      )}
+
+      {/* Cover Review Queue Modal */}
+      {showCoverReview && (
+        <CoverReviewQueue
+          items={coverReviewItems}
+          onCoverSet={async (itemId, imageUrl) => {
+            const item = collection.find((c) => c.id === itemId);
+            if (item) {
+              await updateCollectionItem(item.id, { coverImageUrl: imageUrl });
+            }
+          }}
+          onComplete={() => {
+            setShowCoverReview(false);
+            setCoverReviewItems([]);
+            showToast("Import complete! Covers updated.", "success");
+            router.push("/collection");
+          }}
+          onCancel={() => {
+            setShowCoverReview(false);
+            setCoverReviewItems([]);
+            showToast("Import complete. You can add covers later.", "success");
+            router.push("/collection");
+          }}
+        />
       )}
 
       {/* Sign-Up Milestone Modal */}

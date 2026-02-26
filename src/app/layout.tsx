@@ -3,6 +3,7 @@ import { Bangers, Comic_Neue, Space_Mono } from "next/font/google";
 
 import { ClerkProvider } from "@clerk/nextjs";
 
+import Footer from "@/components/Footer";
 import { MobileUtilitiesFAB } from "@/components/MobileUtilitiesFAB";
 import { Navigation } from "@/components/Navigation";
 import { PWAInstallPrompt } from "@/components/PWAInstallPrompt";
@@ -82,6 +83,9 @@ export default function RootLayout({
                 <div className="min-h-screen bg-pop-cream pb-20 md:pb-0">
                   <Navigation />
                   <main className="container mx-auto px-4 py-8">{children}</main>
+                  <div className="container mx-auto px-4">
+                    <Footer />
+                  </div>
                   <MobileUtilitiesFAB />
                   <PWAInstallPrompt />
                 </div>

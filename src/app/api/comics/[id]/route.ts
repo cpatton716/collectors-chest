@@ -23,6 +23,26 @@ export async function DELETE(
 
     const { id } = await params;
 
+    // Check for active shop listings before deletion
+    const { data: activeListing } = await supabase
+      .from("auctions")
+      .select("id, status")
+      .eq("comic_id", id)
+      .in("status", ["active", "ended"])
+      .limit(1)
+      .single();
+
+    if (activeListing) {
+      return NextResponse.json(
+        {
+          error: "active_listing",
+          message: "This comic has an active shop listing. Cancel the listing before removing it from your collection.",
+          listingId: activeListing.id
+        },
+        { status: 409 }
+      );
+    }
+
     // Delete the comic, ensuring it belongs to the user
     const { error } = await supabase.from("comics").delete().eq("id", id).eq("user_id", profile.id);
 

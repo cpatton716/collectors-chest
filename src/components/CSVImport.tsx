@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AlertCircle, Check, Download, FileText, Loader2, Upload, X, Zap } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
@@ -9,6 +9,13 @@ import { batchLookup, dedupKey, type ImportLookupResult } from "@/lib/batchImpor
 import { getRandomFact } from "@/lib/comicFacts";
 import { parseCurrencyValue } from "@/lib/csvHelpers";
 import { CollectionItem, ComicDetails, normalizePublisher } from "@/types/comic";
+
+function normalizeGrade(value: string): string {
+  const num = parseFloat(value);
+  if (isNaN(num)) return value;
+  if (Number.isInteger(num) && num !== 10) return num.toFixed(1);
+  return String(num);
+}
 
 function parseBool(value: string): boolean {
   const v = value.toLowerCase().trim();
@@ -84,6 +91,7 @@ export function CSVImport({ onImportComplete, onCancel }: CSVImportProps) {
   const [currentFact, setCurrentFact] = useState("");
   const [importPhase, setImportPhase] = useState<"lookup" | "building">("lookup");
   const [uniqueLookupCount, setUniqueLookupCount] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Rotate fun facts every 7 seconds during import
@@ -156,7 +164,7 @@ export function CSVImport({ onImportComplete, onCancel }: CSVImportProps) {
             row.gradingCompany = value || undefined;
             break;
           case "grade":
-            row.grade = value || undefined;
+            row.grade = value ? normalizeGrade(value) : undefined;
             break;
           case "issignatureseries":
             row.isSignatureSeries = parseBool(value);
@@ -215,33 +223,64 @@ export function CSVImport({ onImportComplete, onCancel }: CSVImportProps) {
     return result;
   };
 
+  const processFile = useCallback(
+    async (selectedFile: File) => {
+      if (!selectedFile.name.endsWith(".csv")) {
+        setParseError(
+          "Please select a CSV file. Other formats like Excel (.xlsx) aren't supported yet."
+        );
+        return;
+      }
+
+      setFile(selectedFile);
+      setParseError("");
+
+      try {
+        const text = await selectedFile.text();
+        const rows = parseCSV(text);
+        setParsedRows(rows);
+        setStep("preview");
+      } catch (err) {
+        setParseError(
+          err instanceof Error
+            ? err.message
+            : "We couldn't read this CSV file. Please check the format and try again."
+        );
+      }
+    },
+    // parseCSV is stable (defined in render scope but doesn't change)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
+
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (!selectedFile) return;
-
-    if (!selectedFile.name.endsWith(".csv")) {
-      setParseError(
-        "Please select a CSV file. Other formats like Excel (.xlsx) aren't supported yet."
-      );
-      return;
-    }
-
-    setFile(selectedFile);
-    setParseError("");
-
-    try {
-      const text = await selectedFile.text();
-      const rows = parseCSV(text);
-      setParsedRows(rows);
-      setStep("preview");
-    } catch (err) {
-      setParseError(
-        err instanceof Error
-          ? err.message
-          : "We couldn't read this CSV file. Please check the format and try again."
-      );
-    }
+    processFile(selectedFile);
   };
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDragging(false);
+
+      const file = e.dataTransfer.files[0];
+      if (file) {
+        processFile(file);
+      }
+    },
+    [processFile]
+  );
 
   const handleImport = async () => {
     setStep("importing");
@@ -405,12 +444,25 @@ export function CSVImport({ onImportComplete, onCancel }: CSVImportProps) {
           </a>
 
           <div
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
             onClick={() => fileInputRef.current?.click()}
-            className="border-3 border-dashed border-pop-black/50 p-8 text-center cursor-pointer hover:border-pop-black hover:bg-pop-yellow/20 transition-colors"
+            className={`border-3 border-dashed p-8 text-center cursor-pointer transition-colors ${
+              isDragging
+                ? "border-pop-blue bg-pop-blue/10"
+                : "border-pop-black/50 hover:border-pop-black hover:bg-pop-yellow/20"
+            }`}
           >
-            <Upload className="w-12 h-12 text-pop-black/40 mx-auto mb-4" />
-            <p className="text-pop-black/70 mb-2 font-comic">Click to select a CSV file</p>
-            <p className="text-sm text-pop-black/50">or drag and drop</p>
+            <Upload className={`w-12 h-12 mx-auto mb-4 ${isDragging ? "text-pop-blue" : "text-pop-black/40"}`} />
+            {isDragging ? (
+              <p className="text-pop-blue mb-2 font-comic">Drop your CSV file here</p>
+            ) : (
+              <>
+                <p className="text-pop-black/70 mb-2 font-comic">Click to select a CSV file</p>
+                <p className="text-sm text-pop-black/50">or drag and drop</p>
+              </>
+            )}
             <input
               ref={fileInputRef}
               type="file"

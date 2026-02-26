@@ -215,8 +215,17 @@ export async function updateComic(comicId: string, updates: Partial<CollectionIt
 }
 
 export async function deleteComic(comicId: string) {
-  const { error } = await supabase.from("comics").delete().eq("id", comicId);
-  if (error) throw error;
+  const response = await fetch(`/api/comics/${comicId}`, { method: "DELETE" });
+  if (!response.ok) {
+    const data = await response.json();
+    if (data.error === "active_listing") {
+      const error = new Error(data.message) as Error & { code: string; listingId: string };
+      error.code = "active_listing";
+      error.listingId = data.listingId;
+      throw error;
+    }
+    throw new Error(data.error || "Failed to delete comic");
+  }
 }
 
 // Lists

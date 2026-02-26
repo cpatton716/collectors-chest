@@ -253,6 +253,7 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 | Upstash Redis | Free | $0 | 10K commands/day |
 | Sentry | Free | $0 | 5K errors/month |
 | PostHog | Free | $0 | 1M events/month |
+| Google CSE | Free (100/day) | $0 | $5/1000 queries after free tier (100/day included) |
 
 ### Cost Risks
 
@@ -262,6 +263,7 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 | Supabase limits | 🟡 Medium | Monitor usage, upgrade path ready |
 | Netlify build minutes | 🟡 Medium | Strategic batching |
 | eBay rate limits | 🟡 Medium | AI fallback in place |
+| Google Cloud billing | 🟢 Low | Personal card linked — switch to business after LLC formed |
 
 ### Recommendations
 1. **Monitor AI costs** - Add usage tracking dashboard
@@ -299,6 +301,7 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 | Grade-Aware Pricing | ✅ Complete |
 | Key Hunt (offline) | ✅ Complete |
 | CSV Import/Export | ✅ Complete |
+| Cover Image Search (CSV Import) | ✅ Complete |
 | Collection Statistics | ✅ Complete |
 | Public Sharing | ✅ Complete |
 | PWA Support | ✅ Complete |
@@ -521,16 +524,24 @@ Items addressed:
    - ⏳ Implement FMV lookup integration
    - ⏳ Add GoCollect pricing alongside eBay prices
 
-3. **Marvel API Integration** ⏸️ BLOCKED
+3. **Cover Image Search for CSV Import** ✅ Complete
+   - Community cover database (cover_images table) with admin approval
+   - Claude-powered search query generation + Google Custom Search
+   - CoverReviewQueue modal after CSV import
+   - Admin cover queue page at /admin/cover-queue
+   - Removed Comic Vine API from import-lookup
+   - Single-match auto-approve; multi-match goes to admin queue
+
+4. **Marvel API Integration** ⏸️ BLOCKED
    - ⏳ **Waiting on Marvel developer portal access**
    - ⏳ Integrate comic metadata, covers, and creator info
    - ⏳ Supplement AI recognition with Marvel database lookups
 
-4. **Add "Professor" Persona Throughout Site**
+5. **Add "Professor" Persona Throughout Site**
    - Extend the Ask the Professor concept to other areas of the app
    - Consistent branding for AI-powered features
 
-5. **Configure PostHog Dashboard with Scan Cost Insights and Email Alerts**
+6. **Configure PostHog Dashboard with Scan Cost Insights and Email Alerts**
    - Set up PostHog dashboard with scan cost metrics (cost per scan, daily/weekly spend)
    - Configure email alerts for spending thresholds
    - Visualize cache hit rates and AI call patterns
@@ -751,7 +762,8 @@ CREATE INDEX idx_comics_profile_created ON comics(profile_id, created_at);
 - **Backend:** Next.js API Routes, Supabase
 - **Auth:** Clerk
 - **Payments:** Stripe
-- **AI:** Anthropic Claude (cover recognition)
+- **AI:** Anthropic Claude (cover recognition, search query generation)
+- **Cover Image Search:** Google Custom Search Engine (domain-restricted, 14 comic sites)
 - **Hosting:** Netlify
 
 ### Database Tables
@@ -769,11 +781,12 @@ CREATE INDEX idx_comics_profile_created ON comics(profile_id, created_at);
 - `notifications` - In-app notifications
 - `scan_usage` - Scan tracking for analytics (NEW)
 
-### API Routes (30 total)
+### API Routes (33 total)
 - 9 core routes (analyze, lookup, import, etc.)
 - 8 auction routes (CRUD, bidding, watchlist)
 - 4 webhook routes (Clerk, Stripe, cron)
 - 9 supporting routes (notifications, ratings, etc.)
+- 3 cover image routes (cover-candidates, cover-images, admin/cover-queue)
 
 ---
 

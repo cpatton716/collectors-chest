@@ -1439,3 +1439,31 @@ Weekly market analysis showing the hottest comics based on recent sales activity
 - Key facts section
 - Price trend indicators (+/- percentage)
 - "Buy it on eBay" affiliate link (future monetization)
+
+---
+
+## Bug Fixes
+
+### Fix CSV Drag & Drop Not Accepting Files
+**Priority:** Medium
+**Status:** Pending
+**Added:** Feb 25, 2026
+
+Dragging a CSV file onto the import drop zone causes the browser to open the file in a new tab instead of accepting the drop. Need to add proper dragover/drop event handlers with `preventDefault()` to the drop zone component.
+
+**Root Cause:**
+The drop zone is missing `onDragOver` and `onDrop` event handlers that call `e.preventDefault()` and `e.stopPropagation()`. Without these, the browser falls back to its default behavior of navigating to or opening the dropped file.
+
+**Fix:**
+- Add `onDragOver={(e) => e.preventDefault()}` to the drop zone element
+- Add `onDrop` handler that calls `e.preventDefault()` before processing `e.dataTransfer.files`
+- Verify the fix works across Chrome and Safari on Mac, and Android Chrome
+
+---
+
+### Remove Comic Vine API from Import Lookup
+**Priority:** High
+**Status:** ✅ Complete (Feb 25, 2026)
+**Added:** Feb 25, 2026
+
+The `/src/app/api/import-lookup/route.ts` still references Comic Vine API for cover image lookups during CSV import, but Comic Vine was previously removed from the codebase because their API is unreliable. Remove the `fetchCoverImage()` function and Comic Vine references from import-lookup. Cover images should use the existing Google Images search approach (manual) or be left as placeholders.

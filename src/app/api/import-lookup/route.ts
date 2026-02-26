@@ -176,12 +176,6 @@ Be realistic with prices based on typical eBay sold listings.`,
       }
     } catch {}
 
-    // 4. Try to fetch cover image (non-blocking, best effort)
-    let coverImageUrl: string | null = null;
-    try {
-      coverImageUrl = await fetchCoverImage(normalizedTitle, normalizedIssue, detectedPublisher);
-    } catch {}
-
     return NextResponse.json({
       priceData,
       keyInfo,
@@ -190,7 +184,7 @@ Be realistic with prices based on typical eBay sold listings.`,
       interiorArtist,
       publisher: detectedPublisher,
       releaseYear: detectedYear,
-      coverImageUrl,
+      coverImageUrl: null,
       source: "ai",
     });
   } catch (error) {
@@ -203,64 +197,4 @@ Be realistic with prices based on typical eBay sold listings.`,
       { status: 500 }
     );
   }
-}
-
-/**
- * Try to fetch a cover image URL for the comic
- * Uses Comic Vine API with validation to ensure we get the right comic
- */
-async function fetchCoverImage(
-  title: string,
-  issueNumber: string,
-  publisher?: string | null
-): Promise<string | null> {
-  // Normalize title for comparison (lowercase, remove special chars)
-  const normalizeForCompare = (str: string) =>
-    str.toLowerCase().replace(/[^a-z0-9]/g, "");
-  const normalizedTitle = normalizeForCompare(title);
-  const normalizedIssue = issueNumber.replace(/^#/, "").trim();
-
-  // Try Comic Vine API if we have a key
-  if (process.env.COMIC_VINE_API_KEY) {
-    try {
-      // Search with just the title first for better results
-      const cvResponse = await fetch(
-        `https://comicvine.gamespot.com/api/search/?api_key=${process.env.COMIC_VINE_API_KEY}&format=json&query=${encodeURIComponent(title)}&resources=issue&limit=10`,
-        {
-          headers: { "User-Agent": "CollectorsChest/1.0" },
-          signal: AbortSignal.timeout(5000),
-        }
-      );
-
-      if (cvResponse.ok) {
-        const cvData = await cvResponse.json();
-        if (cvData.results && cvData.results.length > 0) {
-          // Find a result that matches both title and issue number
-          for (const result of cvData.results) {
-            const volumeName = result.volume?.name || "";
-            const resultIssue = result.issue_number || "";
-            const normalizedVolume = normalizeForCompare(volumeName);
-
-            // Check if volume name contains our title and issue matches
-            if (
-              normalizedVolume.includes(normalizedTitle) ||
-              normalizedTitle.includes(normalizedVolume)
-            ) {
-              // Issue number must match
-              if (String(resultIssue) === normalizedIssue) {
-                if (result.image?.medium_url) {
-                  return result.image.medium_url;
-                }
-              }
-            }
-          }
-        }
-      }
-    } catch (err) {
-      console.error("[import-lookup] Comic Vine error:", err);
-    }
-  }
-
-  // No fallback to Open Library - better to have no cover than wrong cover
-  return null;
 }

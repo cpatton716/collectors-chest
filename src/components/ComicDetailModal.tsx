@@ -94,6 +94,7 @@ export function ComicDetailModal({
   const [showCreateList, setShowCreateList] = useState(false);
   const [newListName, setNewListName] = useState("");
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
+  const [activeListingWarning, setActiveListingWarning] = useState(false);
   const [showSoldConfirm, setShowSoldConfirm] = useState(false);
   const [showVariantsModal, setShowVariantsModal] = useState(false);
   const [showImageLightbox, setShowImageLightbox] = useState(false);
@@ -204,9 +205,16 @@ export function ComicDetailModal({
     }
   };
 
-  const handleRemove = () => {
-    onRemove(item.id);
-    onClose();
+  const handleRemove = async () => {
+    try {
+      await onRemove(item.id);
+      onClose();
+    } catch (err) {
+      if (err instanceof Error && (err as Error & { code?: string }).code === "active_listing") {
+        setActiveListingWarning(true);
+        setShowRemoveConfirm(false);
+      }
+    }
   };
 
   const handleMarkSold = () => {
@@ -960,7 +968,7 @@ export function ComicDetailModal({
                   className="px-3 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors flex items-center justify-center gap-1.5 text-sm font-medium"
                 >
                   <Trash2 className="w-4 h-4" />
-                  Remove
+                  Delete
                 </button>
               </div>
 
@@ -991,23 +999,55 @@ export function ComicDetailModal({
 
             {/* Remove Confirmation */}
             {showRemoveConfirm && (
-              <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-sm text-red-700 mb-3">
-                  Are you sure you want to remove this comic from your collection?
-                </p>
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleRemove}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
-                  >
-                    Yes, Remove
-                  </button>
-                  <button
-                    onClick={() => setShowRemoveConfirm(false)}
-                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm transition-colors"
-                  >
-                    Cancel
-                  </button>
+              <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
+                <div className="bg-white rounded-xl border-4 border-black p-6 mx-4 max-w-sm w-full shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                      <Trash2 className="w-5 h-5 text-red-600" />
+                    </div>
+                    <h3 className="text-lg font-black">Delete Comic?</h3>
+                  </div>
+                  <p className="text-sm text-gray-600 mb-5">
+                    Are you sure you want to delete this comic from your collection?
+                  </p>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={handleRemove}
+                      className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg border-2 border-black font-bold hover:bg-red-700 transition-colors text-sm"
+                    >
+                      Yes, Delete
+                    </button>
+                    <button
+                      onClick={() => setShowRemoveConfirm(false)}
+                      className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg border-2 border-gray-300 font-bold hover:bg-gray-200 transition-colors text-sm"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeListingWarning && (
+              <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
+                <div className="bg-white rounded-xl border-4 border-yellow-400 p-6 mx-4 max-w-sm w-full shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center">
+                      <Trash2 className="w-5 h-5 text-yellow-600" />
+                    </div>
+                    <h3 className="text-lg font-black">Cannot Delete Comic</h3>
+                  </div>
+                  <p className="text-sm text-gray-600 mb-5">
+                    This comic has an active shop listing. You must cancel the listing before deleting it from your collection.
+                  </p>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setActiveListingWarning(false)}
+                      className="flex-1 px-4 py-2.5 bg-yellow-400 text-black rounded-lg border-2 border-black font-bold hover:bg-yellow-300 transition-colors text-sm"
+                    >
+                      Got It
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
