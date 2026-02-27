@@ -2,7 +2,7 @@
 
 > **This document is the guiding light for development priorities. It takes precedence over BACKLOG.md.**
 
-*Last Updated: February 25, 2026*
+*Last Updated: February 27, 2026*
 
 ---
 
@@ -440,9 +440,11 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
    - ✅ Full content written for all 4 pages (`/privacy`, `/terms`, `/acceptable-use`, `/cookies`)
    - ✅ All content verified accurate against codebase (18/20 claims exact match)
    - ✅ Cross-linked footers on all 4 pages
+   - ✅ **Legal update briefing created** (Feb 27, 2026) — covers Creator Credits, Community Cover DB, Age Verification, Google CSE removal. Saved to `Legal Docs/Legal_Update_Briefing_Feb_2026.md`. Ready for lawyer review.
    - ⏳ Placeholder fields remain: [LEGAL BUSINESS NAME], [ADDRESS], [SUPPORT EMAIL], [DATE], [STATE], [STATE/COUNTY]
    - ⏳ Replace placeholders once LLC is formed (see BACKLOG.md)
    - ⏳ Implement 3-listing cap for free users (referenced in ToS but not yet enforced)
+   - ⏳ **Pending lawyer review** of briefing before finalizing legal page updates
 
 3. **Premium subscription billing** ⏳ CODE COMPLETE
    - ✅ Database migration (subscription fields, scan tracking, fee columns)
@@ -514,14 +516,30 @@ Items addressed:
 - **Bug fixes** - Model IDs centralized, nav dropdown active state, DB constraint for partially_approved
 - **18 new unit tests** (248 total)
 
+### ✅ Feb 27 Session Completed
+
+- **Legal update briefing for lawyer** - Created comprehensive briefing covering Creator Credits system, Community Cover Database, Age Verification data, Google CSE removal. Saved to `Legal Docs/Legal_Update_Briefing_Feb_2026.md`.
+- **Close Up Shop skill rewrite** - Rewrote end-of-session skill to prevent skipped steps — added mandatory task tracking, concrete grep commands for code cleanup, verification checkpoints.
+
 ### 🟡 Next Session Focus
 
-1. ~~**Verify external image search API**~~ ❌ REMOVED (Feb 26, 2026)
+1. **Legal page updates pending lawyer review of briefing**
+   - Briefing at `Legal Docs/Legal_Update_Briefing_Feb_2026.md`
+   - Awaiting lawyer feedback before updating ToS, Privacy Policy, AUP, Cookie Policy
+   - May require LLC formation before finalizing
+
+2. **Implement auto-harvest cover images from graded book scans** (design doc exists)
+   - Design doc: `docs/plans/2026-02-25-cover-image-harvesting-design.md`
+   - Harvest cover images from graded book scans during AI analysis
+   - Create implementation plan before starting
+   - Feeds into community cover DB (primary cover source)
+
+3. ~~**Verify external image search API**~~ ❌ REMOVED (Feb 26, 2026)
    - No external image search APIs available for new customers
    - **Pivoted to:** community cover DB + Open Library API + manual URL paste
    - Run Supabase migration for `cover_images` table in production
 
-2. **GoCollect API Integration** ⏸️ BLOCKED
+5. **GoCollect API Integration** ⏸️ BLOCKED
    - ✅ API token created (Jan 27)
    - ✅ `GOCOLLECT_API_KEY` added to `.env.local` and Netlify
    - ⏳ **Waiting on GoCollect to approve API access** (ticket open)
@@ -529,27 +547,21 @@ Items addressed:
    - ⏳ Implement FMV lookup integration
    - ⏳ Add GoCollect pricing alongside eBay prices
 
-3. **Marvel API Integration** ⏸️ BLOCKED
+6. **Marvel API Integration** ⏸️ BLOCKED
    - ⏳ **Waiting on Marvel developer portal access**
    - ⏳ Integrate comic metadata, covers, and creator info
    - ⏳ Supplement AI recognition with Marvel database lookups
 
-4. **Add "Professor" Persona Throughout Site**
+7. **Add "Professor" Persona Throughout Site**
    - Extend the Ask the Professor concept to other areas of the app
    - Consistent branding for AI-powered features
 
-5. **Configure PostHog Dashboard with Scan Cost Insights and Email Alerts**
+8. **Configure PostHog Dashboard with Scan Cost Insights and Email Alerts**
    - Set up PostHog dashboard with scan cost metrics (cost per scan, daily/weekly spend)
    - Configure email alerts for spending thresholds
    - Visualize cache hit rates and AI call patterns
 
-6. **Implement cover image harvesting from graded book scans** (design approved, needs implementation plan)
-   - Design doc: `docs/plans/2026-02-25-cover-image-harvesting-design.md`
-   - Harvest cover images from graded book scans
-   - Create implementation plan before starting
-   - Feeds into community cover DB (primary cover source)
-
-7. **Revisit beta mode planning**
+9. **Revisit beta mode planning**
    - Review current private beta status and plan next steps for opening registration
 
 ### ✅ Feb 25 Session Completed
@@ -638,6 +650,7 @@ Items addressed:
 | Jan 11, 2026 (PM) | 8.2/10 | +Sentry, +PostHog, +Rate limiting, +Redis cache, +Buy Now, +CGC/CBCS enhancements, Fixed all code quality issues |
 | Jan 15, 2026 | 8.4/10 | +Premium subscription billing (code complete), +Scan limits for registered users, +Feature gating, +Pricing page |
 | Feb 25, 2026 | 8.4/10 | +Cover image search (community DB + Open Library), +Collection deletion safety, +Soft delete with undo, +Grade normalization, +Footer, +CSV fix. Deployed Feb 25, 2026 |
+| Feb 27, 2026 | 8.4/10 | +Legal update briefing for lawyer review, +Close Up Shop skill rewrite with mandatory tracking |
 
 ---
 

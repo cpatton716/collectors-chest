@@ -7,7 +7,7 @@ This log tracks session-by-session progress on Collectors Chest.
 ## Changes Since Last Deploy
 
 **Last Deploy:** February 25, 2026
-**Sessions Since Last Deploy:** 2
+**Sessions Since Last Deploy:** 3
 **Deploy Readiness:** Needs Testing — significant changes since last deploy
 
 ### Changes:
@@ -27,6 +27,29 @@ This log tracks session-by-session progress on Collectors Chest.
 - Admin cover approval awards Creator Credits to submitter
 - Updated Creator Credit tiers (1-9, 10-25, 26+)
 - Added cover_image contribution type
+- Legal update briefing created for lawyer
+- Close Up Shop skill rewritten with enforcement mechanisms
+
+---
+
+## Feb 27, 2026 - Session 12: Legal Update Briefing & Close Up Shop Skill Rewrite
+
+### Summary
+- Created comprehensive legal update briefing for lawyer covering Creator Credits, Community Cover Database, Age Verification, and Google CSE removal
+- Rewrote Close Up Shop end-of-session skill with mandatory task tracking, concrete grep commands, and verification checkpoints to prevent skipped steps
+
+### Key Accomplishments
+- Created 14-item legal checklist for lawyer to update Terms of Service, Privacy Policy, Acceptable Use Policy, and Cookie Policy
+- Rewrote Close Up Shop skill with enforcement mechanisms: mandatory TaskCreate per phase, concrete grep-based Phase 3 cleanup, Phase 4 verification checkpoint
+
+### Key Files Added
+- `Legal Docs/Legal_Update_Briefing_Feb_2026.md` — Comprehensive legal update briefing for lawyer
+
+### Key Files Modified
+- `~/.claude/skills/collectors-chest-close-up-shop/SKILL.md` — Close Up Shop skill rewritten (outside project repo)
+
+### Issues Encountered
+- Identified that Close Up Shop skill was being executed from memory rather than tracked tasks, leading to skipped steps in previous sessions
 
 ---
 

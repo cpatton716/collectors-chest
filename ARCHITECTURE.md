@@ -682,7 +682,6 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
 | `src/components/Navigation.tsx` | Broadcast subscriptions for message badge, profileId from `/api/username/current`, 20 FAQs, fixed "More" dropdown active state |
 | `src/components/MobileNav.tsx` | Broadcast subscriptions for message badge updates |
 | `src/components/creatorCredits/` | Creator Credits UI (CreatorBadge, FeedbackList, FeedbackModal, LeaveFeedbackButton, SellerResponseForm) |
-| `src/components/reputation/` | **Deprecated shim** — re-exports from `creatorCredits/` for backward compatibility |
 | `src/components/CoverReviewQueue.tsx` | Admin cover image contribution review |
 | `src/components/follows/` | Follow system UI (FollowButton, FollowerCount, FollowListModal) |
 | `src/components/collection/` | Bulk actions UI (SelectionToolbar, SelectionCheckbox, BulkDeleteModal, UndoToast) |
