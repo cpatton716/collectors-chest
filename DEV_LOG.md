@@ -6,29 +6,12 @@ This log tracks session-by-session progress on Collectors Chest.
 
 ## Changes Since Last Deploy
 
-**Last Deploy:** February 25, 2026
-**Sessions Since Last Deploy:** 3
-**Deploy Readiness:** Needs Testing — significant changes since last deploy
+**Last Deploy:** February 27, 2026
+**Sessions Since Last Deploy:** 0
+**Deploy Readiness:** Deployed
 
 ### Changes:
-- Added Google CSE daily query tracking to admin Usage page (100/day free tier limit)
-- Added Cover Search cost tracking to admin Usage page ($10/month budget, 30-day rolling)
-- Instrumented cover-candidates route with Redis counters for both metrics
-- Added alert thresholds for new metrics (70% warning, 90% critical)
-- Updated Marvel API backlog item with bulk cover database population plan
-- Created beta mode planning doc
-- Created cover image harvesting design doc (auto-harvest from graded book scans)
-- Updated Close Up Shop skill with Usage page validation step
-- Added Netlify bandwidth tracking to admin Usage page (100GB limit, live API)
-- Added NETLIFY_API_TOKEN to services infrastructure
-- Removed Google CSE code, env vars, and tracking (API closed to new customers)
-- Renamed reputation system to Creator Credits
-- Manual cover URL paste now submits to community cover DB (pending admin approval)
-- Admin cover approval awards Creator Credits to submitter
-- Updated Creator Credit tiers (1-9, 10-25, 26+)
-- Added cover_image contribution type
-- Legal update briefing created for lawyer
-- Close Up Shop skill rewritten with enforcement mechanisms
+- None (just deployed)
 
 ---
 
@@ -50,6 +33,8 @@ This log tracks session-by-session progress on Collectors Chest.
 
 ### Issues Encountered
 - Identified that Close Up Shop skill was being executed from memory rather than tracked tasks, leading to skipped steps in previous sessions
+
+**Deployed:** February 27, 2026 — Includes Sessions 10-12 (Netlify bandwidth tracking, Google CSE removal, Creator Credits rename, legal page updates)
 
 ---
 
