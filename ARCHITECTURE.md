@@ -2,7 +2,7 @@
 
 > **Comprehensive map of pages, features, and service dependencies**
 
-*Last Updated: February 18, 2026 (Title autocomplete, batch import, real-time messaging updates)*
+*Last Updated: February 26, 2026 (Creator Credits system, cover candidates route, community contributions)*
 
 ---
 
@@ -128,7 +128,7 @@ Manage comic trades with three tabs:
 | Place Bid | 🗄️ 🔐 🔴 | Rate limited, proxy bidding |
 | Buy It Now | 🗄️ 💰 | Instant purchase option |
 | Payment Processing | 💰 🗄️ | Stripe checkout flow |
-| Seller Ratings | 🗄️ 🔐 | Positive/negative reviews |
+| Seller Ratings | 🗄️ 🔐 | Positive/negative reviews (part of Creator Credits system) |
 | Notifications | 🗄️ | Outbid, won, sold alerts |
 | Auction End Processing | 🗄️ | Cron job marks completed |
 
@@ -307,7 +307,8 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
 | `/api/import-lookup` | POST | CSV enrichment | 🤖 🗄️ |
 | `/api/titles/suggest` | POST | Title autocomplete with abbreviation guidance | 🤖 |
 | `/api/titles/popular` | POST | Top 20 most-searched titles (cached 1hr in Redis) | 🗄️ 🔴 |
-| `/api/cover-search` | POST | Cover image search | Open Library |
+| `/api/cover-search` | POST | Cover image search (Open Library + manual Google fallback) | Open Library |
+| `/api/cover-candidates` | POST | Community DB lookup + AI query generation (no external image search API) | 🗄️ 🤖 🔴 |
 | `/api/cert-lookup` | POST | CGC/CBCS verification | Web scrape |
 
 ### Pricing & Market
@@ -361,7 +362,7 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
 
 | Route | Method | Purpose | Services |
 |-------|--------|---------|----------|
-| `/api/sellers/[id]/ratings` | GET/POST | Seller reputation | 🗄️ 🔐 |
+| `/api/sellers/[id]/ratings` | GET/POST | Seller ratings (Creator Credits) | 🗄️ 🔐 |
 | `/api/sharing` | GET/POST/PATCH | Public profile settings | 🗄️ 🔐 |
 
 ### Payments & Billing
@@ -585,6 +586,9 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
 | `src/components/Navigation.tsx` | Broadcast subscriptions for message badge, profileId from `/api/username/current`, 20 FAQs, fixed "More" dropdown active state |
 | `src/components/MobileNav.tsx` | Broadcast subscriptions for message badge updates |
 | `src/components/AskProfessor.tsx` | 20 FAQs, improved font readability |
+| `src/components/creatorCredits/` | Creator Credits UI (CreatorBadge, FeedbackList, FeedbackModal, LeaveFeedbackButton, SellerResponseForm) |
+| `src/components/reputation/` | **Deprecated shim** — re-exports from `creatorCredits/` for backward compatibility |
+| `src/components/CoverReviewQueue.tsx` | Admin cover image contribution review |
 
 ---
 
@@ -596,6 +600,9 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
 | `src/lib/batchImport.ts` | Batch import utility — deduplicates CSV rows by title+issue, parallel lookups in batches of 5 |
 | `src/lib/messagingDb.ts` | Messaging DB helpers including `broadcastNewMessage()` via Supabase Broadcast |
 | `src/lib/cache.ts` | Redis cache helpers including `popularTitles` prefix with 1-hour TTL |
+| `src/lib/creatorCreditsDb.ts` | Creator Credits DB helpers (transaction feedback + contribution badge tiers) |
+| `src/lib/coverImageDb.ts` | Community cover image DB helpers (`getCommunityCovers`) |
+| `src/types/creatorCredits.ts` | Creator Credits type definitions (transaction feedback, badge tiers, contribution types) |
 
 ---
 
@@ -613,7 +620,7 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
 | `auctions` | Auction and fixed-price listings |
 | `bids` | Bid history |
 | `auction_watchlist` | User watchlists |
-| `seller_ratings` | Reputation system |
+| `seller_ratings` | Creator Credits system (transaction feedback + contribution badges) |
 | `notifications` | In-app notifications |
 | `offers` | Purchase offers on listings |
 | `conversations` | Messaging conversations between users |
@@ -623,6 +630,7 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
 | `trades` | Trade proposals between users |
 | `trade_items` | Comics included in trades (many-to-many) |
 | `trade_matches` | Mutual matches from Hunt List + For Trade |
+| `community_contributions` | Tracks user contributions (key_info, cover_image) for Creator Credits |
 
 ### Trading Tables Detail
 
