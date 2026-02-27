@@ -1,4 +1,4 @@
-export { ContributorBadge, ContributorIcon, ReputationBadge, ReputationBadgeCompact } from "./ReputationBadge";
+export { CreatorBadge, CreatorIcon, TrustBadge, TrustBadgeCompact } from "./CreatorBadge";
 export { FeedbackList, FeedbackSummary } from "./FeedbackList";
 export { FeedbackModal } from "./FeedbackModal";
 export { LeaveFeedbackButton } from "./LeaveFeedbackButton";

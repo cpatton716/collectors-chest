@@ -2,7 +2,7 @@
 
 > **Comprehensive map of pages, features, and service dependencies**
 
-*Last Updated: February 18, 2026 (Title autocomplete, batch import, real-time messaging updates)*
+*Last Updated: February 26, 2026 (Full audit: routes, pages, tables, services verified against codebase)*
 
 ---
 
@@ -19,7 +19,6 @@
 | 📊 | **PostHog** | Analytics |
 | 🐛 | **Sentry** | Error tracking |
 | 🏷️ | **eBay API** | Pricing data |
-| 📚 | **Comic Vine** | Comic metadata |
 | 💾 | **localStorage** | Client storage |
 
 ---
@@ -32,7 +31,7 @@
 |---------|----------|-------|
 | Collection Overview | 💾 🗄️ | Value, count, profit/loss stats |
 | Market Insights | 💾 | Biggest gains, best ROI, declines |
-| Hottest Books Carousel | 🗄️ 🤖 📚 | Cached 24h, AI-generated trends |
+| Hottest Books Carousel | 🗄️ 🤖 | Cached 24h, AI-generated trends |
 | Guest CTA | 🔐 | "Scan Your First Book" for non-auth |
 
 ---
@@ -42,7 +41,7 @@
 | Feature | Services | Notes |
 |---------|----------|-------|
 | AI Cover Recognition | 🤖 🔴 | Claude vision analyzes cover image |
-| Barcode Scanning | 📚 🤖 | Comic Vine lookup, AI fallback |
+| Barcode Scanning | 🤖 🗄️ | Barcode catalog lookup, AI fallback |
 | Price Estimation | 🏷️ 🗄️ 🔴 | eBay API → Supabase cache → Redis |
 | CGC/CBCS Cert Lookup | Web scrape | Verifies graded comic certification |
 | Key Info Lookup | 🗄️ | 402 curated key comics database |
@@ -65,6 +64,24 @@
 | Mark as Sold | 💾 🗄️ | Tracks profit/loss |
 | CSV Export | 💾 | Client-side download |
 | Share Collection | 🗄️ 🔐 | Public profile generation |
+
+---
+
+### Sales Page (`/sales`)
+
+| Feature | Services | Notes |
+|---------|----------|-------|
+| Sold Comics List | 💾 🗄️ | View all comics marked as sold |
+| Profit/Loss Tracking | 💾 🗄️ | Purchase price vs sale price |
+
+---
+
+### Following Page (`/following`)
+
+| Feature | Services | Notes |
+|---------|----------|-------|
+| Following Feed | 🗄️ 🔐 | View collections of users you follow |
+| Follow Management | 🗄️ 🔐 | Follow/unfollow users |
 
 ---
 
@@ -128,7 +145,7 @@ Manage comic trades with three tabs:
 | Place Bid | 🗄️ 🔐 🔴 | Rate limited, proxy bidding |
 | Buy It Now | 🗄️ 💰 | Instant purchase option |
 | Payment Processing | 💰 🗄️ | Stripe checkout flow |
-| Seller Ratings | 🗄️ 🔐 | Positive/negative reviews |
+| Seller Ratings | 🗄️ 🔐 | Positive/negative reviews (part of Creator Credits system) |
 | Notifications | 🗄️ | Outbid, won, sold alerts |
 | Auction End Processing | 🗄️ | Cron job marks completed |
 
@@ -177,7 +194,7 @@ Manage comic trades with three tabs:
 | Feature | Services | Notes |
 |---------|----------|-------|
 | Trending Comics List | 🗄️ 🤖 | Database-cached, AI fallback |
-| Cover Images | 📚 | Comic Vine API |
+| Cover Images | 🗄️ | Community DB + Open Library + manual paste |
 | Market Analysis | 🤖 | Why it's hot, price trends |
 | Database Caching | 🗄️ | hot_books table with seeded data |
 | Price Refresh | 🏷️ 🗄️ | eBay API, 24-hour lazy refresh |
@@ -218,12 +235,14 @@ Manage comic trades with three tabs:
 
 ---
 
-### Legal Pages (`/privacy`, `/terms`)
+### Legal Pages (`/privacy`, `/terms`, `/cookies`, `/acceptable-use`)
 
 | Feature | Services | Notes |
 |---------|----------|-------|
 | Privacy Policy | — | CCPA compliance, data practices |
 | Terms of Service | — | Marketplace terms, liability |
+| Cookie Policy | — | Cookie usage disclosure |
+| Acceptable Use Policy | — | Marketplace conduct rules |
 | Footer Links | — | Available from homepage footer |
 
 **Status:** Page structure complete. Content pending LLC formation for official business name.
@@ -289,6 +308,20 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
 | AI Auto-Moderation | 🤖 🗄️ | Nightly cron analyzes flagged messages |
 | Priority Scoring | 🤖 | 1-10 scoring, suggested actions |
 
+#### Barcode Reviews (`/admin/barcode-reviews`)
+
+| Feature | Services | Notes |
+|---------|----------|-------|
+| Review Queue | 🗄️ | Pending barcode catalog submissions |
+| Approve/Reject | 🗄️ | Moderate community-submitted barcodes |
+
+#### Cover Queue (`/admin/cover-queue`)
+
+| Feature | Services | Notes |
+|---------|----------|-------|
+| Cover Image Queue | 🗄️ | Pending cover image submissions |
+| Approve/Reject | 🗄️ | Moderate community-submitted cover images |
+
 **Note:** Admin pages are protected by database `is_admin` check.
 
 ---
@@ -300,14 +333,15 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
 | Route | Method | Purpose | Services |
 |-------|--------|---------|----------|
 | `/api/analyze` | POST | Cover image analysis | 🤖 🗄️ 🔴 🏷️ |
-| `/api/barcode-lookup` | POST | UPC barcode lookup | 📚 |
-| `/api/quick-lookup` | POST | Fast barcode + pricing | 📚 🗄️ 🤖 |
+| `/api/quick-lookup` | POST | Fast barcode + pricing | 🗄️ 🤖 |
 | `/api/comic-lookup` | POST | Title/issue lookup | 🤖 🗄️ 🔴 |
-| `/api/con-mode-lookup` | POST | Key Hunt pricing | 🏷️ 🤖 🗄️ 📚 |
+| `/api/con-mode-lookup` | POST | Key Hunt pricing | 🏷️ 🤖 🗄️ |
 | `/api/import-lookup` | POST | CSV enrichment | 🤖 🗄️ |
 | `/api/titles/suggest` | POST | Title autocomplete with abbreviation guidance | 🤖 |
 | `/api/titles/popular` | POST | Top 20 most-searched titles (cached 1hr in Redis) | 🗄️ 🔴 |
-| `/api/cover-search` | POST | Cover image search | Open Library |
+| `/api/cover-search` | POST | Cover image search (Open Library + manual Google fallback) | Open Library |
+| `/api/cover-candidates` | POST | Community DB lookup + AI query generation (no external image search API) | 🗄️ 🤖 🔴 |
+| `/api/cover-images` | GET/POST | Community cover image management | 🗄️ |
 | `/api/cert-lookup` | POST | CGC/CBCS verification | Web scrape |
 
 ### Pricing & Market
@@ -315,7 +349,7 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
 | Route | Method | Purpose | Services |
 |-------|--------|---------|----------|
 | `/api/ebay-prices` | POST/GET | eBay sold listings | 🏷️ 🗄️ 🔴 |
-| `/api/hottest-books` | GET | Trending comics | 🤖 📚 🗄️ |
+| `/api/hottest-books` | GET | Trending comics | 🤖 🗄️ |
 
 ### Auctions & Listings
 
@@ -352,7 +386,7 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
 | `/api/messages/[conversationId]/read` | POST | Mark messages as read (broadcasts unread-update) | 🗄️ 🔐 |
 | `/api/messages/unread-count` | GET | Get unread message count | 🗄️ 🔐 |
 | `/api/messages/upload-image` | POST | Upload message image | 🗄️ 🔐 |
-| `/api/messages/[messageId]/report` | POST | Report a message | 🗄️ 🔐 |
+| `/api/messages/report/[messageId]` | POST | Report a message | 🗄️ 🔐 |
 | `/api/users/[userId]/block` | POST/DELETE | Block/unblock user | 🗄️ 🔐 |
 | `/api/users/blocked` | GET | List blocked users | 🗄️ 🔐 |
 | `/api/settings/notifications` | GET/PATCH | Notification preferences | 🗄️ 🔐 |
@@ -361,7 +395,7 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
 
 | Route | Method | Purpose | Services |
 |-------|--------|---------|----------|
-| `/api/sellers/[id]/ratings` | GET/POST | Seller reputation | 🗄️ 🔐 |
+| `/api/sellers/[id]/ratings` | GET/POST | Seller ratings (Creator Credits) | 🗄️ 🔐 |
 | `/api/sharing` | GET/POST/PATCH | Public profile settings | 🗄️ 🔐 |
 
 ### Payments & Billing
@@ -372,6 +406,18 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
 | `/api/billing/checkout` | POST | Subscription checkout | 💰 🗄️ 🔐 |
 | `/api/billing/portal` | POST | Stripe customer portal | 💰 🗄️ 🔐 |
 | `/api/billing/status` | GET | Subscription status | 🗄️ 🔐 |
+| `/api/billing/start-trial` | POST | Start free trial | 🗄️ 🔐 |
+| `/api/billing/reset-trial` | POST | Reset trial period | 🗄️ 🔐 |
+
+### Stripe Connect
+
+| Route | Method | Purpose | Services |
+|-------|--------|---------|----------|
+| `/api/connect/create-account` | POST | Create Stripe Connect account | 💰 🗄️ 🔐 |
+| `/api/connect/dashboard` | POST | Stripe Connect dashboard link | 💰 🗄️ 🔐 |
+| `/api/connect/onboarding-refresh` | GET | Refresh onboarding link | 💰 🗄️ 🔐 |
+| `/api/connect/onboarding-return` | GET | Return from onboarding | 💰 🗄️ 🔐 |
+| `/api/connect/status` | GET | Connect account status | 💰 🗄️ 🔐 |
 
 ### Key Hunt
 
@@ -397,6 +443,42 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
 | `/api/comics/for-trade` | GET | Get user's for-trade comics | 🗄️ 🔐 |
 | `/api/comics/[id]/for-trade` | PATCH | Toggle for_trade status | 🗄️ 🔐 |
 
+### Follows
+
+| Route | Method | Purpose | Services |
+|-------|--------|---------|----------|
+| `/api/follows/[userId]` | GET/POST/DELETE | Check/follow/unfollow user | 🗄️ 🔐 |
+| `/api/follows/[userId]/followers` | GET | List user's followers | 🗄️ |
+| `/api/follows/[userId]/following` | GET | List who user follows | 🗄️ |
+
+### Reputation & Feedback (Creator Credits)
+
+| Route | Method | Purpose | Services |
+|-------|--------|---------|----------|
+| `/api/reputation` | GET | Get current user's reputation | 🗄️ 🔐 |
+| `/api/reputation/[userId]` | GET | Get user's reputation profile | 🗄️ |
+| `/api/feedback` | GET/POST | List/create transaction feedback | 🗄️ 🔐 |
+| `/api/feedback/eligibility` | GET | Check if user can leave feedback | 🗄️ 🔐 |
+| `/api/feedback/[id]` | GET/PATCH | Get/update feedback | 🗄️ 🔐 |
+| `/api/feedback/[id]/respond` | POST | Seller responds to feedback | 🗄️ 🔐 |
+
+### Comics Management
+
+| Route | Method | Purpose | Services |
+|-------|--------|---------|----------|
+| `/api/comics/[id]` | GET/PATCH/DELETE | Comic CRUD | 🗄️ 🔐 |
+| `/api/comics/bulk-update` | PATCH | Bulk update comics | 🗄️ 🔐 |
+| `/api/comics/bulk-delete` | POST | Bulk delete comics | 🗄️ 🔐 |
+| `/api/comics/bulk-add-to-list` | POST | Bulk add comics to list | 🗄️ 🔐 |
+| `/api/comics/undo-delete` | POST | Undo comic deletion | 🗄️ 🔐 |
+
+### Age Verification & Location
+
+| Route | Method | Purpose | Services |
+|-------|--------|---------|----------|
+| `/api/age-verification` | POST | Verify user is 18+ for marketplace | 🗄️ 🔐 |
+| `/api/location` | GET | Get user's location (IP-based) | External |
+
 ### Admin
 
 | Route | Method | Purpose | Services |
@@ -408,8 +490,16 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
 | `/api/admin/users/[id]/suspend` | POST | Suspend/unsuspend user | 🗄️ |
 | `/api/admin/usage` | GET | Service usage metrics | 🗄️ 🔴 🤖 |
 | `/api/admin/usage/check-alerts` | POST | Check limits, send alerts | 🗄️ 📧 |
+| `/api/admin/usage/alert-status` | GET | Get alert status | 🗄️ |
 | `/api/admin/key-info` | GET | List pending submissions | 🗄️ |
 | `/api/admin/key-info/[id]` | PATCH/DELETE | Approve/reject submission | 🗄️ |
+| `/api/admin/custom-key-info` | GET | List custom key info submissions | 🗄️ |
+| `/api/admin/custom-key-info/[id]` | PATCH/DELETE | Moderate custom key info | 🗄️ |
+| `/api/admin/key-comics` | GET/POST | Manage key comics database | 🗄️ |
+| `/api/admin/key-comics/[id]` | PATCH/DELETE | Edit/delete key comic entries | 🗄️ |
+| `/api/admin/barcode-reviews` | GET/PATCH | Review barcode catalog submissions | 🗄️ |
+| `/api/admin/cover-queue` | GET/PATCH | Review cover image submissions | 🗄️ |
+| `/api/admin/publishers` | GET | List publishers | 🗄️ |
 | `/api/admin/message-reports` | GET | List message reports (paginated) | 🗄️ |
 | `/api/admin/message-reports/[reportId]` | PATCH | Update report status | 🗄️ |
 
@@ -421,6 +511,7 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
 | `/api/username/current` | GET | Get current user's username | 🗄️ 🔐 |
 | `/api/key-info/submit` | POST | Submit key info suggestion | 🗄️ 🔐 |
 | `/api/email-capture` | POST | Guest email for bonus scans | 📧 🗄️ |
+| `/api/email-capture/verify` | POST | Verify email capture token | 📧 🗄️ |
 
 ### Utility
 
@@ -447,6 +538,7 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
 | `/api/cron/process-auctions` | Every 5 min | End auctions, expire offers/listings | 🗄️ |
 | `/api/cron/reset-scans` | Monthly | Reset free tier scan counts | 🗄️ |
 | `/api/cron/moderate-messages` | Nightly | AI moderation of flagged messages | 🗄️ 🤖 |
+| `/api/cron/send-feedback-reminders` | Periodic | Remind users to leave transaction feedback | 🗄️ 📧 |
 | `check-usage-alerts` (Netlify) | Daily | Monitor service limits, send alerts | 🗄️ 📧 |
 
 **Automation Logic:**
@@ -565,6 +657,11 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
 | `useCollection` | Cloud sync abstraction - routes to localStorage (guests) or Supabase (signed-in) | 💾 🗄️ 🔐 |
 | `useGuestScans` | Tracks free scan usage, enforces limits | 💾 |
 | `useOffline` | Offline queue for Key Hunt | 💾 |
+| `useKeyHunt` | Hunt list management | 🗄️ 🔐 |
+| `useSubscription` | Subscription status and feature gating | 🗄️ 🔐 |
+| `useSelection` | Multi-select for bulk collection actions | 💾 |
+| `useDebounce` | Debounce utility for inputs | — |
+| `useFeedbackEligibility` | Check if user can leave feedback on a transaction | 🗄️ 🔐 |
 
 **useCollection provides:**
 - `collection`, `lists`, `sales` - state
@@ -584,7 +681,15 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
 | `src/components/messaging/MessageThread.tsx` | Real-time via Supabase Broadcast (replaced postgres_changes) |
 | `src/components/Navigation.tsx` | Broadcast subscriptions for message badge, profileId from `/api/username/current`, 20 FAQs, fixed "More" dropdown active state |
 | `src/components/MobileNav.tsx` | Broadcast subscriptions for message badge updates |
-| `src/components/AskProfessor.tsx` | 20 FAQs, improved font readability |
+| `src/components/creatorCredits/` | Creator Credits UI (CreatorBadge, FeedbackList, FeedbackModal, LeaveFeedbackButton, SellerResponseForm) |
+| `src/components/reputation/` | **Deprecated shim** — re-exports from `creatorCredits/` for backward compatibility |
+| `src/components/CoverReviewQueue.tsx` | Admin cover image contribution review |
+| `src/components/follows/` | Follow system UI (FollowButton, FollowerCount, FollowListModal) |
+| `src/components/collection/` | Bulk actions UI (SelectionToolbar, SelectionCheckbox, BulkDeleteModal, UndoToast) |
+| `src/components/trading/` | Trading UI (TradeCard, TradeProposalModal, TradeableComicCard) |
+| `src/components/auction/` | Auction/listing UI (AuctionCard, ListingCard, BidForm, CreateAuctionModal, etc.) |
+| `src/components/admin/` | Admin UI (ReportCard) |
+| `src/components/icons/` | Custom icons (ChestIcon) |
 
 ---
 
@@ -596,6 +701,22 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
 | `src/lib/batchImport.ts` | Batch import utility — deduplicates CSV rows by title+issue, parallel lookups in batches of 5 |
 | `src/lib/messagingDb.ts` | Messaging DB helpers including `broadcastNewMessage()` via Supabase Broadcast |
 | `src/lib/cache.ts` | Redis cache helpers including `popularTitles` prefix with 1-hour TTL |
+| `src/lib/creatorCreditsDb.ts` | Creator Credits DB helpers (transaction feedback + contribution badge tiers) |
+| `src/lib/coverImageDb.ts` | Community cover image DB helpers (`getCommunityCovers`) |
+| `src/lib/followDb.ts` | Follow system DB helpers (follow/unfollow, counts) |
+| `src/lib/tradingDb.ts` | Trading system DB helpers (trades, matches) |
+| `src/lib/auctionDb.ts` | Auction/listing DB helpers |
+| `src/lib/keyComicsDb.ts` | Key comics database management helpers |
+| `src/lib/stripeConnect.ts` | Stripe Connect account helpers |
+| `src/lib/ageVerification.ts` | Age verification helpers |
+| `src/lib/bulkActions.ts` | Bulk collection action helpers |
+| `src/lib/metadataCache.ts` | Comic metadata caching helpers |
+| `src/lib/contentFilter.ts` | Message content filtering (phone/email detection) |
+| `src/lib/adminAuth.ts` | Admin authentication helpers |
+| `src/lib/db.ts` | Core database helper functions |
+| `src/lib/alertBadgeHelpers.ts` | Admin alert badge helpers |
+| `src/lib/analyticsServer.ts` | Server-side analytics helpers |
+| `src/types/creatorCredits.ts` | Creator Credits type definitions (transaction feedback, badge tiers, contribution types) |
 
 ---
 
@@ -613,7 +734,7 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
 | `auctions` | Auction and fixed-price listings |
 | `bids` | Bid history |
 | `auction_watchlist` | User watchlists |
-| `seller_ratings` | Reputation system |
+| `seller_ratings` | Legacy seller ratings |
 | `notifications` | In-app notifications |
 | `offers` | Purchase offers on listings |
 | `conversations` | Messaging conversations between users |
@@ -623,6 +744,24 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
 | `trades` | Trade proposals between users |
 | `trade_items` | Comics included in trades (many-to-many) |
 | `trade_matches` | Mutual matches from Hunt List + For Trade |
+| `transaction_feedback` | Creator Credits transaction feedback (positive/negative reviews) |
+| `community_contributions` | Tracks user contributions (key_info, cover_image) for Creator Credits |
+| `feedback_reminders` | Scheduled reminders for transaction feedback |
+| `user_follows` | User-to-user follow relationships |
+| `key_comics` | Curated key comics database |
+| `key_info_submissions` | Community key info submissions for moderation |
+| `hot_books` | Cached trending/hot comics |
+| `hot_books_history` | Historical hot books data |
+| `hot_books_refresh_log` | Hot books refresh tracking |
+| `key_hunt_lists` | User hunt/wish lists |
+| `scan_usage` | Monthly scan count tracking per user |
+| `bonus_scan_claims` | Email capture bonus scan claims |
+| `usage_alerts` | Service usage monitoring alerts |
+| `admin_audit_log` | Admin action audit trail |
+| `app_cache` | General-purpose application cache |
+| `barcode_catalog` | Community-submitted barcode-to-comic mappings |
+| `admin_barcode_reviews` | Barcode catalog moderation queue |
+| `cover_images` | Community-submitted cover images |
 
 ### Trading Tables Detail
 
@@ -682,8 +821,12 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
 - `NEXT_PUBLIC_POSTHOG_KEY`
 
 ### External APIs
-- `COMIC_VINE_API_KEY`
+- `COMIC_VINE_API_KEY` (legacy - used in barcode fallback)
 - `EBAY_APP_ID`
+- `EBAY_CERT_ID`
+
+### Hosting
+- `NETLIFY_API_TOKEN`
 
 ### Cron
 - `CRON_SECRET`
@@ -704,7 +847,7 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
 | PostHog | Free | $0 | 1M events/mo |
 | Sentry | Free | $0 | 5K errors/mo |
 | eBay API | Free | $0 | Rate limited |
-| Comic Vine | Free | $0 | Rate limited |
+| Comic Vine | Free | $0 | Barcode fallback in analyze, quick-lookup, con-mode-lookup |
 
 ---
 

@@ -9,7 +9,7 @@ import {
 } from "@/types/trade";
 
 import { getSellerProfile } from "./auctionDb";
-import { createFeedbackReminders } from "./reputationDb";
+import { createFeedbackReminders } from "./creatorCreditsDb";
 import { supabase, supabaseAdmin } from "./supabase";
 
 // ============================================================================

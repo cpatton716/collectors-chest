@@ -1,9 +1,10 @@
 /**
- * Reputation System Types
+ * Creator Credits & Transaction Trust Types
  *
  * Dual-score system:
  * 1. Transaction Trust - percentage based on positive/negative feedback
- * 2. Community Reputation - badge tiers based on approved contributions
+ * 2. Creator Credits - badge tiers based on approved contributions
+ *    (users helping build the database earn credits like being part of the creative team)
  */
 
 // ============================================================================
@@ -49,10 +50,10 @@ export interface SellerResponseInput {
 }
 
 // ============================================================================
-// COMMUNITY CONTRIBUTIONS
+// COMMUNITY CONTRIBUTIONS (CREATOR CREDITS)
 // ============================================================================
 
-export type ContributionType = "key_info";
+export type ContributionType = "key_info" | "cover_image";
 
 export interface CommunityContribution {
   id: string;
@@ -62,16 +63,16 @@ export interface CommunityContribution {
   createdAt: string;
 }
 
-export type ContributorTier = "none" | "contributor" | "verified" | "top";
+export type CreatorTier = "none" | "contributor" | "verified" | "top";
 
-export interface ContributorBadgeInfo {
-  tier: ContributorTier;
+export interface CreatorBadgeInfo {
+  tier: CreatorTier;
   count: number;
   label: string | null;
 }
 
 // ============================================================================
-// REPUTATION DISPLAY
+// CREATOR CREDITS DISPLAY
 // ============================================================================
 
 export interface TransactionTrust {
@@ -86,9 +87,9 @@ export type TransactionTrustDisplay =
   | { type: "new_seller" }
   | { type: "percentage"; percentage: number; count: number; color: "green" | "yellow" | "red" };
 
-export interface UserReputation {
+export interface UserCreatorProfile {
   transactionTrust: TransactionTrust;
-  communityBadge: ContributorBadgeInfo;
+  creatorBadge: CreatorBadgeInfo;
 }
 
 // ============================================================================
@@ -162,13 +163,13 @@ export function calculateTransactionTrust(
 }
 
 /**
- * Calculate contributor badge tier from count
+ * Calculate creator badge tier from contribution count
  */
-export function calculateContributorBadge(count: number): ContributorBadgeInfo {
-  if (count >= 10) {
+export function calculateCreatorBadge(count: number): CreatorBadgeInfo {
+  if (count >= 26) {
     return { tier: "top", count, label: "Top Contributor" };
   }
-  if (count >= 5) {
+  if (count >= 10) {
     return { tier: "verified", count, label: "Verified Contributor" };
   }
   if (count >= 1) {
@@ -196,3 +197,4 @@ export function isSellerResponseEditable(responseAt: string): boolean {
   const hoursSinceResponse = (now.getTime() - responseDate.getTime()) / (1000 * 60 * 60);
   return hoursSinceResponse <= 48;
 }
+

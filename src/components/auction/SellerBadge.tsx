@@ -5,9 +5,9 @@ import Link from "next/link";
 import { Shield, Skull, User } from "lucide-react";
 
 import { FollowButton } from "@/components/follows";
-import { ContributorIcon } from "@/components/reputation";
+import { CreatorIcon } from "@/components/creatorCredits";
 import { SellerProfile } from "@/types/auction";
-import { calculateContributorBadge } from "@/types/reputation";
+import { calculateCreatorBadge } from "@/types/creatorCredits";
 
 import { MessageButton } from "../messaging/MessageButton";
 
@@ -121,8 +121,8 @@ export function SellerBadge({
           <span className={`font-medium ${styles.textColor}`}>{name}</span>
           {seller.communityContributionCount !== undefined &&
             seller.communityContributionCount > 0 && (
-              <ContributorIcon
-                badge={calculateContributorBadge(seller.communityContributionCount)}
+              <CreatorIcon
+                badge={calculateCreatorBadge(seller.communityContributionCount)}
               />
             )}
           {showCount && totalRatings > 0 && (
@@ -139,8 +139,8 @@ export function SellerBadge({
           <span className={`font-medium ${styles.textColor}`}>{name}</span>
           {seller.communityContributionCount !== undefined &&
             seller.communityContributionCount > 0 && (
-              <ContributorIcon
-                badge={calculateContributorBadge(seller.communityContributionCount)}
+              <CreatorIcon
+                badge={calculateCreatorBadge(seller.communityContributionCount)}
               />
             )}
           {showCount && totalRatings > 0 && (

@@ -308,6 +308,15 @@ Root cause: related to model ID issues causing API failures. Resolved after cent
 
 ## Pending Enhancements
 
+### Auto-Harvest Cover Images from Graded Book Scans
+**Priority:** High
+**Status:** Pending
+**Added:** Feb 26, 2026
+
+Design doc exists at `docs/plans/2026-02-25-cover-image-harvesting-design.md`, needs implementation. When users scan graded (slabbed) books, the cover image visible through the slab case can be cropped and submitted to the community cover database automatically.
+
+---
+
 ### Admin: Remove Incorrect Key Info from Books
 **Priority:** High
 **Status:** ✅ Complete (Feb 13, 2026)
@@ -990,6 +999,79 @@ Create a consistent "Professor" character/persona that provides tips, guidance, 
 
 ---
 
+### Error Reporting System with Creator Credits
+**Priority:** Medium
+**Status:** Pending
+**Added:** Feb 26, 2026
+
+Users can report incorrect data on comics (wrong publisher, year, key info, etc.) via a "Report Error" button. Reports go to an admin queue for review. When admin approves and fixes the data, the reporter earns a Creator Credit.
+
+**Features to Build:**
+- "Report Error" button on comic detail views (ComicDetailModal, ComicDetailsForm)
+- Error description form (modal/sheet) with dropdown for error category (Wrong Publisher, Wrong Year, Wrong Grade, Key Info Error, etc.)
+- Admin review queue at `/admin/reports` showing pending error reports
+- Admin dashboard to review, approve/reject, and apply fixes
+- Creator Credit wiring system: when admin approves, increment reporter's `creator_credits` and log action in audit trail
+- Notification to reporter when their report is approved/rejected
+
+**Database Changes Needed:**
+- New table: `error_reports` (id, reporter_id, comic_id, error_category, description, status, created_at, approved_by, approved_at)
+- New table: `creator_credits_log` (id, user_id, credit_amount, source, source_id, created_at)
+- Add `creator_credits` column to `profiles` table
+
+**Key Files to Create/Modify:**
+- New: `src/components/ErrorReportModal.tsx` - Report form
+- New: `src/app/admin/reports/page.tsx` - Admin review queue
+- New: `src/lib/errorReportDb.ts` - Database helpers
+- New: `src/app/api/errors/report/route.ts` - Report submission API
+- New: `src/app/api/admin/errors/route.ts` - Admin approval API
+- Modify: `src/components/ComicDetailModal.tsx` - Add report button
+- Modify: `src/components/ComicDetailsForm.tsx` - Add report button
+
+---
+
+### Missing Metadata Contributions with Creator Credits
+**Priority:** Medium
+**Status:** Pending
+**Added:** Feb 26, 2026
+
+Users can fill in missing comic metadata (writer, cover artist, release year, etc.) and earn Creator Credits after admin approval. This crowdsources completion of incomplete metadata in the database.
+
+**Features to Build:**
+- Editable metadata fields on comic detail views for registered users (writer, artist, cover artist, inker, colorist, release year, etc.)
+- Submission flow that captures user's changes and submits to admin queue for approval
+- Admin review queue at `/admin/contributions` showing pending metadata submissions
+- Admin dashboard to review, compare old vs new data, approve/reject, and apply changes
+- Creator Credit wiring system: when admin approves, increment contributor's `creator_credits` and log action
+- Notification to contributor when their contribution is approved/rejected
+- "Contributors" section on comic detail showing who contributed which fields
+
+**Features to Build:**
+- User can edit a subset of comic metadata on detail view (marked as "Contribute metadata")
+- Submit changes button triggers submission flow
+- Form shows original vs proposed values clearly
+- Admin review shows change diff and can approve/reject
+- Approved contributions auto-update comic and credit user
+
+**Database Changes Needed:**
+- New table: `metadata_contributions` (id, contributor_id, comic_id, field_name, old_value, new_value, status, created_at, approved_by, approved_at)
+- New table: `creator_credits_log` (id, user_id, credit_amount, source, source_id, created_at) - *shared with Error Reporting System*
+- Add `creator_credits` column to `profiles` table
+- Track contribution metadata on `comics` table (contributor_id, contributed_fields JSON array)
+
+**Key Files to Create/Modify:**
+- New: `src/components/MetadataEditor.tsx` - Editable metadata fields with submission
+- New: `src/app/admin/contributions/page.tsx` - Admin review queue
+- New: `src/lib/metadataDb.ts` - Database helpers
+- New: `src/app/api/contributions/submit/route.ts` - Submission API
+- New: `src/app/api/admin/contributions/route.ts` - Admin approval API
+- Modify: `src/components/ComicDetailModal.tsx` - Add metadata editor section
+- Modify: `src/components/ComicDetailsForm.tsx` - Add metadata editor section
+
+**Note:** Both error reporting and metadata contributions use the same Creator Credit system. Consider creating shared utilities for credit wiring and audit logging.
+
+---
+
 ### Expand to Support All Collectibles
 **Priority:** Low
 **Status:** Pending
@@ -1121,13 +1203,13 @@ History feature for Key Hunt that saves recent lookups for quick reference.
 ### Native App: Cover Image Search via Default Browser
 **Priority:** Low
 **Status:** Pending
+**Note:** No external image search API available. Current approach uses manual URL paste. Revisit when native apps are built.
 
-When converting to native mobile apps (iOS/Android), the cover image search feature needs to open the device's default browser for Google Image searches instead of an in-app webview.
+When converting to native mobile apps (iOS/Android), the cover image search feature may need to open the device's default browser for image searches instead of an in-app webview.
 
 **Current Behavior (PWA/Web):**
-- User taps "Search Google Images" button
-- Opens Google in a new tab
-- User must use native back arrow/gesture to return to app
+- User searches for cover images via community DB or Open Library
+- User can manually paste a cover image URL from any source
 - User pastes copied image URL
 
 **Native App Requirements:**
@@ -1153,9 +1235,9 @@ When converting to native mobile apps (iOS/Android), the cover image search feat
 
 ### Cover Image Search System
 **Priority:** Medium
-**Status:** ✅ Complete (Feb 25, 2026)
+**Status:** ✅ Complete (Feb 25-26, 2026)
 
-Implemented cover image search functionality allowing users to search for and apply cover images to their comics via Google Image search integration.
+Cover image sources: community cover DB + Open Library API + manual URL paste. Originally explored external search APIs but none available for new customers.
 
 ---
 
@@ -1516,4 +1598,36 @@ The drop zone was missing `onDragOver` and `onDrop` event handlers that call `e.
 **Status:** ✅ Complete (Feb 25, 2026)
 **Added:** Feb 25, 2026
 
-The `/src/app/api/import-lookup/route.ts` still references Comic Vine API for cover image lookups during CSV import, but Comic Vine was previously removed from the codebase because their API is unreliable. Remove the `fetchCoverImage()` function and Comic Vine references from import-lookup. Cover images should use the existing Google Images search approach (manual) or be left as placeholders.
+The `/src/app/api/import-lookup/route.ts` still references Comic Vine API for cover image lookups during CSV import, but Comic Vine was previously removed from the codebase because their API is unreliable. Remove the `fetchCoverImage()` function and Comic Vine references from import-lookup. Cover images now use the community cover DB, Open Library API, or manual URL paste.
+
+---
+
+### Manual Cover URL Paste → Community Cover Submission
+**Priority:** Medium
+**Status:** ✅ Complete (Feb 26, 2026)
+
+Users can now paste a cover image URL directly, which gets submitted to the community cover database for approval. Provides a fallback when automated search doesn't find the right cover.
+
+---
+
+### Rename Reputation System to Creator Credits
+**Priority:** Medium
+**Status:** ✅ Complete (Feb 26, 2026)
+
+Renamed the entire reputation system to "Creator Credits" across the codebase — types, database helpers, components, UI text, and all imports/references.
+
+---
+
+### Award Creator Credits for Approved Cover Submissions
+**Priority:** Medium
+**Status:** ✅ Complete (Feb 26, 2026)
+
+Users earn Creator Credits when their submitted cover images are approved by admins, incentivizing community contributions to the cover database.
+
+---
+
+### External Image Search API Removal
+**Priority:** High
+**Status:** ✅ Removed (Feb 26, 2026)
+
+Removed external image search API integration after discovering no providers available for new customers. Cover image search now relies on community cover DB + Open Library API + manual URL paste.

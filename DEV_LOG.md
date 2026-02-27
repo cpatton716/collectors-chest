@@ -7,8 +7,8 @@ This log tracks session-by-session progress on Collectors Chest.
 ## Changes Since Last Deploy
 
 **Last Deploy:** February 25, 2026
-**Sessions Since Last Deploy:** 1 (continued same session post-deploy)
-**Deploy Readiness:** Needs Testing — new usage tracking metrics added
+**Sessions Since Last Deploy:** 2
+**Deploy Readiness:** Needs Testing — significant changes since last deploy
 
 ### Changes:
 - Added Google CSE daily query tracking to admin Usage page (100/day free tier limit)
@@ -21,6 +21,54 @@ This log tracks session-by-session progress on Collectors Chest.
 - Updated Close Up Shop skill with Usage page validation step
 - Added Netlify bandwidth tracking to admin Usage page (100GB limit, live API)
 - Added NETLIFY_API_TOKEN to services infrastructure
+- Removed Google CSE code, env vars, and tracking (API closed to new customers)
+- Renamed reputation system to Creator Credits
+- Manual cover URL paste now submits to community cover DB (pending admin approval)
+- Admin cover approval awards Creator Credits to submitter
+- Updated Creator Credit tiers (1-9, 10-25, 26+)
+- Added cover_image contribution type
+
+---
+
+## Feb 26, 2026 - Google CSE Removal, Creator Credits Rename, Cover Submission Flow
+
+### Summary
+- Investigated Google CSE 403 errors — discovered Custom Search JSON API is closed to new customers
+- Investigated Bing Image Search API — also retired (August 11, 2025)
+- Removed all Google CSE code, env vars, usage tracking, and alert thresholds
+- Evaluated alternatives: Brave Search API, SerpAPI, Metron.cloud — decided to skip external image search for now
+- Implemented manual URL paste → community cover submission (pending for admin approval)
+- Renamed reputation system to "Creator Credits" across entire codebase
+- Wired cover image approvals to award Creator Credits to submitters
+- Updated Creator Credit tiers: 1-9 (Contributor), 10-25 (Verified), 26+ (Top)
+- Added "cover_image" contribution type to community_contributions
+- Added backlog items: Error Reporting System, Missing Metadata Contributions
+- Ran Supabase migration for cover_image contribution type
+
+### Key Files Added
+- `src/types/creatorCredits.ts` — Creator Credits type definitions
+- `src/lib/creatorCreditsDb.ts` — Creator Credits DB helpers
+- `src/components/creatorCredits/CreatorBadge.tsx` — Badge components
+- `src/components/creatorCredits/FeedbackList.tsx` — Moved from reputation/
+- `src/components/creatorCredits/FeedbackModal.tsx` — Moved from reputation/
+- `src/components/creatorCredits/LeaveFeedbackButton.tsx` — Moved from reputation/
+- `src/components/creatorCredits/SellerResponseForm.tsx` — Moved from reputation/
+- `supabase/migrations/20260226_add_cover_image_contribution_type.sql` — Migration
+- `docs/plans/2026-02-26-bing-image-search-design.md` — Design doc with decision
+
+### Key Files Modified
+- `src/components/ComicDetailsForm.tsx` — Cover paste now submits to community DB
+- `src/app/api/admin/cover-queue/route.ts` — Awards Creator Credits on approval
+- `src/app/api/cover-candidates/route.ts` — Removed Google CSE, updated comments
+- `src/app/api/admin/usage/route.ts` — Removed Google CSE tracking
+- `src/app/api/admin/usage/check-alerts/route.ts` — Removed Google CSE alerts
+- `src/components/CustomProfilePage.tsx` — Reputation → Creator Credits UI
+- 15+ files updated for reputation → Creator Credits rename
+
+### Issues Encountered
+- Google Custom Search JSON API closed to new customers — 403 after 22+ hours
+- Bing Search APIs retired August 11, 2025
+- No viable free image search API available currently
 
 ---
 

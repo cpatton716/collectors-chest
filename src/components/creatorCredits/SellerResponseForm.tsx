@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { isSellerResponseEditable, TransactionFeedback } from "@/types/reputation";
+import { isSellerResponseEditable, TransactionFeedback } from "@/types/creatorCredits";
 
 interface SellerResponseFormProps {
   feedback: TransactionFeedback;

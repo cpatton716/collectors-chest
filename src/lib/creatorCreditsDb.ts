@@ -1,7 +1,7 @@
 /**
- * Reputation System Database Functions
+ * Creator Credits & Feedback Database Functions
  *
- * Server-side database operations for the reputation system.
+ * Server-side database operations for the creator credits and transaction feedback system.
  * Uses supabaseAdmin to bypass RLS - only use in API routes.
  */
 
@@ -13,16 +13,16 @@ import {
   SellerResponseInput,
   TransactionType,
   FeedbackEligibility,
-  UserReputation,
+  UserCreatorProfile,
   TransactionTrust,
-  ContributorBadgeInfo,
+  CreatorBadgeInfo,
   ContributionType,
   CommunityContribution,
   calculateTransactionTrust,
-  calculateContributorBadge,
+  calculateCreatorBadge,
   isFeedbackEditable,
   isSellerResponseEditable,
-} from "@/types/reputation";
+} from "@/types/creatorCredits";
 
 // ============================================================================
 // DATABASE ROW TYPES (snake_case from Postgres)
@@ -136,7 +136,7 @@ export async function createFeedbackReminders(
     .upsert(reminders, { onConflict: "transaction_id,transaction_type,user_id" });
 
   if (error) {
-    console.error("[reputationDb] Failed to create feedback reminders:", error);
+    console.error("[creatorCreditsDb] Failed to create feedback reminders:", error);
   }
 }
 
@@ -196,7 +196,7 @@ export async function submitFeedback(
     .single();
 
   if (error) {
-    console.error("[reputationDb] Failed to submit feedback:", error);
+    console.error("[creatorCreditsDb] Failed to submit feedback:", error);
     return { feedback: null, error: "Failed to submit feedback" };
   }
 
@@ -292,7 +292,7 @@ export async function updateFeedback(
     .single();
 
   if (error) {
-    console.error("[reputationDb] Failed to update feedback:", error);
+    console.error("[creatorCreditsDb] Failed to update feedback:", error);
     return { feedback: null, error: "Failed to update feedback" };
   }
 
@@ -346,7 +346,7 @@ export async function addSellerResponse(
     .single();
 
   if (error) {
-    console.error("[reputationDb] Failed to add seller response:", error);
+    console.error("[creatorCreditsDb] Failed to add seller response:", error);
     return { feedback: null, error: "Failed to add response" };
   }
 
@@ -385,7 +385,7 @@ export async function getUserFeedback(
     .range(offset, offset + limit - 1);
 
   if (error) {
-    console.error("[reputationDb] Failed to get user feedback:", error);
+    console.error("[creatorCreditsDb] Failed to get user feedback:", error);
     return { feedback: [], total: 0, error: "Failed to get feedback" };
   }
 
@@ -415,7 +415,7 @@ export async function getTransactionFeedback(
     .eq("transaction_type", transactionType);
 
   if (error) {
-    console.error("[reputationDb] Failed to get transaction feedback:", error);
+    console.error("[creatorCreditsDb] Failed to get transaction feedback:", error);
     return { feedback: [], error: "Failed to get feedback" };
   }
 
@@ -634,13 +634,13 @@ async function checkTradeFeedbackEligibility(
 }
 
 // ============================================================================
-// REPUTATION RETRIEVAL
+// CREATOR CREDITS RETRIEVAL
 // ============================================================================
 
 /**
- * Get full user reputation (transaction trust + community badge)
+ * Get full user creator profile (transaction trust + creator credits badge)
  */
-export async function getUserReputation(userId: string): Promise<UserReputation | null> {
+export async function getUserCreatorProfile(userId: string): Promise<UserCreatorProfile | null> {
   const { data, error } = await supabaseAdmin
     .from("profiles")
     .select("positive_ratings, negative_ratings, community_contribution_count")
@@ -648,7 +648,7 @@ export async function getUserReputation(userId: string): Promise<UserReputation 
     .single();
 
   if (error || !data) {
-    console.error("[reputationDb] Failed to get user reputation:", error);
+    console.error("[creatorCreditsDb] Failed to get user creator profile:", error);
     return null;
   }
 
@@ -656,9 +656,10 @@ export async function getUserReputation(userId: string): Promise<UserReputation 
 
   return {
     transactionTrust: calculateTransactionTrust(profile.positive_ratings, profile.negative_ratings),
-    communityBadge: calculateContributorBadge(profile.community_contribution_count),
+    creatorBadge: calculateCreatorBadge(profile.community_contribution_count),
   };
 }
+
 
 /**
  * Get just transaction trust for a user
@@ -671,7 +672,7 @@ export async function getTransactionTrust(userId: string): Promise<TransactionTr
     .single();
 
   if (error || !data) {
-    console.error("[reputationDb] Failed to get transaction trust:", error);
+    console.error("[creatorCreditsDb] Failed to get transaction trust:", error);
     return null;
   }
 
@@ -679,9 +680,9 @@ export async function getTransactionTrust(userId: string): Promise<TransactionTr
 }
 
 /**
- * Get just contributor badge for a user
+ * Get just creator badge for a user
  */
-export async function getContributorBadge(userId: string): Promise<ContributorBadgeInfo | null> {
+export async function getCreatorBadge(userId: string): Promise<CreatorBadgeInfo | null> {
   const { data, error } = await supabaseAdmin
     .from("profiles")
     .select("community_contribution_count")
@@ -689,20 +690,21 @@ export async function getContributorBadge(userId: string): Promise<ContributorBa
     .single();
 
   if (error || !data) {
-    console.error("[reputationDb] Failed to get contributor badge:", error);
+    console.error("[creatorCreditsDb] Failed to get creator badge:", error);
     return null;
   }
 
-  return calculateContributorBadge(data.community_contribution_count);
+  return calculateCreatorBadge(data.community_contribution_count);
 }
 
+
 // ============================================================================
-// COMMUNITY CONTRIBUTIONS
+// COMMUNITY CONTRIBUTIONS (CREATOR CREDITS)
 // ============================================================================
 
 /**
- * Record an approved community contribution
- * This is called when a contribution (like key info) is approved
+ * Record an approved community contribution (awards a creator credit)
+ * This is called when a contribution (like key info or cover image) is approved
  */
 export async function recordContribution(
   userId: string,
@@ -736,7 +738,7 @@ export async function recordContribution(
     .single();
 
   if (error) {
-    console.error("[reputationDb] Failed to record contribution:", error);
+    console.error("[creatorCreditsDb] Failed to record contribution:", error);
     return { contribution: null, error: "Failed to record contribution" };
   }
 
@@ -766,7 +768,7 @@ export async function getUserContributions(
     .limit(limit);
 
   if (error) {
-    console.error("[reputationDb] Failed to get user contributions:", error);
+    console.error("[creatorCreditsDb] Failed to get user contributions:", error);
     return { contributions: [], error: "Failed to get contributions" };
   }
 

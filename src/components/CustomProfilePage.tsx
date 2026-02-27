@@ -38,8 +38,8 @@ import { useSubscription } from "@/hooks/useSubscription";
 
 import { LocationPrivacy, UserLocation } from "@/app/api/location/route";
 import { FollowerCount } from "@/components/follows";
-import { ContributorBadge, FeedbackList, FeedbackSummary, ReputationBadge } from "@/components/reputation";
-import { TransactionFeedback, UserReputation } from "@/types/reputation";
+import { CreatorBadge, FeedbackList, FeedbackSummary, TrustBadge } from "@/components/creatorCredits";
+import { TransactionFeedback, UserCreatorProfile } from "@/types/creatorCredits";
 
 // Tab types
 type TabId = "profile" | "security" | "billing";
@@ -119,10 +119,10 @@ export function CustomProfilePage() {
   const [locationError, setLocationError] = useState<string | null>(null);
   const [locationSuccess, setLocationSuccess] = useState(false);
 
-  // Reputation state
-  const [reputation, setReputation] = useState<UserReputation | null>(null);
+  // Creator Credits state
+  const [creatorProfile, setCreatorProfile] = useState<UserCreatorProfile | null>(null);
   const [recentFeedback, setRecentFeedback] = useState<TransactionFeedback[]>([]);
-  const [isLoadingReputation, setIsLoadingReputation] = useState(false);
+  const [isLoadingCreatorProfile, setIsLoadingCreatorProfile] = useState(false);
 
   // Sessions state
   const [sessions, setSessions] = useState<
@@ -210,25 +210,25 @@ export function CustomProfilePage() {
     fetchLocation();
   }, []);
 
-  // Fetch reputation on mount
+  // Fetch creator profile on mount
   useEffect(() => {
-    async function fetchReputation() {
+    async function fetchCreatorProfile() {
       if (!user?.id) return;
-      setIsLoadingReputation(true);
+      setIsLoadingCreatorProfile(true);
       try {
         const res = await fetch(`/api/reputation?includeFeedback=true&feedbackLimit=5`);
         if (res.ok) {
           const data = await res.json();
-          setReputation(data.reputation);
+          setCreatorProfile(data.reputation);
           setRecentFeedback(data.recentFeedback || []);
         }
       } catch (error) {
-        console.error("Failed to fetch reputation:", error);
+        console.error("Failed to fetch creator profile:", error);
       } finally {
-        setIsLoadingReputation(false);
+        setIsLoadingCreatorProfile(false);
       }
     }
-    fetchReputation();
+    fetchCreatorProfile();
   }, [user?.id]);
 
   // Fetch follow counts when profile ID is available
@@ -974,45 +974,45 @@ export function CustomProfilePage() {
                 )}
               </div>
 
-              {/* Reputation Section */}
+              {/* Creator Credits Section */}
               <div className="border-t border-gray-100 pt-8">
                 <h3 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
                   <Shield className="w-4 h-4" />
-                  Reputation & Feedback
+                  Creator Credits & Feedback
                 </h3>
                 <p className="text-xs text-gray-500 mb-4">
-                  Your transaction trust score and community contributions
+                  Your transaction trust score and creator credits
                 </p>
 
-                {isLoadingReputation ? (
+                {isLoadingCreatorProfile ? (
                   <div className="flex items-center gap-2 text-gray-400">
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span className="text-sm">Loading reputation...</span>
+                    <span className="text-sm">Loading creator credits...</span>
                   </div>
-                ) : reputation ? (
+                ) : creatorProfile ? (
                   <div className="space-y-6">
                     {/* Transaction Trust */}
                     <div>
                       <p className="text-sm font-medium text-gray-700 mb-2">Transaction Trust</p>
-                      <ReputationBadge trust={reputation.transactionTrust} size="lg" />
-                      {reputation.transactionTrust.totalCount > 0 && (
+                      <TrustBadge trust={creatorProfile.transactionTrust} size="lg" />
+                      {creatorProfile.transactionTrust.totalCount > 0 && (
                         <div className="mt-3">
                           <FeedbackSummary
-                            positiveCount={reputation.transactionTrust.positiveCount}
-                            negativeCount={reputation.transactionTrust.negativeCount}
+                            positiveCount={creatorProfile.transactionTrust.positiveCount}
+                            negativeCount={creatorProfile.transactionTrust.negativeCount}
                           />
                         </div>
                       )}
                     </div>
 
-                    {/* Community Contributor Badge */}
-                    {reputation.communityBadge.tier !== "none" && (
+                    {/* Creator Credits Badge */}
+                    {creatorProfile.creatorBadge.tier !== "none" && (
                       <div>
-                        <p className="text-sm font-medium text-gray-700 mb-2">Community Status</p>
-                        <ContributorBadge badge={reputation.communityBadge} size="lg" />
+                        <p className="text-sm font-medium text-gray-700 mb-2">Creator Credits</p>
+                        <CreatorBadge badge={creatorProfile.creatorBadge} size="lg" />
                         <p className="mt-1 text-xs text-gray-500">
-                          {reputation.communityBadge.count} approved contribution
-                          {reputation.communityBadge.count !== 1 ? "s" : ""}
+                          {creatorProfile.creatorBadge.count} approved contribution
+                          {creatorProfile.creatorBadge.count !== 1 ? "s" : ""}
                         </p>
                       </div>
                     )}
@@ -1026,7 +1026,7 @@ export function CustomProfilePage() {
                     )}
                   </div>
                 ) : (
-                  <p className="text-sm text-gray-500">No reputation data available</p>
+                  <p className="text-sm text-gray-500">No creator credits data available</p>
                 )}
               </div>
             </div>

@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 
-import { getUserReputation, getUserFeedback } from "@/lib/reputationDb";
+import { getUserCreatorProfile, getUserFeedback } from "@/lib/creatorCreditsDb";
 
 interface RouteContext {
   params: Promise<{ userId: string }>;
@@ -20,7 +20,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     const includeFeedback = searchParams.get("includeFeedback") === "true";
     const feedbackLimit = parseInt(searchParams.get("feedbackLimit") || "5");
 
-    const reputation = await getUserReputation(userId);
+    const reputation = await getUserCreatorProfile(userId);
 
     let recentFeedback = undefined;
     if (includeFeedback) {
@@ -32,7 +32,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       recentFeedback,
     });
   } catch (error) {
-    console.error("[API] Error getting reputation:", error);
+    console.error("[API] Error getting creator profile:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

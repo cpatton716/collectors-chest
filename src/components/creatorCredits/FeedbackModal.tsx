@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import { ThumbsDown, ThumbsUp, X } from "lucide-react";
 
-import { RatingType, TransactionType } from "@/types/reputation";
+import { RatingType, TransactionType } from "@/types/creatorCredits";
 
 interface FeedbackModalProps {
   isOpen: boolean;

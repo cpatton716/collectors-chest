@@ -160,7 +160,6 @@ For ad-hoc use during development:
 | **Marvel API** | Comic metadata, covers, creators | Free, 3K calls/day, awaiting portal access |
 | **eBay Browse API** | Real-time pricing | Free tier, rate limited |
 | **CGC/CBCS** | Cert verification | Web scraping for grade details |
-| **Google CSE** | Comic cover image search | Domain-restricted (14 comic sites), 100 free queries/day, `GOOGLE_CSE_API_KEY`, `GOOGLE_CSE_CX` |
 
 ### Project Costs
 
@@ -176,7 +175,6 @@ For ad-hoc use during development:
 |---------|------|-------|
 | Anthropic API | ~$0.015/scan | Prepaid credits ($10 loaded) |
 | Stripe | 2.9% + $0.30 | Per transaction |
-| Google CSE | $5/1,000 queries (100/day free) | Billing account linked (personal card — switch to business after LLC) |
 
 **Free Tiers (current usage):**
 - Supabase: 500MB DB, 1GB storage
@@ -185,7 +183,6 @@ For ad-hoc use during development:
 - Resend: 3K emails/mo
 - PostHog: 1M events/mo
 - Sentry: 5K errors/mo
-- Google CSE: 100 queries/day free (then $5/1000)
 
 ---
 

@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import { MessageSquarePlus } from "lucide-react";
 
-import { RatingType, TransactionType } from "@/types/reputation";
+import { RatingType, TransactionType } from "@/types/creatorCredits";
 
 import { FeedbackModal } from "./FeedbackModal";
 

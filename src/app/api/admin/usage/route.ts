@@ -25,9 +25,6 @@ const LIMITS = {
     // No hard limit, but track spend
     warningThreshold: 5, // $5 remaining
   },
-  googleCSE: {
-    queriesPerDay: 100,
-  },
   coverSearch: {
     monthlyBudgetCents: 1000, // $10 budget
   },
@@ -227,35 +224,7 @@ export async function GET() {
       errors.push(`Scan metrics: ${e instanceof Error ? e.message : "Unknown error"}`);
     }
 
-    // 4. Google CSE Daily Queries
-    try {
-      const redis = new Redis({
-        url: process.env.UPSTASH_REDIS_REST_URL!,
-        token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-      });
-
-      const today = new Date().toISOString().split("T")[0];
-      const cseQueries = (await redis.get<number>(`usage:google-cse:${today}`)) || 0;
-      const csePercentage = cseQueries / LIMITS.googleCSE.queriesPerDay;
-      metrics.push({
-        name: "Google CSE Daily Queries",
-        current: cseQueries,
-        limit: LIMITS.googleCSE.queriesPerDay,
-        unit: "queries",
-        percentage: csePercentage,
-        status:
-          csePercentage >= ALERT_THRESHOLDS.critical
-            ? "critical"
-            : csePercentage >= ALERT_THRESHOLDS.warning
-              ? "warning"
-              : "ok",
-        dashboard: "https://console.cloud.google.com/apis/dashboard",
-      });
-    } catch (e) {
-      errors.push(`Google CSE: ${e instanceof Error ? e.message : "Unknown error"}`);
-    }
-
-    // 5. Cover Search Cost (30 days)
+    // 4. Cover Search Cost (30 days)
     try {
       const redis = new Redis({
         url: process.env.UPSTASH_REDIS_REST_URL!,
