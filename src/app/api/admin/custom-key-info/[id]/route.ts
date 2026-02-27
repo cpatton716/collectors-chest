@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminProfile } from "@/lib/adminAuth";
 import { createNotification } from "@/lib/auctionDb";
 import { submitKeyInfo } from "@/lib/keyComicsDb";
-import { recordContribution } from "@/lib/reputationDb";
+import { recordContribution } from "@/lib/creatorCreditsDb";
 import { supabase } from "@/lib/supabase";
 
 interface RouteContext {

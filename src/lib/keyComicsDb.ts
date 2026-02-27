@@ -13,7 +13,7 @@ import { createClient } from "@supabase/supabase-js";
 
 import { createNotification } from "./auctionDb";
 import { lookupKeyInfo as lookupKeyInfoStatic } from "./keyComicsDatabase";
-import { recordContribution } from "./reputationDb";
+import { recordContribution } from "./creatorCreditsDb";
 
 // Supabase client for key info lookups
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -391,7 +391,7 @@ export async function approveSubmission(
     // Notify the submitter
     await createNotification(submission.user_id, "key_info_approved").catch(() => {});
 
-    // Record community contribution for reputation/badge system
+    // Record community contribution for creator credits badge system
     await recordContribution(submission.user_id, "key_info", keyComicId).catch(() => {});
 
     return { success: true };

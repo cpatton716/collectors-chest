@@ -27,7 +27,7 @@ import {
 import { CollectionItem, ConditionLabel, PriceData } from "@/types/comic";
 
 import { sendNotificationEmail } from "./email";
-import { createFeedbackReminders } from "./reputationDb";
+import { createFeedbackReminders } from "./creatorCreditsDb";
 import { getAllFollowerIds } from "./followDb";
 import { filterCustomKeyInfoForPublic } from "./keyInfoHelpers";
 import { getSubscriptionStatus, getTransactionFeePercent } from "./subscription";

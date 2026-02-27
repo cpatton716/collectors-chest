@@ -253,8 +253,6 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 | Upstash Redis | Free | $0 | 10K commands/day |
 | Sentry | Free | $0 | 5K errors/month |
 | PostHog | Free | $0 | 1M events/month |
-| Google CSE | Free (100/day) | $0 | $5/1000 queries after free tier (100/day included) |
-
 ### Cost Risks
 
 | Risk | Severity | Mitigation |
@@ -263,8 +261,6 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 | Supabase limits | 🟡 Medium | Monitor usage, upgrade path ready |
 | Netlify build minutes | 🟡 Medium | Strategic batching |
 | eBay rate limits | 🟡 Medium | AI fallback in place |
-| Google Cloud billing | 🟢 Low | Personal card linked — switch to business after LLC formed |
-
 ### Recommendations
 1. **Monitor AI costs** - Add usage tracking dashboard
 2. **Strategic deploys** - Batch changes, use preview for testing
@@ -422,7 +418,7 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 14. ~~**Search optimization**~~ ✅ (3 features: fuzzy matching with 34 abbreviations, batch CSV imports, popularity-based suggestions)
 15. ~~**Site icon replacement**~~ ✅ (New blue comic-style chest design across all icon files)
 16. ~~**FAQ update**~~ ✅ (Ask the Professor expanded to 20 questions, font fix)
-17. ~~**Cover image search system**~~ ✅ (Google CSE + Claude + community DB) (Feb 25, 2026)
+17. ~~**Cover image search system**~~ ✅ (Community DB + Open Library + manual URL paste) (Feb 25-26, 2026)
 18. ~~**Comic Vine removal from import-lookup**~~ ✅ (Feb 25, 2026)
 19. ~~**CSV drag-and-drop fix**~~ ✅ (Feb 25, 2026)
 20. ~~**Collection deletion safety**~~ ✅ (Blocks delete if active shop listing) (Feb 25, 2026)
@@ -472,13 +468,13 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 **Session 6 Progress:** 17 Tested, 2 Completed — Needs Testing, 1 Pinned, 1 Closed
 
 ✅ Tested: #1, #3, #4, #5, #8, #9, #10, #11, #12, #13, #14, #16, #18, #19, #21
-✅ Completed & Verified: #6 (key info notifications), #7 (reputation updates)
+✅ Completed & Verified: #6 (key info notifications), #7 (Creator Credits updates, formerly "reputation")
 ✅ Completed & Verified: #17 (real-time messaging — migrated to Broadcast), #20 (notification icon — supabaseAdmin fix)
 📌 Pinned: #2 (wrong covers — needs specific examples)
 ✅ Closed: #15 (trial button believed working)
 
 **Remaining work:**
-- ✅ **#6 & #7 verified** (Feb 19): Key info approval notifications and reputation increment — both passing
+- ✅ **#6 & #7 verified** (Feb 19): Key info approval notifications and Creator Credits increment (formerly "reputation") — both passing
 - **Investigation needed**: Wrong cover images (#2 — needs specific examples from user)
 
 ### 🟠 Feb 10 Mobile Testing Feedback (14 items — all resolved)
@@ -520,9 +516,9 @@ Items addressed:
 
 ### 🟡 Next Session Focus
 
-1. **Verify Google CSE API is working** ⏳ WAITING
-   - Was returning 403 during setup on Feb 25 — waiting on propagation
-   - Test cover image search end-to-end once Google API is active
+1. ~~**Verify external image search API**~~ ❌ REMOVED (Feb 26, 2026)
+   - No external image search APIs available for new customers
+   - **Pivoted to:** community cover DB + Open Library API + manual URL paste
    - Run Supabase migration for `cover_images` table in production
 
 2. **GoCollect API Integration** ⏸️ BLOCKED
@@ -548,15 +544,17 @@ Items addressed:
    - Visualize cache hit rates and AI call patterns
 
 6. **Implement cover image harvesting from graded book scans** (design approved, needs implementation plan)
+   - Design doc: `docs/plans/2026-02-25-cover-image-harvesting-design.md`
    - Harvest cover images from graded book scans
    - Create implementation plan before starting
+   - Feeds into community cover DB (primary cover source)
 
 7. **Revisit beta mode planning**
    - Review current private beta status and plan next steps for opening registration
 
 ### ✅ Feb 25 Session Completed
 
-- **Cover image search system** - Google CSE + Claude search query generation + community cover DB with admin approval
+- **Cover image search system** - Community cover DB + Open Library API + manual URL paste
 - **Collection deletion safety** - Blocks delete if active shop listing exists
 - **Single delete soft delete + undo toast** - Non-destructive deletion with undo option
 - **CSV drag-and-drop fix** - Resolved file upload issues
@@ -564,7 +562,7 @@ Items addressed:
 - **Footer on all pages** - Site-wide footer added
 - **Delete confirmation overlay modal** - User confirmation before destructive actions
 - **Undo toast timer fix** - Corrected countdown behavior
-- **Comic Vine removal** - Removed from import-lookup, replaced by Google CSE
+- **Comic Vine removal** - Removed from import-lookup, replaced by community DB + Open Library
 - **Deployed Feb 25, 2026**
 
 ### ✅ Previously Completed Focus Items
@@ -573,13 +571,15 @@ Items addressed:
    - Reactivated on free Developer plan (5K errors/month)
    - Added SENTRY_DSN + NEXT_PUBLIC_SENTRY_DSN to Netlify environment variables
 
-2. **Cover Image Search for CSV Import** ✅ Complete (Feb 25, 2026)
+2. **Cover Image Search for CSV Import** ✅ Complete (Feb 25-26, 2026)
    - Community cover database (cover_images table) with admin approval
-   - Claude-powered search query generation + Google Custom Search
+   - Open Library API for cover lookups
+   - Manual URL paste → community cover submission with Creator Credits
    - CoverReviewQueue modal after CSV import
    - Admin cover queue page at /admin/cover-queue
    - Removed Comic Vine API from import-lookup
    - Single-match auto-approve; multi-match goes to admin queue
+   - **Note:** No external image search APIs available; using community DB + Open Library + manual paste.
 
 3. **Messaging Phases 2-7** ✅ COMPLETE (Jan 28)
    - Phase 1: Basic DMs ✅
@@ -637,7 +637,7 @@ Items addressed:
 | Jan 11, 2026 (AM) | 6.8/10 | +Auctions, +Payments, -Code quality issues identified |
 | Jan 11, 2026 (PM) | 8.2/10 | +Sentry, +PostHog, +Rate limiting, +Redis cache, +Buy Now, +CGC/CBCS enhancements, Fixed all code quality issues |
 | Jan 15, 2026 | 8.4/10 | +Premium subscription billing (code complete), +Scan limits for registered users, +Feature gating, +Pricing page |
-| Feb 25, 2026 | 8.4/10 | +Cover image search (Google CSE), +Collection deletion safety, +Soft delete with undo, +Grade normalization, +Footer, +CSV fix. Deployed Feb 25, 2026 |
+| Feb 25, 2026 | 8.4/10 | +Cover image search (community DB + Open Library), +Collection deletion safety, +Soft delete with undo, +Grade normalization, +Footer, +CSV fix. Deployed Feb 25, 2026 |
 
 ---
 
@@ -797,7 +797,7 @@ CREATE INDEX idx_comics_profile_created ON comics(profile_id, created_at);
 - **Auth:** Clerk
 - **Payments:** Stripe
 - **AI:** Anthropic Claude (cover recognition, search query generation)
-- **Cover Image Search:** Google Custom Search Engine (domain-restricted, 14 comic sites)
+- **Cover Image Search:** Community cover DB + Open Library API + manual URL paste
 - **Hosting:** Netlify
 
 ### Database Tables

@@ -2,8 +2,8 @@ import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 
 import { getProfileByClerkId } from "@/lib/db";
-import { checkFeedbackEligibility } from "@/lib/reputationDb";
-import { TransactionType } from "@/types/reputation";
+import { checkFeedbackEligibility } from "@/lib/creatorCreditsDb";
+import { TransactionType } from "@/types/creatorCredits";
 
 // GET - Check if user can leave feedback for a transaction
 export async function GET(request: NextRequest) {

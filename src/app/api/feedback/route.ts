@@ -3,8 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 
 import { getProfileByClerkId } from "@/lib/db";
-import { getUserFeedback, submitFeedback } from "@/lib/reputationDb";
-import { SubmitFeedbackInput } from "@/types/reputation";
+import { getUserFeedback, submitFeedback } from "@/lib/creatorCreditsDb";
+import { SubmitFeedbackInput } from "@/types/creatorCredits";
 
 // GET - Get feedback for a user
 export async function GET(request: NextRequest) {

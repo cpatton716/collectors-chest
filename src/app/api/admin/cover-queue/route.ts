@@ -5,6 +5,8 @@ import {
   approveCover,
   rejectCover,
 } from "@/lib/coverImageDb";
+import { supabaseAdmin } from "@/lib/supabase";
+import { recordContribution } from "@/lib/creatorCreditsDb";
 
 // GET — fetch pending covers for admin review
 export async function GET(request: NextRequest) {
@@ -49,6 +51,26 @@ export async function PATCH(request: NextRequest) {
 
     if (action === "approve") {
       await approveCover(coverId, adminProfile.id);
+
+      // Award Creator Credits to the submitter (non-blocking)
+      try {
+        const { data: cover } = await supabaseAdmin
+          .from("cover_images")
+          .select("submitted_by, title_normalized, issue_number")
+          .eq("id", coverId)
+          .single();
+
+        if (cover?.submitted_by) {
+          const details = [cover.title_normalized, `#${cover.issue_number}`]
+            .filter(Boolean)
+            .join(" ");
+          await recordContribution(cover.submitted_by, "cover_image", coverId);
+          // Credit awarded successfully
+        }
+      } catch (creditError) {
+        // Credit failure must not block the approval
+        console.error("[cover-queue] Failed to award Creator Credit:", creditError);
+      }
     } else {
       await rejectCover(coverId);
     }

@@ -3,7 +3,7 @@
 import { formatDistanceToNow } from "date-fns";
 import { MessageSquare, ThumbsDown, ThumbsUp } from "lucide-react";
 
-import { TransactionFeedback } from "@/types/reputation";
+import { TransactionFeedback } from "@/types/creatorCredits";
 
 interface FeedbackListProps {
   feedback: TransactionFeedback[];

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { FeedbackEligibility, TransactionType } from "@/types/reputation";
+import { FeedbackEligibility, TransactionType } from "@/types/creatorCredits";
 
 export function useFeedbackEligibility(
   transactionId: string | undefined,

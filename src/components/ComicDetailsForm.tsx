@@ -456,6 +456,38 @@ export function ComicDetailsForm({
     }
   };
 
+  // Handle "Set Cover" from pasted URL — sets cover and submits to community cover DB
+  const handleSetCover = () => {
+    if (!coverUrlInput || !onCoverImageChange) return;
+
+    // Set the cover image on the comic (existing behavior)
+    onCoverImageChange(coverUrlInput);
+    const submittedUrl = coverUrlInput;
+    setCoverUrlInput("");
+
+    // Fire-and-forget: submit to community cover database as pending
+    try {
+      const isValidUrl = /^https?:\/\/.+/.test(submittedUrl);
+      if (isValidUrl && comic.title && comic.issueNumber) {
+        fetch("/api/cover-images", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: comic.title,
+            issueNumber: comic.issueNumber,
+            imageUrl: submittedUrl,
+            sourceQuery: "manual-paste",
+            candidateCount: 2,
+          }),
+        }).catch(() => {
+          // Silently ignore — community submission is best-effort
+        });
+      }
+    } catch {
+      // Silently ignore — community submission is best-effort
+    }
+  };
+
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-6">
       {/* Confidence Indicator */}
@@ -722,12 +754,7 @@ export function ComicDetailsForm({
                     />
                     <button
                       type="button"
-                      onClick={() => {
-                        if (coverUrlInput) {
-                          onCoverImageChange(coverUrlInput);
-                          setCoverUrlInput("");
-                        }
-                      }}
+                      onClick={handleSetCover}
                       disabled={!coverUrlInput}
                       className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 text-sm font-medium"
                     >
@@ -747,12 +774,7 @@ export function ComicDetailsForm({
                     />
                     <button
                       type="button"
-                      onClick={() => {
-                        if (coverUrlInput) {
-                          onCoverImageChange(coverUrlInput);
-                          setCoverUrlInput("");
-                        }
-                      }}
+                      onClick={handleSetCover}
                       disabled={!coverUrlInput}
                       className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 text-sm"
                     >
@@ -810,12 +832,7 @@ export function ComicDetailsForm({
                   />
                   <button
                     type="button"
-                    onClick={() => {
-                      if (coverUrlInput) {
-                        onCoverImageChange(coverUrlInput);
-                        setCoverUrlInput("");
-                      }
-                    }}
+                    onClick={handleSetCover}
                     disabled={!coverUrlInput}
                     className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 text-sm font-medium"
                   >
@@ -836,12 +853,7 @@ export function ComicDetailsForm({
                   />
                   <button
                     type="button"
-                    onClick={() => {
-                      if (coverUrlInput) {
-                        onCoverImageChange(coverUrlInput);
-                        setCoverUrlInput("");
-                      }
-                    }}
+                    onClick={handleSetCover}
                     disabled={!coverUrlInput}
                     className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 text-sm"
                   >

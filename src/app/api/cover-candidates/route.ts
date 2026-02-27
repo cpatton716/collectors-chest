@@ -36,7 +36,7 @@ async function generateSearchQuery(
     messages: [
       {
         role: "user",
-        content: `You are a comic book expert. Generate the best Google Image search query to find the COVER IMAGE of this comic book. Include era-specific details, key visual elements, or notable cover artists if you know them. Return ONLY the search query string, nothing else.
+        content: `You are a comic book expert. Generate the best image search query to find the COVER IMAGE of this comic book. Include era-specific details, key visual elements, or notable cover artists if you know them. Return ONLY the search query string, nothing else.
 
 ${context}`,
       },
@@ -54,53 +54,6 @@ ${context}`,
 
   // Strip quotes if Claude wraps the query
   return text.replace(/^["']|["']$/g, "");
-}
-
-async function searchGoogleImages(
-  query: string
-): Promise<CoverCandidate[]> {
-  const apiKey = process.env.GOOGLE_CSE_API_KEY;
-  const cx = process.env.GOOGLE_CSE_CX;
-
-  if (!apiKey || !cx) {
-    console.warn("Google CSE not configured — skipping image search");
-    return [];
-  }
-
-  const url = new URL("https://www.googleapis.com/customsearch/v1");
-  url.searchParams.set("key", apiKey);
-  url.searchParams.set("cx", cx);
-  url.searchParams.set("q", query);
-  url.searchParams.set("searchType", "image");
-  url.searchParams.set("num", "8");
-  url.searchParams.set("imgType", "photo");
-  url.searchParams.set("safe", "active");
-
-  const response = await fetch(url.toString(), {
-    signal: AbortSignal.timeout(8000),
-  });
-
-  if (!response.ok) {
-    console.error("Google CSE error:", response.status, await response.text());
-    return [];
-  }
-
-  const today = new Date().toISOString().split("T")[0];
-  try {
-    await redis.incr(`usage:google-cse:${today}`);
-    await redis.expire(`usage:google-cse:${today}`, 86400 * 2);
-  } catch {}
-
-  const data = await response.json();
-  if (!data.items || !Array.isArray(data.items)) return [];
-
-  return data.items.map(
-    (item: { link: string; title: string; displayLink: string }) => ({
-      url: item.link,
-      title: item.title || "",
-      source: item.displayLink || "google",
-    })
-  );
 }
 
 export async function POST(request: NextRequest) {
@@ -133,8 +86,8 @@ export async function POST(request: NextRequest) {
       releaseYear
     );
 
-    // Step 3: Google Custom Search
-    const candidates = await searchGoogleImages(searchQuery);
+    // No external image search API available. Relies on community covers + Open Library fallback.
+    const candidates: CoverCandidate[] = [];
 
     return NextResponse.json({
       source: "search",

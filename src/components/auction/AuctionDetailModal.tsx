@@ -19,7 +19,7 @@ import {
 
 import { useFeedbackEligibility } from "@/hooks/useFeedbackEligibility";
 
-import { LeaveFeedbackButton } from "@/components/reputation";
+import { LeaveFeedbackButton } from "@/components/creatorCredits";
 
 import { Auction, formatPrice } from "@/types/auction";
 

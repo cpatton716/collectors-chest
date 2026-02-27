@@ -17,9 +17,6 @@ const LIMITS = {
   supabase: { database: 500 * 1024 * 1024 },
   upstash: { commandsPerDay: 10000 },
   anthropic: { monthlyBudget: 10 },
-  googleCSE: {
-    queriesPerDay: 100,
-  },
   coverSearch: {
     monthlyBudgetCents: 1000,
   },
@@ -149,40 +146,7 @@ export async function GET(request: NextRequest) {
       console.error("Error checking API costs:", e);
     }
 
-    // 4. Check Google CSE daily queries
-    try {
-      const redis = new Redis({
-        url: process.env.UPSTASH_REDIS_REST_URL!,
-        token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-      });
-
-      const today = new Date().toISOString().split("T")[0];
-      const cseQueries =
-        (await redis.get<number>(`usage:google-cse:${today}`)) || 0;
-      const csePercentage = cseQueries / LIMITS.googleCSE.queriesPerDay;
-
-      if (csePercentage >= ALERT_THRESHOLDS.critical) {
-        alerts.push({
-          name: "Google CSE Daily Queries",
-          current: cseQueries,
-          limit: LIMITS.googleCSE.queriesPerDay,
-          percentage: csePercentage,
-          alertType: "critical" as const,
-        });
-      } else if (csePercentage >= ALERT_THRESHOLDS.warning) {
-        alerts.push({
-          name: "Google CSE Daily Queries",
-          current: cseQueries,
-          limit: LIMITS.googleCSE.queriesPerDay,
-          percentage: csePercentage,
-          alertType: "warning" as const,
-        });
-      }
-    } catch (e) {
-      console.error("Error checking Google CSE usage:", e);
-    }
-
-    // 5. Check Cover Search cost (last 30 days)
+    // 4. Check Cover Search cost (last 30 days)
     try {
       const redis = new Redis({
         url: process.env.UPSTASH_REDIS_REST_URL!,
@@ -223,7 +187,7 @@ export async function GET(request: NextRequest) {
       console.error("Error checking cover search costs:", e);
     }
 
-    // Check 6: Netlify Bandwidth
+    // 5. Check Netlify Bandwidth
     try {
       const netlifyToken = process.env.NETLIFY_API_TOKEN;
       if (netlifyToken) {

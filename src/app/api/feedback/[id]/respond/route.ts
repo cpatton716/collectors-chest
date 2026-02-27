@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 
 import { getProfileByClerkId } from "@/lib/db";
-import { addSellerResponse } from "@/lib/reputationDb";
+import { addSellerResponse } from "@/lib/creatorCreditsDb";
 
 interface RouteContext {
   params: Promise<{ id: string }>;

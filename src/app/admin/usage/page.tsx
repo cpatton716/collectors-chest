@@ -11,7 +11,6 @@ import {
   AlertTriangle,
   BarChart3,
   CheckCircle,
-  Cloud,
   Database,
   DollarSign,
   ExternalLink,
@@ -343,7 +342,6 @@ export default function AdminUsagePage() {
                   { name: "Anthropic", url: "https://console.anthropic.com", icon: BarChart3 },
                   { name: "Clerk", url: "https://dashboard.clerk.com", icon: Users },
                   { name: "Netlify", url: "https://app.netlify.com", icon: Globe },
-                  { name: "Google Cloud", url: "https://console.cloud.google.com", icon: Cloud },
                 ].map((service) => (
                   <a
                     key={service.name}

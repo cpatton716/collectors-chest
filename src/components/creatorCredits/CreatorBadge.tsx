@@ -1,25 +1,25 @@
 "use client";
 
 import { Award, BadgeCheck, Crown, Shield, Skull, Star, User } from "lucide-react";
-import type { ContributorBadgeInfo, TransactionTrust } from "@/types/reputation";
+import type { CreatorBadgeInfo, TransactionTrust } from "@/types/creatorCredits";
 
 // ============================================================================
-// REPUTATION BADGE - Full display with percentage and count
+// TRUST BADGE - Full display with percentage and count
 // ============================================================================
 
-interface ReputationBadgeProps {
+interface TrustBadgeProps {
   trust: TransactionTrust;
   size?: "sm" | "md" | "lg";
   showCount?: boolean;
   onClick?: () => void;
 }
 
-export function ReputationBadge({
+export function TrustBadge({
   trust,
   size = "md",
   showCount = true,
   onClick,
-}: ReputationBadgeProps) {
+}: TrustBadgeProps) {
   const sizeClasses = {
     sm: "text-xs px-1.5 py-0.5 gap-1",
     md: "text-sm px-2 py-1 gap-1.5",
@@ -84,16 +84,19 @@ export function ReputationBadge({
   );
 }
 
+/** @deprecated Use TrustBadge instead */
+export const ReputationBadge = TrustBadge;
+
 // ============================================================================
-// REPUTATION BADGE COMPACT - Card version for list items
+// TRUST BADGE COMPACT - Card version for list items
 // ============================================================================
 
-interface ReputationBadgeCompactProps {
+interface TrustBadgeCompactProps {
   trust: TransactionTrust;
   onClick?: () => void;
 }
 
-export function ReputationBadgeCompact({ trust, onClick }: ReputationBadgeCompactProps) {
+export function TrustBadgeCompact({ trust, onClick }: TrustBadgeCompactProps) {
   const baseClasses = "inline-flex items-center gap-1 text-xs font-medium";
 
   // New seller display
@@ -143,21 +146,24 @@ export function ReputationBadgeCompact({ trust, onClick }: ReputationBadgeCompac
   );
 }
 
+/** @deprecated Use TrustBadgeCompact instead */
+export const ReputationBadgeCompact = TrustBadgeCompact;
+
 // ============================================================================
-// CONTRIBUTOR BADGE - Tier-based badge display
+// CREATOR BADGE - Tier-based badge display for Creator Credits
 // ============================================================================
 
-interface ContributorBadgeProps {
-  badge: ContributorBadgeInfo;
+interface CreatorBadgeProps {
+  badge: CreatorBadgeInfo;
   size?: "sm" | "md" | "lg";
   showLabel?: boolean;
 }
 
-export function ContributorBadge({
+export function CreatorBadge({
   badge,
   size = "md",
   showLabel = true,
-}: ContributorBadgeProps) {
+}: CreatorBadgeProps) {
   if (badge.tier === "none") {
     return null;
   }
@@ -202,16 +208,19 @@ export function ContributorBadge({
   );
 }
 
+/** @deprecated Use CreatorBadge instead */
+export const ContributorBadge = CreatorBadge;
+
 // ============================================================================
-// CONTRIBUTOR ICON - Icon-only version for inline display
+// CREATOR ICON - Icon-only version for inline display
 // ============================================================================
 
-interface ContributorIconProps {
-  badge: ContributorBadgeInfo;
+interface CreatorIconProps {
+  badge: CreatorBadgeInfo;
   size?: "sm" | "md";
 }
 
-export function ContributorIcon({ badge, size = "sm" }: ContributorIconProps) {
+export function CreatorIcon({ badge, size = "sm" }: CreatorIconProps) {
   if (badge.tier === "none") {
     return null;
   }
@@ -241,3 +250,6 @@ export function ContributorIcon({ badge, size = "sm" }: ContributorIconProps) {
 
   return <Icon size={iconSizes[size]} className={className} />;
 }
+
+/** @deprecated Use CreatorIcon instead */
+export const ContributorIcon = CreatorIcon;
