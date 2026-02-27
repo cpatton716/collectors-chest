@@ -660,8 +660,6 @@ export async function getUserCreatorProfile(userId: string): Promise<UserCreator
   };
 }
 
-/** @deprecated Use getUserCreatorProfile instead */
-export const getUserReputation = getUserCreatorProfile;
 
 /**
  * Get just transaction trust for a user
@@ -699,8 +697,6 @@ export async function getCreatorBadge(userId: string): Promise<CreatorBadgeInfo 
   return calculateCreatorBadge(data.community_contribution_count);
 }
 
-/** @deprecated Use getCreatorBadge instead */
-export const getContributorBadge = getCreatorBadge;
 
 // ============================================================================
 // COMMUNITY CONTRIBUTIONS (CREATOR CREDITS)

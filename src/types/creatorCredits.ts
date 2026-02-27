@@ -198,15 +198,3 @@ export function isSellerResponseEditable(responseAt: string): boolean {
   return hoursSinceResponse <= 48;
 }
 
-// ============================================================================
-// BACKWARD COMPATIBILITY ALIASES
-// ============================================================================
-
-/** @deprecated Use CreatorTier instead */
-export type ContributorTier = CreatorTier;
-/** @deprecated Use CreatorBadgeInfo instead */
-export type ContributorBadgeInfo = CreatorBadgeInfo;
-/** @deprecated Use UserCreatorProfile instead */
-export type UserReputation = UserCreatorProfile;
-/** @deprecated Use calculateCreatorBadge instead */
-export const calculateContributorBadge = calculateCreatorBadge;

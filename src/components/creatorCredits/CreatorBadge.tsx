@@ -84,9 +84,6 @@ export function TrustBadge({
   );
 }
 
-/** @deprecated Use TrustBadge instead */
-export const ReputationBadge = TrustBadge;
-
 // ============================================================================
 // TRUST BADGE COMPACT - Card version for list items
 // ============================================================================
@@ -146,8 +143,6 @@ export function TrustBadgeCompact({ trust, onClick }: TrustBadgeCompactProps) {
   );
 }
 
-/** @deprecated Use TrustBadgeCompact instead */
-export const ReputationBadgeCompact = TrustBadgeCompact;
 
 // ============================================================================
 // CREATOR BADGE - Tier-based badge display for Creator Credits
@@ -208,8 +203,6 @@ export function CreatorBadge({
   );
 }
 
-/** @deprecated Use CreatorBadge instead */
-export const ContributorBadge = CreatorBadge;
 
 // ============================================================================
 // CREATOR ICON - Icon-only version for inline display
@@ -251,5 +244,3 @@ export function CreatorIcon({ badge, size = "sm" }: CreatorIconProps) {
   return <Icon size={iconSizes[size]} className={className} />;
 }
 
-/** @deprecated Use CreatorIcon instead */
-export const ContributorIcon = CreatorIcon;
