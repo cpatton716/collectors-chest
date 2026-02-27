@@ -18,7 +18,7 @@ export default function PrivacyPolicyPage() {
             Back to Home
           </Link>
           <h1 className="text-3xl font-bold text-gray-900">Privacy Policy</h1>
-          <p className="text-gray-600 mt-2">Last updated: February 18, 2026</p>
+          <p className="text-gray-600 mt-2">Last updated: February 27, 2026</p>
         </div>
       </div>
 
@@ -52,12 +52,26 @@ export default function PrivacyPolicyPage() {
               Location is only collected if you affirmatively opt in.
             </li>
             <li>
+              <strong>Age Attestation:</strong> When you first access marketplace features, you are
+              asked to confirm that you are at least 18 years old. We store only a timestamp
+              recording when you made this confirmation. We do not collect your date of birth,
+              government-issued identification, or any other age-related personal data.
+            </li>
+            <li>
               <strong>Collection Data:</strong> Information about your comic book collection,
               including titles, issue numbers, grades, prices, cover images, and notes.
             </li>
             <li>
               <strong>Marketplace Data:</strong> Listings, bids, offers, counter-offers, trade
               proposals, feedback, and ratings.
+            </li>
+            <li>
+              <strong>Community Contributions:</strong> If you submit content through the Creator
+              Credits program (such as cover images to the Community Cover Database), we store your
+              submission including the image URL, the associated comic title and issue number, your
+              internal user ID, submission status, and a timestamp. Your contribution count and badge
+              tier (Contributor, Verified Contributor, or Top Contributor) are also stored and are
+              publicly visible on your profile.
             </li>
             <li>
               <strong>Communications:</strong> Messages sent to other users through the
@@ -102,10 +116,10 @@ export default function PrivacyPolicyPage() {
           <h3>1.3 Information We Do NOT Collect</h3>
           <ul>
             <li>Phone numbers</li>
+            <li>Date of birth or government-issued identification</li>
             <li>
               Full mailing or shipping addresses (shipping is coordinated directly between users)
             </li>
-            <li>Government-issued identification</li>
             <li>Precise geolocation or GPS data</li>
             <li>Biometric data</li>
           </ul>
@@ -115,8 +129,8 @@ export default function PrivacyPolicyPage() {
           <ul>
             <li>
               <strong>Service Operation:</strong> To create and manage your account, sync your
-              collection, process transactions, facilitate trades, and deliver core platform
-              features.
+              collection, process transactions, facilitate trades, manage Creator Credits and
+              community contributions, and deliver core platform features.
             </li>
             <li>
               <strong>AI Features:</strong> To process comic book images through our AI
@@ -125,8 +139,8 @@ export default function PrivacyPolicyPage() {
             </li>
             <li>
               <strong>Content Moderation:</strong> To review user-generated content (messages,
-              listings, feedback) for compliance with our policies using automated AI moderation and
-              manual review.
+              listings, feedback, community cover submissions) for compliance with our policies using
+              automated AI moderation and manual review.
             </li>
             <li>
               <strong>Communications:</strong> To send transactional emails including offer
@@ -147,7 +161,31 @@ export default function PrivacyPolicyPage() {
             </li>
           </ul>
 
-          <h2>3. Third-Party Service Providers</h2>
+          <h2>3. Publicly Visible Information</h2>
+          <p>
+            Certain information associated with your account is visible to other users of the
+            Platform:
+          </p>
+          <ul>
+            <li>Your username.</li>
+            <li>
+              Your location, if you have opted to share it (at the granularity level you selected).
+            </li>
+            <li>Your public collection (if you have made it public).</li>
+            <li>Your marketplace listings, feedback ratings, and comments.</li>
+            <li>
+              Your Creator Credits badge tier (Contributor, Verified Contributor, or Top
+              Contributor) and total approved contribution count.
+            </li>
+          </ul>
+          <p>
+            Your email address, first name, last name, and the identity of specific Community Cover
+            Database submissions you have made are never publicly displayed. Contribution tracking
+            for Creator Credits is internal; other users see only your badge and count, not which
+            specific covers you submitted.
+          </p>
+
+          <h2>4. Third-Party Service Providers</h2>
           <p>
             We share information with the following categories of third-party service providers,
             solely as necessary to operate the Service:
@@ -176,7 +214,7 @@ export default function PrivacyPolicyPage() {
                   <td>Supabase</td>
                   <td>Database &amp; file storage</td>
                   <td>
-                    All platform data (profiles, collections, marketplace, messages)
+                    All platform data (profiles, collections, marketplace, messages, contributions)
                   </td>
                 </tr>
                 <tr>
@@ -210,9 +248,14 @@ export default function PrivacyPolicyPage() {
                   <td>Comic book search queries (no user data)</td>
                 </tr>
                 <tr>
+                  <td>Open Library</td>
+                  <td>Book cover images &amp; metadata</td>
+                  <td>Comic title and issue queries only (no user data)</td>
+                </tr>
+                <tr>
                   <td>Netlify</td>
-                  <td>Web hosting &amp; deployment</td>
-                  <td>Standard web server logs (IP addresses, request data)</td>
+                  <td>Web hosting &amp; content delivery</td>
+                  <td>IP addresses, request metadata (standard web hosting logs)</td>
                 </tr>
               </tbody>
             </table>
@@ -223,7 +266,7 @@ export default function PrivacyPolicyPage() {
             advertising cookies.
           </p>
 
-          <h2>4. Data Retention</h2>
+          <h2>5. Data Retention</h2>
           <p>
             We retain your personal information for as long as your account is active or as needed to
             provide you the Service. Specific retention periods include:
@@ -237,14 +280,21 @@ export default function PrivacyPolicyPage() {
               cached for 6 months. Certification lookups cached for 1 year.
             </li>
             <li>
-              <strong>Account Deletion:</strong> When you delete your account, all of your data is
-              permanently removed from our database (Supabase), including your profile, collection,
-              listings, messages, trades, feedback, and follows. Stripe retains transaction records
-              in accordance with their own data retention policy and applicable legal requirements.
+              <strong>Community Cover Images:</strong> Approved cover images submitted to the
+              Community Cover Database may be retained indefinitely as they are licensed to the
+              Company, even after the submitting user&apos;s account is deleted. The association
+              between the image and the submitter&apos;s identity is removed upon account deletion.
+            </li>
+            <li>
+              <strong>Account Deletion:</strong> When you delete your account, all of your personal
+              data is permanently removed from our database (Supabase), including your profile,
+              collection, listings, messages, trades, feedback, follows, Creator Credits history, and
+              Community Cover Database submission records. Stripe retains transaction records in
+              accordance with their own data retention policy and applicable legal requirements.
             </li>
           </ul>
 
-          <h2>5. Data Security</h2>
+          <h2>6. Data Security</h2>
           <p>
             We implement reasonable technical and organizational measures to protect your personal
             information, including: database-level Row-Level Security (RLS) policies in Supabase to
@@ -256,9 +306,9 @@ export default function PrivacyPolicyPage() {
             secure, and we cannot guarantee absolute security.
           </p>
 
-          <h2>6. Your Rights and Choices</h2>
+          <h2>7. Your Rights and Choices</h2>
 
-          <h3>6.1 All Users</h3>
+          <h3>7.1 All Users</h3>
           <ul>
             <li>
               Access and review the personal information in your account settings at any time.
@@ -277,7 +327,7 @@ export default function PrivacyPolicyPage() {
             </li>
           </ul>
 
-          <h3>6.2 California Residents (CCPA)</h3>
+          <h3>7.2 California Residents (CCPA)</h3>
           <p>
             If you are a California resident, you have the following additional rights under the
             California Consumer Privacy Act (CCPA): the right to know what personal information we
@@ -288,7 +338,7 @@ export default function PrivacyPolicyPage() {
           </p>
 
           <h3>
-            6.3 European Economic Area, UK, and Swiss Residents (GDPR)
+            7.3 European Economic Area, UK, and Swiss Residents (GDPR)
           </h3>
           <p>
             If you are located in the European Economic Area (EEA), United Kingdom, or Switzerland,
@@ -301,14 +351,14 @@ export default function PrivacyPolicyPage() {
             To exercise these rights, contact us at [SUPPORT EMAIL].
           </p>
 
-          <h3>6.4 Do Not Track</h3>
+          <h3>7.4 Do Not Track</h3>
           <p>
             Our analytics provider (PostHog) respects the Do Not Track (DNT) browser setting. When
             DNT is enabled, PostHog will not track your activity on the Platform. We do not use any
             other tracking technologies that respond to DNT signals.
           </p>
 
-          <h2>7. Children&apos;s Privacy</h2>
+          <h2>8. Children&apos;s Privacy</h2>
           <p>
             The Service is not intended for individuals under the age of 18. We do not knowingly
             collect personal information from anyone under 18. If we become aware that we have
@@ -317,7 +367,7 @@ export default function PrivacyPolicyPage() {
             please contact us at [SUPPORT EMAIL].
           </p>
 
-          <h2>8. International Data Transfers</h2>
+          <h2>9. International Data Transfers</h2>
           <p>
             Your information may be transferred to and processed in countries other than your country
             of residence, including the United States, where our servers and service providers are
@@ -327,7 +377,7 @@ export default function PrivacyPolicyPage() {
             international transfers.
           </p>
 
-          <h2>9. Changes to This Privacy Policy</h2>
+          <h2>10. Changes to This Privacy Policy</h2>
           <p>
             We may update this Privacy Policy from time to time. We will notify you of material
             changes by posting the updated policy on the Platform with a revised effective date and,
@@ -336,7 +386,7 @@ export default function PrivacyPolicyPage() {
             revised policy.
           </p>
 
-          <h2>10. Contact Us</h2>
+          <h2>11. Contact Us</h2>
           <p>
             If you have questions or concerns about this Privacy Policy or our data practices, please
             contact us at:

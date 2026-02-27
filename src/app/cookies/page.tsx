@@ -18,7 +18,7 @@ export default function CookieTrackingPolicyPage() {
             Back to Home
           </Link>
           <h1 className="text-3xl font-bold text-gray-900">Cookie &amp; Tracking Policy</h1>
-          <p className="text-gray-600 mt-2">Last updated: February 18, 2026</p>
+          <p className="text-gray-600 mt-2">Last updated: February 27, 2026</p>
         </div>
       </div>
 
@@ -130,7 +130,8 @@ export default function CookieTrackingPolicyPage() {
 
           <h3>2.3 Functional (Guest Users)</h3>
           <p>
-            These support features for users who have not created an account.
+            These support features for users who have not created an account. All data in this
+            category is stored exclusively in your browser and is never transmitted to our servers.
           </p>
           <div className="overflow-x-auto">
             <table>
@@ -150,6 +151,16 @@ export default function CookieTrackingPolicyPage() {
                   <td>
                     Store comic collection data locally for guest users who have not created an
                     account. This data is not transmitted to our servers.
+                  </td>
+                </tr>
+                <tr>
+                  <td>Guest scan results</td>
+                  <td>Collector&apos;s Chest</td>
+                  <td>localStorage</td>
+                  <td>
+                    Store AI scan results (up to 3 scans) locally for guest users. Scan results
+                    include comic metadata returned by the AI. This data is never transmitted to
+                    our servers and can be cleared at any time through browser settings.
                   </td>
                 </tr>
               </tbody>
@@ -211,7 +222,7 @@ export default function CookieTrackingPolicyPage() {
           <p>
             You can clear localStorage data through your browser&apos;s developer tools or
             settings. For guest users, clearing localStorage will remove your locally stored comic
-            collection data.
+            collection data and scan results. This action is permanent and cannot be undone.
           </p>
 
           <h2>6. Changes to This Policy</h2>

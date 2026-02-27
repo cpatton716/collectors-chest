@@ -18,7 +18,7 @@ export default function AcceptableUsePolicyPage() {
             Back to Home
           </Link>
           <h1 className="text-3xl font-bold text-gray-900">Acceptable Use Policy</h1>
-          <p className="text-gray-600 mt-2">Last updated: February 18, 2026</p>
+          <p className="text-gray-600 mt-2">Last updated: February 27, 2026</p>
         </div>
       </div>
 
@@ -40,8 +40,8 @@ export default function AcceptableUsePolicyPage() {
           <p>
             All users of the Service are expected to act in good faith, treat other users with
             respect, and use the platform for its intended purpose: managing comic book collections
-            and participating in legitimate comic book marketplace transactions. The following
-            sections describe specific prohibited and required behaviors.
+            and participating in legitimate comic book marketplace transactions and community
+            contributions. The following sections describe specific prohibited and required behaviors.
           </p>
 
           <h2>2. Prohibited Content</h2>
@@ -141,7 +141,57 @@ export default function AcceptableUsePolicyPage() {
             </li>
           </ul>
 
-          <h2>4. Username Policy</h2>
+          <h2>4. Community Contribution Standards</h2>
+          <p>
+            The Service includes community contribution features such as the Community Cover Database
+            and the Creator Credits program. When participating in these features, the following
+            rules apply:
+          </p>
+
+          <h3>4.1 Cover Image Submissions</h3>
+          <ul>
+            <li>
+              You must only submit cover images that you have the right to share. Do not submit
+              images that infringe on third-party copyrights without appropriate permission or legal
+              basis.
+            </li>
+            <li>
+              Submitted images must be actual comic book covers relevant to the comic title and
+              issue they are associated with. Do not submit inappropriate, offensive, misleading, or
+              unrelated images.
+            </li>
+            <li>Do not submit intentionally low-quality, corrupted, or blank images.</li>
+            <li>
+              Do not submit images that contain embedded text, watermarks, or overlays that are not
+              part of the original cover (e.g., personal branding, advertising, or offensive text).
+            </li>
+          </ul>
+
+          <h3>4.2 Creator Credits Integrity</h3>
+          <ul>
+            <li>
+              Do not submit fraudulent, spam, or intentionally incorrect contributions for the
+              purpose of inflating your Creator Credits count.
+            </li>
+            <li>
+              Do not submit duplicate or near-duplicate content that has already been submitted or
+              approved, except where the new submission is a meaningfully higher quality version.
+            </li>
+            <li>
+              Do not use automated tools, bots, or scripts to generate or submit contributions.
+            </li>
+            <li>
+              Do not coordinate with other users to artificially inflate each other&apos;s
+              contribution counts through reciprocal low-quality submissions.
+            </li>
+          </ul>
+          <p>
+            Repeated submission of low-quality, inappropriate, or fraudulent content may result in
+            temporary or permanent loss of submission privileges, Creator Credits revocation, or
+            further account action at the Company&apos;s sole discretion.
+          </p>
+
+          <h2>5. Username Policy</h2>
           <p>
             Usernames are publicly visible and subject to the following rules. Usernames must not
             contain vulgar, offensive, obscene, or sexually explicit language; hate speech, slurs, or
@@ -152,7 +202,7 @@ export default function AcceptableUsePolicyPage() {
             violates this policy, even if the automated filter did not catch it at registration.
           </p>
 
-          <h2>5. Messaging Conduct</h2>
+          <h2>6. Messaging Conduct</h2>
           <p>
             The Service provides a messaging system for users to communicate about collection items,
             trades, and marketplace transactions. When using messaging, you must not: send harassing,
@@ -164,7 +214,7 @@ export default function AcceptableUsePolicyPage() {
             messaging restrictions or account action.
           </p>
 
-          <h2>6. Account Integrity</h2>
+          <h2>7. Account Integrity</h2>
           <p>
             You may maintain only one account on the Service. The following behaviors related to
             account integrity are prohibited:
@@ -181,9 +231,12 @@ export default function AcceptableUsePolicyPage() {
               Sharing account credentials with others or allowing others to use your account.
             </li>
             <li>Using automated tools, bots, or scripts to create accounts.</li>
+            <li>
+              Misrepresenting your age during the marketplace age attestation process.
+            </li>
           </ul>
 
-          <h2>7. Technical Restrictions</h2>
+          <h2>8. Technical Restrictions</h2>
           <p>
             You may not: attempt to gain unauthorized access to any part of the Service, other
             users&apos; accounts, or computer systems or networks connected to the Service; use
@@ -196,19 +249,20 @@ export default function AcceptableUsePolicyPage() {
             vulnerability of the Service without our authorization.
           </p>
 
-          <h2>8. Respect for Intellectual Property</h2>
+          <h2>9. Respect for Intellectual Property</h2>
           <p>
             While the Service is designed to display comic book cover images and metadata for
             collection management purposes, users must respect the intellectual property rights of
             publishers, creators, and other rights holders. You may not use the Service to distribute
             unauthorized digital copies of comic books, systematically download or archive cover
-            images for use outside the Service, or use the Service&apos;s AI features to generate
+            images for use outside the Service, submit images to the Community Cover Database that
+            you do not have the right to share, or use the Service&apos;s AI features to generate
             content that infringes on others&apos; intellectual property. If you believe content on
             the Service infringes your intellectual property rights, please contact us at [SUPPORT
             EMAIL] with a detailed description of the alleged infringement.
           </p>
 
-          <h2>9. Reporting Violations</h2>
+          <h2>10. Reporting Violations</h2>
           <p>
             If you encounter content or behavior that violates this Acceptable Use Policy, please
             report it using the reporting functionality within the Platform or by contacting us at
@@ -217,7 +271,7 @@ export default function AcceptableUsePolicyPage() {
             temporary suspension, or permanent account termination.
           </p>
 
-          <h2>10. Enforcement</h2>
+          <h2>11. Enforcement</h2>
           <p>
             We reserve the right to enforce this AUP at our sole discretion. Enforcement actions may
             include, but are not limited to:
@@ -228,11 +282,16 @@ export default function AcceptableUsePolicyPage() {
               this AUP.
             </li>
             <li>
-              <strong>Content Removal:</strong> Removal of content that violates this AUP.
+              <strong>Content Removal:</strong> Removal of content that violates this AUP, including
+              cover image submissions.
             </li>
             <li>
               <strong>Feature Restriction:</strong> Temporary restriction of specific features (e.g.,
-              messaging, marketplace access).
+              messaging, marketplace access, community submission privileges).
+            </li>
+            <li>
+              <strong>Creator Credits Revocation:</strong> Removal of credits and badges earned
+              through fraudulent or abusive contributions.
             </li>
             <li>
               <strong>Account Suspension:</strong> Temporary suspension of account access.
@@ -249,14 +308,14 @@ export default function AcceptableUsePolicyPage() {
             purchased scan credits.
           </p>
 
-          <h2>11. Changes to This Policy</h2>
+          <h2>12. Changes to This Policy</h2>
           <p>
             We may update this Acceptable Use Policy from time to time. Material changes will be
             communicated through the Platform or via email. Continued use of the Service after changes
             take effect constitutes acceptance of the revised policy.
           </p>
 
-          <h2>12. Contact Us</h2>
+          <h2>13. Contact Us</h2>
           <p>
             If you have questions about this Acceptable Use Policy, please contact us at:
           </p>

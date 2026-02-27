@@ -18,7 +18,7 @@ export default function TermsOfServicePage() {
             Back to Home
           </Link>
           <h1 className="text-3xl font-bold text-gray-900">Terms of Service</h1>
-          <p className="text-gray-600 mt-2">Last updated: February 18, 2026</p>
+          <p className="text-gray-600 mt-2">Last updated: February 27, 2026</p>
         </div>
       </div>
 
@@ -161,7 +161,18 @@ export default function TermsOfServicePage() {
             the buyer and seller (or trading parties) directly.
           </p>
 
-          <h3>4.2 Fixed-Price Listings</h3>
+          <h3>4.2 Marketplace Age Attestation</h3>
+          <p>
+            Before using any marketplace feature (including listing items for sale, purchasing,
+            bidding, making offers, or initiating trades), you are required to confirm that you are
+            at least 18 years of age through an on-screen attestation prompt. This self-attestation
+            is legally binding. By confirming, you represent and warrant under penalty of account
+            termination that you are at least 18 years old. Misrepresentation of your age constitutes
+            a material breach of these Terms and is grounds for immediate account termination without
+            refund. Your attestation confirmation is recorded with a timestamp for our records.
+          </p>
+
+          <h3>4.3 Fixed-Price Listings</h3>
           <p>
             Sellers may create fixed-price listings with a set asking price. Listings may include an
             &quot;accepts offers&quot; option with an optional minimum offer threshold. Offers and
@@ -170,7 +181,7 @@ export default function TermsOfServicePage() {
             standard payment flow. Fixed-price listings auto-expire after 30 days if unsold.
           </p>
 
-          <h3>4.3 Auction Listings</h3>
+          <h3>4.4 Auction Listings</h3>
           <p>
             Sellers may create auction-style listings with a minimum starting price of $0.99 and a
             duration of 1 to 14 days. Auctions use a proxy bidding system: buyers enter a maximum
@@ -182,7 +193,7 @@ export default function TermsOfServicePage() {
             Failure to pay within this period may result in account restrictions.
           </p>
 
-          <h3>4.4 Transaction Fees</h3>
+          <h3>4.5 Transaction Fees</h3>
           <p>
             The Company charges the following seller transaction fees on completed marketplace sales:
             8% for Free tier accounts and 5% for Premium tier accounts. Transaction fees are
@@ -191,7 +202,7 @@ export default function TermsOfServicePage() {
             addition to platform transaction fees.
           </p>
 
-          <h3>4.5 Seller Payouts</h3>
+          <h3>4.6 Seller Payouts</h3>
           <p>
             Seller payouts for marketplace transactions are processed through Stripe Connect. The
             timing and method of payouts are subject to Stripe&apos;s terms and policies. We are not
@@ -199,7 +210,7 @@ export default function TermsOfServicePage() {
             properly configure their payout information.
           </p>
 
-          <h3>4.6 Shipping and Delivery</h3>
+          <h3>4.7 Shipping and Delivery</h3>
           <p>
             Buyers and sellers are solely responsible for coordinating shipping, including selecting
             carriers, providing tracking information, and ensuring adequate packaging and insurance.
@@ -208,7 +219,7 @@ export default function TermsOfServicePage() {
             within the Platform. Buyers are required to confirm receipt upon delivery.
           </p>
 
-          <h3>4.7 Trading</h3>
+          <h3>4.8 Trading</h3>
           <p>
             Users may mark comics in their collection as available for trade. The Platform provides
             an algorithm-assisted matching system to identify potential trade partners with mutual
@@ -220,7 +231,7 @@ export default function TermsOfServicePage() {
             value, condition, or authenticity of traded items.
           </p>
 
-          <h3>4.8 Feedback and Ratings</h3>
+          <h3>4.9 Feedback and Ratings</h3>
           <p>
             After a completed transaction, buyers may leave a positive or negative rating along with
             a written comment for the seller. Feedback must comply with our Acceptable Use Policy.
@@ -228,7 +239,7 @@ export default function TermsOfServicePage() {
             Acceptable Use Policy.
           </p>
 
-          <h3>4.9 Listing Cancellation</h3>
+          <h3>4.10 Listing Cancellation</h3>
           <p>
             Auction listings may be cancelled only if no bids have been placed. Fixed-price listings
             may be cancelled at any time; any pending offers will be automatically rejected upon
@@ -286,7 +297,7 @@ export default function TermsOfServicePage() {
             technology has inherent limitations and that errors may occur.
           </p>
 
-          <h2>6. User Content and Conduct</h2>
+          <h2>6. User Content, Conduct, and Community Contributions</h2>
 
           <h3>6.1 User-Generated Content</h3>
           <p>
@@ -300,7 +311,50 @@ export default function TermsOfServicePage() {
             those interactions.
           </p>
 
-          <h3>6.2 Prohibited Conduct</h3>
+          <h3>6.2 Community Cover Database</h3>
+          <p>
+            The Service includes a Community Cover Database to which users may contribute comic book
+            cover images. When you manually provide a cover image URL for a comic in your collection,
+            that image may be automatically submitted to the Community Cover Database for review. An
+            administrator will review and either approve or reject the submission. Approved images
+            become available for display to all users of the Platform for the same comic title and
+            issue.
+          </p>
+          <p>
+            By submitting a cover image URL to the Service (whether through manual entry or any other
+            submission method), you grant Collector&apos;s Chest a non-exclusive, perpetual,
+            irrevocable, worldwide, royalty-free license to store, display, reproduce, and distribute
+            the image to other users of the Platform for the purpose of comic book identification and
+            collection management. You represent and warrant that you have the right to share any
+            image you submit and that the image does not infringe on the intellectual property rights
+            of any third party. The Company is not responsible for the accuracy, legality, or
+            appropriateness of user-submitted cover images and reserves the right to remove or reject
+            any submission at any time without notice.
+          </p>
+
+          <h3>6.3 Creator Credits Program</h3>
+          <p>
+            The Service offers a Creator Credits program that rewards users for contributing to the
+            Platform&apos;s database. Users earn Creator Credits when they submit content (such as
+            cover images to the Community Cover Database) that is reviewed and approved by an
+            administrator. Each approved contribution increments the user&apos;s contribution count
+            by one. Users earn publicly visible badge tiers based on their total approved
+            contributions: Contributor (1-9 approved contributions), Verified Contributor (10-25
+            approved contributions), and Top Contributor (26 or more approved contributions). Badges
+            are displayed on the user&apos;s public profile.
+          </p>
+          <p>
+            Creator Credits and associated badges are non-transferable, carry no monetary value, and
+            cannot be redeemed, exchanged, or cashed out. The Company reserves the right to modify,
+            suspend, or discontinue the Creator Credits program at any time, including changing badge
+            tier thresholds, adding or removing contribution types, or resetting credit counts,
+            without prior notice or liability. Submissions may be rejected at the sole discretion of
+            the Company&apos;s administrators, and rejection does not entitle the user to any appeal
+            or compensation. Duplicate contributions (the same content submitted by the same user)
+            are automatically prevented.
+          </p>
+
+          <h3>6.4 Prohibited Conduct</h3>
           <p>
             You agree not to: use the Service for any unlawful purpose; post false, misleading, or
             fraudulent listings; manipulate bidding through shill bidding or other deceptive
@@ -309,11 +363,13 @@ export default function TermsOfServicePage() {
             multiple accounts to abuse free tier benefits, trial periods, or scan allocations; use
             automated tools, bots, or scripts to access the Service without our written permission;
             attempt to reverse-engineer, decompile, or otherwise extract the source code of the
-            Service; upload content that infringes on the intellectual property rights of others; or
-            otherwise violate our Acceptable Use Policy.
+            Service; upload content that infringes on the intellectual property rights of others;
+            submit fraudulent, spam, or intentionally incorrect contributions to inflate Creator
+            Credits; submit inappropriate, offensive, or unrelated images to the Community Cover
+            Database; or otherwise violate our Acceptable Use Policy.
           </p>
 
-          <h3>6.3 Enforcement</h3>
+          <h3>6.5 Enforcement</h3>
           <p>
             We reserve the right, at our sole discretion, to remove content, restrict features,
             suspend, or permanently terminate any account that violates these Terms or our Acceptable
@@ -388,8 +444,8 @@ export default function TermsOfServicePage() {
             claims, damages, losses, liabilities, costs, and expenses (including reasonable
             attorneys&apos; fees) arising out of or related to: your use of the Service; your
             violation of these Terms or any applicable law; your marketplace transactions, trades, or
-            interactions with other users; any content you upload or submit to the Service; or any
-            dispute between you and another user.
+            interactions with other users; any content you upload or submit to the Service (including
+            Community Cover Database submissions); or any dispute between you and another user.
           </p>
 
           <h2>10. Dispute Resolution</h2>
@@ -428,8 +484,12 @@ export default function TermsOfServicePage() {
             You may terminate your account at any time through the account deletion process provided
             in the Service. Upon account deletion, all of your data will be permanently removed from
             our systems, including your profile, collection, marketplace listings, messages, trades,
-            feedback, and follows. Certain transaction records may be retained by our payment
-            processor (Stripe) in accordance with their policies and applicable legal requirements.
+            feedback, follows, Creator Credits, and Community Cover Database submission records.
+            Approved cover images that have been made available to the community may be retained in
+            the Community Cover Database after account deletion, as they are licensed to the Company
+            under the terms described in Section 6.2. Certain transaction records may be retained by
+            our payment processor (Stripe) in accordance with their policies and applicable legal
+            requirements.
           </p>
           <p>
             We may suspend or terminate your account at any time for any reason, including but not
@@ -447,9 +507,9 @@ export default function TermsOfServicePage() {
 
           <h3>13.1 Entire Agreement</h3>
           <p>
-            These Terms, together with our Privacy Policy, Cookie Policy, and Acceptable Use Policy,
-            constitute the entire agreement between you and the Company regarding your use of the
-            Service.
+            These Terms, together with our Privacy Policy, Cookie &amp; Tracking Policy, and
+            Acceptable Use Policy, constitute the entire agreement between you and the Company
+            regarding your use of the Service.
           </p>
 
           <h3>13.2 Severability</h3>
