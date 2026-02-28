@@ -121,7 +121,7 @@ Configure webhook at `https://collectors-chest.com/api/webhooks/stripe` for even
 | Netlify | $9/mo | [app.netlify.com](https://app.netlify.com) → Billing |
 | Domain | $13.99/yr | Via Netlify |
 | Anthropic | ~$0.015/scan | [console.anthropic.com](https://console.anthropic.com) → Billing |
-| GoCollect | $9/mo | [gocollect.com](https://gocollect.com) → Billing |
+| ~~GoCollect~~ | ~~$9/mo~~ | Cancelled — API program discontinued (Feb 2026) |
 
 **Estimated Total Cost:** $100-300 filing + ~$30/mo ongoing services
 **Estimated Time:** ~2 weeks (mostly waiting for LLC processing)
@@ -657,83 +657,59 @@ Unified view of all project costs tracked in CLAUDE.md (Option 1 - Simple approa
 - Close Up Shop skill (Phase 4c) ensures costs stay updated when new services are added
 
 **Costs Tracked:**
-- Fixed: Netlify ($9/mo), GoCollect ($89/yr), Domain ($13.99/yr)
+- Fixed: Netlify ($9/mo), ~~GoCollect ($89/yr)~~ (cancelled - discontinued), Domain ($13.99/yr)
 - Variable: Anthropic API (~$0.015/scan), Stripe (2.9% + $0.30)
 - Free tiers: Supabase, Clerk, Upstash, Resend, PostHog, Sentry
 
 ---
 
-### GoCollect API Integration
-**Priority:** High
-**Status:** Pending (Awaiting API Key Approval)
+### ~~GoCollect API Integration~~ — CANCELLED
+**Priority:** ~~High~~ N/A
+**Status:** Cancelled - Program Discontinued (Feb 27, 2026)
 
-Integrate GoCollect API for accurate, market-based pricing data.
+~~Integrate GoCollect API for accurate, market-based pricing data.~~
 
-**What it replaces:**
+**Cancellation Reason:** GoCollect has discontinued their API program. API access is no longer available to new or existing integrators. Pricing will continue to rely on eBay sales data + AI estimates.
+
+**Original plan (for reference):**
 - AI price estimates → Real FMV from 600K+ tracked sales
 - AI/static hot books → GoCollect Hot 50 (market-driven)
 - No price trends → 30/90/365-day trend indicators
-
-**API Details:**
-- Tier: Pro ($89/yr annual plan)
-- Rate Limit: 100 calls/day
-- Endpoints: `/v1/collectibles`, `/v1/insights/item/{id}?grade=X`
-- Auth: Bearer token
-
-**Implementation:**
-1. Create `src/lib/gocollect.ts` service
-2. Replace pricing in `/api/analyze`, `/api/key-hunt-lookup`, `/api/quick-lookup`
-3. Add trend indicators to UI (↑↓→)
-4. Replace Hottest Books with GoCollect Hot 50
-5. Cache responses 24hr in Redis
-
-**Blocked By:** API key approval from GoCollect
+- Tier: Pro ($89/yr annual plan), 100 calls/day
 
 ---
 
-### Marvel API Integration
+### ~~Marvel API Integration~~ — CANCELLED
+**Priority:** ~~High~~ N/A
+**Status:** Cancelled - Program Discontinued (Feb 27, 2026)
+
+~~Integrate Marvel API for accurate comic metadata and high-quality cover images on Marvel titles.~~
+
+**Cancellation Reason:** Marvel has deprecated their Developer program and is no longer granting API access. The developer portal is shut down and no new keys are being issued.
+
+**Original plan (for reference):**
+- High-resolution cover images, accurate creator credits, character appearance data
+- Free tier, 3K calls/day, MD5 hash auth
+- Would have covered Marvel titles only (no DC, Image, indie)
+
+**Alternative approach:** Comic metadata and covers continue to use community cover DB + Open Library API + AI recognition.
+
+---
+
+### Scan Resilience: Multi-Provider Fallback
 **Priority:** High
-**Status:** Pending (Awaiting Developer Portal Access)
+**Status:** Pending — Design Complete (Feb 27, 2026)
 
-Integrate Marvel API for accurate comic metadata and high-quality cover images on Marvel titles.
+Add OpenAI GPT-4o as a fallback vision provider so scanning never goes down due to a single-provider failure. If Anthropic fails for any reason (model changes, outages, rate limits), automatically retry with OpenAI.
 
-**What it provides:**
-- High-resolution cover images (better than user photos)
-- Accurate creator credits (writer, artist, cover artist, inker, colorist)
-- Character appearance data for key detection
-- Publication dates and series info
-- Issue descriptions/summaries
-- Consistent data format across Marvel catalog
+**Key requirements:**
+- Title + issue number must always be returned
+- User sees "taking longer than usual" message during fallback (not an error)
+- Invisible to the rest of the codebase — only the AI provider layer knows about multiple providers
 
-**Benefits:**
-- Higher quality cover images than user photos
-- Accurate creator credits (currently AI-guessed)
-- Reduced storage for user-uploaded images
-- Better key issue detection via character appearances
+**Design doc:** `docs/plans/2026-02-27-scan-resilience-design.md`
 
-**API Details:**
-- Cost: Free
-- Rate Limit: 3,000 calls/day
-- Auth: MD5 hash (ts + privateKey + publicKey)
-- Attribution required: "Data provided by Marvel"
-- Example source: https://www.marvel.com/comics/issue/12415/uncanny_x-men_1963_100
-
-**Implementation:**
-1. Create `src/lib/marvel.ts` service with hash-based auth
-2. Build background indexing job to crawl all Marvel series/issues (3K calls/day)
-3. Bulk-populate community `cover_images` table with official Marvel cover art
-4. Enrich scan results with Marvel data when matched
-5. Use Marvel covers as primary source for cover image lookups (community DB)
-6. Display attribution on pages using Marvel data: "Data provided by Marvel"
-
-**Considerations:**
-- Marvel API only covers Marvel titles (no DC, Image, indie)
-- Need to handle non-Marvel publishers separately
-- Storage costs for bulk image hosting if we cache covers
-- Could expand to DC/others later via different APIs
-- Storage: ~50K covers at ~50-100KB each = 2.5-5GB. Will require Supabase Pro ($25/mo) or external CDN
-
-**Blocked By:** Developer portal access (reached out to Marvel support)
+**New dependency:** `openai` npm package, `OPENAI_API_KEY` env variable
 
 ---
 

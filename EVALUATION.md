@@ -539,18 +539,15 @@ Items addressed:
    - **Pivoted to:** community cover DB + Open Library API + manual URL paste
    - Run Supabase migration for `cover_images` table in production
 
-5. **GoCollect API Integration** ⏸️ BLOCKED
+5. ~~**GoCollect API Integration**~~ ❌ CANCELLED (Feb 27, 2026)
    - ✅ API token created (Jan 27)
    - ✅ `GOCOLLECT_API_KEY` added to `.env.local` and Netlify
-   - ⏳ **Waiting on GoCollect to approve API access** (ticket open)
-   - ⏳ Review API documentation for endpoints (blocked)
-   - ⏳ Implement FMV lookup integration
-   - ⏳ Add GoCollect pricing alongside eBay prices
+   - **GoCollect has discontinued their API program.** No longer available for integration.
+   - Pricing will continue to use eBay sales data + AI estimates
 
-6. **Marvel API Integration** ⏸️ BLOCKED
-   - ⏳ **Waiting on Marvel developer portal access**
-   - ⏳ Integrate comic metadata, covers, and creator info
-   - ⏳ Supplement AI recognition with Marvel database lookups
+6. ~~**Marvel API Integration**~~ ❌ CANCELLED (Feb 27, 2026)
+   - **Marvel has deprecated their Developer program** and is no longer granting API access.
+   - Comic metadata and covers will continue to use community cover DB + Open Library API + AI recognition
 
 7. **Add "Professor" Persona Throughout Site**
    - Extend the Ask the Professor concept to other areas of the app

@@ -156,8 +156,8 @@ For ad-hoc use during development:
 ### External APIs
 | Service | Purpose | Notes |
 |---------|---------|-------|
-| **GoCollect** | FMV pricing, Hot 50, trends | Pro tier ($9/mo), 100 calls/day, `GOCOLLECT_API_KEY` |
-| **Marvel API** | Comic metadata, covers, creators | Free, 3K calls/day, awaiting portal access |
+| **GoCollect** | ~~FMV pricing, Hot 50, trends~~ | ~~Pro tier, 100 calls/day~~ — API program discontinued (Feb 2026) |
+| **Marvel API** | ~~Comic metadata, covers, creators~~ | ~~Free, 3K calls/day~~ — Developer program deprecated, no longer available (Feb 2026) |
 | **eBay Browse API** | Real-time pricing | Free tier, rate limited |
 | **CGC/CBCS** | Cert verification | Web scraping for grade details |
 
@@ -167,7 +167,7 @@ For ad-hoc use during development:
 | Item | Cost | Billing Cycle |
 |------|------|---------------|
 | Netlify Personal Plan | $9/mo | 13th of each month |
-| GoCollect Pro | $89/yr | Awaiting API key approval |
+| ~~GoCollect Pro~~ | ~~$89/yr~~ | Cancelled — API program discontinued (Feb 2026) |
 | Domain (collectors-chest.com) | $13.99/yr | Renews Jan 13, 2027 ($16.99) |
 
 **Variable Costs:**
