@@ -539,26 +539,22 @@ Items addressed:
    - **Pivoted to:** community cover DB + Open Library API + manual URL paste
    - Run Supabase migration for `cover_images` table in production
 
-5. ~~**GoCollect API Integration**~~ ❌ CANCELLED (Feb 27, 2026)
-   - ✅ API token created (Jan 27)
-   - ✅ `GOCOLLECT_API_KEY` added to `.env.local` and Netlify
-   - **GoCollect has discontinued their API program.** No longer available for integration.
-   - Pricing will continue to use eBay sales data + AI estimates
+4. **Scan Resilience: Multi-Provider Fallback** (design complete, ready to implement)
+   - Design doc: `docs/plans/2026-02-27-scan-resilience-design.md`
+   - Multi-provider AI fallback (Anthropic primary, OpenAI secondary)
+   - **Blocked by:** Need OpenAI API key setup before implementation
+   - Will improve scan reliability and reduce single-provider dependency
 
-6. ~~**Marvel API Integration**~~ ❌ CANCELLED (Feb 27, 2026)
-   - **Marvel has deprecated their Developer program** and is no longer granting API access.
-   - Comic metadata and covers will continue to use community cover DB + Open Library API + AI recognition
-
-7. **Add "Professor" Persona Throughout Site**
+5. **Add "Professor" Persona Throughout Site**
    - Extend the Ask the Professor concept to other areas of the app
    - Consistent branding for AI-powered features
 
-8. **Configure PostHog Dashboard with Scan Cost Insights and Email Alerts**
+6. **Configure PostHog Dashboard with Scan Cost Insights and Email Alerts**
    - Set up PostHog dashboard with scan cost metrics (cost per scan, daily/weekly spend)
    - Configure email alerts for spending thresholds
    - Visualize cache hit rates and AI call patterns
 
-9. **Revisit beta mode planning**
+7. **Revisit beta mode planning**
    - Review current private beta status and plan next steps for opening registration
 
 ### ✅ Feb 25 Session Completed
@@ -633,7 +629,7 @@ Items addressed:
 | 15 | Expand to all collectibles | Platform | Funko Pops, sports cards, trading cards, etc. |
 | 16 | Custom email templates (Clerk) | Branding | Match email formatting to Collectors Chest design |
 | 17 | Copy polish pass | UX | Comprehensive review of all user-facing text |
-| 18 | Search by creative team | Feature | Requires Marvel API integration |
+| 18 | Search by creative team | Feature | Deferred — Marvel API no longer available |
 
 ---
 

@@ -8,20 +8,41 @@ This log tracks session-by-session progress on Collectors Chest.
 
 **Last Deploy:** February 27, 2026 (hotfix)
 **Sessions Since Last Deploy:** 0
-**Deploy Readiness:** Deployed
+**Deploy Readiness:** Ready (docs only, no code changes since hotfix deploy)
 
 ### Changes:
-- None (just deployed)
+- Scan resilience design doc (`docs/plans/2026-02-27-scan-resilience-design.md`)
+- Cancelled Marvel API and GoCollect API integrations (both programs discontinued)
+- Updated EVALUATION.md, BACKLOG.md, CLAUDE.md to reflect cancellations
 
 ---
 
-## Feb 27, 2026 (Hotfix) - Fix Comic Scanning
+## Feb 27, 2026 - Session 13: Scan Outage Fix, Scan Resilience Design, API Cancellations
 
 ### Summary
-Hotfix to restore comic cover scanning. The Anthropic model alias `claude-sonnet-4-latest` was returning a 404 not-found error, causing all scan attempts to fail with "temporarily busy" message. Pinned to explicit version `claude-sonnet-4-20250514`.
+- Fixed production scanning outage — `claude-sonnet-4-latest` model alias was invalid, pinned to `claude-sonnet-4-20250514`
+- Deployed hotfix immediately to restore scanning
+- Brainstormed and designed scan resilience solution: multi-provider fallback (Anthropic -> OpenAI GPT-4o)
+- Wrote complete design doc for scan resilience at `docs/plans/2026-02-27-scan-resilience-design.md`
+- Cancelled Marvel API integration (developer program deprecated)
+- Cancelled GoCollect API integration (API program discontinued)
+- Sent Marvel follow-up blurb to user (before learning about deprecation)
+
+### Key Files Added
+- `docs/plans/2026-02-27-scan-resilience-design.md` — Multi-provider scan resilience design
 
 ### Key Files Modified
-- `src/lib/models.ts` — Pinned MODEL_PRIMARY to `claude-sonnet-4-20250514`
+- `src/lib/models.ts` — Pinned MODEL_PRIMARY to explicit model version `claude-sonnet-4-20250514`
+- `EVALUATION.md` — Cancelled Marvel/GoCollect items
+- `BACKLOG.md` — Cancelled Marvel/GoCollect, added scan resilience item
+- `CLAUDE.md` — Updated external APIs and costs for discontinued services
+
+### Issues Encountered
+- `claude-sonnet-4-latest` model alias not recognized by Anthropic API — caused all scans to fail with "temporarily busy" error
+- Root cause: model alias format not valid for user's API key
+- Fix: pin to explicit version `claude-sonnet-4-20250514`
+
+**Deployed:** February 27, 2026 — Hotfix for scan outage (model pinning)
 
 ---
 
