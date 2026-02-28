@@ -6,12 +6,22 @@ This log tracks session-by-session progress on Collectors Chest.
 
 ## Changes Since Last Deploy
 
-**Last Deploy:** February 27, 2026
+**Last Deploy:** February 27, 2026 (hotfix)
 **Sessions Since Last Deploy:** 0
 **Deploy Readiness:** Deployed
 
 ### Changes:
 - None (just deployed)
+
+---
+
+## Feb 27, 2026 (Hotfix) - Fix Comic Scanning
+
+### Summary
+Hotfix to restore comic cover scanning. The Anthropic model alias `claude-sonnet-4-latest` was returning a 404 not-found error, causing all scan attempts to fail with "temporarily busy" message. Pinned to explicit version `claude-sonnet-4-20250514`.
+
+### Key Files Modified
+- `src/lib/models.ts` — Pinned MODEL_PRIMARY to `claude-sonnet-4-20250514`
 
 ---
 
