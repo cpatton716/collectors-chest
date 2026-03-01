@@ -6,6 +6,8 @@ import { Redis } from "@upstash/redis";
 
 import { Resend } from "resend";
 
+import { supabaseAdmin } from "@/lib/supabase";
+
 // This endpoint can be called by a cron job to check usage and send alerts
 // Protected by a secret key in the request
 
@@ -226,6 +228,59 @@ export async function GET(request: NextRequest) {
       console.error("Error checking Netlify bandwidth:", e);
     }
 
+    // 6. Scan Cost Alerts (from scan_analytics table)
+    try {
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+      // getDate() - getDay() can produce negative values at month boundaries.
+      // JavaScript Date handles this correctly, rolling back to the previous month.
+      const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay()).toISOString();
+
+      // Today's scan spend
+      const { data: todayScans } = await supabaseAdmin
+        .from("scan_analytics")
+        .select("estimated_cost_cents")
+        .gte("scanned_at", todayStart);
+
+      const todaySpendCents = (todayScans || []).reduce(
+        (sum, s) => sum + Number(s.estimated_cost_cents), 0
+      );
+      const dailyLimitCents = 300; // $3.00
+
+      if (todaySpendCents >= dailyLimitCents) {
+        alerts.push({
+          name: "Daily Scan Spend",
+          current: todaySpendCents,
+          limit: dailyLimitCents,
+          percentage: todaySpendCents / dailyLimitCents,
+          alertType: todaySpendCents >= dailyLimitCents * 1.5 ? "critical" : "warning",
+        });
+      }
+
+      // This week's scan spend
+      const { data: weekScans } = await supabaseAdmin
+        .from("scan_analytics")
+        .select("estimated_cost_cents")
+        .gte("scanned_at", weekStart);
+
+      const weekSpendCents = (weekScans || []).reduce(
+        (sum, s) => sum + Number(s.estimated_cost_cents), 0
+      );
+      const weeklyLimitCents = 1500; // $15.00
+
+      if (weekSpendCents >= weeklyLimitCents) {
+        alerts.push({
+          name: "Weekly Scan Spend",
+          current: weekSpendCents,
+          limit: weeklyLimitCents,
+          percentage: weekSpendCents / weeklyLimitCents,
+          alertType: weekSpendCents >= weeklyLimitCents * 1.5 ? "critical" : "warning",
+        });
+      }
+    } catch (err) {
+      console.error("Scan cost alert check failed:", err);
+    }
+
     // Filter out alerts we've already sent today
     const today = new Date().toISOString().split("T")[0];
     const newAlerts: AlertMetric[] = [];
@@ -266,6 +321,7 @@ export async function GET(request: NextRequest) {
 
       const formatValue = (value: number, name: string) => {
         if (name.includes("Database")) return formatBytes(value);
+        if (name.includes("Spend")) return `$${(value / 100).toFixed(2)}`;
         if (name.includes("Cost")) return `$${value.toFixed(2)}`;
         return value.toLocaleString();
       };
