@@ -1,33 +1,48 @@
 import { estimateScanCostCents } from "../analyticsServer";
 
 describe("estimateScanCostCents", () => {
-  it("returns 0 when no AI calls made", () => {
-    expect(
-      estimateScanCostCents({ metadataCacheHit: true, aiCallsMade: 0, ebayLookup: false })
-    ).toBe(0);
+  it("returns base cost for a simple scan with no extras", () => {
+    const cost = estimateScanCostCents({
+      metadataCacheHit: false,
+      aiCallsMade: 1,
+      ebayLookup: false,
+    });
+    expect(cost).toBe(1.5);
   });
 
-  it("returns ~1.5 cents for initial scan AI call only", () => {
-    const cost = estimateScanCostCents({ metadataCacheHit: false, aiCallsMade: 1, ebayLookup: false });
-    expect(cost).toBeGreaterThanOrEqual(1.0);
-    expect(cost).toBeLessThanOrEqual(2.0);
-  });
-
-  it("adds verification cost for second AI call", () => {
-    const one = estimateScanCostCents({ metadataCacheHit: false, aiCallsMade: 1, ebayLookup: false });
-    const two = estimateScanCostCents({ metadataCacheHit: false, aiCallsMade: 2, ebayLookup: false });
-    expect(two).toBeGreaterThan(one);
+  it("adds verification cost for additional AI calls", () => {
+    const cost = estimateScanCostCents({
+      metadataCacheHit: false,
+      aiCallsMade: 2,
+      ebayLookup: false,
+    });
+    expect(cost).toBe(2.1);
   });
 
   it("adds eBay lookup cost", () => {
-    const without = estimateScanCostCents({ metadataCacheHit: false, aiCallsMade: 1, ebayLookup: false });
-    const withEbay = estimateScanCostCents({ metadataCacheHit: false, aiCallsMade: 1, ebayLookup: true });
-    expect(withEbay).toBeGreaterThan(without);
+    const cost = estimateScanCostCents({
+      metadataCacheHit: false,
+      aiCallsMade: 1,
+      ebayLookup: true,
+    });
+    expect(cost).toBe(1.65);
   });
 
-  it("scales cost with multiple AI calls", () => {
-    const two = estimateScanCostCents({ metadataCacheHit: false, aiCallsMade: 2, ebayLookup: false });
-    const three = estimateScanCostCents({ metadataCacheHit: false, aiCallsMade: 3, ebayLookup: false });
-    expect(three).toBeGreaterThan(two);
+  it("returns zero cost on cache hit with no AI calls", () => {
+    const cost = estimateScanCostCents({
+      metadataCacheHit: true,
+      aiCallsMade: 0,
+      ebayLookup: false,
+    });
+    expect(cost).toBe(0);
+  });
+
+  it("handles full scan with all costs", () => {
+    const cost = estimateScanCostCents({
+      metadataCacheHit: false,
+      aiCallsMade: 3,
+      ebayLookup: true,
+    });
+    expect(cost).toBe(2.85);
   });
 });

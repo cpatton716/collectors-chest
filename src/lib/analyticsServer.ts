@@ -1,4 +1,5 @@
 import { PostHog } from "posthog-node";
+import { supabaseAdmin } from "@/lib/supabase";
 
 // Serverless-optimized: flush immediately, no batching
 const posthogServer =
@@ -70,4 +71,40 @@ export function estimateScanCostCents(params: {
   }
 
   return Math.round(cost * 100) / 100;
+}
+
+// --- Scan Analytics (Supabase) ---
+
+export interface ScanAnalyticsRecord {
+  profile_id: string | null;
+  scan_method: string;
+  estimated_cost_cents: number;
+  ai_calls_made: number;
+  metadata_cache_hit: boolean;
+  ebay_lookup: boolean;
+  duration_ms: number;
+  success: boolean;
+  subscription_tier: string;
+  error_type?: string | null;
+}
+
+export async function recordScanAnalytics(
+  record: ScanAnalyticsRecord
+): Promise<void> {
+  try {
+    await supabaseAdmin.from("scan_analytics").insert({
+      profile_id: record.profile_id,
+      scan_method: record.scan_method,
+      estimated_cost_cents: record.estimated_cost_cents,
+      ai_calls_made: record.ai_calls_made,
+      metadata_cache_hit: record.metadata_cache_hit,
+      ebay_lookup: record.ebay_lookup,
+      duration_ms: record.duration_ms,
+      success: record.success,
+      subscription_tier: record.subscription_tier,
+      error_type: record.error_type || null,
+    });
+  } catch (err) {
+    console.error("Failed to record scan analytics:", err);
+  }
 }
