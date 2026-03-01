@@ -5,6 +5,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { cacheGet, cacheSet, generateComicMetadataCacheKey } from "@/lib/cache";
 import { getComicMetadata, incrementComicLookupCount, saveComicMetadata } from "@/lib/db";
 import { MODEL_PRIMARY } from "@/lib/models";
+import { recordScanAnalytics, estimateScanCostCents } from "@/lib/analyticsServer";
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -37,6 +38,9 @@ interface ComicLookupResult {
 }
 
 export async function POST(request: NextRequest) {
+  const startTime = Date.now();
+  let aiCallsMade = 0;
+
   try {
     const { title, issueNumber, lookupType } = await request.json();
 
@@ -52,7 +56,24 @@ export async function POST(request: NextRequest) {
 
     // For publisher-only lookups, use simple approach (no caching needed)
     if (lookupType === "publisher") {
-      return handlePublisherLookup(normalizedTitle);
+      aiCallsMade++;
+      const result = await handlePublisherLookup(normalizedTitle);
+
+      // Record scan analytics for publisher lookup (fire-and-forget)
+      const pubCostCents = estimateScanCostCents({ metadataCacheHit: false, aiCallsMade, ebayLookup: false });
+      recordScanAnalytics({
+        profile_id: null,
+        scan_method: "comic-lookup",
+        estimated_cost_cents: pubCostCents,
+        ai_calls_made: aiCallsMade,
+        metadata_cache_hit: false,
+        ebay_lookup: false,
+        duration_ms: Date.now() - startTime,
+        success: true,
+        subscription_tier: "guest",
+      }).catch(() => {});
+
+      return result;
     }
 
     // Full lookup - use hybrid approach
@@ -116,6 +137,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    aiCallsMade++;
     const result = await fetchFromClaudeAPI(normalizedTitle, normalizedIssue);
 
     // 4. Save to Redis and database for future lookups (non-blocking)
@@ -133,6 +155,20 @@ export async function POST(request: NextRequest) {
     }).catch((err) => {
       console.error("[comic-lookup] Failed to save to database:", err);
     });
+
+    // Record scan analytics (fire-and-forget)
+    const costCents = estimateScanCostCents({ metadataCacheHit: false, aiCallsMade, ebayLookup: false });
+    recordScanAnalytics({
+      profile_id: null,
+      scan_method: "comic-lookup",
+      estimated_cost_cents: costCents,
+      ai_calls_made: aiCallsMade,
+      metadata_cache_hit: false,
+      ebay_lookup: false,
+      duration_ms: Date.now() - startTime,
+      success: true,
+      subscription_tier: "guest",
+    }).catch(() => {});
 
     return NextResponse.json({ ...result, source: "ai" });
   } catch (error) {

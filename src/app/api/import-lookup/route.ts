@@ -4,12 +4,15 @@ import Anthropic from "@anthropic-ai/sdk";
 
 import { getComicMetadata, saveComicMetadata } from "@/lib/db";
 import { MODEL_PRIMARY } from "@/lib/models";
+import { recordScanAnalytics, estimateScanCostCents } from "@/lib/analyticsServer";
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
 export async function POST(request: Request) {
+  const startTime = Date.now();
+
   try {
     const { title, issueNumber, variant, publisher, releaseYear } = await request.json();
 
@@ -175,6 +178,20 @@ Be realistic with prices based on typical eBay sold listings.`,
         });
       }
     } catch {}
+
+    // Record scan analytics (fire-and-forget)
+    const costCents = estimateScanCostCents({ metadataCacheHit: false, aiCallsMade: 1, ebayLookup: false });
+    recordScanAnalytics({
+      profile_id: null,
+      scan_method: "import-lookup",
+      estimated_cost_cents: costCents,
+      ai_calls_made: 1,
+      metadata_cache_hit: false,
+      ebay_lookup: false,
+      duration_ms: Date.now() - startTime,
+      success: true,
+      subscription_tier: "guest",
+    }).catch(() => {});
 
     return NextResponse.json({
       priceData,

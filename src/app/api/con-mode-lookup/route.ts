@@ -4,6 +4,7 @@ import Anthropic from "@anthropic-ai/sdk";
 
 import { getComicMetadata, incrementComicLookupCount, saveComicMetadata } from "@/lib/db";
 import { MODEL_PRIMARY } from "@/lib/models";
+import { recordScanAnalytics, estimateScanCostCents } from "@/lib/analyticsServer";
 import { isFindingApiConfigured, lookupEbaySoldPrices } from "@/lib/ebayFinding";
 
 const anthropic = new Anthropic({
@@ -35,6 +36,9 @@ interface ConModeLookupResult {
 }
 
 export async function POST(request: NextRequest) {
+  const startTime = Date.now();
+  let aiCallsMade = 0;
+
   try {
     const { title, issueNumber, grade, years } = await request.json();
 
@@ -109,6 +113,7 @@ export async function POST(request: NextRequest) {
           let keyInfo: string[] = [];
           try {
             keyInfo = await fetchKeyInfoFromAI(normalizedTitle, normalizedIssue);
+            aiCallsMade++;
           } catch {
             // Ignore key info errors
           }
@@ -148,6 +153,20 @@ export async function POST(request: NextRequest) {
             console.error("[con-mode-lookup] Failed to save eBay data to database:", err);
           });
 
+          // Record scan analytics (fire-and-forget)
+          const ebayCostCents = estimateScanCostCents({ metadataCacheHit: false, aiCallsMade, ebayLookup: true });
+          recordScanAnalytics({
+            profile_id: null,
+            scan_method: "con-mode-lookup",
+            estimated_cost_cents: ebayCostCents,
+            ai_calls_made: aiCallsMade,
+            metadata_cache_hit: false,
+            ebay_lookup: true,
+            duration_ms: Date.now() - startTime,
+            success: true,
+            subscription_tier: "guest",
+          }).catch(() => {});
+
           return NextResponse.json(result);
         }
       } catch (ebayError) {
@@ -171,6 +190,7 @@ export async function POST(request: NextRequest) {
       : "";
 
     // Get price data from Claude
+    aiCallsMade++;
     const lookupResponse = await anthropic.messages.create({
       model: MODEL_PRIMARY,
       max_tokens: 1024,
@@ -266,6 +286,20 @@ Rules:
       }).catch((err) => {
         console.error("[con-mode-lookup] Failed to save to database:", err);
       });
+
+      // Record scan analytics (fire-and-forget)
+      const aiCostCents = estimateScanCostCents({ metadataCacheHit: false, aiCallsMade, ebayLookup: false });
+      recordScanAnalytics({
+        profile_id: null,
+        scan_method: "con-mode-lookup",
+        estimated_cost_cents: aiCostCents,
+        ai_calls_made: aiCallsMade,
+        metadata_cache_hit: false,
+        ebay_lookup: false,
+        duration_ms: Date.now() - startTime,
+        success: true,
+        subscription_tier: "guest",
+      }).catch(() => {});
 
       return NextResponse.json(result);
     } catch {

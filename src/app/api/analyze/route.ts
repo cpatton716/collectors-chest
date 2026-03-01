@@ -18,7 +18,7 @@ import { getComicMetadata, getProfileByClerkId, saveComicMetadata } from "@/lib/
 import { isFindingApiConfigured, lookupEbaySoldPrices } from "@/lib/ebayFinding";
 import { ComicMetadata, mergeMetadataIntoDetails, buildMetadataSavePayload } from "@/lib/metadataCache";
 import { lookupKeyInfo } from "@/lib/keyComicsDatabase";
-import { estimateScanCostCents, trackScanServer } from "@/lib/analyticsServer";
+import { estimateScanCostCents, trackScanServer, recordScanAnalytics } from "@/lib/analyticsServer";
 import { MODEL_PRIMARY } from "@/lib/models";
 import { checkRateLimit, getRateLimitIdentifier, rateLimiters } from "@/lib/rateLimit";
 import {
@@ -118,6 +118,11 @@ export async function POST(request: NextRequest) {
   // Track profile for scan counting at the end
   let profileId: string | null = null;
   let subscriptionTier: string = "free";
+
+  // Tracking variables (declared outside try so catch block can access them)
+  const scanStartTime = Date.now();
+  let aiCallsMade = 0;
+  let ebayLookupMade = false;
 
   try {
     // Rate limit check - protect expensive AI endpoint
@@ -221,13 +226,6 @@ export async function POST(request: NextRequest) {
 
     // Remove data URL prefix if present
     const base64Data = image.replace(/^data:image\/\w+;base64,/, "");
-
-    // ============================================
-    // Scan Tracking Variables (for PostHog analytics)
-    // ============================================
-    const scanStartTime = Date.now();
-    let aiCallsMade = 0;
-    let ebayLookupMade = false;
 
     // ============================================
     // Image Hash Caching (Phase 2 optimization)
@@ -1056,9 +1054,44 @@ Important:
       });
     }
 
+    // Record to scan_analytics table (fire-and-forget, tracks ALL users including guests)
+    recordScanAnalytics({
+      profile_id: profileId || null,
+      scan_method: "camera",
+      estimated_cost_cents: costCents,
+      ai_calls_made: aiCallsMade,
+      metadata_cache_hit: metadataCacheHit,
+      ebay_lookup: ebayLookupMade,
+      duration_ms: scanDuration,
+      success: true,
+      subscription_tier: subscriptionTier || "guest",
+    }).catch((err) => {
+      console.error("Scan analytics recording failed:", err);
+    });
+
     return NextResponse.json(comicDetails);
   } catch (error) {
     console.error("Error analyzing comic:", error);
+
+    // Record the failed scan (failed scans still consume Anthropic credits)
+    const failDuration = Date.now() - scanStartTime;
+    const failCostCents = estimateScanCostCents({
+      metadataCacheHit: false,
+      aiCallsMade,
+      ebayLookup: ebayLookupMade,
+    });
+    recordScanAnalytics({
+      profile_id: profileId || null,
+      scan_method: "camera",
+      estimated_cost_cents: failCostCents,
+      ai_calls_made: aiCallsMade,
+      metadata_cache_hit: false,
+      ebay_lookup: ebayLookupMade,
+      duration_ms: failDuration,
+      success: false,
+      subscription_tier: subscriptionTier || "guest",
+      error_type: (error as Error)?.message?.substring(0, 100) || "unknown",
+    }).catch(() => {});
 
     if (error instanceof Anthropic.APIError) {
       return NextResponse.json(
