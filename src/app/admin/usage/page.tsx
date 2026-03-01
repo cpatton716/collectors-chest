@@ -354,12 +354,9 @@ export default function AdminUsagePage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
                   {/* Today's Spend */}
                   <div className="comic-panel p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <Clock className="w-5 h-5 text-pop-blue" />
-                        <span className="font-bold">Today&apos;s Spend</span>
-                      </div>
-                      <StatusBadge status={getScanStatus(data.scanAnalytics.costMetrics.todaySpendCents, data.scanAnalytics.costMetrics.todayLimit)} />
+                    <div className="flex items-center gap-2 mb-2">
+                      <Clock className="w-5 h-5 text-pop-blue" />
+                      <span className="font-bold">Today&apos;s Spend</span>
                     </div>
                     <p className="text-2xl font-bangers">
                       {formatCents(data.scanAnalytics.costMetrics.todaySpendCents)}
@@ -369,16 +366,19 @@ export default function AdminUsagePage() {
                       percentage={Math.min(1, data.scanAnalytics.costMetrics.todaySpendCents / data.scanAnalytics.costMetrics.todayLimit)}
                       status={getScanStatus(data.scanAnalytics.costMetrics.todaySpendCents, data.scanAnalytics.costMetrics.todayLimit)}
                     />
+                    <div className="mt-2 flex items-center justify-between">
+                      <span className="text-xs text-gray-500">
+                        {(Math.min(1, data.scanAnalytics.costMetrics.todaySpendCents / data.scanAnalytics.costMetrics.todayLimit) * 100).toFixed(1)}% used
+                      </span>
+                      <StatusBadge status={getScanStatus(data.scanAnalytics.costMetrics.todaySpendCents, data.scanAnalytics.costMetrics.todayLimit)} />
+                    </div>
                   </div>
 
                   {/* Week's Spend */}
                   <div className="comic-panel p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="w-5 h-5 text-pop-blue" />
-                        <span className="font-bold">This Week&apos;s Spend</span>
-                      </div>
-                      <StatusBadge status={getScanStatus(data.scanAnalytics.costMetrics.weekSpendCents, data.scanAnalytics.costMetrics.weekLimit)} />
+                    <div className="flex items-center gap-2 mb-2">
+                      <Calendar className="w-5 h-5 text-pop-blue" />
+                      <span className="font-bold">This Week&apos;s Spend</span>
                     </div>
                     <p className="text-2xl font-bangers">
                       {formatCents(data.scanAnalytics.costMetrics.weekSpendCents)}
@@ -388,6 +388,12 @@ export default function AdminUsagePage() {
                       percentage={Math.min(1, data.scanAnalytics.costMetrics.weekSpendCents / data.scanAnalytics.costMetrics.weekLimit)}
                       status={getScanStatus(data.scanAnalytics.costMetrics.weekSpendCents, data.scanAnalytics.costMetrics.weekLimit)}
                     />
+                    <div className="mt-2 flex items-center justify-between">
+                      <span className="text-xs text-gray-500">
+                        {(Math.min(1, data.scanAnalytics.costMetrics.weekSpendCents / data.scanAnalytics.costMetrics.weekLimit) * 100).toFixed(1)}% used
+                      </span>
+                      <StatusBadge status={getScanStatus(data.scanAnalytics.costMetrics.weekSpendCents, data.scanAnalytics.costMetrics.weekLimit)} />
+                    </div>
                   </div>
 
                   {/* Month's Spend */}

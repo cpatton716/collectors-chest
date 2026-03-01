@@ -696,20 +696,24 @@ Unified view of all project costs tracked in CLAUDE.md (Option 1 - Simple approa
 
 ---
 
-### Scan Resilience: Multi-Provider Fallback
+### Finish Scan Resilience: Multi-Provider Fallback
 **Priority:** High
-**Status:** Pending — Design Complete (Feb 27, 2026)
+**Status:** Code Complete — Deployment Steps Remaining (Mar 1, 2026)
+**Design Doc:** `docs/plans/2026-02-27-scan-resilience-design.md`
+**Implementation Plan:** `docs/plans/2026-03-01-scan-resilience-plan.md`
 
-Add OpenAI GPT-4o as a fallback vision provider so scanning never goes down due to a single-provider failure. If Anthropic fails for any reason (model changes, outages, rate limits), automatically retry with OpenAI.
+Code implementation is complete (8 commits, 370 tests passing). Remaining steps to go live:
 
-**Key requirements:**
-- Title + issue number must always be returned
-- User sees "taking longer than usual" message during fallback (not an error)
-- Invisible to the rest of the codebase — only the AI provider layer knows about multiple providers
+1. **Run migration SQL** — `supabase/migrations/20260301_scan_analytics_provider.sql` adds `provider`, `fallback_used`, `fallback_reason` columns to `scan_analytics`
+2. **Get OpenAI API key** — Create account at platform.openai.com, add billing, generate API key
+3. **Add `OPENAI_API_KEY`** to `.env.local` (local) and Netlify environment variables (production)
+4. **Prompt comparison study** — Run 10-15 sample comic images through both Anthropic and OpenAI, document quality delta (see design doc "Prompt Compatibility & Validation" section)
+5. **Manual testing** — Set `ANTHROPIC_API_KEY` to invalid value, verify OpenAI fallback works; test both keys invalid for graceful error; verify "taking longer" message after 5 seconds
+6. **Deploy** — Push code after env vars are set in Netlify
+7. **Add fallback rate alerting** — Extend the existing `check-alerts` cron (`/api/admin/usage/check-alerts`) to query `scan_analytics` for fallback rate in the last hour. If fallback_used exceeds 10% of scans, send an email via Resend with the error reason breakdown (e.g., "auth_error: 45, model_not_found: 12"). Uses existing infrastructure.
+8. **Add model health check** — Create a lightweight scheduled probe that makes a minimal API call to each configured provider (tiny prompt, 1 max_token) to verify the model is still responding. If a provider returns 403/404, send an immediate email alert: "Anthropic model claude-sonnet-4-20250514 may be deprecated — received 403. Fallback to OpenAI is active. Check https://docs.anthropic.com/en/docs/about-claude/models for current models."
 
-**Design doc:** `docs/plans/2026-02-27-scan-resilience-design.md`
-
-**New dependency:** `openai` npm package, `OPENAI_API_KEY` env variable
+**Complexity:** Low-Medium — remaining steps are configuration, testing, and two small alert additions to existing infrastructure.
 
 ---
 

@@ -7,13 +7,65 @@ This log tracks session-by-session progress on Collectors Chest.
 ## Changes Since Last Deploy
 
 **Last Deploy:** February 27, 2026 (hotfix)
-**Sessions Since Last Deploy:** 0
-**Deploy Readiness:** Ready (docs only, no code changes since hotfix deploy)
+**Sessions Since Last Deploy:** 1
+**Deploy Readiness:** Needs Testing (major new features: scan cost dashboard, multi-provider fallback)
 
 ### Changes:
 - Scan resilience design doc (`docs/plans/2026-02-27-scan-resilience-design.md`)
 - Cancelled Marvel API and GoCollect API integrations (both programs discontinued)
 - Updated EVALUATION.md, BACKLOG.md, CLAUDE.md to reflect cancellations
+- **Scan Cost Dashboard:** `scan_analytics` table, `recordScanAnalytics` helper, display helpers, instrumented all 4 Anthropic-calling routes, admin usage API aggregation, admin usage page scan cost section, scan cost threshold alerts
+- **Scan Resilience Phase 1 — Multi-Provider Fallback:** Provider abstraction layer (AIProvider interface), AnthropicProvider, OpenAIProvider (GPT-4o fallback), fallback orchestrator with per-call fallback/error classification/dynamic timeout budget, provider tracking in scan analytics, analyze route refactor (-119 lines), "taking longer" UX message for fallback scenarios
+- 370 tests passing, 0 type errors, 0 lint errors, build clean
+
+---
+
+## Mar 1, 2026 - Session 14: Scan Cost Dashboard & Multi-Provider Fallback
+
+### Summary
+- Built complete Scan Cost Dashboard (Tasks 1-8) with analytics table, recording helpers, route instrumentation, admin UI, and threshold alerts
+- Implemented Scan Resilience Phase 1 — Multi-Provider Fallback (9 tasks) with provider abstraction, Anthropic/OpenAI providers, fallback orchestrator, and UX improvements
+- Updated backlog with deployment steps and alerting tiers for scan resilience
+
+### Key Accomplishments
+1. **Scan Cost Dashboard** (Tasks 1-8 complete):
+   - Created `scan_analytics` table and migration
+   - Added `recordScanAnalytics` helper with tests
+   - Added display helpers for scan cost formatting
+   - Instrumented all 4 Anthropic-calling routes (analyze, comic-lookup, con-mode-lookup, import-lookup, quick-lookup)
+   - Added scan analytics aggregation to admin usage API
+   - Added scan cost section to admin usage page
+   - Added scan cost threshold alerts to check-alerts route
+
+2. **Scan Resilience Phase 1 — Multi-Provider Fallback** (9 tasks, all complete):
+   - Designed multi-provider fallback system (2 rounds of Sr. Engineering review, 24 findings incorporated)
+   - Created provider abstraction layer (AIProvider interface)
+   - Extracted AnthropicProvider from analyze route
+   - Built OpenAIProvider for GPT-4o fallback
+   - Built fallback orchestrator with per-call fallback, error classification, dynamic timeout budget
+   - Added provider tracking to scan analytics (migration run)
+   - Refactored analyze route (-119 lines, 3 inline calls replaced by orchestrator)
+   - Added "taking longer" UX message for fallback scenarios
+   - 370 tests passing, 0 type errors, 0 lint errors, build clean
+
+3. **Backlog Updates:**
+   - Added "Finish Scan Resilience" with 8 deployment steps + alerting tiers
+
+### Key Files Added
+- `src/lib/providers/types.ts` — AIProvider interface and provider types
+- `src/lib/providers/anthropic.ts` — AnthropicProvider implementation
+- `src/lib/providers/openai.ts` — OpenAIProvider (GPT-4o fallback)
+- `src/lib/aiProvider.ts` — Fallback orchestrator
+- `supabase/migrations/20260301_scan_analytics_provider.sql` — Provider tracking migration
+- Multiple test files (62 new tests for provider system)
+
+### Key Files Modified
+- `src/lib/analyticsServer.ts` — Provider-aware cost tracking
+- `src/app/api/analyze/route.ts` — Major refactor (-119 lines, orchestrator integration)
+- `src/app/scan/page.tsx` — UX improvements for fallback scenarios
+
+### Issues Encountered
+- None significant — all 9 tasks executed cleanly via subagent-driven development
 
 ---
 

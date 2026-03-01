@@ -2,7 +2,7 @@
 
 > **Comprehensive map of pages, features, and service dependencies**
 
-*Last Updated: February 26, 2026 (Full audit: routes, pages, tables, services verified against codebase)*
+*Last Updated: March 1, 2026 (Added scan resilience / multi-provider fallback architecture)*
 
 ---
 
@@ -12,7 +12,8 @@
 |------|---------|---------|
 | 🔐 | **Clerk** | Authentication |
 | 🗄️ | **Supabase** | Database (PostgreSQL) |
-| 🤖 | **Anthropic/Claude** | AI analysis |
+| 🤖 | **Anthropic/Claude** | AI analysis (primary) |
+| 🤖² | **OpenAI/GPT-4o** | AI analysis (fallback) |
 | 💰 | **Stripe** | Payments |
 | 📧 | **Resend** | Email |
 | 🔴 | **Upstash Redis** | Cache/Rate limiting |
@@ -40,9 +41,10 @@
 
 | Feature | Services | Notes |
 |---------|----------|-------|
-| AI Cover Recognition | 🤖 🔴 | Claude vision analyzes cover image |
+| AI Cover Recognition | 🤖 🤖² 🔴 | Multi-provider: Anthropic primary, OpenAI fallback |
 | Barcode Scanning | 🤖 🗄️ | Barcode catalog lookup, AI fallback |
 | Price Estimation | 🏷️ 🗄️ 🔴 | eBay API → Supabase cache → Redis |
+| Fallback Status | — | "Taking longer than usual" message when fallback triggers |
 | CGC/CBCS Cert Lookup | Web scrape | Verifies graded comic certification |
 | Key Info Lookup | 🗄️ | 402 curated key comics database |
 | Suggest Key Info | 🗄️ 🔐 | Community submissions for key facts |
@@ -332,7 +334,7 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
 
 | Route | Method | Purpose | Services |
 |-------|--------|---------|----------|
-| `/api/analyze` | POST | Cover image analysis | 🤖 🗄️ 🔴 🏷️ |
+| `/api/analyze` | POST | Cover image analysis (multi-provider with fallback) | 🤖 🤖² 🗄️ 🔴 🏷️ |
 | `/api/quick-lookup` | POST | Fast barcode + pricing | 🗄️ 🤖 |
 | `/api/comic-lookup` | POST | Title/issue lookup | 🤖 🗄️ 🔴 |
 | `/api/con-mode-lookup` | POST | Key Hunt pricing | 🏷️ 🤖 🗄️ |
@@ -569,9 +571,17 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
          │ Pass
          v
 ┌──────────────────┐
-│  Claude Vision   │
-│  Analysis        │
+│  AI Provider     │
+│  Orchestrator    │
+│  (executeWith-   │
+│   Fallback)      │
 └────────┬─────────┘
+         │
+    ┌────┴────────────────┐
+    │ 3 independent calls │
+    │ each can fall back: │
+    │ Anthropic → OpenAI  │
+    └────┬────────────────┘
          │
     ┌────┴────┐
     │         │
@@ -714,7 +724,12 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
 | `src/lib/adminAuth.ts` | Admin authentication helpers |
 | `src/lib/db.ts` | Core database helper functions |
 | `src/lib/alertBadgeHelpers.ts` | Admin alert badge helpers |
-| `src/lib/analyticsServer.ts` | Server-side analytics helpers |
+| `src/lib/aiProvider.ts` | Fallback orchestrator: getProviders(), classifyError(), getRemainingBudget(), executeWithFallback() |
+| `src/lib/providers/types.ts` | Provider interface + shared types (AIProvider, CallResult, ScanResponseMeta) |
+| `src/lib/providers/anthropic.ts` | AnthropicProvider class — extracts 3 prompts + SDK calls from analyze route |
+| `src/lib/providers/openai.ts` | OpenAIProvider class — GPT-4o fallback implementation |
+| `src/lib/models.ts` | AI model constants incl. OPENAI_PRIMARY, OPENAI_LIGHTWEIGHT, VISION_PROVIDER_ORDER |
+| `src/lib/analyticsServer.ts` | Server-side analytics helpers (provider-aware cost estimation via PROVIDER_COSTS lookup) |
 | `src/types/creatorCredits.ts` | Creator Credits type definitions (transaction feedback, badge tiers, contribution types) |
 
 ---
@@ -761,6 +776,7 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
 | `barcode_catalog` | Community-submitted barcode-to-comic mappings |
 | `admin_barcode_reviews` | Barcode catalog moderation queue |
 | `cover_images` | Community-submitted cover images |
+| `scan_analytics` | Scan tracking with `provider`, `fallback_used`, `fallback_reason` columns |
 
 ### Trading Tables Detail
 
@@ -802,6 +818,7 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
 
 ### AI
 - `ANTHROPIC_API_KEY`
+- `OPENAI_API_KEY` (fallback provider for scan resilience)
 
 ### Payments
 - `STRIPE_SECRET_KEY`
@@ -837,7 +854,8 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
 | Service | Tier | Cost | Limit |
 |---------|------|------|-------|
 | Netlify | Personal | $9/mo | 1000 build min |
-| Anthropic | Pay-per-use | ~$0.015/scan | Prepaid credits |
+| Anthropic | Pay-per-use | ~$0.015/scan | Prepaid credits (primary AI) |
+| OpenAI | Pay-per-use | Varies | Fallback AI provider |
 | Stripe | Standard | 2.9% + $0.30 | Per transaction |
 | Supabase | Free (Pro planned) | $0 ($25/mo) | 500MB (8GB Pro) |
 | Clerk | Free | $0 | 10K MAU |
@@ -847,6 +865,52 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
 | Sentry | Free | $0 | 5K errors/mo |
 | eBay API | Free | $0 | Rate limited |
 | Comic Vine | Free | $0 | Barcode fallback in analyze, quick-lookup, con-mode-lookup |
+
+---
+
+## Scan Resilience / Multi-Provider Fallback
+
+The `/api/analyze` route uses a provider abstraction layer so that each of the 3 AI calls (image analysis, verification, price estimation) can independently fall back from Anthropic to OpenAI when the primary provider fails.
+
+### Architecture
+
+```
+┌────────────────────────────┐
+│  src/lib/aiProvider.ts     │  Orchestrator
+│  executeWithFallback()     │
+└────────────┬───────────────┘
+             │ iterates VISION_PROVIDER_ORDER
+             v
+┌────────────────────────────┐
+│  src/lib/providers/        │
+│  ├── types.ts (AIProvider) │  Provider Interface
+│  ├── anthropic.ts          │  Primary (Claude)
+│  └── openai.ts             │  Fallback (GPT-4o)
+└────────────────────────────┘
+```
+
+### Key Behaviors
+
+| Behavior | Detail |
+|----------|--------|
+| Provider order | Anthropic first, OpenAI fallback (defined in `VISION_PROVIDER_ORDER`) |
+| Error classification | `classifyError()` determines retry-on-fallback vs immediate failure |
+| Dynamic budget | `getRemainingBudget()` ensures all 3 calls fit within Netlify's 26s limit |
+| Per-call fallback | Each of the 3 AI calls can independently fall back without affecting the others |
+| Analytics tracking | `scan_analytics` records which provider handled each scan, whether fallback was used, and why |
+| Client feedback | Scan page shows "taking longer than usual" message when `_meta.fallbackUsed` is true |
+
+### Test Coverage
+
+| Test File | Tests |
+|-----------|-------|
+| `src/lib/providers/__tests__/anthropic.test.ts` | 18 tests |
+| `src/lib/providers/__tests__/openai.test.ts` | 9 tests |
+| `src/lib/__tests__/aiProvider.test.ts` | 25 tests |
+
+### Migration
+
+- `supabase/migrations/20260301_scan_analytics_provider.sql` — adds `provider`, `fallback_used`, `fallback_reason` columns to `scan_analytics`
 
 ---
 

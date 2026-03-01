@@ -1122,4 +1122,30 @@ If you encounter bugs or unexpected behavior:
 | Alert badge on Admin nav | As admin, view desktop/mobile nav | Count-style alert badge visible on Admin link when thresholds exceeded |
 | Non-admin no badge | As non-admin user, view navigation | No alert badges visible anywhere |
 
-*Last Updated: February 19, 2026*
+### Multi-Provider Scan Fallback (Mar 1, 2026)
+
+**Location:** Home → "Scan a Book" / Upload comic cover
+
+| Test Case | Steps | Expected Result |
+|-----------|-------|-----------------|
+| Scan succeeds with Anthropic | Upload a comic cover under normal conditions | Scan completes successfully using Anthropic provider |
+| Anthropic 500/503 triggers fallback | Simulate Anthropic server error (500/503) | Scan falls back to OpenAI and returns results successfully |
+| Anthropic 429 triggers fallback | Simulate Anthropic rate limit (429) | Scan falls back to OpenAI and returns results successfully |
+| Anthropic 404 triggers fallback | Simulate Anthropic model not found (404) | Scan falls back to OpenAI and returns results successfully |
+| Both providers fail | Simulate both Anthropic and OpenAI failing | User sees clear error message with no provider names exposed |
+| Slow scan message | Upload image and wait 5+ seconds for response | "Taking a bit longer than usual" message appears after 5 seconds |
+| Provider info hidden from user | Complete a scan (any provider) | No provider name shown in UI; provider info only in _meta (internal) |
+| Only Anthropic key configured | Remove OpenAI API key, upload comic cover | Scan works normally with Anthropic; no fallback attempted if it succeeds |
+| Budget management for optional calls | Trigger a scan where timeout budget is low | Optional API calls (e.g., supplemental lookups) are skipped to preserve budget |
+
+### Scan Cost Dashboard - Admin (Mar 1, 2026)
+
+**Location:** Admin → Usage
+
+| Test Case | Steps | Expected Result |
+|-----------|-------|-----------------|
+| Scan cost metrics visible | As admin, navigate to Admin → Usage | Scan cost metrics display for the last 30 days |
+| Per-scan average cost | View scan cost breakdown section | Shows average cost per scan calculated from recent usage |
+| Cost alert thresholds | Trigger scan costs exceeding configured threshold | Alert notification appears on Usage tab indicating threshold exceeded |
+
+*Last Updated: March 1, 2026*
