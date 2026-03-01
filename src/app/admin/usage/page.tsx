@@ -10,18 +10,28 @@ import {
   Activity,
   AlertTriangle,
   BarChart3,
+  Calendar,
+  CalendarDays,
   CheckCircle,
+  Clock,
+  Cpu,
   Database,
   DollarSign,
   ExternalLink,
   Globe,
   Loader2,
   RefreshCw,
+  Search,
   Server,
+  Timer,
+  TrendingDown,
+  TrendingUp,
   Users,
   XCircle,
   Zap,
 } from "lucide-react";
+
+import { formatCents, getScanStatus } from "@/lib/scanAnalyticsHelpers";
 
 interface UsageMetric {
   name: string;
@@ -33,12 +43,33 @@ interface UsageMetric {
   dashboard?: string;
 }
 
+interface ScanAnalytics {
+  costMetrics: {
+    todaySpendCents: number;
+    todayLimit: number;
+    weekSpendCents: number;
+    weekLimit: number;
+    monthSpendCents: number;
+    avgCostCents: number;
+    projectedMonthlyCents: number | null;
+  };
+  performanceMetrics: {
+    cacheHitRate: number;
+    avgDurationMs: number;
+    avgAiCalls: number;
+    ebayLookupRate: number;
+    successRate: number;
+    totalScans30d: number;
+  };
+}
+
 interface UsageData {
   metrics: UsageMetric[];
   errors?: string[];
   overallStatus: "ok" | "warning" | "critical";
   thresholds: { warning: number; critical: number };
   checkedAt: string;
+  scanAnalytics?: ScanAnalytics | null;
 }
 
 function formatBytes(bytes: number): string {
@@ -309,6 +340,148 @@ export default function AdminUsagePage() {
                 );
               })}
             </div>
+
+            {/* Scan Analytics Section */}
+            {data?.scanAnalytics && (
+              <div className="mt-8">
+                <h2 className="text-2xl font-bangers text-pop-blue mb-4 flex items-center gap-2">
+                  <DollarSign className="w-6 h-6" />
+                  Scan Cost Analytics
+                </h2>
+
+                {/* Cost Metrics */}
+                <h3 className="text-lg font-bangers text-pop-red mb-2">Cost Metrics</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                  {/* Today's Spend */}
+                  <div className="comic-panel p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-5 h-5 text-pop-blue" />
+                        <span className="font-bold">Today&apos;s Spend</span>
+                      </div>
+                      <StatusBadge status={getScanStatus(data.scanAnalytics.costMetrics.todaySpendCents, data.scanAnalytics.costMetrics.todayLimit)} />
+                    </div>
+                    <p className="text-2xl font-bangers">
+                      {formatCents(data.scanAnalytics.costMetrics.todaySpendCents)}
+                      <span className="text-sm text-gray-500"> / {formatCents(data.scanAnalytics.costMetrics.todayLimit)}</span>
+                    </p>
+                    <ProgressBar
+                      percentage={Math.min(1, data.scanAnalytics.costMetrics.todaySpendCents / data.scanAnalytics.costMetrics.todayLimit)}
+                      status={getScanStatus(data.scanAnalytics.costMetrics.todaySpendCents, data.scanAnalytics.costMetrics.todayLimit)}
+                    />
+                  </div>
+
+                  {/* Week's Spend */}
+                  <div className="comic-panel p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="w-5 h-5 text-pop-blue" />
+                        <span className="font-bold">This Week&apos;s Spend</span>
+                      </div>
+                      <StatusBadge status={getScanStatus(data.scanAnalytics.costMetrics.weekSpendCents, data.scanAnalytics.costMetrics.weekLimit)} />
+                    </div>
+                    <p className="text-2xl font-bangers">
+                      {formatCents(data.scanAnalytics.costMetrics.weekSpendCents)}
+                      <span className="text-sm text-gray-500"> / {formatCents(data.scanAnalytics.costMetrics.weekLimit)}</span>
+                    </p>
+                    <ProgressBar
+                      percentage={Math.min(1, data.scanAnalytics.costMetrics.weekSpendCents / data.scanAnalytics.costMetrics.weekLimit)}
+                      status={getScanStatus(data.scanAnalytics.costMetrics.weekSpendCents, data.scanAnalytics.costMetrics.weekLimit)}
+                    />
+                  </div>
+
+                  {/* Month's Spend */}
+                  <div className="comic-panel p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <CalendarDays className="w-5 h-5 text-pop-blue" />
+                      <span className="font-bold">This Month&apos;s Spend</span>
+                    </div>
+                    <p className="text-2xl font-bangers">{formatCents(data.scanAnalytics.costMetrics.monthSpendCents)}</p>
+                  </div>
+
+                  {/* Avg Cost Per Scan */}
+                  <div className="comic-panel p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <TrendingDown className="w-5 h-5 text-pop-blue" />
+                      <span className="font-bold">Avg Cost Per Scan</span>
+                    </div>
+                    <p className="text-2xl font-bangers">{data.scanAnalytics.costMetrics.avgCostCents.toFixed(1)}&cent;</p>
+                  </div>
+
+                  {/* Projected Monthly */}
+                  <div className="comic-panel p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <TrendingUp className="w-5 h-5 text-pop-blue" />
+                      <span className="font-bold">Projected Monthly</span>
+                    </div>
+                    <p className="text-2xl font-bangers">
+                      {data.scanAnalytics.costMetrics.projectedMonthlyCents !== null
+                        ? formatCents(data.scanAnalytics.costMetrics.projectedMonthlyCents)
+                        : "Calculating..."}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Performance Metrics */}
+                <h3 className="text-lg font-bangers text-pop-red mb-2">Performance Metrics</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {/* Cache Hit Rate */}
+                  <div className="comic-panel p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Zap className="w-5 h-5 text-pop-green" />
+                      <span className="font-bold">Cache Hit Rate</span>
+                    </div>
+                    <p className="text-2xl font-bangers">{data.scanAnalytics.performanceMetrics.cacheHitRate}%</p>
+                    <ProgressBar percentage={data.scanAnalytics.performanceMetrics.cacheHitRate / 100} status="ok" />
+                  </div>
+
+                  {/* Avg Scan Duration */}
+                  <div className="comic-panel p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Timer className="w-5 h-5 text-pop-green" />
+                      <span className="font-bold">Avg Scan Duration</span>
+                    </div>
+                    <p className="text-2xl font-bangers">{(data.scanAnalytics.performanceMetrics.avgDurationMs / 1000).toFixed(1)}s</p>
+                  </div>
+
+                  {/* AI Calls Per Scan */}
+                  <div className="comic-panel p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Cpu className="w-5 h-5 text-pop-green" />
+                      <span className="font-bold">AI Calls Per Scan</span>
+                    </div>
+                    <p className="text-2xl font-bangers">{data.scanAnalytics.performanceMetrics.avgAiCalls}</p>
+                  </div>
+
+                  {/* eBay Lookup Rate */}
+                  <div className="comic-panel p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Search className="w-5 h-5 text-pop-green" />
+                      <span className="font-bold">eBay Lookup Rate</span>
+                    </div>
+                    <p className="text-2xl font-bangers">{data.scanAnalytics.performanceMetrics.ebayLookupRate}%</p>
+                  </div>
+
+                  {/* Success Rate */}
+                  <div className="comic-panel p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <CheckCircle className="w-5 h-5 text-pop-green" />
+                      <span className="font-bold">Success Rate</span>
+                    </div>
+                    <p className="text-2xl font-bangers">{data.scanAnalytics.performanceMetrics.successRate}%</p>
+                  </div>
+
+                  {/* Total Scans (30d) */}
+                  <div className="comic-panel p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <BarChart3 className="w-5 h-5 text-pop-green" />
+                      <span className="font-bold">Total Scans (30d)</span>
+                    </div>
+                    <p className="text-2xl font-bangers">{data.scanAnalytics.performanceMetrics.totalScans30d}</p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Errors Section */}
             {data.errors && data.errors.length > 0 && (
