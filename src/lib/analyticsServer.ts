@@ -93,9 +93,9 @@ export interface ScanAnalyticsRecord {
   success: boolean;
   subscription_tier: string;
   error_type?: string | null;
-  provider: string;
-  fallback_used: boolean;
-  fallback_reason: string | null;
+  provider?: string;
+  fallback_used?: boolean;
+  fallback_reason?: string | null;
 }
 
 export async function recordScanAnalytics(

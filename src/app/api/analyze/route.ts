@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@clerk/nextjs/server";
 
-import Anthropic from "@anthropic-ai/sdk";
-
 import { isUserSuspended } from "@/lib/adminAuth";
+import { executeWithFallback, getRemainingBudget, getProviders } from "@/lib/aiProvider";
+import type { ScanResponseMeta } from "@/lib/providers/types";
 import {
   cacheGet,
   cacheSet,
@@ -19,7 +19,6 @@ import { isFindingApiConfigured, lookupEbaySoldPrices } from "@/lib/ebayFinding"
 import { ComicMetadata, mergeMetadataIntoDetails, buildMetadataSavePayload } from "@/lib/metadataCache";
 import { lookupKeyInfo } from "@/lib/keyComicsDatabase";
 import { estimateScanCostCents, trackScanServer, recordScanAnalytics } from "@/lib/analyticsServer";
-import { MODEL_PRIMARY } from "@/lib/models";
 import { checkRateLimit, getRateLimitIdentifier, rateLimiters } from "@/lib/rateLimit";
 import {
   GUEST_SCAN_LIMIT,
@@ -29,12 +28,6 @@ import {
 } from "@/lib/subscription";
 
 import { PriceData } from "@/types/comic";
-
-// Barcode detection result from AI analysis
-interface BarcodeDetection {
-  raw: string;
-  confidence: "high" | "medium" | "low";
-}
 
 // Parsed barcode components (UPC-A with optional 5-digit add-on)
 interface ParsedBarcode {
@@ -72,10 +65,6 @@ interface ComicDetails {
   barcode?: { raw: string; confidence: "high" | "medium" | "low"; parsed?: ParsedBarcode } | null; // Enhanced barcode detection
   dataSource?: "barcode" | "ai" | "cache"; // Track where primary data came from
 }
-
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
 
 /**
  * Parse a UPC barcode string into its component parts
@@ -123,6 +112,7 @@ export async function POST(request: NextRequest) {
   const scanStartTime = Date.now();
   let aiCallsMade = 0;
   let ebayLookupMade = false;
+  let p1: string = "anthropic"; // Primary provider used — default for catch block
 
   try {
     // Rate limit check - protect expensive AI endpoint
@@ -253,159 +243,98 @@ export async function POST(request: NextRequest) {
     let comicDetails: ComicDetails;
     let usedCache = false;
 
+    const aiProviders = getProviders();
+
+    // Provider tracking variables
+    p1 = aiProviders[0]?.name || "anthropic";
+    let fb1 = false;
+    let fr1: string | null = null;
     if (cachedAnalysis && cachedAnalysis.title) {
       comicDetails = { ...cachedAnalysis };
       usedCache = true;
     } else {
       // No cache hit - run the AI image analysis
-      const response = await anthropic.messages.create({
-        model: MODEL_PRIMARY,
-        max_tokens: 1024,
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "image",
-                source: {
-                  type: "base64",
-                  media_type: mediaType || "image/jpeg",
-                  data: base64Data,
-                },
-              },
-              {
-                type: "text",
-                text: `You are an expert comic book identifier and grading specialist. Analyze this comic book cover image and extract as much information as possible.
 
-Look carefully at:
-1. The title of the comic series (usually prominently displayed)
-2. The issue number (often with # symbol)
-3. The publisher logo (Marvel, DC, Image, Dark Horse, etc.)
-4. Any variant cover indicators (Cover A, B, 1:25, etc.)
-5. Creator credits if visible (writer, artist names)
-6. The publication year or month/year
-7. **UPC BARCODE DETECTION** - Look for any UPC barcode visible on the cover:
-   - Read ALL digits carefully (typically 12 digits for UPC-A, plus optional 5-digit add-on = 17 total)
-   - The main UPC is 12 digits; if there's a smaller 5-digit add-on code to the right, include those too
-   - Report your confidence level based on image clarity:
-     * "high" - barcode is clear and fully readable
-     * "medium" - barcode is partially visible or slightly blurry but you can make out most digits
-     * "low" - barcode is obscured, damaged, or very blurry but you can attempt to read it
-   - If no barcode is visible at all, return null for the barcode field
-8. WHETHER THIS IS A GRADED/SLABBED COMIC - Look for:
-   - A hard plastic case (slab) around the comic
-   - A label at the top with grading company logo (CGC, CBCS, PGX)
-   - A numeric grade (e.g., 9.8, 9.6, 9.4, 9.0, etc.)
-   - "Signature Series" or "SS" indicating it's signed
-   - The name of who signed it (often on the label)
-   - THE CERTIFICATION NUMBER - This is a long number (usually 7-10 digits) on the label, often near a barcode
-
-Return your findings as a JSON object with this exact structure:
-{
-  "title": "series title or null if not identifiable",
-  "issueNumber": "issue number as string or null",
-  "variant": "variant name if this is a variant cover, otherwise null",
-  "publisher": "publisher name or null",
-  "coverArtist": "cover artist name if visible, otherwise null",
-  "writer": "writer name if visible, otherwise null",
-  "interiorArtist": "interior artist if visible (usually same as cover unless specified), otherwise null",
-  "releaseYear": "4-digit year as string or null",
-  "confidence": "high if most fields identified, medium if some fields identified, low if few fields identified",
-  "isSlabbed": true or false - whether the comic is in a graded slab/case,
-  "gradingCompany": "CGC" or "CBCS" or "PGX" or "Other" or null if not slabbed,
-  "grade": "the numeric grade as a string (e.g., '9.8', '9.0') or null if not slabbed",
-  "certificationNumber": "the certification/serial number from the label (7-10 digit number) or null if not visible/not slabbed",
-  "isSignatureSeries": true or false - whether it's a Signature Series (signed and authenticated),
-  "signedBy": "name of person who signed it or null if not signed/not visible",
-  "barcodeNumber": "the full UPC barcode digits (12-17 numbers) if visible on the cover, otherwise null",
-  "barcode": {
-    "raw": "all barcode digits as a single string (12-17 digits)",
-    "confidence": "high" | "medium" | "low"
-  } or null if no barcode visible
-}
-
-Important:
-- Return ONLY the JSON object, no other text
-- Use null for any field you cannot determine
-- Be accurate - don't guess if you're not confident
-- For publisher, use the full name (e.g., "Marvel Comics" not just "Marvel")
-- Pay special attention to the grading label if present - it contains valuable info
-- The CGC/CBCS label typically shows: grade, title, issue, date, and signature info
-- **BARCODE PRIORITY**: If you can see a UPC barcode, read EVERY digit carefully - this enables faster database lookup
-- **BARCODE CONFIDENCE**: Report "high" only if you can clearly read all digits; "medium" if some digits are unclear; "low" if barcode is partially obscured`,
-              },
-            ],
-          },
-        ],
-      });
+      // Call 1: Image Analysis (REQUIRED)
+      const call1Timeout = Math.min(12_000, getRemainingBudget(scanStartTime));
+      const call1FallbackTimeout = Math.min(10_000, getRemainingBudget(scanStartTime));
+      const {
+        result: imageResult,
+        provider: imageProvider,
+        fallbackUsed: imageFallbackUsed,
+        fallbackReason: imageFallbackReason,
+      } = await executeWithFallback(
+        (provider, signal) =>
+          provider.analyzeImage({ base64Data, mediaType: mediaType || "image/jpeg" }, { signal }),
+        call1Timeout,
+        call1FallbackTimeout,
+        "imageAnalysis",
+        aiProviders
+      );
       aiCallsMade++;
+      p1 = imageProvider;
+      fb1 = imageFallbackUsed;
+      fr1 = imageFallbackReason;
 
-      // Extract the text content from the response
-      const textContent = response.content.find((block) => block.type === "text");
-      if (!textContent || textContent.type !== "text") {
-        throw new Error(
-          "We couldn't analyze this image. Please try a clearer photo of the comic cover."
-        );
+      // Map provider result to comicDetails (same structure as before)
+      comicDetails = {
+        title: imageResult.title,
+        issueNumber: imageResult.issueNumber,
+        publisher: imageResult.publisher,
+        releaseYear: imageResult.releaseYear,
+        variant: imageResult.variant,
+        writer: imageResult.writer,
+        coverArtist: imageResult.coverArtist,
+        interiorArtist: imageResult.interiorArtist,
+        confidence: imageResult.confidence || "medium",
+        isSlabbed: imageResult.isSlabbed || false,
+        gradingCompany: imageResult.gradingCompany || null,
+        grade: imageResult.grade || null,
+        certificationNumber: imageResult.certificationNumber || null,
+        isSignatureSeries: imageResult.isSignatureSeries || false,
+        signedBy: imageResult.signedBy || null,
+        labelType: imageResult.labelType || undefined,
+        pageQuality: imageResult.pageQuality || undefined,
+        gradeDate: imageResult.gradeDate || undefined,
+        graderNotes: imageResult.graderNotes || undefined,
+        keyInfo: [],
+        barcode: imageResult.barcode || null,
+        barcodeNumber: imageResult.barcodeNumber || null,
+      };
+
+      // Parse the barcode into components if detected
+      if (comicDetails.barcode && comicDetails.barcode.raw) {
+        const parsed = parseBarcode(comicDetails.barcode.raw);
+        if (parsed) {
+          comicDetails.barcode.parsed = parsed;
+        }
       }
 
-      // Parse the JSON response
-      try {
-        // Clean the response - remove any markdown code blocks if present
-        let jsonText = textContent.text.trim();
+      // Ensure backward compatibility: populate barcodeNumber from barcode.raw if needed
+      if (comicDetails.barcode?.raw && !comicDetails.barcodeNumber) {
+        comicDetails.barcodeNumber = comicDetails.barcode.raw;
+      }
 
-        if (jsonText.startsWith("```json")) {
-          jsonText = jsonText.slice(7);
-        }
-        if (jsonText.startsWith("```")) {
-          jsonText = jsonText.slice(3);
-        }
-        if (jsonText.endsWith("```")) {
-          jsonText = jsonText.slice(0, -3);
-        }
-        comicDetails = JSON.parse(jsonText.trim());
-        // Initialize keyInfo as empty array
-        comicDetails.keyInfo = [];
-
-        // Parse the barcode into components if detected
-        if (comicDetails.barcode && comicDetails.barcode.raw) {
-          const parsed = parseBarcode(comicDetails.barcode.raw);
-          if (parsed) {
-            comicDetails.barcode.parsed = parsed;
-          }
-        }
-
-        // Ensure backward compatibility: populate barcodeNumber from barcode.raw if needed
-        if (comicDetails.barcode?.raw && !comicDetails.barcodeNumber) {
-          comicDetails.barcodeNumber = comicDetails.barcode.raw;
-        }
-
-        // Cache the AI analysis result for 30 days (Phase 2 optimization)
-        // Only cache if we got valid results
-        if (comicDetails.title && isCacheAvailable()) {
-          const cacheData = {
-            title: comicDetails.title,
-            issueNumber: comicDetails.issueNumber,
-            publisher: comicDetails.publisher,
-            releaseYear: comicDetails.releaseYear,
-            variant: comicDetails.variant,
-            writer: comicDetails.writer,
-            coverArtist: comicDetails.coverArtist,
-            interiorArtist: comicDetails.interiorArtist,
-            isSlabbed: comicDetails.isSlabbed,
-            grade: comicDetails.grade,
-            gradingCompany: comicDetails.gradingCompany,
-            certificationNumber: comicDetails.certificationNumber,
-            keyInfo: [], // Don't cache keyInfo - we get it fresh from DB or AI
-          };
-          // Fire and forget - don't block the response
-          cacheSet(imageHash, cacheData, "aiAnalyze").catch(() => {});
-        }
-      } catch (parseError) {
-        console.error("Failed to parse Claude response:", textContent.text);
-        console.error("Parse error:", parseError);
-        throw new Error(
-          "We had trouble reading the comic details. Please try a different photo with the cover clearly visible."
-        );
+      // Cache the AI analysis result for 30 days (Phase 2 optimization)
+      // Only cache if we got valid results
+      if (comicDetails.title && isCacheAvailable()) {
+        const cacheData = {
+          title: comicDetails.title,
+          issueNumber: comicDetails.issueNumber,
+          publisher: comicDetails.publisher,
+          releaseYear: comicDetails.releaseYear,
+          variant: comicDetails.variant,
+          writer: comicDetails.writer,
+          coverArtist: comicDetails.coverArtist,
+          interiorArtist: comicDetails.interiorArtist,
+          isSlabbed: comicDetails.isSlabbed,
+          grade: comicDetails.grade,
+          gradingCompany: comicDetails.gradingCompany,
+          certificationNumber: comicDetails.certificationNumber,
+          keyInfo: [], // Don't cache keyInfo - we get it fresh from DB or AI
+        };
+        // Fire and forget - don't block the response
+        cacheSet(imageHash, cacheData, "aiAnalyze").catch(() => {});
       }
     } // End of else block (no cache hit)
 
@@ -678,93 +607,70 @@ Important:
       comicDetails.issueNumber &&
       (missingCreatorInfoAfterCache || missingBasicInfoAfterCache || needsKeyInfoFromAI);
 
+    let verificationMeta = { provider: p1, fallbackUsed: false, fallbackReason: null as string | null };
+
     if (needsAIVerification) {
-      try {
-        // Build a list of what we need
-        const missingFields: string[] = [];
-        if (missingCreatorInfoAfterCache)
-          missingFields.push("creators (writer, coverArtist, interiorArtist)");
-        if (missingBasicInfoAfterCache) missingFields.push("publication info (publisher, releaseYear)");
-        if (needsKeyInfoFromAI) missingFields.push("key collector facts");
+      const call2Budget = getRemainingBudget(scanStartTime);
+      if (call2Budget < 3000) {
+        console.warn(`[scan] Skipping verification: only ${call2Budget}ms remaining`);
+      } else {
+        try {
+          const missingFields: string[] = [];
+          if (!comicDetails.writer) missingFields.push("writer");
+          if (!comicDetails.coverArtist) missingFields.push("coverArtist");
+          if (!comicDetails.interiorArtist) missingFields.push("interiorArtist");
+          if (!comicDetails.publisher) missingFields.push("publisher");
+          if (!comicDetails.releaseYear) missingFields.push("releaseYear");
 
-        const verifyResponse = await anthropic.messages.create({
-          model: MODEL_PRIMARY,
-          max_tokens: 384, // Combined call needs slightly more tokens (~300 actual)
-          messages: [
-            {
-              role: "user",
-              content: `You are a comic book expert. Complete this comic's information.
+          const { result: verifyResult, ...meta } = await executeWithFallback(
+            (provider, signal) =>
+              provider.verifyAndEnrich(
+                {
+                  title: comicDetails.title || "",
+                  issueNumber: comicDetails.issueNumber || "",
+                  publisher: comicDetails.publisher,
+                  releaseYear: comicDetails.releaseYear,
+                  variant: comicDetails.variant,
+                  writer: comicDetails.writer,
+                  coverArtist: comicDetails.coverArtist,
+                  interiorArtist: comicDetails.interiorArtist,
+                  missingFields,
+                },
+                { signal }
+              ),
+            Math.min(8_000, call2Budget),
+            Math.min(6_000, getRemainingBudget(scanStartTime)),
+            "verification",
+            aiProviders
+          );
+          verificationMeta = meta;
+          aiCallsMade++;
 
-Comic: "${comicDetails.title}" #${comicDetails.issueNumber}
-Known: Publisher=${comicDetails.publisher || "?"}, Year=${comicDetails.releaseYear || "?"}, Variant=${comicDetails.variant || "standard"}
-Need: ${missingFields.join(", ")}
-
-Return JSON:
-{
-  "writer": "${comicDetails.writer || "fill in or null"}",
-  "coverArtist": "${comicDetails.coverArtist || "fill in or null"}",
-  "interiorArtist": "${comicDetails.interiorArtist || "fill in or null"}",
-  "publisher": "${comicDetails.publisher || "fill in (full name like Marvel Comics)"}",
-  "releaseYear": "${comicDetails.releaseYear || "YYYY or null"}",
-  "variant": ${comicDetails.variant ? `"${comicDetails.variant}"` : "null if standard cover"},
-  "keyInfo": ["ONLY major key facts - first appearances, deaths, origins. Empty array for regular issues."]
-}
-
-Rules:
-- Keep existing values if already filled
-- For keyInfo: ONLY significant collector facts (first appearances of MAJOR characters, major storyline events, origin stories). Most issues = empty array.
-- Return ONLY valid JSON, no other text.`,
-            },
-          ],
-        });
-        aiCallsMade++;
-
-        const verifyTextContent = verifyResponse.content.find((block) => block.type === "text");
-        if (verifyTextContent && verifyTextContent.type === "text") {
-          let verifyJson = verifyTextContent.text.trim();
-
-          // Clean markdown if present
-          if (verifyJson.startsWith("```json")) verifyJson = verifyJson.slice(7);
-          if (verifyJson.startsWith("```")) verifyJson = verifyJson.slice(3);
-          if (verifyJson.endsWith("```")) verifyJson = verifyJson.slice(0, -3);
-
-          const verifyInfo = JSON.parse(verifyJson.trim());
-
-          // Only fill in fields that are missing
-          if (!comicDetails.writer && verifyInfo.writer) {
-            comicDetails.writer = verifyInfo.writer;
-          }
-          if (!comicDetails.coverArtist && verifyInfo.coverArtist) {
-            comicDetails.coverArtist = verifyInfo.coverArtist;
-          }
-          if (!comicDetails.interiorArtist && verifyInfo.interiorArtist) {
-            comicDetails.interiorArtist = verifyInfo.interiorArtist;
-          }
-          if (!comicDetails.publisher && verifyInfo.publisher) {
-            comicDetails.publisher = verifyInfo.publisher;
-          }
-          if (!comicDetails.releaseYear && verifyInfo.releaseYear) {
-            comicDetails.releaseYear = verifyInfo.releaseYear;
-          }
-          if (!comicDetails.variant && verifyInfo.variant) {
-            comicDetails.variant = verifyInfo.variant;
-          }
+          // Merge verification results — only fill missing fields
+          if (!comicDetails.writer && verifyResult.writer) comicDetails.writer = verifyResult.writer;
+          if (!comicDetails.coverArtist && verifyResult.coverArtist) comicDetails.coverArtist = verifyResult.coverArtist;
+          if (!comicDetails.interiorArtist && verifyResult.interiorArtist) comicDetails.interiorArtist = verifyResult.interiorArtist;
+          if (!comicDetails.publisher && verifyResult.publisher) comicDetails.publisher = verifyResult.publisher;
+          if (!comicDetails.releaseYear && verifyResult.releaseYear) comicDetails.releaseYear = verifyResult.releaseYear;
+          if (!comicDetails.variant && verifyResult.variant) comicDetails.variant = verifyResult.variant;
           // Only use AI keyInfo if we didn't get it from database
-          if (needsKeyInfoFromAI && verifyInfo.keyInfo && Array.isArray(verifyInfo.keyInfo)) {
-            comicDetails.keyInfo = verifyInfo.keyInfo;
+          if (needsKeyInfoFromAI && verifyResult.keyInfo?.length) {
+            comicDetails.keyInfo = verifyResult.keyInfo;
           }
+        } catch {
+          // Continue with partial data — image analysis result is still valid
+          console.warn("[scan] Verification failed on all providers, continuing with partial data");
         }
-      } catch (verifyError) {
-        console.error("Combined verification lookup failed:", verifyError);
-        // Continue without the extra data - image analysis result is still valid
       }
     }
 
     // Price/Value lookup - Try eBay first, fall back to AI
+    let priceMeta = { provider: p1, fallbackUsed: false, fallbackReason: null as string | null };
+    let priceDataFound = false;
+
     if (comicDetails.title && comicDetails.issueNumber) {
       const isSlabbed = comicDetails.isSlabbed || false;
       const grade = comicDetails.grade ? parseFloat(comicDetails.grade) : 9.4;
-      let priceDataFound = false;
 
       // 1. Try eBay Finding API first (real sold listings) - with Redis caching only
       // Phase 3: Simplified to use Redis only (removed Supabase cache layer)
@@ -820,95 +726,40 @@ Rules:
 
       // 2. Fall back to AI estimates if eBay didn't return results
       if (!priceDataFound) {
-        try {
-          const gradeInfo = comicDetails.grade ? `Grade: ${comicDetails.grade}` : "Raw/Ungraded";
-          const signatureInfo = comicDetails.isSignatureSeries
-            ? `Signature Series signed by ${comicDetails.signedBy || "unknown"}`
-            : "";
-          const gradingCompanyInfo = comicDetails.gradingCompany
-            ? `Graded by ${comicDetails.gradingCompany}`
-            : "";
-
-          const priceResponse = await anthropic.messages.create({
-            model: MODEL_PRIMARY,
-            max_tokens: 512, // Reduced from 1024 - actual responses are ~200 tokens
-            messages: [
-              {
-                role: "user",
-                content: `You are a comic book market expert with knowledge of recent comic book sales and values.
-
-I need estimated recent sale prices for this comic:
-- Title: ${comicDetails.title}
-- Issue Number: ${comicDetails.issueNumber}
-- Publisher: ${comicDetails.publisher || "Unknown"}
-- Year: ${comicDetails.releaseYear || "Unknown"}
-- Condition: ${gradeInfo} ${gradingCompanyInfo} ${signatureInfo}
-
-Based on your knowledge of the comic book market, provide realistic estimated recent sale prices. Consider:
-- The significance/key status of this issue
-- The grade/condition
-- Whether it's a signature series (adds value)
-- Recent market trends for this title
-
-Return a JSON object with estimated recent sales data AND grade-specific price estimates:
-{
-  "recentSales": [
-    { "price": estimated_price_1, "date": "YYYY-MM-DD", "source": "eBay", "daysAgo": number },
-    { "price": estimated_price_2, "date": "YYYY-MM-DD", "source": "eBay", "daysAgo": number },
-    { "price": estimated_price_3, "date": "YYYY-MM-DD", "source": "eBay", "daysAgo": number }
-  ],
-  "gradeEstimates": [
-    { "grade": 9.8, "label": "Near Mint/Mint", "rawValue": price, "slabbedValue": price },
-    { "grade": 9.4, "label": "Near Mint", "rawValue": price, "slabbedValue": price },
-    { "grade": 8.0, "label": "Very Fine", "rawValue": price, "slabbedValue": price },
-    { "grade": 6.0, "label": "Fine", "rawValue": price, "slabbedValue": price },
-    { "grade": 4.0, "label": "Very Good", "rawValue": price, "slabbedValue": price },
-    { "grade": 2.0, "label": "Good", "rawValue": price, "slabbedValue": price }
-  ],
-  "marketNotes": "brief note about this comic's market value"
-}
-
-Important:
-- Return ONLY the JSON object, no other text
-- For recentSales: provide 3 realistic sale prices at the scanned grade (or 9.4 NM for raw)
-- Use dates within the last 6 months (late 2025/early 2026)
-- For gradeEstimates: provide realistic price differences between grades
-  - Raw comics are ungraded copies (typically 10-30% less than slabbed)
-  - Slabbed values are for CGC/CBCS graded copies (command a premium)
-  - Higher grades exponentially more valuable for key issues
-  - Lower grades have smaller price gaps between them
-- Price scaling rules:
-  - For KEY issues (first appearances, deaths): 9.8 can be 2-10x the 9.4 price
-  - For regular issues: grade premiums are more modest (9.8 ~1.5-2x of 9.4)
-  - Raw copies typically 70-90% of equivalent slabbed value
-  - Lower grades (2.0-4.0) may be affordable entry points for expensive keys
-- Be realistic with actual market pricing behavior`,
-              },
-            ],
-          });
-
-          const priceTextContent = priceResponse.content.find((block) => block.type === "text");
-          if (priceTextContent && priceTextContent.type === "text") {
-            let priceJson = priceTextContent.text.trim();
-
-            // Clean markdown if present
-            if (priceJson.startsWith("```json")) {
-              priceJson = priceJson.slice(7);
-            }
-            if (priceJson.startsWith("```")) {
-              priceJson = priceJson.slice(3);
-            }
-            if (priceJson.endsWith("```")) {
-              priceJson = priceJson.slice(0, -3);
-            }
-
-            const priceInfo = JSON.parse(priceJson.trim());
+        const call3Budget = getRemainingBudget(scanStartTime);
+        if (call3Budget < 3000) {
+          console.warn(`[scan] Skipping price estimation: only ${call3Budget}ms remaining`);
+        } else {
+          try {
+            const { result: priceResult, ...meta } = await executeWithFallback(
+              (provider, signal) =>
+                provider.estimatePrice(
+                  {
+                    title: comicDetails.title || "",
+                    issueNumber: comicDetails.issueNumber || "",
+                    publisher: comicDetails.publisher,
+                    releaseYear: comicDetails.releaseYear,
+                    grade: comicDetails.grade,
+                    gradingCompany: comicDetails.gradingCompany,
+                    isSlabbed: comicDetails.isSlabbed,
+                    isSignatureSeries: comicDetails.isSignatureSeries || false,
+                    signedBy: comicDetails.signedBy || null,
+                  },
+                  { signal }
+                ),
+              Math.min(8_000, call3Budget),
+              Math.min(6_000, getRemainingBudget(scanStartTime)),
+              "priceEstimation",
+              aiProviders
+            );
+            priceMeta = meta;
+            aiCallsMade++;
 
             // Process the sales data according to business rules
             const now = new Date();
             const sixMonthsAgo = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000);
 
-            const processedSales = priceInfo.recentSales.map(
+            const processedSales = priceResult.recentSales.map(
               (sale: { price: number; date: string; source: string; daysAgo?: number }) => {
                 const saleDate = new Date(sale.date);
                 return {
@@ -963,8 +814,8 @@ Important:
 
             // Process grade estimates if available
             let gradeEstimates = undefined;
-            if (priceInfo.gradeEstimates && Array.isArray(priceInfo.gradeEstimates)) {
-              gradeEstimates = priceInfo.gradeEstimates.map(
+            if (priceResult.gradeEstimates && Array.isArray(priceResult.gradeEstimates)) {
+              gradeEstimates = priceResult.gradeEstimates.map(
                 (ge: { grade: number; label: string; rawValue: number; slabbedValue: number }) => ({
                   grade: ge.grade,
                   label: ge.label,
@@ -987,10 +838,10 @@ Important:
               baseGrade,
               priceSource: "ai",
             };
+          } catch {
+            comicDetails.priceData = null;
+            console.warn("[scan] Price estimation failed on all providers");
           }
-        } catch (priceError) {
-          console.error("AI Price lookup failed:", priceError);
-          comicDetails.priceData = null;
         }
       }
     } else {
@@ -1034,6 +885,7 @@ Important:
       metadataCacheHit,
       aiCallsMade,
       ebayLookup: ebayLookupMade,
+      provider: p1 as "anthropic" | "openai",
     });
 
     if (profileId) {
@@ -1049,6 +901,9 @@ Important:
         success: true,
         userId: profileId,
         subscriptionTier,
+        provider: p1 as "anthropic" | "openai",
+        fallbackUsed: fb1 || verificationMeta.fallbackUsed || priceMeta.fallbackUsed,
+        fallbackReason: fr1 || verificationMeta.fallbackReason || priceMeta.fallbackReason,
       }).catch((err) => {
         console.error("PostHog tracking failed:", err);
       });
@@ -1065,20 +920,41 @@ Important:
       duration_ms: scanDuration,
       success: true,
       subscription_tier: subscriptionTier || "guest",
+      provider: p1,
+      fallback_used: fb1 || verificationMeta.fallbackUsed || priceMeta.fallbackUsed,
+      fallback_reason: fr1 || verificationMeta.fallbackReason || priceMeta.fallbackReason,
     }).catch((err) => {
       console.error("Scan analytics recording failed:", err);
     });
 
-    return NextResponse.json(comicDetails);
+    const _meta: ScanResponseMeta = {
+      provider: p1 as "anthropic" | "openai",
+      fallbackUsed: fb1 || verificationMeta.fallbackUsed || priceMeta.fallbackUsed,
+      fallbackReason: fr1 || verificationMeta.fallbackReason || priceMeta.fallbackReason,
+      confidence: fb1 ? "medium" : ((comicDetails.confidence || "medium") as "high" | "medium" | "low"),
+      callDetails: {
+        imageAnalysis: { provider: p1, fallbackUsed: fb1 },
+        verification: needsAIVerification
+          ? { provider: verificationMeta.provider, fallbackUsed: verificationMeta.fallbackUsed }
+          : null,
+        priceEstimation: !priceDataFound
+          ? { provider: priceMeta.provider, fallbackUsed: priceMeta.fallbackUsed }
+          : null,
+      },
+    };
+
+    return NextResponse.json({ ...comicDetails, _meta });
   } catch (error) {
     console.error("Error analyzing comic:", error);
 
-    // Record the failed scan (failed scans still consume Anthropic credits)
+    // Record the failed scan (failed scans still consume AI credits)
     const failDuration = Date.now() - scanStartTime;
+    const failProvider = p1 || "anthropic";
     const failCostCents = estimateScanCostCents({
       metadataCacheHit: false,
       aiCallsMade,
       ebayLookup: ebayLookupMade,
+      provider: failProvider as "anthropic" | "openai",
     });
     recordScanAnalytics({
       profile_id: profileId || null,
@@ -1091,15 +967,20 @@ Important:
       success: false,
       subscription_tier: subscriptionTier || "guest",
       error_type: (error as Error)?.message?.substring(0, 100) || "unknown",
+      provider: failProvider,
+      fallback_used: false,
+      fallback_reason: null,
     }).catch(() => {});
 
-    if (error instanceof Anthropic.APIError) {
+    // Check for API errors from any provider (status code errors)
+    const errorStatus = (error as { status?: number })?.status;
+    if (errorStatus && errorStatus >= 400) {
       return NextResponse.json(
         {
           error:
             "Our comic recognition service is temporarily busy. Please wait a moment and try again.",
         },
-        { status: error.status || 500 }
+        { status: errorStatus >= 500 ? errorStatus : 500 }
       );
     }
 
