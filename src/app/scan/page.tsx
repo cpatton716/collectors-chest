@@ -112,6 +112,7 @@ export default function ScanPage() {
   const [showCoverReview, setShowCoverReview] = useState(false);
   const [milestoneToShow, setMilestoneToShow] = useState<MilestoneType>(null);
   const [showEnlargedImage, setShowEnlargedImage] = useState(false);
+  const [showSlowMessage, setShowSlowMessage] = useState(false);
 
   // Rotate fun facts every 7 seconds during analyzing state
   useEffect(() => {
@@ -124,6 +125,17 @@ export default function ScanPage() {
 
       return () => clearInterval(interval);
     }
+  }, [state]);
+
+  // Show "taking longer" message after 5 seconds of analyzing
+  useEffect(() => {
+    if (state === "analyzing") {
+      const timer = setTimeout(() => {
+        setShowSlowMessage(true);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+    setShowSlowMessage(false);
   }, [state]);
 
   const handleImageSelect = async (file: File, preview: string) => {
@@ -170,7 +182,11 @@ export default function ScanPage() {
         }
       }
 
-      const details = await response.json();
+      const { _meta, ...details } = await response.json();
+
+      if (_meta?.fallbackUsed) {
+        console.info("[scan] Fallback provider used:", _meta);
+      }
 
       // Add an ID to the comic details
       const comicWithId = {
@@ -484,6 +500,11 @@ export default function ScanPage() {
                 <div className="w-2 h-2 bg-primary-500 rounded-full animate-pulse" />
                 This should only take a few seconds. Enjoy these fun facts while you wait!
               </div>
+              {showSlowMessage && (
+                <p className="text-sm text-gray-500 animate-pulse mt-2">
+                  Still working on it... taking a bit longer than usual.
+                </p>
+              )}
               {currentFact && (
                 <div className="mt-6 p-4 bg-primary-50 rounded-lg border border-primary-100 max-w-md">
                   <p className="text-sm text-primary-800 italic">&ldquo;{currentFact}&rdquo;</p>
