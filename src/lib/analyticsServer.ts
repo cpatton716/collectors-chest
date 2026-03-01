@@ -23,6 +23,9 @@ export interface ScanEventProperties {
   success: boolean;
   userId?: string;
   subscriptionTier?: string;
+  provider: "anthropic" | "openai";
+  fallbackUsed: boolean;
+  fallbackReason: string | null;
 }
 
 /**
@@ -44,30 +47,34 @@ export async function trackScanServer(
   await posthogServer.shutdown();
 }
 
-// Cost estimation constants (in cents)
-const INITIAL_SCAN_COST = 1.5; // Image analysis AI call (~$0.015)
-const VERIFICATION_COST = 0.6; // Combined Verification AI call (~$0.006)
-const EBAY_LOOKUP_COST = 0.15; // eBay API + processing (~$0.0015)
+// Per-provider cost constants (in cents)
+const PROVIDER_COSTS = {
+  anthropic: { imageAnalysis: 1.5, verification: 0.6, ebay: 0.15 },
+  openai: { imageAnalysis: 1.2, verification: 0.4, ebay: 0.15 },
+} as const;
 
 /**
  * Estimate the cost of a scan in cents based on what API calls were made.
+ * Provider-aware: OpenAI costs slightly less per call than Anthropic.
  */
 export function estimateScanCostCents(params: {
   metadataCacheHit: boolean;
   aiCallsMade: number;
   ebayLookup: boolean;
+  provider?: "anthropic" | "openai";
 }): number {
+  const c = PROVIDER_COSTS[params.provider || "anthropic"];
   let cost = 0;
 
   if (params.aiCallsMade >= 1) {
-    cost += INITIAL_SCAN_COST;
+    cost += c.imageAnalysis;
   }
   if (params.aiCallsMade >= 2) {
-    cost += (params.aiCallsMade - 1) * VERIFICATION_COST;
+    cost += (params.aiCallsMade - 1) * c.verification;
   }
 
   if (params.ebayLookup) {
-    cost += EBAY_LOOKUP_COST;
+    cost += c.ebay;
   }
 
   return Math.round(cost * 100) / 100;
@@ -86,6 +93,9 @@ export interface ScanAnalyticsRecord {
   success: boolean;
   subscription_tier: string;
   error_type?: string | null;
+  provider: string;
+  fallback_used: boolean;
+  fallback_reason: string | null;
 }
 
 export async function recordScanAnalytics(
@@ -103,6 +113,9 @@ export async function recordScanAnalytics(
       success: record.success,
       subscription_tier: record.subscription_tier,
       error_type: record.error_type || null,
+      provider: record.provider || "anthropic",
+      fallback_used: record.fallback_used || false,
+      fallback_reason: record.fallback_reason || null,
     });
   } catch (err) {
     console.error("Failed to record scan analytics:", err);
