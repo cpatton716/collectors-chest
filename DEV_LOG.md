@@ -6,17 +6,44 @@ This log tracks session-by-session progress on Collectors Chest.
 
 ## Changes Since Last Deploy
 
-**Last Deploy:** February 27, 2026 (hotfix)
-**Sessions Since Last Deploy:** 1
-**Deploy Readiness:** Needs Testing (major new features: scan cost dashboard, multi-provider fallback)
+**Last Deploy:** March 3, 2026
+**Sessions Since Last Deploy:** 0
+**Deploy Readiness:** Deployed
 
 ### Changes:
-- Scan resilience design doc (`docs/plans/2026-02-27-scan-resilience-design.md`)
-- Cancelled Marvel API and GoCollect API integrations (both programs discontinued)
-- Updated EVALUATION.md, BACKLOG.md, CLAUDE.md to reflect cancellations
-- **Scan Cost Dashboard:** `scan_analytics` table, `recordScanAnalytics` helper, display helpers, instrumented all 4 Anthropic-calling routes, admin usage API aggregation, admin usage page scan cost section, scan cost threshold alerts
-- **Scan Resilience Phase 1 — Multi-Provider Fallback:** Provider abstraction layer (AIProvider interface), AnthropicProvider, OpenAIProvider (GPT-4o fallback), fallback orchestrator with per-call fallback/error classification/dynamic timeout budget, provider tracking in scan analytics, analyze route refactor (-119 lines), "taking longer" UX message for fallback scenarios
-- 370 tests passing, 0 type errors, 0 lint errors, build clean
+- (cleared — deployed March 3, 2026)
+
+---
+
+## Mar 3, 2026 - Session 15: Scan Resilience Monitoring & Deploy
+
+### Summary
+- Completed scan resilience monitoring layer (3 features) and deployed all scan resilience + scan cost dashboard code to production
+- Ran Supabase migration for provider tracking columns
+- 386 tests passing (16 new)
+
+### Key Accomplishments
+1. **Fallback Rate Alerting** — Extended check-alerts cron with AI fallback rate monitoring (warn 10%, critical 25%). Pure helper function with 7 unit tests.
+2. **Provider Health Check Route** — Standalone `/api/admin/health-check` endpoint that probes each configured AI provider with minimal API call, sends Resend email alerts when providers are unhealthy (Anthropic down = critical, OpenAI down = warning). 6 unit tests.
+3. **PostHog Provider Tracking** — Enhanced `comic_scanned` event with provider, fallbackUsed, and fallbackReason metadata from scan responses. 3 unit tests.
+4. **Deployed** — Pushed scan cost dashboard + scan resilience Phase 1 + monitoring to production. Ran scan_analytics provider migration in Supabase.
+
+### Key Files Added
+- `src/app/api/admin/usage/check-alerts/fallbackRate.ts` — Fallback rate calculation helper
+- `src/app/api/admin/usage/__tests__/check-alerts-fallback.test.ts` — 7 tests
+- `src/app/api/admin/health-check/route.ts` — Health check API route
+- `src/app/api/admin/health-check/probeProviders.ts` — Provider probe logic
+- `src/app/api/admin/health-check/__tests__/probeProviders.test.ts` — 6 tests
+- `src/components/__tests__/trackScan.test.ts` — 3 tests
+- `docs/plans/2026-03-03-finish-scan-resilience.md` — Implementation plan
+
+### Key Files Modified
+- `src/app/api/admin/usage/check-alerts/route.ts` — Added fallback rate metric (#7)
+- `src/components/PostHogProvider.tsx` — Added buildScanEventProps helper
+- `src/app/scan/page.tsx` — Pass _meta to trackScan on success
+
+### Issues Encountered
+- None — clean execution via subagent-driven development
 
 ---
 

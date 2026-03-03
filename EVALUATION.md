@@ -2,7 +2,7 @@
 
 > **This document is the guiding light for development priorities. It takes precedence over BACKLOG.md.**
 
-*Last Updated: March 1, 2026*
+*Last Updated: March 3, 2026*
 
 ---
 
@@ -36,7 +36,8 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 - ✅ Pricing page with tier comparison
 - ✅ Upgrade modals and trial prompts
 - ✅ **Scan Cost Dashboard** — scan_analytics table, per-route cost recording, admin usage page with cost metrics and threshold alerts
-- ✅ **Scan Resilience Phase 1** — Multi-provider fallback (Anthropic → OpenAI), provider abstraction layer, per-call fallback, dynamic timeout budget, error classification, 370 tests passing
+- ✅ **Scan Resilience Phase 1** — Multi-provider fallback (Anthropic → OpenAI), provider abstraction layer, per-call fallback, dynamic timeout budget, error classification, 386 tests passing
+- ✅ **Scan Resilience monitoring & deploy** — Fallback rate alerting (check-alerts cron), provider health checks (/api/admin/health-check), PostHog provider tracking, deployed to production (Mar 3, 2026)
 - ✅ **Scan resilience design reviewed** — 2 rounds of Sr. Engineering review (24 findings incorporated)
 
 ---
@@ -76,7 +77,7 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 |------|--------|-------|
 | Enable live Hottest Books API | ⚠️ Static | `USE_STATIC_LIST = true` in production |
 | Verify Resend DNS | ✅ Done | Verified Jan 15, 2026 |
-| Cost monitoring alerts | ✅ Done | Metadata cache, admin alert badge, PostHog instrumentation (Feb 19, 2026). Scan Cost Dashboard added (Mar 1, 2026) — scan_analytics table, admin usage page with cost metrics & threshold alerts |
+| Cost monitoring alerts | ✅ Done | Metadata cache, admin alert badge, PostHog instrumentation (Feb 19, 2026). Scan Cost Dashboard added (Mar 1, 2026) — scan_analytics table, admin usage page with cost metrics & threshold alerts. Deployed Mar 3, 2026. |
 | Remove waitlist API debug info | ✅ Done | Removed debug object from error responses |
 
 ---
@@ -89,7 +90,7 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 
 | Issue | Severity | Status |
 |-------|----------|--------|
-| Test suite | 🟢 Good | 370 tests passing (Mar 1, 2026) |
+| Test suite | 🟢 Good | 386 tests passing (Mar 3, 2026) |
 | ESLint config | 🟢 Fixed | Working with Next.js defaults |
 | Viewport/themeColor metadata | 🟢 Fixed | Migrated to `export const viewport` |
 | Stripe webhook config export | 🟢 Fixed | Deprecated config removed |
@@ -100,7 +101,7 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 
 ### Remaining Work
 
-1. ~~**Add test suite**~~ ✅ Done — 370 tests passing (Mar 1, 2026)
+1. ~~**Add test suite**~~ ✅ Done — 386 tests passing (Mar 3, 2026)
 2. **Expand test coverage** - Add tests for auction bid logic, authentication flows, payment webhooks
 
 ---
@@ -310,7 +311,7 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 | Feature Gating | ✅ Complete |
 | Pricing Page | ✅ Complete |
 | Scan Cost Dashboard | ✅ Complete |
-| Scan Resilience (Multi-Provider) | ⏳ Phase 1 Complete (pending deploy) |
+| Scan Resilience (Multi-Provider) | ✅ Phase 1 Deployed (Mar 3, 2026) |
 | Price Alerts | ❌ Not Started |
 | Pull Lists | ❌ Not Started |
 | Email Notifications | ❌ Not Started |
@@ -366,8 +367,8 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 ### Active Risks ⚠️
 | Risk | Severity | Mitigation |
 |------|----------|------------|
-| ~~No tests~~ | ~~🟡 Medium~~ | ✅ 370 tests passing (Mar 1, 2026) |
-| Single AI provider dependency | 🟡 Medium | ✅ Scan resilience Phase 1 built (Anthropic → OpenAI fallback) — pending deploy |
+| ~~No tests~~ | ~~🟡 Medium~~ | ✅ 386 tests passing (Mar 3, 2026) |
+| Single AI provider dependency | 🟡 Medium | ✅ Phase 1 deployed with monitoring (Mar 3, 2026) — OpenAI activation pending business setup |
 | Limited deploys | 🟡 Medium | Strategic batching |
 | Auction fraud potential | 🟡 Medium | Add monitoring |
 
@@ -428,6 +429,7 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 23. ~~**Footer on all pages**~~ ✅ (Feb 25, 2026)
 24. ~~**Delete confirmation overlay modal**~~ ✅ (Feb 25, 2026)
 25. ~~**Undo toast timer fix**~~ ✅ (Feb 25, 2026)
+26. ~~**Scan Resilience monitoring & deploy**~~ ✅ (Mar 3, 2026) — Fallback rate alerting, provider health checks, PostHog provider tracking, deployed to production
 
 ### 🔴 Before Opening Registration (See Section 0)
 
@@ -528,15 +530,25 @@ Items addressed:
 - **Scan Resilience Phase 1** - Multi-provider fallback system (Anthropic primary → OpenAI secondary). Provider abstraction layer, per-call fallback, dynamic timeout budget, error classification (transient vs permanent). 370 tests passing.
 - **Scan resilience design review** - 2 rounds of Senior Engineering review with 24 findings incorporated into the design and implementation.
 - **Remaining scan resilience work** added to BACKLOG as "Finish Scan Resilience" — OpenAI API key setup, Netlify env vars, prompt compatibility study, end-to-end testing, deploy, fallback rate email alerts (Tier 1), model health check probes (Tier 2).
+- **Deployed Mar 3, 2026** — scan resilience + scan cost dashboard shipped to production
+
+### ✅ Mar 3 Session Completed
+
+- **Fallback rate alerting** — Added to check-alerts cron (warning threshold 10%, critical threshold 25%), email notifications on breach
+- **Provider health check route** — `/api/admin/health-check` probes AI providers directly and sends email alerts on failures
+- **PostHog scan tracking enhanced** — Provider name and fallback metadata now included in scan events
+- **Deployed to production** — Scan resilience + scan cost dashboard shipped; Supabase migration for scan_analytics provider columns run in production
+- **386 tests passing** (16 new this session)
 
 ### 🟡 Next Session Focus
 
-1. **Finish Scan Resilience — deploy and activate fallback** ⭐ HIGH IMPACT
-   - Add OpenAI API key to `.env.local` and Netlify
-   - Run prompt compatibility study (Anthropic prompts on OpenAI)
-   - End-to-end testing of fallback behavior
-   - Deploy scan resilience + scan cost dashboard together
-   - See BACKLOG.md for full remaining checklist
+1. **Finish Scan Resilience — activate OpenAI fallback** ⭐ HIGH IMPACT
+   - ✅ Fallback rate alerting (check-alerts cron — warning at 10%, critical at 25%)
+   - ✅ Provider health check route (`/api/admin/health-check`) with email alerts
+   - ✅ PostHog scan tracking enhanced with provider/fallback metadata
+   - ✅ Scan cost dashboard + scan resilience deployed to production (Mar 3, 2026)
+   - ✅ Supabase migration for scan_analytics provider columns run in production
+   - **Remaining:** Add OpenAI API key (pending business setup), run prompt compatibility study, e2e fallback testing, set up EasyCron for health-check route
 
 2. **Legal page updates pending lawyer review of briefing**
    - Briefing at `Legal Docs/Legal_Update_Briefing_Feb_2026.md`
@@ -554,12 +566,13 @@ Items addressed:
    - **Pivoted to:** community cover DB + Open Library API + manual URL paste
    - Run Supabase migration for `cover_images` table in production
 
-5. ~~**Scan Resilience: Multi-Provider Fallback**~~ ✅ Phase 1 COMPLETE (Mar 1, 2026)
+5. ~~**Scan Resilience: Multi-Provider Fallback**~~ ✅ Phase 1 DEPLOYED (Mar 3, 2026)
    - Design doc: `docs/plans/2026-02-27-scan-resilience-design.md`
    - Multi-provider AI fallback (Anthropic primary → OpenAI secondary)
    - Provider abstraction layer, per-call fallback, dynamic timeout budget, error classification
-   - 370 tests passing
-   - **Remaining:** OpenAI key setup, prompt compatibility, e2e testing, deploy (see #1 above)
+   - Fallback rate alerting, provider health checks, PostHog provider tracking
+   - 386 tests passing
+   - **Remaining:** OpenAI key setup, prompt compatibility, e2e testing (see #1 above)
 
 6. **Add "Professor" Persona Throughout Site**
    - Extend the Ask the Professor concept to other areas of the app
@@ -660,6 +673,7 @@ Items addressed:
 | Feb 25, 2026 | 8.4/10 | +Cover image search (community DB + Open Library), +Collection deletion safety, +Soft delete with undo, +Grade normalization, +Footer, +CSV fix. Deployed Feb 25, 2026 |
 | Feb 27, 2026 | 8.4/10 | +Legal update briefing for lawyer review, +Close Up Shop skill rewrite with mandatory tracking |
 | Mar 1, 2026 | 8.5/10 | +Scan Cost Dashboard (admin usage page with cost metrics & alerts), +Scan Resilience Phase 1 (multi-provider fallback, 370 tests), +2 rounds Sr. Engineering design review |
+| Mar 3, 2026 | 8.5/10 | +Scan resilience deployed with monitoring (fallback rate alerting, provider health checks, PostHog provider tracking), +386 tests |
 
 ---
 

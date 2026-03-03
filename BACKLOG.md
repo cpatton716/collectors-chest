@@ -698,22 +698,41 @@ Unified view of all project costs tracked in CLAUDE.md (Option 1 - Simple approa
 
 ### Finish Scan Resilience: Multi-Provider Fallback
 **Priority:** High
-**Status:** Code Complete — Deployment Steps Remaining (Mar 1, 2026)
+**Status:** Partially Complete — OpenAI Integration & Final Testing Remaining (Mar 3, 2026)
 **Design Doc:** `docs/plans/2026-02-27-scan-resilience-design.md`
 **Implementation Plan:** `docs/plans/2026-03-01-scan-resilience-plan.md`
 
-Code implementation is complete (8 commits, 370 tests passing). Remaining steps to go live:
+Code implementation is complete (8 commits, 370 tests passing). Deployment and alerting infrastructure are live. Remaining steps:
 
-1. **Run migration SQL** — `supabase/migrations/20260301_scan_analytics_provider.sql` adds `provider`, `fallback_used`, `fallback_reason` columns to `scan_analytics`
-2. **Get OpenAI API key** — Create account at platform.openai.com, add billing, generate API key
-3. **Add `OPENAI_API_KEY`** to `.env.local` (local) and Netlify environment variables (production)
-4. **Prompt comparison study** — Run 10-15 sample comic images through both Anthropic and OpenAI, document quality delta (see design doc "Prompt Compatibility & Validation" section)
-5. **Manual testing** — Set `ANTHROPIC_API_KEY` to invalid value, verify OpenAI fallback works; test both keys invalid for graceful error; verify "taking longer" message after 5 seconds
-6. **Deploy** — Push code after env vars are set in Netlify
-7. **Add fallback rate alerting** — Extend the existing `check-alerts` cron (`/api/admin/usage/check-alerts`) to query `scan_analytics` for fallback rate in the last hour. If fallback_used exceeds 10% of scans, send an email via Resend with the error reason breakdown (e.g., "auth_error: 45, model_not_found: 12"). Uses existing infrastructure.
-8. **Add model health check** — Create a lightweight scheduled probe that makes a minimal API call to each configured provider (tiny prompt, 1 max_token) to verify the model is still responding. If a provider returns 403/404, send an immediate email alert: "Anthropic model claude-sonnet-4-20250514 may be deprecated — received 403. Fallback to OpenAI is active. Check https://docs.anthropic.com/en/docs/about-claude/models for current models."
+**Completed:**
+- ✅ **Run migration SQL** — `supabase/migrations/20260301_scan_analytics_provider.sql` run in production; `provider`, `fallback_used`, `fallback_reason` columns live
+- ✅ **Deploy** — Code pushed to production (Mar 3, 2026)
+- ✅ **Add fallback rate alerting (Tier 1)** — `check-alerts` cron extended to query `scan_analytics` for fallback rate; sends Resend email if fallback_used exceeds 10% in the last hour
+- ✅ **Add model health check (Tier 2)** — Lightweight scheduled probe at `/api/admin/health-check` makes minimal API call to each provider; sends immediate alert on 403/404
 
-**Complexity:** Low-Medium — remaining steps are configuration, testing, and two small alert additions to existing infrastructure.
+**Remaining:**
+1. **Get OpenAI API key** — Pending business account setup at platform.openai.com; requires billing added before key can be generated
+2. **Add `OPENAI_API_KEY`** to `.env.local` (local) and Netlify environment variables (production)
+3. **Run prompt compatibility study** — Run 10-15 sample comic images through both Anthropic and OpenAI, document quality delta (see design doc "Prompt Compatibility & Validation" section)
+4. **End-to-end fallback testing** — Set `ANTHROPIC_API_KEY` to invalid value, verify OpenAI fallback activates; test both keys invalid for graceful error; verify "taking longer" message after 5 seconds
+5. **Set up EasyCron entry for `/api/admin/health-check`** — Schedule hourly call with `CRON_SECRET` auth header
+
+**Complexity:** Low — remaining steps are account setup, configuration, and testing.
+
+---
+
+### Set up EasyCron for health-check route
+**Priority:** Medium
+**Status:** Pending (Mar 3, 2026)
+**Related:** Finish Scan Resilience: Multi-Provider Fallback
+
+Configure a scheduled job via EasyCron to call `/api/admin/health-check` on an hourly basis. The request must include the `CRON_SECRET` as an auth header so the route accepts it. This keeps the Tier 2 model health probe running automatically without relying on Netlify's built-in cron (which requires Pro plan).
+
+**Steps:**
+1. Log in to EasyCron
+2. Create new cron job: `GET https://collectors-chest.com/api/admin/health-check` — every hour
+3. Add header: `Authorization: Bearer <CRON_SECRET value>`
+4. Verify first run succeeds and email alert fires on simulated failure
 
 ---
 
