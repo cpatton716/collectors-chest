@@ -7,6 +7,23 @@ import { useAuth, useUser } from "@clerk/nextjs";
 import posthog from "posthog-js";
 import { PostHogProvider as PHProvider } from "posthog-js/react";
 
+import type { ScanResponseMeta } from "@/lib/providers/types";
+
+// Pure helper to build scan event properties (exported for testing)
+export function buildScanEventProps(
+  method: "camera" | "upload" | "barcode",
+  success: boolean,
+  meta?: ScanResponseMeta
+) {
+  return {
+    method,
+    success,
+    provider: meta?.provider,
+    fallbackUsed: meta?.fallbackUsed,
+    fallbackReason: meta?.fallbackReason,
+  };
+}
+
 // Initialize PostHog only on client side
 if (typeof window !== "undefined" && process.env.NEXT_PUBLIC_POSTHOG_KEY) {
   posthog.init(process.env.NEXT_PUBLIC_POSTHOG_KEY, {
@@ -67,8 +84,12 @@ export { posthog };
 // Helper functions for common events
 export const analytics = {
   // Track when user scans a comic
-  trackScan: (method: "camera" | "upload" | "barcode", success: boolean) => {
-    posthog.capture("comic_scanned", { method, success });
+  trackScan: (
+    method: "camera" | "upload" | "barcode",
+    success: boolean,
+    meta?: ScanResponseMeta
+  ) => {
+    posthog.capture("comic_scanned", buildScanEventProps(method, success, meta));
   },
 
   // Track when user adds to collection

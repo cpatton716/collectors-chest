@@ -197,7 +197,7 @@ export default function ScanPage() {
       setState("review");
 
       // Track successful scan
-      analytics.trackScan("upload", true);
+      analytics.trackScan("upload", true, _meta);
     } catch (err) {
       console.error("Error analyzing comic:", err);
       setError(
