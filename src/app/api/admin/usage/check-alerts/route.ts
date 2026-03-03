@@ -7,6 +7,7 @@ import { Redis } from "@upstash/redis";
 import { Resend } from "resend";
 
 import { supabaseAdmin } from "@/lib/supabase";
+import { calculateFallbackRate, AlertMetric } from "./fallbackRate";
 
 // This endpoint can be called by a cron job to check usage and send alerts
 // Protected by a secret key in the request
@@ -31,14 +32,6 @@ const ALERT_THRESHOLDS = {
   warning: 0.7,
   critical: 0.9,
 };
-
-interface AlertMetric {
-  name: string;
-  current: number;
-  limit: number;
-  percentage: number;
-  alertType: "warning" | "critical";
-}
 
 export async function GET(request: NextRequest) {
   try {
@@ -279,6 +272,34 @@ export async function GET(request: NextRequest) {
       }
     } catch (err) {
       console.error("Scan cost alert check failed:", err);
+    }
+
+    // 7. Check AI fallback rate (last hour)
+    try {
+      const oneHourAgo = new Date();
+      oneHourAgo.setHours(oneHourAgo.getHours() - 1);
+
+      const { count: totalScans } = await supabaseAdmin
+        .from("scan_analytics")
+        .select("*", { count: "exact", head: true })
+        .gte("scanned_at", oneHourAgo.toISOString());
+
+      const { count: fallbackScans } = await supabaseAdmin
+        .from("scan_analytics")
+        .select("*", { count: "exact", head: true })
+        .gte("scanned_at", oneHourAgo.toISOString())
+        .eq("fallback_used", true);
+
+      const fallbackAlert = calculateFallbackRate({
+        total: totalScans || 0,
+        fallbackCount: fallbackScans || 0,
+      });
+
+      if (fallbackAlert) {
+        alerts.push(fallbackAlert);
+      }
+    } catch (e) {
+      console.error("Error checking fallback rate:", e);
     }
 
     // Filter out alerts we've already sent today
