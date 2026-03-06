@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode } from "react";
+import { ReactNode, useState } from "react";
 
 import { BarChart3, Download, Lock, Target, TrendingUp, Zap } from "lucide-react";
 
@@ -107,7 +107,40 @@ export function FeatureGate({
 
   const info = featureInfo[feature];
 
+  return (
+    <UpgradePrompt
+      info={info}
+      tier={tier}
+      isTrialing={isTrialing}
+      startFreeTrial={startFreeTrial}
+      startCheckout={startCheckout}
+    />
+  );
+}
+
+function UpgradePrompt({
+  info,
+  tier,
+  isTrialing,
+  startFreeTrial,
+  startCheckout,
+}: {
+  info: { name: string; description: string; icon: ReactNode };
+  tier: SubscriptionTier;
+  isTrialing: boolean;
+  startFreeTrial: () => Promise<{ success: boolean; error?: string }>;
+  startCheckout: (
+    priceType: "monthly" | "annual" | "scan_pack",
+    withTrial?: boolean
+  ) => Promise<string | null>;
+}) {
+  const [isStarting, setIsStarting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   const handleUpgradeClick = async () => {
+    setIsStarting(true);
+    setError(null);
+
     // If free tier, try direct trial first
     if (tier === "free" && !isTrialing) {
       const result = await startFreeTrial();
@@ -120,7 +153,11 @@ export function FeatureGate({
     const url = await startCheckout("monthly", tier === "free" && !isTrialing);
     if (url) {
       window.location.href = url;
+      return;
     }
+
+    setIsStarting(false);
+    setError("Something went wrong. Please try again or contact support.");
   };
 
   return (
@@ -138,14 +175,19 @@ export function FeatureGate({
 
       <p className="text-gray-600 mb-6 max-w-sm mx-auto">{info.description}</p>
 
+      {error && (
+        <p className="text-red-600 text-sm mb-4 font-bold">{error}</p>
+      )}
+
       <div className="flex flex-col sm:flex-row gap-3 justify-center">
         {tier === "free" && !isTrialing && (
           <button
             onClick={handleUpgradeClick}
-            className="px-5 py-3 bg-pop-blue border-2 border-pop-black text-white font-bold transition-all hover:shadow-[3px_3px_0px_#000]"
+            disabled={isStarting}
+            className="px-5 py-3 bg-pop-blue border-2 border-pop-black text-white font-bold transition-all hover:shadow-[3px_3px_0px_#000] disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ boxShadow: "2px 2px 0px #000" }}
           >
-            Start 7-Day Free Trial
+            {isStarting ? "Starting..." : "Start 7-Day Free Trial"}
           </button>
         )}
         <a
@@ -204,12 +246,14 @@ export function FeatureButton({
 }: FeatureButtonProps) {
   const { features, isLoading, tier, isTrialing, startFreeTrial, startCheckout } =
     useSubscription();
+  const [isStarting, setIsStarting] = useState(false);
   const hasAccess = features[feature];
 
   const handleClick = async () => {
     if (hasAccess) {
       onClick();
     } else {
+      setIsStarting(true);
       // If free tier, try direct trial first
       if (tier === "free" && !isTrialing) {
         const result = await startFreeTrial();
@@ -222,14 +266,16 @@ export function FeatureButton({
       const url = await startCheckout("monthly", tier === "free" && !isTrialing);
       if (url) {
         window.location.href = url;
+        return;
       }
+      setIsStarting(false);
     }
   };
 
   return (
     <button
       onClick={handleClick}
-      disabled={disabled || isLoading}
+      disabled={disabled || isLoading || isStarting}
       className={`relative ${className} ${!hasAccess ? "opacity-75" : ""}`}
     >
       {children}

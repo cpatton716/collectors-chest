@@ -1149,18 +1149,12 @@ export function ComicDetailModal({
             <X className="w-6 h-6 text-white" />
           </button>
           {item.coverImageUrl && (
-            <div
-              className="relative max-w-full max-h-[90vh] aspect-[2/3]"
+            <img
+              src={item.coverImageUrl}
+              alt={`${comic.title} #${comic.issueNumber}`}
+              className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
               onClick={(e) => e.stopPropagation()}
-            >
-              <Image
-                src={item.coverImageUrl}
-                alt={`${comic.title} #${comic.issueNumber}`}
-                fill
-                className="object-contain rounded-lg shadow-2xl"
-                sizes="90vw"
-              />
-            </div>
+            />
           )}
         </div>
       )}
