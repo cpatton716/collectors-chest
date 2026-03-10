@@ -368,7 +368,7 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 | Risk | Severity | Mitigation |
 |------|----------|------------|
 | ~~No tests~~ | ~~🟡 Medium~~ | ✅ 386 tests passing (Mar 3, 2026) |
-| Single AI provider dependency | 🟡 Medium | ✅ Phase 1 deployed with monitoring (Mar 3, 2026) — OpenAI activation pending business setup |
+| Single AI provider dependency | 🟢 Low | Self-healing model pipeline auto-updates deprecated models. OpenAI fallback available. |
 | Limited deploys | 🟡 Medium | Strategic batching |
 | Auction fraud potential | 🟡 Medium | Add monitoring |
 
@@ -404,6 +404,7 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 > **These items take precedence over BACKLOG.md**
 
 ### ✅ Recently Completed
+- **Self-healing model pipeline** — GitHub Actions daily check, vision probe, auto-update with rollback, single test pass, guardrailed deploy via git push
 1. ~~**Fix critical code issues**~~ ✅ (ESLint, viewport, Stripe webhook)
 2. ~~**Add Sentry error tracking**~~ ✅
 3. ~~**Add rate limiting**~~ ✅ (Upstash)
