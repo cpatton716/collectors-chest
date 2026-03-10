@@ -1,0 +1,336 @@
+# .github/workflows/model-health-check.yml
+#
+# Self-Healing Model Update Pipeline
+# Runs daily at 6 AM UTC. Checks both PRIMARY and LIGHTWEIGHT models.
+# Single sequential job — no parallel race conditions.
+#
+# FREQUENCY NOTE: 1x/day is intentional. Anthropic deprecations come with
+# weeks of notice. Running 2x/day adds race risk without safety benefit.
+#
+# DEPLOYMENT: Pushes to main -> Netlify auto-deploys via git trigger.
+# No Netlify CLI or tokens needed.
+#
+# DISTINCTION FROM /api/admin/health-check:
+# The existing health-check endpoint (src/app/api/admin/health-check/route.ts)
+# is a live production probe used by the check-alerts cron and monitoring.
+# THIS workflow is a CI/CD pipeline that runs in GitHub Actions to detect
+# model deprecations and auto-update the codebase. The smoke-test step
+# reuses the health-check endpoint for post-deploy verification.
+#
+# GUARDRAILS:
+# - Only src/lib/models.ts can be modified
+# - At most 2 lines changed (one per model)
+# - Full test suite must pass
+# - Post-deploy smoke test with rollback on failure
+# - Email alerts on every outcome
+# - Concurrency guard prevents overlapping runs
+
+name: Model Health Check
+
+on:
+  schedule:
+    # Run daily at 6 AM UTC (1 AM EST / 10 PM PST)
+    - cron: "0 6 * * *"
+  workflow_dispatch: # Allow manual trigger for testing
+
+permissions:
+  contents: write
+
+concurrency:
+  group: model-health-check
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "20"
+
+jobs:
+  check-and-heal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      # ── Setup ──
+      # actions/checkout v4.1.7
+      - name: Checkout repository
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+
+      # actions/setup-node v4.0.3
+      - name: Setup Node.js
+        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Security audit
+        continue-on-error: true
+        run: npm audit --audit-level=high
+
+      # ── Save base SHA for diff guard ──
+      - name: Save base SHA
+        id: base
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      # ── Read current model IDs via TypeScript ──
+      - name: Read current model IDs
+        id: current-models
+        run: |
+          MODELS_JSON=$(npx tsx .github/scripts/read-models.ts)
+          echo "json=$MODELS_JSON" >> "$GITHUB_OUTPUT"
+          PRIMARY=$(echo "$MODELS_JSON" | jq -r '.MODEL_PRIMARY')
+          LIGHTWEIGHT=$(echo "$MODELS_JSON" | jq -r '.MODEL_LIGHTWEIGHT')
+          echo "primary=$PRIMARY" >> "$GITHUB_OUTPUT"
+          echo "lightweight=$LIGHTWEIGHT" >> "$GITHUB_OUTPUT"
+          echo "Current PRIMARY: $PRIMARY"
+          echo "Current LIGHTWEIGHT: $LIGHTWEIGHT"
+
+      # ── Probe PRIMARY model ──
+      - name: Probe PRIMARY model
+        id: probe-primary
+        env:
+          CURRENT_MODEL_ID: ${{ steps.current-models.outputs.primary }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: npx tsx .github/scripts/probe-model.ts
+
+      # ── Probe LIGHTWEIGHT model ──
+      - name: Probe LIGHTWEIGHT model
+        id: probe-lightweight
+        env:
+          CURRENT_MODEL_ID: ${{ steps.current-models.outputs.lightweight }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: npx tsx .github/scripts/probe-model.ts
+
+      # ── Log transient errors (no action needed) ──
+      - name: Log transient probe errors
+        if: steps.probe-primary.outputs.status == 'transient' || steps.probe-lightweight.outputs.status == 'transient'
+        run: |
+          echo "::warning::Transient probe error detected — not triggering model update"
+          echo "  PRIMARY status: ${{ steps.probe-primary.outputs.status }}"
+          echo "  LIGHTWEIGHT status: ${{ steps.probe-lightweight.outputs.status }}"
+
+      # ── Check if any model needs updating ──
+      - name: Determine if update needed
+        id: needs-update
+        run: |
+          PRIMARY_DEPRECATED="${{ steps.probe-primary.outputs.status == 'deprecated' }}"
+          LIGHTWEIGHT_DEPRECATED="${{ steps.probe-lightweight.outputs.status == 'deprecated' }}"
+          if [ "$PRIMARY_DEPRECATED" = "true" ] || [ "$LIGHTWEIGHT_DEPRECATED" = "true" ]; then
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "needed=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "primary_failed=$PRIMARY_DEPRECATED" >> "$GITHUB_OUTPUT"
+          echo "lightweight_failed=$LIGHTWEIGHT_DEPRECATED" >> "$GITHUB_OUTPUT"
+
+      # ── Healthy: weekly heartbeat on Mondays ──
+      - name: "Heartbeat alert (Monday only)"
+        if: steps.needs-update.outputs.needed == 'false'
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ALERT_TYPE: heartbeat
+          OLD_MODEL_ID: ${{ steps.current-models.outputs.primary }}
+          ALERT_DETAILS: "Weekly heartbeat — both models healthy. PRIMARY=${{ steps.current-models.outputs.primary }}, LIGHTWEIGHT=${{ steps.current-models.outputs.lightweight }}"
+        run: |
+          # Only send heartbeat on Mondays (day 1)
+          DAY_OF_WEEK=$(date +%u)
+          if [ "$DAY_OF_WEEK" = "1" ]; then
+            npx tsx .github/scripts/send-alert.ts
+          else
+            echo "Not Monday (day $DAY_OF_WEEK) — skipping heartbeat"
+          fi
+
+      # ── Healthy: no further action ──
+      - name: Both models healthy — no further action
+        if: steps.needs-update.outputs.needed == 'false'
+        run: |
+          echo "Both models are healthy. No action needed."
+          echo "  PRIMARY: ${{ steps.current-models.outputs.primary }}"
+          echo "  LIGHTWEIGHT: ${{ steps.current-models.outputs.lightweight }}"
+
+      # ══════════════════════════════════════════════
+      # DEPRECATED PATH — discover, update, test, deploy
+      # ══════════════════════════════════════════════
+
+      # ── Discover PRIMARY replacement ──
+      - name: Discover PRIMARY replacement
+        if: steps.needs-update.outputs.primary_failed == 'true'
+        id: discover-primary
+        env:
+          CURRENT_MODEL_ID: ${{ steps.current-models.outputs.primary }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          npx tsx .github/scripts/discover-model.ts > /tmp/discover-stdout.txt 2> /tmp/discover-stderr.txt
+          NEW_MODEL=$(cat /tmp/discover-stdout.txt)
+          CANDIDATES=$(grep "CANDIDATES:" /tmp/discover-stderr.txt | sed 's/CANDIDATES://' || echo "[]")
+          echo "new_model_id=$NEW_MODEL" >> "$GITHUB_OUTPUT"
+          echo "candidates=$CANDIDATES" >> "$GITHUB_OUTPUT"
+          echo "Discovered PRIMARY replacement: $NEW_MODEL"
+
+      # ── Discover LIGHTWEIGHT replacement ──
+      - name: Discover LIGHTWEIGHT replacement
+        if: steps.needs-update.outputs.lightweight_failed == 'true'
+        id: discover-lightweight
+        env:
+          CURRENT_MODEL_ID: ${{ steps.current-models.outputs.lightweight }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          npx tsx .github/scripts/discover-model.ts > /tmp/discover-stdout.txt 2> /tmp/discover-stderr.txt
+          NEW_MODEL=$(cat /tmp/discover-stdout.txt)
+          CANDIDATES=$(grep "CANDIDATES:" /tmp/discover-stderr.txt | sed 's/CANDIDATES://' || echo "[]")
+          echo "new_model_id=$NEW_MODEL" >> "$GITHUB_OUTPUT"
+          echo "candidates=$CANDIDATES" >> "$GITHUB_OUTPUT"
+          echo "Discovered LIGHTWEIGHT replacement: $NEW_MODEL"
+
+      # ── Update PRIMARY model ID ──
+      - name: Update PRIMARY model ID
+        if: steps.needs-update.outputs.primary_failed == 'true' && steps.discover-primary.outcome == 'success'
+        env:
+          OLD_MODEL_ID: ${{ steps.current-models.outputs.primary }}
+          NEW_MODEL_ID: ${{ steps.discover-primary.outputs.new_model_id }}
+          CONSTANT_NAME: MODEL_PRIMARY
+        run: npx tsx .github/scripts/update-model.ts
+
+      # ── Update LIGHTWEIGHT model ID ──
+      - name: Update LIGHTWEIGHT model ID
+        if: steps.needs-update.outputs.lightweight_failed == 'true' && steps.discover-lightweight.outcome == 'success'
+        env:
+          OLD_MODEL_ID: ${{ steps.current-models.outputs.lightweight }}
+          NEW_MODEL_ID: ${{ steps.discover-lightweight.outputs.new_model_id }}
+          CONSTANT_NAME: MODEL_LIGHTWEIGHT
+        run: npx tsx .github/scripts/update-model.ts
+
+      # ── Check if any model was actually updated ──
+      - name: Determine if any update was applied
+        if: steps.needs-update.outputs.needed == 'true'
+        id: updates-applied
+        run: |
+          PRIMARY_UPDATED="false"
+          LIGHTWEIGHT_UPDATED="false"
+          if [ "${{ steps.needs-update.outputs.primary_failed }}" = "true" ] && [ "${{ steps.discover-primary.outcome }}" = "success" ]; then
+            PRIMARY_UPDATED="true"
+          fi
+          if [ "${{ steps.needs-update.outputs.lightweight_failed }}" = "true" ] && [ "${{ steps.discover-lightweight.outcome }}" = "success" ]; then
+            LIGHTWEIGHT_UPDATED="true"
+          fi
+          if [ "$PRIMARY_UPDATED" = "true" ] || [ "$LIGHTWEIGHT_UPDATED" = "true" ]; then
+            echo "any=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "any=false" >> "$GITHUB_OUTPUT"
+            echo "No models were updated (discovery failed for all deprecated models)"
+          fi
+
+      # ── Run test suite (once — tests are deterministic) ──
+      - name: Run full test suite
+        if: steps.updates-applied.outputs.any == 'true'
+        run: npm test
+
+      # ── Commit the change ──
+      - name: Commit model update
+        if: steps.updates-applied.outputs.any == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add src/lib/models.ts
+
+          # Build commit message based on what changed
+          MSG="fix(auto): update Anthropic model(s)\n\nAutomated by self-healing model pipeline."
+          if [ "${{ steps.needs-update.outputs.primary_failed }}" = "true" ]; then
+            MSG="$MSG\nPRIMARY: ${{ steps.current-models.outputs.primary }} -> ${{ steps.discover-primary.outputs.new_model_id }}"
+          fi
+          if [ "${{ steps.needs-update.outputs.lightweight_failed }}" = "true" ]; then
+            MSG="$MSG\nLIGHTWEIGHT: ${{ steps.current-models.outputs.lightweight }} -> ${{ steps.discover-lightweight.outputs.new_model_id }}"
+          fi
+          MSG="$MSG\n\nCo-Authored-By: github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
+
+          git commit -m "$(printf '%b' "$MSG")"
+
+      # ── Diff Guard ──
+      - name: "Guardrail: verify only models.ts changed"
+        if: steps.updates-applied.outputs.any == 'true'
+        env:
+          BASE_SHA: ${{ steps.base.outputs.sha }}
+        run: npx tsx .github/scripts/diff-guard.ts
+
+      # ── Push to main (triggers Netlify auto-deploy) ──
+      - name: Push model update to main
+        if: steps.updates-applied.outputs.any == 'true'
+        run: git push origin main
+
+      # ── Wait for Netlify deploy to propagate ──
+      - name: Wait for deploy propagation
+        if: steps.updates-applied.outputs.any == 'true'
+        run: |
+          echo "Waiting 240 seconds for Netlify build + deploy propagation..."
+          echo "Netlify Next.js builds typically take 2-4 minutes including queue time."
+          sleep 240
+
+      # ── Post-deploy smoke test ──
+      - name: Smoke test production
+        id: smoke-test
+        if: steps.updates-applied.outputs.any == 'true'
+        continue-on-error: true
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          SITE_URL: "https://collectors-chest.com"
+        run: npx tsx .github/scripts/smoke-test.ts
+
+      # ── Rollback on smoke test failure ──
+      - name: "Rollback: revert commit and push"
+        if: steps.updates-applied.outputs.any == 'true' && steps.smoke-test.outcome == 'failure'
+        run: |
+          set -e
+          echo "Smoke test FAILED — reverting commit"
+          git revert --no-edit HEAD
+          git push origin main
+          echo "Revert pushed successfully."
+
+      # ── Alert: rollback ──
+      - name: "Alert: rollback"
+        if: steps.updates-applied.outputs.any == 'true' && steps.smoke-test.outcome == 'failure'
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ALERT_TYPE: rollback
+          OLD_MODEL_ID: ${{ steps.current-models.outputs.primary }}
+          NEW_MODEL_ID: ${{ steps.discover-primary.outputs.new_model_id || 'N/A' }}
+          ALERT_DETAILS: |
+            Smoke test failed after deploy. Commit has been automatically reverted and pushed. Netlify rebuild will take 2-4 minutes before production reflects the rollback. Manual investigation required.
+            PRIMARY: ${{ steps.current-models.outputs.primary }} -> ${{ steps.discover-primary.outputs.new_model_id || 'unchanged' }}
+            LIGHTWEIGHT: ${{ steps.current-models.outputs.lightweight }} -> ${{ steps.discover-lightweight.outputs.new_model_id || 'unchanged' }}
+          DISCOVERY_CANDIDATES: ${{ steps.discover-primary.outputs.candidates || '' }}
+        run: npx tsx .github/scripts/send-alert.ts
+
+      # ── Alert: success ──
+      - name: "Alert: success"
+        if: steps.updates-applied.outputs.any == 'true' && steps.smoke-test.outcome == 'success'
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ALERT_TYPE: success
+          OLD_MODEL_ID: ${{ steps.current-models.outputs.primary }}
+          NEW_MODEL_ID: ${{ steps.discover-primary.outputs.new_model_id || 'N/A' }}
+          ALERT_DETAILS: |
+            Model(s) auto-updated, tests passed, deployed via git push, smoke test confirmed.
+            PRIMARY: ${{ steps.current-models.outputs.primary }} -> ${{ steps.discover-primary.outputs.new_model_id || 'unchanged' }}
+            LIGHTWEIGHT: ${{ steps.current-models.outputs.lightweight }} -> ${{ steps.discover-lightweight.outputs.new_model_id || 'unchanged' }}
+          DISCOVERY_CANDIDATES: ${{ steps.discover-primary.outputs.candidates || '' }}
+        run: npx tsx .github/scripts/send-alert.ts
+
+      # ── Alert: pipeline failure ──
+      - name: "Alert: failure"
+        if: failure() && steps.updates-applied.outputs.any == 'true'
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ALERT_TYPE: failure
+          OLD_MODEL_ID: ${{ steps.current-models.outputs.primary }}
+          NEW_MODEL_ID: ${{ steps.discover-primary.outputs.new_model_id || 'discovery-failed' }}
+          ALERT_DETAILS: |
+            Pipeline failed. Manual intervention required. Check GitHub Actions logs.
+            PRIMARY: ${{ steps.current-models.outputs.primary }} -> ${{ steps.discover-primary.outputs.new_model_id || 'discovery-failed' }}
+            LIGHTWEIGHT: ${{ steps.current-models.outputs.lightweight }} -> ${{ steps.discover-lightweight.outputs.new_model_id || 'discovery-failed' }}
+          DISCOVERY_CANDIDATES: ${{ steps.discover-primary.outputs.candidates || '' }}
+        run: npx tsx .github/scripts/send-alert.ts
