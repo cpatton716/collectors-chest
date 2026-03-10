@@ -549,50 +549,42 @@ Items addressed:
 
 ### 🟡 Next Session Focus
 
-1. **Finish Scan Resilience — activate OpenAI fallback** ⭐ HIGH IMPACT
-   - ✅ Fallback rate alerting (check-alerts cron — warning at 10%, critical at 25%)
-   - ✅ Provider health check route (`/api/admin/health-check`) with email alerts
-   - ✅ PostHog scan tracking enhanced with provider/fallback metadata
-   - ✅ Scan cost dashboard + scan resilience deployed to production (Mar 3, 2026)
-   - ✅ Supabase migration for scan_analytics provider columns run in production
-   - **Remaining:** Add OpenAI API key (pending business setup), run prompt compatibility study, e2e fallback testing, set up EasyCron for health-check route
-
-2. **Legal page updates pending lawyer review of briefing**
+1. **Legal page updates pending lawyer review of briefing**
    - Briefing at `Legal Docs/Legal_Update_Briefing_Feb_2026.md`
    - Awaiting lawyer feedback before updating ToS, Privacy Policy, AUP, Cookie Policy
    - May require LLC formation before finalizing
 
-3. **Implement auto-harvest cover images from graded book scans** (design doc exists)
+2. **Implement auto-harvest cover images from graded book scans** (design doc exists)
    - Design doc: `docs/plans/2026-02-25-cover-image-harvesting-design.md`
    - Harvest cover images from graded book scans during AI analysis
    - Create implementation plan before starting
    - Feeds into community cover DB (primary cover source)
 
-4. ~~**Verify external image search API**~~ ❌ REMOVED (Feb 26, 2026)
+3. ~~**Verify external image search API**~~ ❌ REMOVED (Feb 26, 2026)
    - No external image search APIs available for new customers
    - **Pivoted to:** community cover DB + Open Library API + manual URL paste
    - Run Supabase migration for `cover_images` table in production
 
-5. ~~**Scan Resilience: Multi-Provider Fallback**~~ ✅ Phase 1 DEPLOYED (Mar 3, 2026)
+4. ~~**Scan Resilience: Multi-Provider Fallback**~~ ✅ Phase 1 DEPLOYED (Mar 3, 2026)
    - Design doc: `docs/plans/2026-02-27-scan-resilience-design.md`
    - Multi-provider AI fallback (Anthropic primary → OpenAI secondary)
    - Provider abstraction layer, per-call fallback, dynamic timeout budget, error classification
    - Fallback rate alerting, provider health checks, PostHog provider tracking
    - 386 tests passing
-   - **Remaining:** OpenAI key setup, prompt compatibility, e2e testing (see #1 above)
+   - **OpenAI activation deferred to backlog** — self-healing pipeline handles model deprecation
 
-6. **Add "Professor" Persona Throughout Site**
+5. **Add "Professor" Persona Throughout Site**
    - Extend the Ask the Professor concept to other areas of the app
    - Consistent branding for AI-powered features
 
-7. ~~**Configure PostHog Dashboard with Scan Cost Insights and Email Alerts**~~ ✅ SUPERSEDED (Mar 1, 2026)
+6. ~~**Configure PostHog Dashboard with Scan Cost Insights and Email Alerts**~~ ✅ SUPERSEDED (Mar 1, 2026)
    - **Replaced by:** Scan Cost Dashboard — dedicated admin page with cost metrics, provider breakdown, and configurable threshold alerts
    - Built directly into the app rather than relying on external PostHog dashboards
 
-8. **Revisit beta mode planning**
+7. **Revisit beta mode planning**
    - Review current private beta status and plan next steps for opening registration
 
-9. **Address Mar 6 Partner Feedback** (see `FEEDBACK_MAR_6.md`)
+8. **Address Mar 6 Partner Feedback** (see `FEEDBACK_MAR_6.md`)
    - #4: Rework homepage blurb wording for non-logged-in users
    - #5: Allow users to hide Cost/Sales/Profit-Loss fields on collection page
    - #6: Add photo best practices to Professor's FAQ
@@ -600,6 +592,11 @@ Items addressed:
    - #8: Grade pills on stats page link to collection filtered by grade (depends on #7)
    - #9: Add grading company filter to collection page
    - #10: Grading company counts on stats link to filtered collection (depends on #9)
+
+9. **Test self-healing pipeline failure path**
+    - Use a fake/invalid model ID to trigger the full discover → update → deploy → smoke test flow
+    - Verify rollback behavior works correctly when the vision probe fails
+    - Confirms the pipeline is truly self-healing end-to-end
 
 ### ✅ Feb 25 Session Completed
 

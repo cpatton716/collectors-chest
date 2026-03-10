@@ -696,9 +696,9 @@ Unified view of all project costs tracked in CLAUDE.md (Option 1 - Simple approa
 
 ---
 
-### Finish Scan Resilience: Multi-Provider Fallback
-**Priority:** High
-**Status:** Partially Complete — OpenAI Integration & Final Testing Remaining (Mar 3, 2026)
+### Activate OpenAI as Fallback Provider for Full Anthropic Outages
+**Priority:** Low
+**Status:** Deferred to Post-Launch (Mar 9, 2026) — Self-healing pipeline handles model deprecation; OpenAI activation only needed for full Anthropic outages
 **Design Doc:** `docs/plans/2026-02-27-scan-resilience-design.md`
 **Implementation Plan:** `docs/plans/2026-03-01-scan-resilience-plan.md`
 
@@ -1297,6 +1297,15 @@ Revise the homepage blurb/copy shown to non-logged-in visitors to better communi
 **Source:** User Feedback (Session 16)
 
 Add a FAQ entry to the Professor's knowledge base covering photo best practices for scanning comic covers (lighting, angle, framing, etc.) to help users get better scan results.
+
+---
+
+### Update ADMIN_EMAIL GitHub Secret
+**Priority:** Low
+**Status:** Pending
+**Added:** Mar 9, 2026
+
+Update ADMIN_EMAIL GitHub secret from personal Gmail to company email (collectors-chest.com) once company email is set up.
 
 ---
 

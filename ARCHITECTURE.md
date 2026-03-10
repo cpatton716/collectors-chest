@@ -2,7 +2,7 @@
 
 > **Comprehensive map of pages, features, and service dependencies**
 
-*Last Updated: March 1, 2026 (Added scan resilience / multi-provider fallback architecture)*
+*Last Updated: March 9, 2026 (Added self-healing model pipeline)*
 
 ---
 
@@ -911,6 +911,114 @@ The `/api/analyze` route uses a provider abstraction layer so that each of the 3
 ### Migration
 
 - `supabase/migrations/20260301_scan_analytics_provider.sql` — adds `provider`, `fallback_used`, `fallback_reason` columns to `scan_analytics`
+
+---
+
+## Self-Healing Model Pipeline (CI/CD)
+
+A GitHub Actions pipeline that monitors `src/lib/models.ts` and auto-updates Anthropic model IDs when they are deprecated. Runs daily at 6 AM UTC.
+
+### Files
+
+| Path | Purpose |
+|------|---------|
+| `.github/workflows/model-health-check.yml` | GitHub Actions workflow (daily schedule + manual trigger) |
+| `.github/scripts/read-models.ts` | Reads `MODEL_PRIMARY` and `MODEL_LIGHTWEIGHT` from `src/lib/models.ts` via regex |
+| `.github/scripts/probe-model.ts` | Sends a minimal vision API call (1x1 PNG) to verify a model is alive; outputs `healthy`, `deprecated`, or `transient` |
+| `.github/scripts/discover-model.ts` | Queries Anthropic's Models API to find the newest model in the same family as the deprecated one |
+| `.github/scripts/update-model.ts` | Performs a targeted string replacement in `src/lib/models.ts` (old model ID to new) |
+| `.github/scripts/diff-guard.ts` | Guardrail: verifies only `src/lib/models.ts` changed and at most 2 lines were modified |
+| `.github/scripts/smoke-test.ts` | Post-deploy verification via `/api/admin/health-check` and site liveness check |
+| `.github/scripts/send-alert.ts` | Sends email alerts via Resend (success, failure, rollback, heartbeat) |
+| `.github/SECRETS_SETUP.md` | Documents required GitHub repository secrets |
+
+### Pipeline Flow
+
+```
+Daily 6 AM UTC (or manual trigger)
+         │
+         v
+┌──────────────────────┐
+│  read-models.ts      │  Parse MODEL_PRIMARY + MODEL_LIGHTWEIGHT
+└────────┬─────────────┘
+         │
+         v
+┌──────────────────────┐
+│  probe-model.ts      │  Vision API call per model
+│  (x2: PRIMARY +      │  Result: healthy | deprecated | transient
+│   LIGHTWEIGHT)        │
+└────────┬─────────────┘
+         │
+    ┌────┴────┐
+    │         │
+ healthy   deprecated
+    │         │
+    v         v
+ Monday    ┌──────────────────────┐
+ heartbeat │  discover-model.ts   │  Query Models API for replacement
+ email     └────────┬─────────────┘
+                    │
+                    v
+           ┌──────────────────────┐
+           │  update-model.ts     │  Replace model ID in models.ts
+           └────────┬─────────────┘
+                    │
+                    v
+           ┌──────────────────────┐
+           │  diff-guard.ts       │  Verify only models.ts changed
+           │  npm test            │  Full test suite
+           └────────┬─────────────┘
+                    │
+                    v
+           ┌──────────────────────┐
+           │  git push origin     │  Triggers Netlify auto-deploy
+           │  main                │
+           └────────┬─────────────┘
+                    │ (wait 240s)
+                    v
+           ┌──────────────────────┐
+           │  smoke-test.ts       │  Hit /api/admin/health-check
+           └────────┬─────────────┘
+                    │
+               ┌────┴────┐
+               │         │
+            pass       fail
+               │         │
+               v         v
+           success    git revert + push
+           email      rollback email
+```
+
+### Guardrails
+
+| Guardrail | Detail |
+|-----------|--------|
+| File scope | Only `src/lib/models.ts` can be modified |
+| Line limit | At most 2 lines changed (one per model constant) |
+| Test gate | Full `npm test` must pass before commit |
+| Smoke test | Production health-check + site liveness after deploy |
+| Auto-rollback | `git revert` + push if smoke test fails |
+| Concurrency | `cancel-in-progress` prevents overlapping runs |
+
+### Alerting
+
+Email alerts sent via Resend for every outcome:
+
+| Alert Type | When |
+|------------|------|
+| `heartbeat` | Monday only, both models healthy |
+| `success` | Model(s) auto-updated, deployed, smoke test passed |
+| `rollback` | Smoke test failed, commit reverted |
+| `failure` | Pipeline error, manual intervention needed |
+
+### Required GitHub Secrets
+
+| Secret | Purpose |
+|--------|---------|
+| `ANTHROPIC_API_KEY` | Probe models + discover replacements |
+| `RESEND_API_KEY` | Send email alerts |
+| `ADMIN_EMAIL` | Alert recipient |
+| `CRON_SECRET` | Authenticate smoke test against health-check endpoint |
 
 ---
 

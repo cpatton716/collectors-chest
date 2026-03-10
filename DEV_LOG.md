@@ -7,13 +7,50 @@ This log tracks session-by-session progress on Collectors Chest.
 ## Changes Since Last Deploy
 
 **Last Deploy:** March 3, 2026
-**Sessions Since Last Deploy:** 1
+**Sessions Since Last Deploy:** 2
 **Deploy Readiness:** Not Ready (feedback items pending)
 
 ### Changes:
 - Fixed "Start 7-Day Free Trial" button on stats page being non-responsive (FeatureGate.tsx)
 - Fixed cover lightbox not showing image on mobile (ComicDetailModal.tsx)
 - Created FEEDBACK_MAR_6.md with 10 feedback items from partner testing session
+- Self-healing model pipeline (GitHub Actions)
+
+---
+
+## Mar 9, 2026 - Session 17: Self-Healing Model Update Pipeline
+
+### Summary
+- Designed and implemented a self-healing model update pipeline using GitHub Actions that automatically detects, replaces, tests, and deploys Anthropic model changes
+- Pipeline runs daily at 6 AM UTC, probing both PRIMARY and LIGHTWEIGHT models via vision requests
+- Completed 3 rounds of Sr. Engineering review (18 → 9 → 5 findings, 0 critical in final round)
+- Successfully tested healthy path via manual workflow trigger
+
+### Key Accomplishments
+1. **Model Health Pipeline** — GitHub Actions workflow that probes Anthropic models, auto-discovers replacements, updates `src/lib/models.ts`, runs tests, deploys via git push to main, smoke tests, and rolls back on failure.
+2. **Email Alerting** — Resend-based alerts on every pipeline outcome: success, failure, rollback, and weekly heartbeat.
+3. **Pipeline Scripts** — 7 TypeScript scripts in `.github/scripts/` covering model probing, replacement discovery, code updates, deployment, rollback, email alerts, and heartbeat.
+4. **GitHub Secrets Setup** — Configured ANTHROPIC_API_KEY, RESEND_API_KEY, ADMIN_EMAIL, and CRON_SECRET. Updated PAT with workflow scope for pushing GitHub Actions files.
+5. **Sr. Engineering Reviews** — 3 rounds of review drove findings from 18 → 9 → 5, with 0 critical issues in the final round.
+
+### Key Files Created
+- `.github/workflows/model-health-check.yml` — Daily workflow definition
+- `.github/scripts/probe-model.ts` — Vision-based model health probe
+- `.github/scripts/find-replacement.ts` — Auto-discovery of replacement models
+- `.github/scripts/update-model-code.ts` — Updates model constants in source
+- `.github/scripts/deploy.ts` — Git push deployment with verification
+- `.github/scripts/rollback.ts` — Automated rollback on failure
+- `.github/scripts/send-alert.ts` — Resend email notifications
+- `.github/scripts/heartbeat.ts` — Weekly heartbeat check
+- `.github/SECRETS_SETUP.md` — Documentation for required GitHub secrets
+- `docs/plans/2026-03-06-self-healing-model-pipeline.md` — Implementation plan
+
+### Issues Encountered
+- PAT needed `workflow` scope to push `.github/workflows/` files — updated token permissions
+- CRON_SECRET was missing from `.env.local` — generated and added during session
+
+### Deploy Notes
+- Pipeline code pushed and verified on GitHub Actions. No production deploy of app code needed (pipeline is CI/CD infrastructure only).
 
 ---
 
