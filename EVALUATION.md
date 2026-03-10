@@ -2,7 +2,7 @@
 
 > **This document is the guiding light for development priorities. It takes precedence over BACKLOG.md.**
 
-*Last Updated: March 3, 2026*
+*Last Updated: March 6, 2026*
 
 ---
 
@@ -540,6 +540,12 @@ Items addressed:
 - **Deployed to production** — Scan resilience + scan cost dashboard shipped; Supabase migration for scan_analytics provider columns run in production
 - **386 tests passing** (16 new this session)
 
+### ✅ Mar 6 Session Completed
+
+- **Fixed "Start Free Trial" button non-responsive on stats page** — FeatureGate loading/error states were preventing button interaction
+- **Fixed cover lightbox not showing on mobile** — ComicDetailModal cover image tap now opens lightbox correctly
+- **Created FEEDBACK_MAR_6.md** — 10 feedback items documented from partner testing session
+
 ### 🟡 Next Session Focus
 
 1. **Finish Scan Resilience — activate OpenAI fallback** ⭐ HIGH IMPACT
@@ -584,6 +590,15 @@ Items addressed:
 
 8. **Revisit beta mode planning**
    - Review current private beta status and plan next steps for opening registration
+
+9. **Address Mar 6 Partner Feedback** (see `FEEDBACK_MAR_6.md`)
+   - #4: Rework homepage blurb wording for non-logged-in users
+   - #5: Allow users to hide Cost/Sales/Profit-Loss fields on collection page
+   - #6: Add photo best practices to Professor's FAQ
+   - #7: Add sort by grade to collection page
+   - #8: Grade pills on stats page link to collection filtered by grade (depends on #7)
+   - #9: Add grading company filter to collection page
+   - #10: Grading company counts on stats link to filtered collection (depends on #9)
 
 ### ✅ Feb 25 Session Completed
 

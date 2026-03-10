@@ -7,11 +7,39 @@ This log tracks session-by-session progress on Collectors Chest.
 ## Changes Since Last Deploy
 
 **Last Deploy:** March 3, 2026
-**Sessions Since Last Deploy:** 0
-**Deploy Readiness:** Deployed
+**Sessions Since Last Deploy:** 1
+**Deploy Readiness:** Not Ready (feedback items pending)
 
 ### Changes:
-- (cleared — deployed March 3, 2026)
+- Fixed "Start 7-Day Free Trial" button on stats page being non-responsive (FeatureGate.tsx)
+- Fixed cover lightbox not showing image on mobile (ComicDetailModal.tsx)
+- Created FEEDBACK_MAR_6.md with 10 feedback items from partner testing session
+
+---
+
+## Mar 6, 2026 - Session 16: Trial Button & Lightbox Fixes
+
+### Summary
+- Fixed two user-facing bugs identified during partner testing: non-responsive trial button on stats page and cover lightbox not rendering on mobile
+- Created feedback tracking document from partner testing session
+- Reset trial for admin test account via direct Supabase query
+
+### Key Accomplishments
+1. **Trial Button Fix** — Extracted UpgradePrompt component from FeatureGate.tsx with proper loading state and error feedback. Fixed silent-failure pattern where button click did nothing.
+2. **Cover Lightbox Fix** — Switched from Next.js Image fill to plain img tag in ComicDetailModal.tsx to resolve mobile rendering issue.
+3. **FeatureButton Fix** — Applied same silent-failure pattern fix to FeatureButton component.
+4. **Partner Feedback Doc** — Created FEEDBACK_MAR_6.md documenting 10 feedback items from partner testing session.
+
+### Key Files Modified
+- `src/components/FeatureGate.tsx` — Extracted UpgradePrompt component, added loading/error states
+- `src/components/ComicDetailModal.tsx` — Fixed cover lightbox image rendering on mobile
+
+### Key Files Created
+- `FEEDBACK_MAR_6.md` — 10 feedback items from partner testing
+
+### Issues Encountered
+- Mobile dev server not accessible from phone — needed `--hostname 0.0.0.0` flag
+- Admin trial already expired, needed manual Supabase reset to test trial flow
 
 ---
 

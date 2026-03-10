@@ -1071,6 +1071,56 @@ Users can fill in missing comic metadata (writer, cover artist, release year, et
 
 ---
 
+### Hide Cost/Sales/Profit-Loss Fields on Collection Page
+**Priority:** Medium
+**Status:** Pending
+**Added:** Mar 6, 2026
+**Source:** User Feedback (Session 16)
+
+Allow users to toggle visibility of Cost, Sales, and Profit/Loss fields on the collection page via a user preference setting. Some users prefer not to see financial data when browsing their collection.
+
+---
+
+### Sort Collection by Grade
+**Priority:** Medium
+**Status:** Pending
+**Added:** Mar 6, 2026
+**Source:** User Feedback (Session 16)
+
+Add a "Sort by Grade" option to the collection page sorting controls so users can order their collection by graded condition.
+
+---
+
+### Grade Pills Link to Filtered Collection
+**Priority:** Medium
+**Status:** Pending
+**Added:** Mar 6, 2026
+**Source:** User Feedback (Session 16)
+
+Grade pills displayed on the stats page should be clickable links that navigate to the collection page pre-filtered by that grade.
+
+---
+
+### Grading Company Filter on Collection Page
+**Priority:** Medium
+**Status:** Pending
+**Added:** Mar 6, 2026
+**Source:** User Feedback (Session 16)
+
+Add a grading company filter (CGC, CBCS, etc.) to the collection page filter controls so users can view only books graded by a specific company.
+
+---
+
+### Grading Company Counts Link to Filtered Collection
+**Priority:** Medium
+**Status:** Pending
+**Added:** Mar 6, 2026
+**Source:** User Feedback (Session 16)
+
+Grading company counts shown on the stats page should be clickable links that navigate to the collection page pre-filtered by that grading company.
+
+---
+
 ### Expand to Support All Collectibles
 **Priority:** Low
 **Status:** Pending
@@ -1227,6 +1277,26 @@ When converting to native mobile apps (iOS/Android), the cover image search feat
 - Clear instructions that user will leave the app temporarily
 - "Paste URL" button should be prominent on return
 - Consider toast/notification when URL is detected in clipboard
+
+---
+
+### Rework Homepage Blurb for Non-Logged-In Users
+**Priority:** Low
+**Status:** Pending
+**Added:** Mar 6, 2026
+**Source:** User Feedback (Session 16)
+
+Revise the homepage blurb/copy shown to non-logged-in visitors to better communicate the value proposition and encourage sign-ups.
+
+---
+
+### Add Photo Best Practices to Professor's FAQ
+**Priority:** Low
+**Status:** Pending
+**Added:** Mar 6, 2026
+**Source:** User Feedback (Session 16)
+
+Add a FAQ entry to the Professor's knowledge base covering photo best practices for scanning comic covers (lighting, angle, framing, etc.) to help users get better scan results.
 
 ---
 
