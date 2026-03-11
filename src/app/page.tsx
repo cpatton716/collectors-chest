@@ -307,7 +307,7 @@ export default function Home() {
           <p className="text-xl font-body text-pop-black">
             {isLoaded && isSignedIn
               ? "Your collection at a glance. Track value changes, see your best investments, and discover what's hot in the market."
-              : "Scan covers with technopathic recognition, track your collection's value, discover key issues, and connect with fellow collectors to buy and sell."}
+              : "Scan comics. Track value. Collect smarter."}
           </p>
         </div>
 

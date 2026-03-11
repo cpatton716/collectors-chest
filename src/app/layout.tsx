@@ -38,7 +38,7 @@ const spaceMono = Space_Mono({
 export const metadata: Metadata = {
   title: "Collectors Chest - Track, Value & Trade Your Comics",
   description:
-    "The all-in-one comic collector's companion. Scan covers with technopathic recognition, track your collection's value, and buy or sell with fellow collectors.",
+    "Scan comics. Track value. Collect smarter. Collectors Chest is the all-in-one platform that helps comic collectors discover value, organize with pride, and buy, sell, and trade with confidence.",
   manifest: "/manifest.json",
   icons: {
     icon: [

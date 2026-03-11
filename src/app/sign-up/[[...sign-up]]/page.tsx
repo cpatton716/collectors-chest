@@ -79,8 +79,12 @@ export default function SignUpPage() {
           </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-3">Coming Soon</h1>
           <p className="text-gray-600">
-            Collectors Chest is currently in private beta. Join the waitlist to be notified when we
-            open registration.
+            Scan any cover. Track every book. Find your people. Collectors Chest is the all-in-one
+            platform that helps comic collectors discover value, organize with pride, and buy, sell,
+            and trade with confidence.
+          </p>
+          <p className="text-gray-500 text-sm mt-2">
+            Currently in private beta — join the waitlist to be notified when we open registration.
           </p>
         </div>
 
@@ -127,7 +131,7 @@ export default function SignUpPage() {
           <ul className="space-y-2 text-sm text-gray-600">
             <li className="flex items-center gap-2">
               <Check className="w-4 h-4 text-green-500" />
-              Technopathic comic cover recognition
+              AI-powered comic cover recognition
             </li>
             <li className="flex items-center gap-2">
               <Check className="w-4 h-4 text-green-500" />

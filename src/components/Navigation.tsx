@@ -24,6 +24,7 @@ import {
   Layers,
   LogIn,
   MessageSquare,
+  Info,
   MoreHorizontal,
   Shield,
   ShoppingBag,
@@ -43,7 +44,7 @@ const faqs = [
   {
     question: "What is Collectors Chest?",
     answer:
-      "Collectors Chest is an all-in-one comic book collection manager. Scan covers with AI recognition, track your collection's value, discover key issues, buy and sell in the marketplace, and connect with fellow collectors.",
+      "Scan any cover. Track every book. Find your people. Collectors Chest is the all-in-one platform that helps comic collectors discover value, organize with pride, and buy, sell, and trade with confidence.",
   },
   {
     question: "Is it free to use?",
@@ -241,6 +242,7 @@ export function Navigation() {
     { href: "/sign-in?redirect=/trades", label: "Trades", icon: ArrowLeftRight },
     { href: "/sign-in?redirect=/stats", label: "Stats", icon: BarChart3 },
     { href: "/sign-in?redirect=/collection", label: "Lists", icon: Layers },
+    { href: "/about", label: "About", icon: Info },
   ];
 
   // Registered user primary nav links
@@ -260,6 +262,7 @@ export function Navigation() {
     { href: "/my-auctions", label: "My Listings", icon: Gavel },
     { href: "/hottest-books", label: "Hottest Books", icon: Flame },
     { href: "/key-hunt", label: "Key Hunt", icon: KeyRound },
+    { href: "/about", label: "About", icon: Info },
   ];
 
   // Use appropriate links based on auth state
