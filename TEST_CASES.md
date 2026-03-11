@@ -1148,4 +1148,15 @@ If you encounter bugs or unexpected behavior:
 | Per-scan average cost | View scan cost breakdown section | Shows average cost per scan calculated from recent usage |
 | Cost alert thresholds | Trigger scan costs exceeding configured threshold | Alert notification appears on Usage tab indicating threshold exceeded |
 
-*Last Updated: March 1, 2026*
+### About Page (Mar 9, 2026)
+
+**Location:** Navigation → "More" → About, or direct navigation to /about
+
+| # | Test | Steps | Expected | Status |
+|---|------|-------|----------|--------|
+| 1 | About page loads | Navigate to /about | Page renders with mission statement, feature cards, and placeholder sections | Pending |
+| 2 | About page mobile responsive | View /about on mobile | All sections stack properly, text readable, cards responsive | Pending |
+| 3 | About nav link (guest) | Open More menu as guest | About link visible and navigates to /about | Pending |
+| 4 | About nav link (registered) | Open More menu as registered user | About link visible and navigates to /about | Pending |
+
+*Last Updated: March 9, 2026*

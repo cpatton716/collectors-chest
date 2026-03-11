@@ -2,7 +2,7 @@
 
 > **This document is the guiding light for development priorities. It takes precedence over BACKLOG.md.**
 
-*Last Updated: March 6, 2026*
+*Last Updated: March 9, 2026*
 
 ---
 
@@ -39,6 +39,8 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 - ✅ **Scan Resilience Phase 1** — Multi-provider fallback (Anthropic → OpenAI), provider abstraction layer, per-call fallback, dynamic timeout budget, error classification, 386 tests passing
 - ✅ **Scan Resilience monitoring & deploy** — Fallback rate alerting (check-alerts cron), provider health checks (/api/admin/health-check), PostHog provider tracking, deployed to production (Mar 3, 2026)
 - ✅ **Scan resilience design reviewed** — 2 rounds of Sr. Engineering review (24 findings incorporated)
+- ✅ **Branding finalized** — Tagline ("Scan comics. Track value. Collect smarter.") and mission statement approved and deployed across hero, meta, sign-up, nav, and new About page
+- ✅ **About page** — New page with placeholder sections for Our Story, team, and contact info
 
 ---
 
@@ -593,7 +595,13 @@ Items addressed:
    - #9: Add grading company filter to collection page
    - #10: Grading company counts on stats link to filtered collection (depends on #9)
 
-9. **Test self-healing pipeline failure path**
+9. **Fill in About page content** (Medium Priority)
+   - Write "Our Story" section with founding narrative
+   - Add "Meet the Team" bios and photos
+   - Complete "Contact" section with support email / form
+   - Replace placeholder content added during branding session
+
+10. **Test self-healing pipeline failure path**
     - Use a fake/invalid model ID to trigger the full discover → update → deploy → smoke test flow
     - Verify rollback behavior works correctly when the vision probe fails
     - Confirms the pipeline is truly self-healing end-to-end
