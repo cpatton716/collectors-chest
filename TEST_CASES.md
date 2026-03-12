@@ -1159,4 +1159,97 @@ If you encounter bugs or unexpected behavior:
 | 3 | About nav link (guest) | Open More menu as guest | About link visible and navigates to /about | Pending |
 | 4 | About nav link (registered) | Open More menu as registered user | About link visible and navigates to /about | Pending |
 
-*Last Updated: March 9, 2026*
+### Show/Hide Financials Toggle - Collection Page (Mar 11, 2026)
+
+**Location:** Collection Page
+
+| # | Test | Steps | Expected | Status |
+|---|------|-------|----------|--------|
+| 1 | Toggle button visible | Navigate to Collection page | Show/Hide financials toggle button is visible | Pending |
+| 2 | Hide financials | Click the toggle to hide | Cost, Sales, Profit/Loss cards are hidden | Pending |
+| 3 | Show financials | Click the toggle again to show | Cost, Sales, Profit/Loss cards reappear | Pending |
+| 4 | Persists after refresh | Hide financials, refresh the page | Financials remain hidden after page reload | Pending |
+| 5 | Syncs with Account Settings | Toggle financials on collection page | Account Settings Display Preferences toggle reflects the same state | Pending |
+
+### Show/Hide Financials Toggle - Account Settings (Mar 11, 2026)
+
+**Location:** Account Settings → Profile → Display Preferences
+
+| # | Test | Steps | Expected | Status |
+|---|------|-------|----------|--------|
+| 1 | Toggle visible in settings | Navigate to Account Settings → Profile → Display Preferences | Show/Hide financials toggle is visible | Pending |
+| 2 | Toggle updates collection page | Toggle financials off in settings, navigate to Collection | Financial cards are hidden on collection page | Pending |
+| 3 | Persists across sessions | Toggle setting, sign out and sign back in | Setting persists across sessions | Pending |
+
+### Grade Sort - Collection Page (Mar 11, 2026)
+
+**Location:** Collection Page → Sort Dropdown
+
+| # | Test | Steps | Expected | Status |
+|---|------|-------|----------|--------|
+| 1 | Grade sort option available | Open sort dropdown on Collection page | "Grade (High to Low)" option is visible | Pending |
+| 2 | Sort by grade descending | Select "Grade (High to Low)" | Comics sorted by numeric grade in descending order | Pending |
+| 3 | Ungraded at bottom | Sort by grade with mix of graded and ungraded comics | Ungraded comics appear at the bottom of the list | Pending |
+
+### Grading Company Filter - Collection Page (Mar 11, 2026)
+
+**Location:** Collection Page → Filter Dropdowns
+
+| # | Test | Steps | Expected | Status |
+|---|------|-------|----------|--------|
+| 1 | Grader dropdown visible | Navigate to Collection page | "All Graders" dropdown is visible in filter row | Pending |
+| 2 | Filter by CGC | Select CGC from grader dropdown | Only CGC-graded comics shown | Pending |
+| 3 | Filter by CBCS | Select CBCS from grader dropdown | Only CBCS-graded comics shown | Pending |
+| 4 | Combined with other filters | Select a grader AND a publisher filter | Both filters apply correctly together | Pending |
+
+### Grade Multiselect Pills - Stats Page (Mar 11, 2026)
+
+**Location:** Stats Page → Grade Distribution Section
+
+| # | Test | Steps | Expected | Status |
+|---|------|-------|----------|--------|
+| 1 | Grade pills clickable | Navigate to Stats page, view grade distribution | Grade pills are clickable/selectable | Pending |
+| 2 | Multiple selection | Click multiple grade pills | Multiple grades can be selected simultaneously, shown as solid indigo when selected | Pending |
+| 3 | View button appears | Select one or more grade pills | "View X Grade(s)" button appears | Pending |
+| 4 | Navigate to filtered collection | Click "View X Grade(s)" button | Navigates to collection page filtered by the selected grades | Pending |
+
+### Grading Company Clickable Counts - Stats Page (Mar 11, 2026)
+
+**Location:** Stats Page → Grading Company Section
+
+| # | Test | Steps | Expected | Status |
+|---|------|-------|----------|--------|
+| 1 | Counts are clickable | Navigate to Stats page, view grading company counts | Grading company counts are displayed as clickable elements | Pending |
+| 2 | Navigate to filtered collection | Click a grading company count | Navigates to collection page filtered by that grading company | Pending |
+
+### Age Verification - Marketplace (Mar 11, 2026)
+
+**Location:** Shop / Marketplace Actions
+
+| # | Test | Steps | Expected | Status |
+|---|------|-------|----------|--------|
+| 1 | Modal appears for unverified user | As unverified user, attempt a marketplace action | Age confirmation modal appears | Pending |
+| 2 | Confirm dismisses modal | Click confirm in age modal | age_confirmed_at is set, modal dismisses | Pending |
+| 3 | No re-prompt after confirmation | After confirming age, attempt another marketplace action | Modal does NOT loop/reappear | Pending |
+| 4 | Subsequent actions work | After age confirmation, perform marketplace actions | All marketplace actions proceed without re-prompting | Pending |
+
+### AI Estimate - Recent Sales Hidden (Mar 11, 2026)
+
+**Location:** Comic Detail Modal / Comic Details Form
+
+| # | Test | Steps | Expected | Status |
+|---|------|-------|----------|--------|
+| 1 | Recent Sales hidden for AI estimate | View a comic with AI-estimated price (no eBay data) | "Recent Sales" section is not displayed | Pending |
+| 2 | AI Estimate disclaimer shows | View a comic with AI-estimated price | "AI Estimate" disclaimer text is still visible | Pending |
+| 3 | Recent Sales shown for real data | View a comic with actual eBay sales data | "Recent Sales" section displays normally | Pending |
+
+### CONNECT_REQUIRED Error Message (Mar 11, 2026)
+
+**Location:** Shop → Create Listing (without Stripe Connect)
+
+| # | Test | Steps | Expected | Status |
+|---|------|-------|----------|--------|
+| 1 | Friendly error message | Attempt to list an item without Stripe Connect account | Shows "Please connect your Stripe account before proceeding." | Pending |
+| 2 | No raw error code | Attempt to list without Stripe Connect | Does NOT display raw "CONNECT_REQUIRED" error code | Pending |
+
+*Last Updated: March 11, 2026*

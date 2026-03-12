@@ -2,7 +2,7 @@
 
 > **This document is the guiding light for development priorities. It takes precedence over BACKLOG.md.**
 
-*Last Updated: March 9, 2026*
+*Last Updated: March 11, 2026*
 
 ---
 
@@ -10,7 +10,7 @@
 
 Collectors Chest is a comic book collection tracking app with AI-powered cover recognition and a new auction marketplace feature. The app is currently in **Private Beta** with public registration disabled.
 
-**Overall Score: 8.5/10**
+**Overall Score: 8.7/10**
 
 **Current Status: PRIVATE BETA**
 - Site is live at collectors-chest.com
@@ -41,6 +41,16 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 - ✅ **Scan resilience design reviewed** — 2 rounds of Sr. Engineering review (24 findings incorporated)
 - ✅ **Branding finalized** — Tagline ("Scan comics. Track value. Collect smarter.") and mission statement approved and deployed across hero, meta, sign-up, nav, and new About page
 - ✅ **About page** — New page with placeholder sections for Our Story, team, and contact info
+- ✅ **Mar 6 partner feedback (all 11 items)** — Code fixes for #1-#10, LLC done (#11)
+- ✅ **Age verification infinite loop fix** — Redis cache invalidation for modal state
+- ✅ **Hidden AI-generated fake "Recent Sales"** from comic detail modals
+- ✅ **Guest homepage restored** — Tagline + descriptive blurb for non-logged-in users
+- ✅ **CONNECT_REQUIRED error fix** — Raw error replaced with user-friendly message
+- ✅ **Show/hide financials toggle** — Collection page + account settings toggle for Cost/Sales/Profit-Loss
+- ✅ **Grade sort + grading company filter** — Collection page sorting by grade, grading company filter
+- ✅ **Grade multiselect pills** — Stats page grade pills link to filtered collection
+- ✅ **Grading company clickable counts** — Stats page counts deep-link to filtered collection
+- ✅ **FEEDBACK_MAR_11.md** — Partner meeting document created for Mar 11 session
 
 ---
 
@@ -53,14 +63,14 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 | Item | Status | Notes |
 |------|--------|-------|
 | **Cloud sync for signed-in users** | ✅ Done | Signed-in users now sync to Supabase; guests use localStorage |
-| **Form LLC business entity** | ❌ Missing | Required for liability protection & legal pages |
+| **Form LLC business entity** | ✅ Done | Completed (Mar 11, 2026) |
 | Privacy Policy page | ⏳ Content ready | Full content written; placeholders need LLC info |
 | Terms of Service page | ⏳ Content ready | Full content written; placeholders need LLC info |
 | Acceptable Use Policy page | ⏳ Content ready | Full content written; placeholders need LLC info |
 | Cookie & Tracking Policy page | ⏳ Content ready | Full content written; placeholders need LLC info |
 | Premium subscription billing | ⏳ Code complete | Waiting on Stripe account setup |
 | Stripe Connect for seller payouts | ⏳ Code complete | Enable Connect in Stripe dashboard, configure Express accounts |
-| Age gate (18+) for marketplace | ❌ Missing | Buying, selling, bidding, and trading require users to be 18+. Enforce at account level or marketplace entry. |
+| Age gate (18+) for marketplace | ✅ Done | Age verification modal with Redis cache (Mar 11, 2026) |
 | Re-enable Clerk bot protection | ✅ Done | Re-enabled Jan 13, 2026 |
 
 ### High Priority
@@ -378,7 +388,7 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 
 ## 11. Launch Readiness
 
-### Overall: 93% Ready
+### Overall: 95% Ready
 
 #### Blockers (Must Fix Before Launch) 🔴
 - [x] ~~Add error tracking (Sentry)~~ ✅ Done
@@ -433,16 +443,20 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 24. ~~**Delete confirmation overlay modal**~~ ✅ (Feb 25, 2026)
 25. ~~**Undo toast timer fix**~~ ✅ (Feb 25, 2026)
 26. ~~**Scan Resilience monitoring & deploy**~~ ✅ (Mar 3, 2026) — Fallback rate alerting, provider health checks, PostHog provider tracking, deployed to production
+27. ~~**Mar 6 partner feedback — all 11 items**~~ ✅ (Mar 11, 2026) — Code fixes #1-#10, LLC formed #11
+28. ~~**Age verification infinite loop fix**~~ ✅ (Mar 11, 2026) — Redis cache invalidation
+29. ~~**Hidden AI-generated fake Recent Sales**~~ ✅ (Mar 11, 2026)
+30. ~~**Guest homepage restored**~~ ✅ (Mar 11, 2026) — Tagline + descriptive blurb
+31. ~~**CONNECT_REQUIRED error fix**~~ ✅ (Mar 11, 2026) — User-friendly message
+32. ~~**Show/hide financials toggle**~~ ✅ (Mar 11, 2026) — Collection page + account settings
+33. ~~**Grade sort + grading company filter**~~ ✅ (Mar 11, 2026) — Collection page
+34. ~~**Grade multiselect pills + grading company deep links**~~ ✅ (Mar 11, 2026) — Stats page
 
 ### 🔴 Before Opening Registration (See Section 0)
 
-1. **Form LLC Business Entity** ⭐ CRITICAL (DO FIRST)
-   - Protects personal assets for marketplace liability
-   - Required before finalizing ToS & Privacy Policy
-   - ~$100-300 filing fee + potential annual fees
-   - Effort: 30 min online, 1-2 weeks processing
+1. ~~**Form LLC Business Entity**~~ ✅ DONE (Mar 11, 2026)
 
-2. **Legal pages (ToS, Privacy, AUP, Cookies)** (PARTIALLY BLOCKED BY #1)
+2. **Legal pages (ToS, Privacy, AUP, Cookies)** (UNBLOCKED — LLC formed)
    - ✅ Full content written for all 4 pages (`/privacy`, `/terms`, `/acceptable-use`, `/cookies`)
    - ✅ All content verified accurate against codebase (18/20 claims exact match)
    - ✅ Cross-linked footers on all 4 pages
@@ -549,62 +563,73 @@ Items addressed:
 - **Fixed cover lightbox not showing on mobile** — ComicDetailModal cover image tap now opens lightbox correctly
 - **Created FEEDBACK_MAR_6.md** — 10 feedback items documented from partner testing session
 
-### 🟡 Next Session Focus
+### ✅ Mar 11 Session Completed (Session 19)
 
-1. **Legal page updates pending lawyer review of briefing**
-   - Briefing at `Legal Docs/Legal_Update_Briefing_Feb_2026.md`
-   - Awaiting lawyer feedback before updating ToS, Privacy Policy, AUP, Cookie Policy
-   - May require LLC formation before finalizing
+- **All 11 Mar 6 partner feedback items addressed** — #1-#10 code fixes, #11 LLC formed
+- **Age verification modal infinite loop fix** — Redis cache invalidation resolved infinite re-render
+- **Hidden AI-generated fake "Recent Sales"** — Removed misleading AI-fabricated sales data from comic detail modals
+- **Guest homepage restored** — Tagline and descriptive blurb visible for non-logged-in users
+- **CONNECT_REQUIRED error fix** — Raw Stripe error replaced with user-friendly message
+- **Show/hide financials toggle** — New toggle in collection page and account settings to hide Cost, Sales, and Profit-Loss columns
+- **Grade sort + grading company filter** — Collection page can now sort by grade and filter by grading company
+- **Grade multiselect pills** — Stats page grade pills now link to filtered collection views
+- **Grading company clickable counts** — Stats page grading company counts deep-link to filtered collection
+- **FEEDBACK_MAR_11.md created** — Partner meeting document for upcoming session
 
-2. **Implement auto-harvest cover images from graded book scans** (design doc exists)
+### 🟡 Next Session Focus (Session 20)
+
+1. **Make Publisher clickable on Stats page** (NEW BIZ #6 from Mar 11 feedback)
+   - Publisher counts on stats page should link to filtered collection view
+   - Similar pattern to grading company clickable counts completed in session 19
+
+2. **Investigate empty public collection for @jsnaponte** (NEW BIZ #5 from Mar 11 feedback)
+   - User reports their public collection appears empty
+   - Debug data visibility / sharing permissions
+
+3. **Legal pages — replace LLC placeholders** (UNBLOCKED)
+   - LLC is now formed — replace [LEGAL BUSINESS NAME], [ADDRESS], [SUPPORT EMAIL], etc.
+   - Briefing at `Legal Docs/Legal_Update_Briefing_Feb_2026.md` — pending lawyer review
+   - Update ToS, Privacy Policy, AUP, Cookie Policy with real business info
+
+4. **Stripe account setup + payment testing**
+   - Set up Stripe account with LLC info
+   - Test auction bid flow, Buy Now flow, webhooks
+   - Set up Stripe Connect for seller payouts
+   - Effort: ~1 session
+
+5. **Database backup strategy**
+   - Evaluate Supabase Pro ($25/mo) for daily backups + 7-day retention
+   - Critical before opening registration
+
+6. **Launch tracker review** (NEW BIZ #1 from Mar 11 feedback)
+   - Review private beta checklist and assess readiness to open registration
+   - LLC done, age gate done — remaining blockers: legal pages, Stripe, backups
+
+7. **Implement auto-harvest cover images from graded book scans** (design doc exists)
    - Design doc: `docs/plans/2026-02-25-cover-image-harvesting-design.md`
    - Harvest cover images from graded book scans during AI analysis
-   - Create implementation plan before starting
    - Feeds into community cover DB (primary cover source)
 
-3. ~~**Verify external image search API**~~ ❌ REMOVED (Feb 26, 2026)
-   - No external image search APIs available for new customers
-   - **Pivoted to:** community cover DB + Open Library API + manual URL paste
-   - Run Supabase migration for `cover_images` table in production
-
-4. ~~**Scan Resilience: Multi-Provider Fallback**~~ ✅ Phase 1 DEPLOYED (Mar 3, 2026)
-   - Design doc: `docs/plans/2026-02-27-scan-resilience-design.md`
-   - Multi-provider AI fallback (Anthropic primary → OpenAI secondary)
-   - Provider abstraction layer, per-call fallback, dynamic timeout budget, error classification
-   - Fallback rate alerting, provider health checks, PostHog provider tracking
-   - 386 tests passing
-   - **OpenAI activation deferred to backlog** — self-healing pipeline handles model deprecation
-
-5. **Add "Professor" Persona Throughout Site**
-   - Extend the Ask the Professor concept to other areas of the app
-   - Consistent branding for AI-powered features
-
-6. ~~**Configure PostHog Dashboard with Scan Cost Insights and Email Alerts**~~ ✅ SUPERSEDED (Mar 1, 2026)
-   - **Replaced by:** Scan Cost Dashboard — dedicated admin page with cost metrics, provider breakdown, and configurable threshold alerts
-   - Built directly into the app rather than relying on external PostHog dashboards
-
-7. **Revisit beta mode planning**
-   - Review current private beta status and plan next steps for opening registration
-
-8. **Address Mar 6 Partner Feedback** (see `FEEDBACK_MAR_6.md`)
-   - #4: Rework homepage blurb wording for non-logged-in users
-   - #5: Allow users to hide Cost/Sales/Profit-Loss fields on collection page
-   - #6: Add photo best practices to Professor's FAQ
-   - #7: Add sort by grade to collection page
-   - #8: Grade pills on stats page link to collection filtered by grade (depends on #7)
-   - #9: Add grading company filter to collection page
-   - #10: Grading company counts on stats link to filtered collection (depends on #9)
-
-9. **Fill in About page content** (Medium Priority)
+8. **Fill in About page content** (Medium Priority)
    - Write "Our Story" section with founding narrative
    - Add "Meet the Team" bios and photos
    - Complete "Contact" section with support email / form
-   - Replace placeholder content added during branding session
+
+9. **Add "Professor" Persona Throughout Site**
+   - Extend the Ask the Professor concept to other areas of the app
+   - Consistent branding for AI-powered features
 
 10. **Test self-healing pipeline failure path**
     - Use a fake/invalid model ID to trigger the full discover → update → deploy → smoke test flow
     - Verify rollback behavior works correctly when the vision probe fails
-    - Confirms the pipeline is truly self-healing end-to-end
+
+### ✅ Completed Focus Items (Archived)
+
+- ~~**Address Mar 6 Partner Feedback**~~ ✅ All 11 items completed (Mar 11, 2026)
+- ~~**Scan Resilience: Multi-Provider Fallback**~~ ✅ Phase 1 DEPLOYED (Mar 3, 2026)
+- ~~**Configure PostHog Dashboard**~~ ✅ SUPERSEDED by Scan Cost Dashboard (Mar 1, 2026)
+- ~~**Verify external image search API**~~ ❌ REMOVED (Feb 26, 2026) — pivoted to community DB + Open Library + manual paste
+- ~~**Revisit beta mode planning**~~ → Rolled into Launch tracker review (#6 above)
 
 ### ✅ Feb 25 Session Completed
 
@@ -695,6 +720,8 @@ Items addressed:
 | Feb 27, 2026 | 8.4/10 | +Legal update briefing for lawyer review, +Close Up Shop skill rewrite with mandatory tracking |
 | Mar 1, 2026 | 8.5/10 | +Scan Cost Dashboard (admin usage page with cost metrics & alerts), +Scan Resilience Phase 1 (multi-provider fallback, 370 tests), +2 rounds Sr. Engineering design review |
 | Mar 3, 2026 | 8.5/10 | +Scan resilience deployed with monitoring (fallback rate alerting, provider health checks, PostHog provider tracking), +386 tests |
+| Mar 6, 2026 | 8.5/10 | +Fixed Start Free Trial button, +Fixed cover lightbox on mobile, +Created FEEDBACK_MAR_6.md |
+| Mar 11, 2026 | 8.7/10 | +All 11 Mar 6 feedback items, +LLC formed, +Age gate, +Show/hide financials, +Grade sort/filter, +Grading company deep links, +Guest homepage fix |
 
 ---
 

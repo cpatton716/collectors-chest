@@ -1073,7 +1073,7 @@ Users can fill in missing comic metadata (writer, cover artist, release year, et
 
 ### Hide Cost/Sales/Profit-Loss Fields on Collection Page
 **Priority:** Medium
-**Status:** Pending
+**Status:** ✅ Complete (Mar 11, 2026)
 **Added:** Mar 6, 2026
 **Source:** User Feedback (Session 16)
 
@@ -1083,7 +1083,7 @@ Allow users to toggle visibility of Cost, Sales, and Profit/Loss fields on the c
 
 ### Sort Collection by Grade
 **Priority:** Medium
-**Status:** Pending
+**Status:** ✅ Complete (Mar 11, 2026)
 **Added:** Mar 6, 2026
 **Source:** User Feedback (Session 16)
 
@@ -1093,7 +1093,7 @@ Add a "Sort by Grade" option to the collection page sorting controls so users ca
 
 ### Grade Pills Link to Filtered Collection
 **Priority:** Medium
-**Status:** Pending
+**Status:** ✅ Complete (Mar 11, 2026)
 **Added:** Mar 6, 2026
 **Source:** User Feedback (Session 16)
 
@@ -1103,7 +1103,7 @@ Grade pills displayed on the stats page should be clickable links that navigate 
 
 ### Grading Company Filter on Collection Page
 **Priority:** Medium
-**Status:** Pending
+**Status:** ✅ Complete (Mar 11, 2026)
 **Added:** Mar 6, 2026
 **Source:** User Feedback (Session 16)
 
@@ -1113,7 +1113,7 @@ Add a grading company filter (CGC, CBCS, etc.) to the collection page filter con
 
 ### Grading Company Counts Link to Filtered Collection
 **Priority:** Medium
-**Status:** Pending
+**Status:** ✅ Complete (Mar 11, 2026)
 **Added:** Mar 6, 2026
 **Source:** User Feedback (Session 16)
 
@@ -1282,7 +1282,7 @@ When converting to native mobile apps (iOS/Android), the cover image search feat
 
 ### Rework Homepage Blurb for Non-Logged-In Users
 **Priority:** Low
-**Status:** Pending
+**Status:** ✅ Complete (Mar 11, 2026)
 **Added:** Mar 6, 2026
 **Source:** User Feedback (Session 16)
 
@@ -1292,7 +1292,7 @@ Revise the homepage blurb/copy shown to non-logged-in visitors to better communi
 
 ### Add Photo Best Practices to Professor's FAQ
 **Priority:** Low
-**Status:** Pending
+**Status:** ✅ Complete (Mar 11, 2026)
 **Added:** Mar 6, 2026
 **Source:** User Feedback (Session 16)
 
@@ -1309,7 +1309,117 @@ Update ADMIN_EMAIL GitHub secret from personal Gmail to company email (collector
 
 ---
 
+### Make Publisher Clickable on Stats Page
+**Priority:** Low
+**Status:** Pending
+**Added:** Mar 11, 2026
+**Source:** User Feedback (Session 19)
+
+Publisher names/counts on the Stats page should be clickable links that navigate to the collection page pre-filtered by that publisher, similar to how grade pills and grading company counts now deep-link.
+
+---
+
+### Investigate Empty Public Collection for @jsnaponte
+**Priority:** Medium
+**Status:** Pending
+**Added:** Mar 11, 2026
+**Source:** User Report (Session 19)
+
+User @jsnaponte reports their public collection page appears empty despite having comics in their collection. Investigate whether this is a data issue, privacy setting, or rendering bug.
+
+---
+
+### Launch Tracker Review
+**Priority:** Medium
+**Status:** Pending
+**Added:** Mar 11, 2026
+**Source:** Partner Meeting (Session 19)
+
+Conduct a comprehensive review of launch readiness. Assess feature completeness, UX polish, performance, and outstanding bugs to determine a launch timeline.
+
+---
+
 ## Completed
+
+### Sort Collection by Grade
+**Priority:** Medium
+**Status:** ✅ Complete (Mar 11, 2026)
+
+Added grade sorting option to collection page so users can order by graded condition.
+
+---
+
+### Grade Pills Link to Filtered Collection
+**Priority:** Medium
+**Status:** ✅ Complete (Mar 11, 2026)
+
+Grade pills on stats page are now clickable, navigating to the collection page pre-filtered by that grade.
+
+---
+
+### Grading Company Filter on Collection Page
+**Priority:** Medium
+**Status:** ✅ Complete (Mar 11, 2026)
+
+Added grading company filter (CGC, CBCS, etc.) to collection page filter controls.
+
+---
+
+### Grading Company Counts Link to Filtered Collection
+**Priority:** Medium
+**Status:** ✅ Complete (Mar 11, 2026)
+
+Grading company counts on stats page are now clickable, deep-linking to the collection page filtered by company.
+
+---
+
+### Hide Cost/Sales/Profit-Loss Fields (Show/Hide Financials Toggle)
+**Priority:** Medium
+**Status:** ✅ Complete (Mar 11, 2026)
+
+Added toggle to show/hide financial columns (Cost, Sales, Profit/Loss) on the collection page.
+
+---
+
+### Rework Homepage Blurb for Non-Logged-In Users
+**Priority:** Low
+**Status:** ✅ Complete (Mar 11, 2026)
+
+Revised homepage copy for guest visitors to better communicate the value proposition.
+
+---
+
+### Add Photo Best Practices to Professor's FAQ
+**Priority:** Low
+**Status:** ✅ Complete (Mar 11, 2026)
+
+Added FAQ entry covering photo tips for scanning comic covers (lighting, angle, framing).
+
+---
+
+### Age Verification Cache Fix
+**Priority:** Bug Fix
+**Status:** ✅ Complete (Mar 11, 2026)
+
+Fixed caching issue with the age verification flow.
+
+---
+
+### AI Fake Sales Hidden
+**Priority:** Bug Fix
+**Status:** ✅ Complete (Mar 11, 2026)
+
+Hidden AI-generated fake sales data from user-facing views.
+
+---
+
+### CONNECT_REQUIRED User-Friendly Error
+**Priority:** Bug Fix
+**Status:** ✅ Complete (Mar 11, 2026)
+
+Added a user-friendly error message for CONNECT_REQUIRED Stripe errors instead of showing a raw error.
+
+---
 
 ### Cover Image Search System
 **Priority:** Medium

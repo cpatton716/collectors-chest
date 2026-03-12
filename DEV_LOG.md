@@ -6,12 +6,50 @@ This log tracks session-by-session progress on Collectors Chest.
 
 ## Changes Since Last Deploy
 
-**Last Deploy:** March 11, 2026
+**Last Deploy:** March 11, 2026 (Session 19 — deployed during partner meeting)
 **Sessions Since Last Deploy:** 0
 **Deploy Readiness:** Deployed
 
 ### Changes:
 (none — just deployed)
+
+---
+
+## Mar 11, 2026 - Session 19: Partner Feedback Blitz & Financials Toggle
+
+### Summary
+- Addressed all Mar 6 partner feedback items (#4–#10): homepage blurb, financials toggle, FAQ entry, grade sort, grade multiselect pills, grading company filter, grading company deep links
+- Fixed age verification modal infinite loop (Redis profile cache not invalidated after age_confirmed_at write)
+- Hidden AI-generated "Recent Sales" when priceSource === "ai" in 3 components (ComicDetailModal, ComicDetailsForm, PublicComicModal)
+- Restored approved tagline "Scan comics. Track value. Collect smarter." + added descriptive subtitle for guests
+- Fixed CONNECT_REQUIRED raw error code → "Please connect your Stripe account before proceeding."
+- Created FEEDBACK_MAR_11.md for partner meeting
+- Added show_financials preference (collection page toggle + Account Settings, persists per-account via Supabase)
+- New API route: /api/settings/preferences (GET/PATCH)
+- New migration: 20260311_add_show_financials.sql
+- Deployed multiple times during partner meeting for live testing
+
+### Key Files Modified (15 files, +426/−70 lines)
+- `src/app/collection/page.tsx` — URL params, grade sort, filters, financials toggle
+- `src/components/CollectionStats.tsx` — Multiselect grade pills, clickable grading company counts
+- `src/components/CustomProfilePage.tsx` — Financials toggle in account settings
+- `src/app/api/age-verification/route.ts` — Cache invalidation fix
+- `src/components/auction/ListInShopModal.tsx` — CONNECT_REQUIRED friendly message
+- `src/components/ComicDetailModal.tsx` — Hide AI fake sales
+- `src/components/ComicDetailsForm.tsx` — Hide AI fake sales
+- `src/components/PublicComicModal.tsx` — Hide AI fake sales
+
+### Key Files Created
+- `src/app/api/settings/preferences/route.ts` — GET/PATCH user preferences
+- `supabase/migrations/20260311_add_show_financials.sql` — show_financials column
+
+### Issues Encountered
+- **Age verification modal loop** — Redis profile cache (5-min TTL) was not invalidated after writing age_confirmed_at to Supabase, causing modal to re-appear on every page load
+- **AI-generated "Recent Sales"** — Fake dates shown alongside "No eBay data" disclaimer; hidden when priceSource === "ai"
+- **CONNECT_REQUIRED raw error** — Stripe error code shown directly to users in shop listing modal
+
+### Deploy Notes
+- Multiple deploys during partner meeting for live testing (March 11, 2026)
 
 ---
 
