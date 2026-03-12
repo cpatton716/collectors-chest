@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { supabaseAdmin } from "@/lib/supabase";
+import { invalidateProfileCache } from "@/lib/db";
 
 export async function POST() {
   try {
@@ -38,6 +39,9 @@ export async function POST() {
         { status: 500 }
       );
     }
+
+    // Bust profile cache so subsequent API calls see the updated age_confirmed_at
+    await invalidateProfileCache(userId);
 
     return NextResponse.json({ verified: true });
   } catch (error) {

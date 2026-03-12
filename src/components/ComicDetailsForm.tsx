@@ -1238,7 +1238,7 @@ export function ComicDetailsForm({
                 </div>
 
                 {/* Recent Sales Summary */}
-                {comic.priceData.recentSales.length > 0 && (
+                {comic.priceData.recentSales.length > 0 && comic.priceData.priceSource !== "ai" && (
                   <div className="text-right">
                     <p className="text-xs text-gray-500 mb-1">Recent Sales</p>
                     <div className="space-y-0.5">

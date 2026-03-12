@@ -16,18 +16,20 @@
 | #8 | Grade pills on stats link to filtered collection | **Fixed** — Multiselect pills with "View Grades" search button |
 | #9 | Add Grading Company filter to collection page | **Fixed** — "All Graders" dropdown added |
 | #10 | Grading company counts on stats link to filtered collection | **Fixed** — Clickable counts navigate to filtered collection |
+| #11 | Form LLC Business Entity | **Done** |
 
 ### Open Business Items
 
-| Item | Status | Notes |
-|------|--------|-------|
-| Form LLC Business Entity | **Open** | Required for liability protection & legal pages. ~$100-300 filing fee, 1-2 weeks processing. |
-| Legal Pages (ToS, Privacy, AUP, Cookies) | **Open** | Content written, blocked on LLC placeholders + lawyer review. Briefing at `Legal Docs/Legal_Update_Briefing_Feb_2026.md`. |
-| Stripe Account Setup | **Open** | Premium billing code complete, waiting on Stripe account configuration. |
-| Stripe Connect (Seller Payouts) | **Open** | Code complete, needs Connect setup in Stripe dashboard + Express account config. |
-| Test Payment Flows End-to-End | **Open** | Blocked by Stripe setup. Auction bids, Buy Now, subscription billing all need testing. |
-| Age Gate (18+) for Marketplace | **Open** | Required before opening registration. Not yet implemented. |
-| Database Backup Strategy | **Open** | Upgrade to Supabase Pro ($25/mo) before opening registration. |
+| # | Item | Status | Notes |
+|---|------|--------|-------|
+| #1 | Legal Pages (ToS, Privacy, AUP, Cookies) | **Open** | LLC done — replace placeholders, send to lawyer for final review. Briefing at `Legal Docs/Legal_Update_Briefing_Feb_2026.md`. |
+| #2 | Stripe Account Setup | **Open** | Premium billing code complete, waiting on Stripe account configuration. |
+| #3 | Stripe Connect (Seller Payouts) | **Open** | Code complete, needs Connect setup in Stripe dashboard + Express account config. |
+| #4 | Premium Subscription Billing | **Open** | Code complete, blocked by Stripe account setup (#2). |
+| #5 | Test Payment Flows End-to-End | **Open** | Blocked by Stripe setup. Auction bids, Buy Now, subscription billing. |
+| #6 | Test Stripe Connect Seller Flow | **Open** | Blocked by Stripe Connect (#3). Seller onboarding, sandbox purchase, fee split, payout to bank. |
+| #7 | Age Gate (18+) for Marketplace | **Open** | Required before opening registration. Not yet implemented. |
+| #8 | Database Backup Strategy | **Open** | Upgrade to Supabase Pro ($25/mo) before opening registration. |
 
 ---
 
@@ -35,9 +37,14 @@
 
 *(Items added during tonight's meeting)*
 
-| # | Issue | Page/Feature | Severity | Status |
-|---|-------|-------------|----------|--------|
-| | | | | |
+| # | Issue | Page/Feature | Severity | Status | Notes |
+|---|-------|-------------|----------|--------|-------|
+| #1 | Launch tracker | | | Pending | Review Aponte's tracker |
+| #2 | Age verification modal loops on confirm | Marketplace / Shop | High | **Fixed** | Redis profile cache not invalidated after age confirmation |
+| #3 | Hide AI-generated "Recent Sales" | Comic Detail Modal | Medium | **Fixed** | Fake sales with dates were showing alongside AI estimate disclaimer |
+| #4 | Homepage tagline + blurb | Homepage | Low | **Fixed** | Tagline restored, descriptive blurb added as subtitle for guests |
+| #5 | Shop listing user's collection shows empty | Public Profile / Shop | Medium | Investigating | Clicking @jsnaponte from shop listing → /u/jsnaponte shows 0 comics. Possible data issue (user may not have added comics to collection). |
+| #6 | Make Publisher clickable on Stats page | Stats | Low | Pending | |
 
 ---
 
