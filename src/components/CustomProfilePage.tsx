@@ -156,6 +156,9 @@ export function CustomProfilePage() {
   const [connectStatus, setConnectStatus] = useState<ConnectStatus | null>(null);
   const [connectBanner, setConnectBanner] = useState<"success" | "incomplete" | "error" | null>(null);
 
+  // Display preferences state
+  const [showFinancials, setShowFinancials] = useState(true);
+
   // Initialize user data
   useEffect(() => {
     if (user) {
@@ -315,6 +318,35 @@ export function CustomProfilePage() {
         .catch(() => {});
     }
   }, [searchParams]);
+
+  // Fetch display preferences on mount
+  useEffect(() => {
+    async function fetchPreferences() {
+      try {
+        const res = await fetch("/api/settings/preferences");
+        if (res.ok) {
+          const data = await res.json();
+          setShowFinancials(data.showFinancials ?? true);
+        }
+      } catch {}
+    }
+    if (user) fetchPreferences();
+  }, [user]);
+
+  const handleToggleFinancials = async () => {
+    const newValue = !showFinancials;
+    setShowFinancials(newValue);
+    try {
+      const res = await fetch("/api/settings/preferences", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ showFinancials: newValue }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      setShowFinancials(!newValue);
+    }
+  };
 
   // Load sessions when security tab is active
   useEffect(() => {
@@ -1028,6 +1060,25 @@ export function CustomProfilePage() {
                 ) : (
                   <p className="text-sm text-gray-500">No creator credits data available</p>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* Display Preferences */}
+          {activeTab === "profile" && (
+            <div className="bg-pop-white border-3 border-pop-black p-6" style={{ boxShadow: "4px 4px 0px #000" }}>
+              <h3 className="text-lg font-black text-pop-black mb-4">Display Preferences</h3>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-bold text-pop-black">Show Financial Fields</p>
+                  <p className="text-sm text-gray-500">Display Cost, Sales, and Profit/Loss on your collection page</p>
+                </div>
+                <button
+                  onClick={handleToggleFinancials}
+                  className={`relative w-12 h-6 rounded-full transition-colors ${showFinancials ? "bg-pop-green" : "bg-gray-300"}`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${showFinancials ? "translate-x-6" : ""}`} />
+                </button>
               </div>
             </div>
           )}

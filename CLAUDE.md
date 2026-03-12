@@ -10,11 +10,15 @@ In addition to the global session start steps, also:
 
 4. **Start dev server** - Run `npm run dev` in the background so the user can test immediately
 
-5. **Ask about testing context** - Ask ALL 4 questions together using AskUserQuestion:
+5. **Ask about testing context** - Ask ALL 5 questions together using AskUserQuestion:
    - **Platform**: Mobile, Web, or Both
    - **Account type** (multiSelect): Guest (no account), Free (registered, not premium), Premium
    - **Mobile devices** (multiSelect): iPhone, Android
    - **Desktop browsers** (multiSelect): Mac Chrome, Mac Safari, Windows Chrome, Windows Edge
+   - **Sounds**: "Do you want sounds today?" — Yes / No. If **No**, share these steps to disable:
+     1. Open Terminal Preferences (Cmd+,) → Profiles → your profile → Advanced → uncheck "Audible bell"
+     2. Or run: `printf '\e[?1070l'` in the terminal to silence the bell for the current session
+     3. Or add `set bell-style none` to `~/.inputrc` for a permanent fix
 
 6. **Show Mobile Dev Server URL** - If platform is **Mobile** or **Both**, display the Network URL from the dev server output (e.g. `http://10.0.0.34:3000`) so the user can open it on their phone. If the dev server output isn't available yet, run `ifconfig | grep 'inet ' | grep -v 127.0.0.1` and construct the URL with the active port.
 

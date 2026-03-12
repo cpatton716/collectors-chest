@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { useUser } from "@clerk/nextjs";
 
@@ -15,6 +15,8 @@ import {
   CheckSquare,
   DollarSign,
   Download,
+  Eye,
+  EyeOff,
   Grid3X3,
   List,
   Plus,
@@ -53,11 +55,20 @@ import { useToast } from "@/components/Toast";
 import { CollectionItem } from "@/types/comic";
 
 type ViewMode = "grid" | "list";
-type SortOption = "date" | "title" | "value" | "value-asc" | "issue";
+type SortOption = "date" | "title" | "value" | "value-asc" | "issue" | "grade";
 type FilterOption = "all" | string;
 
 export default function CollectionPage() {
+  return (
+    <Suspense>
+      <CollectionPageContent />
+    </Suspense>
+  );
+}
+
+function CollectionPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { isSignedIn: _isSignedIn, isLoaded: authLoaded } = useUser();
   const { showToast } = useToast();
   const { features: _features } = useSubscription();
@@ -91,6 +102,9 @@ export default function CollectionPage() {
   const [editingItem, setEditingItem] = useState<CollectionItem | null>(null);
   const [publisherFilter, setPublisherFilter] = useState<FilterOption>("all");
   const [titleFilter, setTitleFilter] = useState<FilterOption>("all");
+  const [gradingCompanyFilter, setGradingCompanyFilter] = useState<FilterOption>("all");
+  const [gradeFilter, setGradeFilter] = useState<FilterOption>("all");
+  const [showFinancials, setShowFinancials] = useState(true);
   const [showShareModal, setShowShareModal] = useState(false);
 
   // Selection state
@@ -118,12 +132,56 @@ export default function CollectionPage() {
   const salesStats = getSalesStats();
   const isLoaded = authLoaded && !collectionLoading;
 
+  // Read URL search params on mount (for deep links from stats page)
+  useEffect(() => {
+    const gradeParam = searchParams.get("grade");
+    const gradingCompanyParam = searchParams.get("gradingCompany");
+    const sortParam = searchParams.get("sortBy") as SortOption | null;
+
+    if (gradeParam) setGradeFilter(gradeParam);
+    if (gradingCompanyParam) setGradingCompanyFilter(gradingCompanyParam);
+    if (sortParam) setSortBy(sortParam);
+  }, [searchParams]);
+
+  // Fetch show_financials preference
+  useEffect(() => {
+    async function fetchPreferences() {
+      try {
+        const res = await fetch("/api/settings/preferences");
+        if (res.ok) {
+          const data = await res.json();
+          setShowFinancials(data.showFinancials ?? true);
+        }
+      } catch {
+        // Default to showing financials on error
+      }
+    }
+    if (_isSignedIn) fetchPreferences();
+  }, [_isSignedIn]);
+
+  const toggleFinancials = async () => {
+    const newValue = !showFinancials;
+    setShowFinancials(newValue);
+    try {
+      await fetch("/api/settings/preferences", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ showFinancials: newValue }),
+      });
+    } catch {
+      setShowFinancials(!newValue); // Rollback on error
+    }
+  };
+
   // Get unique publishers and titles for filters
   const uniquePublishers = Array.from(
     new Set(collection.map((item) => item.comic.publisher).filter((p): p is string => Boolean(p)))
   ).sort();
   const uniqueTitles = Array.from(
     new Set(collection.map((item) => item.comic.title).filter((t): t is string => Boolean(t)))
+  ).sort();
+  const uniqueGradingCompanies = Array.from(
+    new Set(collection.map((item) => item.gradingCompany).filter((g): g is string => Boolean(g)))
   ).sort();
 
   // Filter and sort collection
@@ -154,6 +212,18 @@ export default function CollectionPage() {
         return false;
       }
 
+      // Filter by grading company
+      if (gradingCompanyFilter !== "all" && item.gradingCompany !== gradingCompanyFilter) {
+        return false;
+      }
+
+      // Filter by grade (supports comma-separated multiselect from stats page)
+      if (gradeFilter !== "all") {
+        const itemGrade = item.comic.grade || (item.conditionGrade ? String(item.conditionGrade) : null);
+        const grades = gradeFilter.split(",");
+        if (!itemGrade || !grades.includes(itemGrade)) return false;
+      }
+
       // Filter by search
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
@@ -175,6 +245,11 @@ export default function CollectionPage() {
           return getComicValue(b) - getComicValue(a);
         case "value-asc":
           return getComicValue(a) - getComicValue(b);
+        case "grade": {
+          const gradeA = parseFloat(a.comic.grade || (a.conditionGrade ? String(a.conditionGrade) : "0"));
+          const gradeB = parseFloat(b.comic.grade || (b.conditionGrade ? String(b.conditionGrade) : "0"));
+          return gradeB - gradeA; // Highest grade first
+        }
         case "issue":
           return parseInt(a.comic.issueNumber || "0") - parseInt(b.comic.issueNumber || "0");
         case "date":
@@ -560,7 +635,18 @@ export default function CollectionPage() {
       </div>
 
       {/* Stats Cards - Pop Art Style */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-8">
+      <div className="flex items-center justify-between mb-2">
+        <div />
+        <button
+          onClick={toggleFinancials}
+          className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-comic text-gray-600 hover:text-pop-black border-2 border-gray-300 hover:border-pop-black bg-pop-white shadow-[1px_1px_0px_#ccc] hover:shadow-[2px_2px_0px_#000] transition-all"
+          title={showFinancials ? "Hide financial fields" : "Show financial fields"}
+        >
+          {showFinancials ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          {showFinancials ? "Hide" : "Show"} Financials
+        </button>
+      </div>
+      <div className={`grid grid-cols-2 ${showFinancials ? "md:grid-cols-3 lg:grid-cols-5" : "md:grid-cols-2"} gap-3 mb-8`}>
         <div className="bg-pop-white border-3 border-pop-black p-3 shadow-[3px_3px_0px_#000] flex items-center gap-3">
           <div className="w-10 h-10 bg-pop-blue border-2 border-pop-black flex items-center justify-center flex-shrink-0">
             <BookOpen className="w-5 h-5 text-white" />
@@ -572,7 +658,7 @@ export default function CollectionPage() {
             <p className="text-xl font-black text-pop-black">{stats.count}</p>
           </div>
         </div>
-        <div className="bg-pop-white border-3 border-pop-black p-3 shadow-[3px_3px_0px_#000] flex items-center gap-3">
+        {showFinancials && <div className="bg-pop-white border-3 border-pop-black p-3 shadow-[3px_3px_0px_#000] flex items-center gap-3">
           <div className="w-10 h-10 bg-pop-red border-2 border-pop-black flex items-center justify-center flex-shrink-0">
             <DollarSign className="w-5 h-5 text-white" />
           </div>
@@ -586,7 +672,7 @@ export default function CollectionPage() {
               })}
             </p>
           </div>
-        </div>
+        </div>}
         <div className="bg-pop-white border-3 border-pop-black p-3 shadow-[3px_3px_0px_#000] flex items-center gap-3">
           <div className="w-10 h-10 bg-pop-green border-2 border-pop-black flex items-center justify-center flex-shrink-0">
             <TrendingUp className="w-5 h-5 text-white" />
@@ -602,52 +688,56 @@ export default function CollectionPage() {
             </p>
           </div>
         </div>
-        <div className="bg-pop-white border-3 border-pop-black p-3 shadow-[3px_3px_0px_#000] flex items-center gap-3">
-          <div className="w-10 h-10 bg-pop-blue border-2 border-pop-black flex items-center justify-center flex-shrink-0">
-            <Receipt className="w-5 h-5 text-white" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs text-gray-600 uppercase font-bold truncate">
-              Sales ({salesStats.totalSales})
-            </p>
-            <p className="text-xl font-black text-pop-black">
-              $
-              {salesStats.totalRevenue.toLocaleString("en-US", {
-                minimumFractionDigits: 0,
-                maximumFractionDigits: 0,
-              })}
-            </p>
-          </div>
-        </div>
-        <div
-          className={`bg-pop-white border-3 border-pop-black p-3 shadow-[3px_3px_0px_#000] flex items-center gap-3 col-span-2 md:col-span-1`}
-        >
-          <div
-            className={`w-10 h-10 border-2 border-pop-black flex items-center justify-center flex-shrink-0 ${
-              profitLoss >= 0 ? "bg-pop-green" : "bg-pop-red"
-            }`}
-          >
-            {profitLoss >= 0 ? (
-              <ArrowUpRight className="w-5 h-5 text-white" />
-            ) : (
-              <ArrowDownRight className="w-5 h-5 text-white" />
-            )}
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs text-gray-600 uppercase font-bold truncate">Profit/Loss</p>
-            <p
-              className={`text-xl font-black ${
-                profitLoss >= 0 ? "text-pop-green" : "text-pop-red"
-              }`}
+        {showFinancials && (
+          <>
+            <div className="bg-pop-white border-3 border-pop-black p-3 shadow-[3px_3px_0px_#000] flex items-center gap-3">
+              <div className="w-10 h-10 bg-pop-blue border-2 border-pop-black flex items-center justify-center flex-shrink-0">
+                <Receipt className="w-5 h-5 text-white" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-gray-600 uppercase font-bold truncate">
+                  Sales ({salesStats.totalSales})
+                </p>
+                <p className="text-xl font-black text-pop-black">
+                  $
+                  {salesStats.totalRevenue.toLocaleString("en-US", {
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 0,
+                  })}
+                </p>
+              </div>
+            </div>
+            <div
+              className={`bg-pop-white border-3 border-pop-black p-3 shadow-[3px_3px_0px_#000] flex items-center gap-3 col-span-2 md:col-span-1`}
             >
-              {profitLoss >= 0 ? "+" : ""}$
-              {profitLoss.toLocaleString("en-US", {
-                minimumFractionDigits: 0,
-                maximumFractionDigits: 0,
-              })}
-            </p>
-          </div>
-        </div>
+              <div
+                className={`w-10 h-10 border-2 border-pop-black flex items-center justify-center flex-shrink-0 ${
+                  profitLoss >= 0 ? "bg-pop-green" : "bg-pop-red"
+                }`}
+              >
+                {profitLoss >= 0 ? (
+                  <ArrowUpRight className="w-5 h-5 text-white" />
+                ) : (
+                  <ArrowDownRight className="w-5 h-5 text-white" />
+                )}
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-gray-600 uppercase font-bold truncate">Profit/Loss</p>
+                <p
+                  className={`text-xl font-black ${
+                    profitLoss >= 0 ? "text-pop-green" : "text-pop-red"
+                  }`}
+                >
+                  {profitLoss >= 0 ? "+" : ""}$
+                  {profitLoss.toLocaleString("en-US", {
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 0,
+                  })}
+                </p>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Selection Header - shown when in selection mode */}
@@ -800,6 +890,8 @@ export default function CollectionPage() {
             {/* Clear Filters */}
             {(publisherFilter !== "all" ||
               titleFilter !== "all" ||
+              gradingCompanyFilter !== "all" ||
+              gradeFilter !== "all" ||
               showStarredOnly ||
               showForTradeOnly ||
               searchQuery ||
@@ -808,6 +900,8 @@ export default function CollectionPage() {
                 onClick={() => {
                   setPublisherFilter("all");
                   setTitleFilter("all");
+                  setGradingCompanyFilter("all");
+                  setGradeFilter("all");
                   setShowStarredOnly(false);
                   setShowForTradeOnly(false);
                   setSearchQuery("");
@@ -848,6 +942,21 @@ export default function CollectionPage() {
               ))}
             </select>
 
+            {uniqueGradingCompanies.length > 0 && (
+              <select
+                value={gradingCompanyFilter}
+                onChange={(e) => setGradingCompanyFilter(e.target.value)}
+                className="px-3 py-1.5 border-2 border-pop-black bg-pop-white text-sm font-comic text-pop-black focus:outline-none hover:shadow-[2px_2px_0px_#000] transition-all cursor-pointer"
+              >
+                <option value="all">All Graders</option>
+                {uniqueGradingCompanies.map((company) => (
+                  <option key={company} value={company}>
+                    {company}
+                  </option>
+                ))}
+              </select>
+            )}
+
             <div className="flex items-center gap-2 ml-auto">
               <label className="text-sm font-comic text-pop-black flex items-center gap-1">
                 <SortAsc className="w-4 h-4" />
@@ -863,6 +972,7 @@ export default function CollectionPage() {
                 <option value="issue">Issue #</option>
                 <option value="value">Value (High to Low)</option>
                 <option value="value-asc">Value (Low to High)</option>
+                <option value="grade">Grade (High to Low)</option>
               </select>
             </div>
 
@@ -963,11 +1073,11 @@ export default function CollectionPage() {
       ) : (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
           {/* Table Header */}
-          <div className="grid grid-cols-12 gap-4 px-4 py-3 bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-            <div className="col-span-5">Comic</div>
+          <div className={`grid ${showFinancials ? "grid-cols-12" : "grid-cols-10"} gap-4 px-4 py-3 bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wider`}>
+            <div className={showFinancials ? "col-span-5" : "col-span-5"}>Comic</div>
             <div className="col-span-2">Publisher</div>
             <div className="col-span-2 text-right">Est. Value</div>
-            <div className="col-span-2 text-right">Purchase Price</div>
+            {showFinancials && <div className="col-span-2 text-right">Purchase Price</div>}
             <div className="col-span-1 text-center">For Sale</div>
           </div>
 
@@ -983,7 +1093,7 @@ export default function CollectionPage() {
                 <div
                   key={item.id}
                   onClick={() => handleComicClick(item)}
-                  className="grid grid-cols-12 gap-4 px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors items-center"
+                  className={`grid ${showFinancials ? "grid-cols-12" : "grid-cols-10"} gap-4 px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors items-center`}
                 >
                   {/* Comic Info */}
                   <div className="col-span-5 flex items-center gap-3">
@@ -1027,7 +1137,7 @@ export default function CollectionPage() {
                             maximumFractionDigits: 2,
                           })}
                         </p>
-                        {itemProfitLoss !== null && (
+                        {showFinancials && itemProfitLoss !== null && (
                           <p
                             className={`text-xs ${itemProfitLoss >= 0 ? "text-green-600" : "text-red-600"}`}
                           >
@@ -1045,13 +1155,13 @@ export default function CollectionPage() {
                   </div>
 
                   {/* Purchase Price */}
-                  <div className="col-span-2 text-right">
+                  {showFinancials && <div className="col-span-2 text-right">
                     {item.purchasePrice ? (
                       <p className="font-medium text-gray-900">${item.purchasePrice.toFixed(2)}</p>
                     ) : (
                       <span className="text-sm text-gray-400">—</span>
                     )}
-                  </div>
+                  </div>}
 
                   {/* For Sale */}
                   <div className="col-span-1 flex justify-center">

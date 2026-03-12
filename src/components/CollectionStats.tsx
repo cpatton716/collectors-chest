@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 import { useRouter } from "next/navigation";
 
@@ -15,6 +15,7 @@ import {
   DollarSign,
   ExternalLink,
   KeyRound,
+  Search,
   Shield,
   TrendingDown,
   TrendingUp,
@@ -43,6 +44,25 @@ interface CollectionStatsProps {
 
 export function CollectionStats({ collection, onComicClick }: CollectionStatsProps) {
   const router = useRouter();
+  const [selectedGrades, setSelectedGrades] = useState<Set<string>>(new Set());
+
+  const toggleGrade = (grade: string) => {
+    setSelectedGrades((prev) => {
+      const next = new Set(prev);
+      if (next.has(grade)) {
+        next.delete(grade);
+      } else {
+        next.add(grade);
+      }
+      return next;
+    });
+  };
+
+  const searchByGrades = () => {
+    if (selectedGrades.size === 0) return;
+    const grades = Array.from(selectedGrades).join(",");
+    router.push(`/collection?grade=${grades}&sortBy=grade`);
+  };
 
   // Calculate all statistics
   const overview = useMemo(() => calculateOverviewStats(collection), [collection]);
@@ -352,19 +372,31 @@ export function CollectionStats({ collection, onComicClick }: CollectionStatsPro
           <div className="col-span-2 bg-white rounded-lg p-4 border border-gray-200">
             <p className="text-sm text-gray-500 mb-3">Grading Companies</p>
             <div className="grid grid-cols-4 gap-2 text-center">
-              <div>
+              <div
+                className={`rounded-lg p-1 transition-colors ${gradingStats.cgcCount > 0 ? 'cursor-pointer hover:bg-gray-50' : ''}`}
+                onClick={gradingStats.cgcCount > 0 ? () => router.push('/collection?gradingCompany=CGC') : undefined}
+              >
                 <p className="text-lg font-bold text-blue-600">{gradingStats.cgcCount}</p>
                 <p className="text-xs text-gray-500">CGC</p>
               </div>
-              <div>
+              <div
+                className={`rounded-lg p-1 transition-colors ${gradingStats.cbcsCount > 0 ? 'cursor-pointer hover:bg-gray-50' : ''}`}
+                onClick={gradingStats.cbcsCount > 0 ? () => router.push('/collection?gradingCompany=CBCS') : undefined}
+              >
                 <p className="text-lg font-bold text-purple-600">{gradingStats.cbcsCount}</p>
                 <p className="text-xs text-gray-500">CBCS</p>
               </div>
-              <div>
+              <div
+                className={`rounded-lg p-1 transition-colors ${gradingStats.pgxCount > 0 ? 'cursor-pointer hover:bg-gray-50' : ''}`}
+                onClick={gradingStats.pgxCount > 0 ? () => router.push('/collection?gradingCompany=PGX') : undefined}
+              >
                 <p className="text-lg font-bold text-red-600">{gradingStats.pgxCount}</p>
                 <p className="text-xs text-gray-500">PGX</p>
               </div>
-              <div>
+              <div
+                className={`rounded-lg p-1 transition-colors ${gradingStats.otherGradedCount > 0 ? 'cursor-pointer hover:bg-gray-50' : ''}`}
+                onClick={gradingStats.otherGradedCount > 0 ? () => router.push('/collection?gradingCompany=Other') : undefined}
+              >
                 <p className="text-lg font-bold text-gray-600">{gradingStats.otherGradedCount}</p>
                 <p className="text-xs text-gray-500">Other</p>
               </div>
@@ -398,12 +430,28 @@ export function CollectionStats({ collection, onComicClick }: CollectionStatsPro
         {/* Grade Distribution */}
         {gradingStats.gradeDistribution.length > 0 && (
           <div>
-            <p className="text-sm text-gray-500 mb-3">Grade Distribution (Slabbed Comics)</p>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm text-gray-500">Grade Distribution (Slabbed Comics)</p>
+              {selectedGrades.size > 0 && (
+                <button
+                  onClick={searchByGrades}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white text-sm font-bold rounded-full hover:bg-indigo-700 transition-colors"
+                >
+                  <Search className="w-3.5 h-3.5" />
+                  View {selectedGrades.size} Grade{selectedGrades.size > 1 ? "s" : ""}
+                </button>
+              )}
+            </div>
             <div className="flex flex-wrap gap-2">
               {gradingStats.gradeDistribution.map((g) => (
                 <div
                   key={g.grade}
-                  className="px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-full text-sm font-medium"
+                  className={`px-3 py-1.5 rounded-full text-sm font-medium cursor-pointer transition-colors ${
+                    selectedGrades.has(g.grade)
+                      ? "bg-indigo-600 text-white"
+                      : "bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
+                  }`}
+                  onClick={() => toggleGrade(g.grade)}
                 >
                   {g.grade}: {g.count}
                 </div>

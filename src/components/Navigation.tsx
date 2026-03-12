@@ -67,6 +67,11 @@ const faqs = [
       "Upload or take a photo of a comic cover and our AI identifies the title, issue number, publisher, creators, key info, and estimated value. It works with raw and slabbed comics, and even detects grading labels on slabs.",
   },
   {
+    question: "Any tips for getting the best scan results?",
+    answer:
+      "Good, even lighting makes a huge difference — avoid harsh shadows and glare, especially on slabbed books. Photograph the full front cover straight-on (no angles or tilting), keep the camera steady, and make sure the image is in focus. A plain background with nothing distracting behind the book helps the AI zero in on the cover.",
+  },
+  {
     question: "How accurate are the price estimates?",
     answer:
       "Prices are AI estimates based on recent market trends and eBay sold listings. They provide a solid guideline but actual prices vary based on condition, demand, and where you sell. For the most accurate values, check recent eBay completed sales.",
