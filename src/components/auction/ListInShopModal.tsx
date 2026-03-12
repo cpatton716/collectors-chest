@@ -229,7 +229,11 @@ export function ListInShopModal({ comic, isOpen, onClose, onCreated }: ListInSho
           setShowAgeGate(true);
           return;
         }
-        setError(data.error || "Failed to create listing");
+        setError(
+          data.error === "CONNECT_REQUIRED"
+            ? "Please connect your Stripe account before proceeding."
+            : data.message || data.error || "Failed to create listing"
+        );
       }
     } catch {
       setError("Failed to create listing. Please try again.");
