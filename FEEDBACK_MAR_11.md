@@ -28,7 +28,7 @@
 | #4 | Premium Subscription Billing | **Open** | Code complete, blocked by Stripe account setup (#2). |
 | #5 | Test Payment Flows End-to-End | **Open** | Blocked by Stripe setup. Auction bids, Buy Now, subscription billing. |
 | #6 | Test Stripe Connect Seller Flow | **Open** | Blocked by Stripe Connect (#3). Seller onboarding, sandbox purchase, fee split, payout to bank. |
-| #7 | Age Gate (18+) for Marketplace | **Open** | Required before opening registration. Not yet implemented. |
+| #7 | Age Gate (18+) for Marketplace | **Complete** | Implemented and verified in production. Modal prompts 18+ confirmation, sets `age_confirmed_at` in DB, invalidates Redis cache. |
 | #8 | Database Backup Strategy | **Open** | Upgrade to Supabase Pro ($25/mo) before opening registration. |
 
 ---
@@ -45,6 +45,7 @@
 | #4 | Homepage tagline + blurb | Homepage | Low | **Fixed** | Tagline restored, descriptive blurb added as subtitle for guests |
 | #5 | Shop listing user's collection shows empty | Public Profile / Shop | Medium | Investigating | Clicking @jsnaponte from shop listing → /u/jsnaponte shows 0 comics. Possible data issue (user may not have added comics to collection). |
 | #6 | Make Publisher clickable on Stats page | Stats | Low | Pending | |
+| #7 | CONNECT_REQUIRED shows raw error code | Shop Listing Modal | Medium | **Fixed** | Now shows "Please connect your Stripe account before proceeding." |
 
 ---
 
