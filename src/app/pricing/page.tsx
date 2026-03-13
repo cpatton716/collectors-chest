@@ -93,7 +93,8 @@ export default function PricingPage() {
         {/* Pricing Cards */}
         <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
           {/* Free Tier */}
-          <div className="bg-pop-white border-4 border-pop-black p-8 shadow-[6px_6px_0px_#000] relative">
+          <div className="bg-pop-white border-4 border-pop-black p-8 shadow-[6px_6px_0px_#000] relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-20 h-20 dots-red opacity-20 pointer-events-none" />
             <div className="mb-6">
               <h2 className="text-2xl font-comic text-pop-black mb-2">FREE</h2>
               <p className="font-body text-pop-black/70">Perfect for casual collectors</p>
@@ -139,7 +140,8 @@ export default function PricingPage() {
           </div>
 
           {/* Premium Tier */}
-          <div className="bg-pop-blue border-4 border-pop-black p-8 shadow-[6px_6px_0px_#000] relative text-pop-white">
+          <div className="bg-pop-blue border-4 border-pop-black p-8 shadow-[6px_6px_0px_#000] relative overflow-hidden text-pop-white">
+            <div className="absolute bottom-0 right-0 w-24 h-24 dots-red opacity-20 pointer-events-none" />
             <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
               <span className="bg-pop-yellow text-pop-black text-xs font-comic px-4 py-1 border-2 border-pop-black shadow-[2px_2px_0px_#000]">
                 MOST POPULAR!
@@ -253,7 +255,8 @@ export default function PricingPage() {
 
         {/* Scan Pack Callout */}
         <div className="mt-12 max-w-2xl mx-auto">
-          <div className="bg-pop-yellow border-4 border-pop-black p-6 text-center shadow-[4px_4px_0px_#000]">
+          <div className="bg-pop-yellow border-4 border-pop-black p-6 text-center shadow-[4px_4px_0px_#000] relative overflow-hidden">
+            <div className="absolute bottom-0 left-0 w-16 h-16 dots-blue opacity-25 pointer-events-none" />
             <h3 className="text-lg font-comic text-pop-black mb-2">
               NEED MORE SCANS WITHOUT SUBSCRIBING?
             </h3>

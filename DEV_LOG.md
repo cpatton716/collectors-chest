@@ -7,11 +7,44 @@ This log tracks session-by-session progress on Collectors Chest.
 ## Changes Since Last Deploy
 
 **Last Deploy:** March 11, 2026 (Session 19 — deployed during partner meeting)
-**Sessions Since Last Deploy:** 0
-**Deploy Readiness:** Deployed
+**Sessions Since Last Deploy:** 1
+**Deploy Readiness:** Ready
 
 ### Changes:
-(none — just deployed)
+- Legal pages finalized — all 4 pages (Privacy, ToS, AUP, Cookies) updated with Twisted Jester LLC info
+- Ben-day dots accents added to About, Homepage, and Pricing pages
+- Hottest Books removed from homepage, commented out in navigation
+- Navigation dropdown overflow fix for short viewports
+- About page placeholder text highlighted in red for review
+
+---
+
+## Mar 13, 2026 - Session 20: Legal Pages & Visual Polish
+
+### Summary
+- Finalized all 4 legal pages with Twisted Jester LLC business info (replaced all placeholders)
+- Added scattered ben-day dots accents across About, Homepage, and Pricing pages
+- Removed Professor's Hottest Books from homepage (deleted) and navigation (commented out)
+- Fixed navigation dropdown overflow on short viewports
+- Highlighted About page placeholder text in red for next review pass
+
+### Key Files Modified (10 files, +81/−228 lines)
+- `src/app/privacy/page.tsx` — LLC placeholders replaced
+- `src/app/terms/page.tsx` — LLC placeholders replaced, state, arbitration location
+- `src/app/acceptable-use/page.tsx` — LLC placeholders replaced
+- `src/app/cookies/page.tsx` — LLC placeholders replaced
+- `src/app/about/page.tsx` — Dots accents, placeholder text highlighted red
+- `src/app/page.tsx` — Hottest Books section removed, dots accents added
+- `src/app/pricing/page.tsx` — Dots accents added
+- `src/components/Navigation.tsx` — Hottest Books link/FAQ commented out, dropdown scroll fix
+- `src/components/MobileNav.tsx` — Hottest Books link commented out
+
+### Issues Encountered
+- Dev server kept dying during session due to port conflicts from build commands
+- `.docx` files couldn't be read directly — extracted via Python zipfile/XML parsing
+
+### Deploy Notes
+- Ready for deploy — all quality checks passing (386 tests, clean TypeScript, clean lint, clean build)
 
 ---
 

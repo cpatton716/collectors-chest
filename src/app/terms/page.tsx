@@ -18,7 +18,7 @@ export default function TermsOfServicePage() {
             Back to Home
           </Link>
           <h1 className="text-3xl font-bold text-gray-900">Terms of Service</h1>
-          <p className="text-gray-600 mt-2">Last updated: February 27, 2026</p>
+          <p className="text-gray-600 mt-2">Last updated: March 13, 2026</p>
         </div>
       </div>
 
@@ -28,12 +28,12 @@ export default function TermsOfServicePage() {
           <h2>Collector&apos;s Chest - Terms of Service</h2>
 
           <p>
-            <strong>Effective Date:</strong> [DATE]
+            <strong>Effective Date:</strong> March 13, 2026
           </p>
 
           <p>
             Welcome to Collector&apos;s Chest (the &quot;Service&quot;), a comic book collection
-            management and marketplace platform operated by [LEGAL BUSINESS NAME], a [STATE] limited
+            management and marketplace platform operated by Twisted Jester LLC, a Pennsylvania limited
             liability company (&quot;Company,&quot; &quot;we,&quot; &quot;us,&quot; or
             &quot;our&quot;). The Service is accessible via our website at collectors-chest.com and
             our mobile application (collectively, the &quot;Platform&quot;).
@@ -463,10 +463,10 @@ export default function TermsOfServicePage() {
           <p>
             Any dispute, claim, or controversy arising out of or relating to these Terms or the
             Service shall first be attempted to be resolved through informal negotiation by
-            contacting us at [SUPPORT EMAIL]. If the dispute cannot be resolved informally within 30
+            contacting us at Admin@collectorschest.com. If the dispute cannot be resolved informally within 30
             days, either party may pursue resolution through binding arbitration administered by the
             American Arbitration Association (AAA) under its Consumer Arbitration Rules, conducted in
-            [STATE/COUNTY]. You agree that any arbitration will be conducted on an individual basis
+            Bucks County, Pennsylvania. You agree that any arbitration will be conducted on an individual basis
             and not as a class, consolidated, or representative action. The arbitrator&apos;s
             decision shall be final and binding.
           </p>
@@ -543,11 +543,13 @@ export default function TermsOfServicePage() {
             If you have any questions about these Terms, please contact us at:
           </p>
           <p>
-            [LEGAL BUSINESS NAME]
+            Twisted Jester LLC
             <br />
-            [ADDRESS]
+            889 Elm St
             <br />
-            [SUPPORT EMAIL]
+            Hatfield, PA 19440
+            <br />
+            Admin@collectorschest.com
             <br />
             Website: collectors-chest.com
           </p>

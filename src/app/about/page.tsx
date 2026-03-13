@@ -37,7 +37,7 @@ export default function AboutPage() {
 
         {/* Our Story */}
         <div className="mb-16">
-          <div className="bg-pop-white border-4 border-pop-black shadow-[6px_6px_0px_#000] p-8 relative">
+          <div className="bg-pop-white border-4 border-pop-black shadow-[6px_6px_0px_#000] p-8 relative overflow-hidden">
             {/* Ben-day dots accent in corner */}
             <div className="absolute top-0 right-0 w-24 h-24 dots-red opacity-30 pointer-events-none" />
 
@@ -52,9 +52,11 @@ export default function AboutPage() {
               OUR STORY
             </h2>
             <p className="font-body text-pop-black/80 text-lg leading-relaxed">
-              Every great collection starts with a single issue. [Your origin story here — how
-              Collectors Chest came to be, what problem you set out to solve, and why you&apos;re
-              passionate about comics.]
+              Every great collection starts with a single issue.{" "}
+              <span className="text-pop-red font-bold">
+                [Your origin story here — how Collectors Chest came to be, what problem you set out
+                to solve, and why you&apos;re passionate about comics.]
+              </span>
             </p>
           </div>
         </div>
@@ -74,7 +76,8 @@ export default function AboutPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {/* AI Cover Scanning */}
-            <div className="bg-pop-white border-4 border-pop-black shadow-[6px_6px_0px_#000] p-6">
+            <div className="bg-pop-white border-4 border-pop-black shadow-[6px_6px_0px_#000] p-6 relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-20 h-20 dots-red opacity-25 pointer-events-none" />
               <div className="flex items-center gap-4 mb-4">
                 <div className="w-14 h-14 bg-pop-red border-3 border-pop-black shadow-comic-sm flex items-center justify-center flex-shrink-0">
                   <Camera className="w-7 h-7 text-pop-white" />
@@ -102,7 +105,8 @@ export default function AboutPage() {
             </div>
 
             {/* Key Issue Discovery */}
-            <div className="bg-pop-white border-4 border-pop-black shadow-[6px_6px_0px_#000] p-6">
+            <div className="bg-pop-white border-4 border-pop-black shadow-[6px_6px_0px_#000] p-6 relative overflow-hidden">
+              <div className="absolute bottom-0 right-0 w-20 h-20 dots-blue opacity-25 pointer-events-none" />
               <div className="flex items-center gap-4 mb-4">
                 <div className="w-14 h-14 bg-pop-yellow border-3 border-pop-black shadow-comic-sm flex items-center justify-center flex-shrink-0">
                   <Search className="w-7 h-7 text-pop-black" />
@@ -116,7 +120,8 @@ export default function AboutPage() {
             </div>
 
             {/* Collector Marketplace */}
-            <div className="bg-pop-white border-4 border-pop-black shadow-[6px_6px_0px_#000] p-6">
+            <div className="bg-pop-white border-4 border-pop-black shadow-[6px_6px_0px_#000] p-6 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-16 h-16 dots-red opacity-20 pointer-events-none" />
               <div className="flex items-center gap-4 mb-4">
                 <div className="w-14 h-14 bg-pop-green border-3 border-pop-black shadow-comic-sm flex items-center justify-center flex-shrink-0">
                   <ShoppingBag className="w-7 h-7 text-pop-white" />
@@ -152,7 +157,7 @@ export default function AboutPage() {
                 <Users className="w-6 h-6 text-pop-white" />
               </div>
             </div>
-            <p className="font-body text-pop-black/80 text-lg">
+            <p className="font-body text-pop-red font-bold text-lg">
               [Team member cards will go here — photo, name, role, short bio]
             </p>
           </div>

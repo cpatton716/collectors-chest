@@ -2,7 +2,7 @@
 
 > **This document is the guiding light for development priorities. It takes precedence over BACKLOG.md.**
 
-*Last Updated: March 11, 2026*
+*Last Updated: March 13, 2026*
 
 ---
 
@@ -51,6 +51,10 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 - ✅ **Grade multiselect pills** — Stats page grade pills link to filtered collection
 - ✅ **Grading company clickable counts** — Stats page counts deep-link to filtered collection
 - ✅ **FEEDBACK_MAR_11.md** — Partner meeting document created for Mar 11 session
+- ✅ **Legal pages finalized** — All 4 legal pages updated with Twisted Jester LLC business info, replacing all placeholders
+- ✅ **Ben-day dots accents** — Added scattered pop art dot patterns to About, Homepage, and Pricing pages
+- ✅ **Hottest Books hidden** — Removed from homepage, commented out in navigation (not ready for launch)
+- ✅ **Navigation dropdown scroll fix** — More menu now scrollable on short viewports
 
 ---
 
@@ -64,10 +68,10 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 |------|--------|-------|
 | **Cloud sync for signed-in users** | ✅ Done | Signed-in users now sync to Supabase; guests use localStorage |
 | **Form LLC business entity** | ✅ Done | Completed (Mar 11, 2026) |
-| Privacy Policy page | ⏳ Content ready | Full content written; placeholders need LLC info |
-| Terms of Service page | ⏳ Content ready | Full content written; placeholders need LLC info |
-| Acceptable Use Policy page | ⏳ Content ready | Full content written; placeholders need LLC info |
-| Cookie & Tracking Policy page | ⏳ Content ready | Full content written; placeholders need LLC info |
+| Privacy Policy page | ✅ Done | LLC placeholders replaced with Twisted Jester LLC info (Mar 13, 2026) |
+| Terms of Service page | ✅ Done | LLC placeholders replaced with Twisted Jester LLC info (Mar 13, 2026) |
+| Acceptable Use Policy page | ✅ Done | LLC placeholders replaced with Twisted Jester LLC info (Mar 13, 2026) |
+| Cookie & Tracking Policy page | ✅ Done | LLC placeholders replaced with Twisted Jester LLC info (Mar 13, 2026) |
 | Premium subscription billing | ⏳ Code complete | Waiting on Stripe account setup |
 | Stripe Connect for seller payouts | ⏳ Code complete | Enable Connect in Stripe dashboard, configure Express accounts |
 | Age gate (18+) for marketplace | ✅ Done | Age verification modal with Redis cache (Mar 11, 2026) |
@@ -451,18 +455,20 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 32. ~~**Show/hide financials toggle**~~ ✅ (Mar 11, 2026) — Collection page + account settings
 33. ~~**Grade sort + grading company filter**~~ ✅ (Mar 11, 2026) — Collection page
 34. ~~**Grade multiselect pills + grading company deep links**~~ ✅ (Mar 11, 2026) — Stats page
+35. ~~**Legal pages — replace LLC placeholders**~~ ✅ (Mar 13, 2026) — All 4 pages updated with Twisted Jester LLC info
+36. ~~**Ben-day dots accents across guest pages**~~ ✅ (Mar 13, 2026) — About, Homepage, Pricing
+37. ~~**Hottest Books hidden from homepage + nav**~~ ✅ (Mar 13, 2026)
 
 ### 🔴 Before Opening Registration (See Section 0)
 
 1. ~~**Form LLC Business Entity**~~ ✅ DONE (Mar 11, 2026)
 
-2. **Legal pages (ToS, Privacy, AUP, Cookies)** (UNBLOCKED — LLC formed)
+2. **Legal pages (ToS, Privacy, AUP, Cookies)** ✅ DONE (Mar 13, 2026)
    - ✅ Full content written for all 4 pages (`/privacy`, `/terms`, `/acceptable-use`, `/cookies`)
    - ✅ All content verified accurate against codebase (18/20 claims exact match)
    - ✅ Cross-linked footers on all 4 pages
    - ✅ **Legal update briefing created** (Feb 27, 2026) — covers Creator Credits, Community Cover DB, Age Verification, Google CSE removal. Saved to `Legal Docs/Legal_Update_Briefing_Feb_2026.md`. Ready for lawyer review.
-   - ⏳ Placeholder fields remain: [LEGAL BUSINESS NAME], [ADDRESS], [SUPPORT EMAIL], [DATE], [STATE], [STATE/COUNTY]
-   - ⏳ Replace placeholders once LLC is formed (see BACKLOG.md)
+   - ✅ All placeholders replaced with Twisted Jester LLC info (Mar 13, 2026)
    - ⏳ Implement 3-listing cap for free users (referenced in ToS but not yet enforced)
    - ⏳ **Pending lawyer review** of briefing before finalizing legal page updates
 
@@ -576,7 +582,15 @@ Items addressed:
 - **Grading company clickable counts** — Stats page grading company counts deep-link to filtered collection
 - **FEEDBACK_MAR_11.md created** — Partner meeting document for upcoming session
 
-### 🟡 Next Session Focus (Session 20)
+### ✅ Mar 13 Session Completed (Session 20)
+
+- **Legal pages finalized** — All 4 legal pages (Privacy Policy, Terms of Service, Acceptable Use Policy, Cookie & Tracking Policy) updated with Twisted Jester LLC business info, replacing all placeholders
+- **Ben-day dots accents** — Added scattered pop art dot patterns to About, Homepage, and Pricing pages
+- **Hottest Books removed from homepage, commented out in navigation** — Feature not ready for launch
+- **Navigation dropdown scroll fix** — More menu now scrollable on short viewports
+- **About page placeholder text highlighted in red** — Outstanding placeholder sections visually flagged for future content
+
+### 🟡 Next Session Focus (Session 21)
 
 1. **Make Publisher clickable on Stats page** (NEW BIZ #6 from Mar 11 feedback)
    - Publisher counts on stats page should link to filtered collection view
@@ -586,42 +600,37 @@ Items addressed:
    - User reports their public collection appears empty
    - Debug data visibility / sharing permissions
 
-3. **Legal pages — replace LLC placeholders** (UNBLOCKED)
-   - LLC is now formed — replace [LEGAL BUSINESS NAME], [ADDRESS], [SUPPORT EMAIL], etc.
-   - Briefing at `Legal Docs/Legal_Update_Briefing_Feb_2026.md` — pending lawyer review
-   - Update ToS, Privacy Policy, AUP, Cookie Policy with real business info
-
-4. **Stripe account setup + payment testing**
+3. **Stripe account setup + payment testing**
    - Set up Stripe account with LLC info
    - Test auction bid flow, Buy Now flow, webhooks
    - Set up Stripe Connect for seller payouts
    - Effort: ~1 session
 
-5. **Database backup strategy**
+4. **Database backup strategy**
    - Evaluate Supabase Pro ($25/mo) for daily backups + 7-day retention
    - Critical before opening registration
 
-6. **Launch tracker review** (NEW BIZ #1 from Mar 11 feedback)
+5. **Launch tracker review** (NEW BIZ #1 from Mar 11 feedback)
    - Review private beta checklist and assess readiness to open registration
-   - LLC done, age gate done — remaining blockers: legal pages, Stripe, backups
+   - LLC done, age gate done, legal pages done — remaining blockers: Stripe, backups
 
-7. **Implement auto-harvest cover images from graded book scans** (design doc exists)
+6. **Implement auto-harvest cover images from graded book scans** (design doc exists)
    - Design doc: `docs/plans/2026-02-25-cover-image-harvesting-design.md`
    - Harvest cover images from graded book scans during AI analysis
    - Feeds into community cover DB (primary cover source)
 
-8. **Fill in About page content** (Medium Priority)
+7. **Fill in About page content** (Medium Priority)
    - Write "Our Story" section with founding narrative
    - Add "Meet the Team" bios and photos
    - Complete "Contact" section with support email / form
 
-9. **Add "Professor" Persona Throughout Site**
+8. **Add "Professor" Persona Throughout Site**
    - Extend the Ask the Professor concept to other areas of the app
    - Consistent branding for AI-powered features
 
-10. **Test self-healing pipeline failure path**
-    - Use a fake/invalid model ID to trigger the full discover → update → deploy → smoke test flow
-    - Verify rollback behavior works correctly when the vision probe fails
+9. **Test self-healing pipeline failure path**
+   - Use a fake/invalid model ID to trigger the full discover → update → deploy → smoke test flow
+   - Verify rollback behavior works correctly when the vision probe fails
 
 ### ✅ Completed Focus Items (Archived)
 
@@ -722,6 +731,7 @@ Items addressed:
 | Mar 3, 2026 | 8.5/10 | +Scan resilience deployed with monitoring (fallback rate alerting, provider health checks, PostHog provider tracking), +386 tests |
 | Mar 6, 2026 | 8.5/10 | +Fixed Start Free Trial button, +Fixed cover lightbox on mobile, +Created FEEDBACK_MAR_6.md |
 | Mar 11, 2026 | 8.7/10 | +All 11 Mar 6 feedback items, +LLC formed, +Age gate, +Show/hide financials, +Grade sort/filter, +Grading company deep links, +Guest homepage fix |
+| Mar 13, 2026 | 8.7/10 | +Legal pages finalized, +Ben-day dots polish, +Hottest Books hidden |
 
 ---
 

@@ -17,7 +17,7 @@ import {
   ChevronUp,
   DollarSign,
   UserCheck,
-  Flame,
+  // Flame, // Hottest Books hidden
   Gavel,
   Home,
   KeyRound,
@@ -121,11 +121,12 @@ const faqs = [
     answer:
       "Yes! From your Collection page, create lists to organize comics however you like \u2014 by series, want list, favorites, reading order, or any category. Comics can belong to multiple lists.",
   },
-  {
-    question: "What is the Hottest Books feature?",
-    answer:
-      "Professor's Hottest Books is a weekly market analysis showing the top trending comics based on recent sales activity. It includes key facts about each book, why it's hot, and current price ranges to help you spot opportunities.",
-  },
+  // Hottest Books FAQ hidden
+  // {
+  //   question: "What is the Hottest Books feature?",
+  //   answer:
+  //     "Professor's Hottest Books is a weekly market analysis showing the top trending comics based on recent sales activity. It includes key facts about each book, why it's hot, and current price ranges to help you spot opportunities.",
+  // },
   {
     question: "What is Key Info and why does it matter?",
     answer:
@@ -265,7 +266,7 @@ export function Navigation() {
     { href: "/following", label: "Following", icon: UserCheck },
     { href: "/collection", label: "Lists", icon: Layers },
     { href: "/my-auctions", label: "My Listings", icon: Gavel },
-    { href: "/hottest-books", label: "Hottest Books", icon: Flame },
+    // { href: "/hottest-books", label: "Hottest Books", icon: Flame }, // Hottest Books hidden
     { href: "/key-hunt", label: "Key Hunt", icon: KeyRound },
     { href: "/about", label: "About", icon: Info },
   ];
@@ -332,7 +333,7 @@ export function Navigation() {
 
                 {/* Dropdown menu */}
                 {showMoreMenu && (
-                  <div className="absolute top-full right-0 mt-2 w-48 bg-pop-white border-3 border-pop-black shadow-comic z-50">
+                  <div className="absolute top-full right-0 mt-2 w-48 bg-pop-white border-3 border-pop-black shadow-comic z-50 max-h-[calc(100vh-120px)] overflow-y-auto">
                     {secondaryLinks.map((link) => {
                       const Icon = link.icon;
                       const isActive = pathname === link.href && !primaryLinks.some((p) => p.href === link.href);

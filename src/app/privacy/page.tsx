@@ -18,7 +18,7 @@ export default function PrivacyPolicyPage() {
             Back to Home
           </Link>
           <h1 className="text-3xl font-bold text-gray-900">Privacy Policy</h1>
-          <p className="text-gray-600 mt-2">Last updated: February 27, 2026</p>
+          <p className="text-gray-600 mt-2">Last updated: March 13, 2026</p>
         </div>
       </div>
 
@@ -27,10 +27,10 @@ export default function PrivacyPolicyPage() {
         <div className="bg-white rounded-xl shadow-sm p-8 prose prose-gray max-w-none">
           <h2>Collector&apos;s Chest Privacy Policy</h2>
           <p>
-            <strong>Effective Date:</strong> [DATE]
+            <strong>Effective Date:</strong> March 13, 2026
           </p>
           <p>
-            This Privacy Policy describes how [LEGAL BUSINESS NAME] (&quot;Company,&quot;
+            This Privacy Policy describes how Twisted Jester LLC (&quot;Company,&quot;
             &quot;we,&quot; &quot;us,&quot; or &quot;our&quot;) collects, uses, discloses, and
             protects your personal information when you use the Collector&apos;s Chest platform at
             collectors-chest.com and our mobile application (collectively, the &quot;Service&quot;).
@@ -334,7 +334,7 @@ export default function PrivacyPolicyPage() {
             collect, use, and disclose; the right to request deletion of your personal information;
             the right to opt out of the sale of personal information (we do not sell personal
             information); and the right to non-discrimination for exercising your CCPA rights. To
-            exercise these rights, contact us at [SUPPORT EMAIL].
+            exercise these rights, contact us at Admin@collectorschest.com.
           </p>
 
           <h3>
@@ -348,7 +348,7 @@ export default function PrivacyPolicyPage() {
             withdraw consent at any time. Our legal basis for processing your data is: performance of
             a contract (to provide the Service), legitimate interests (analytics, security, service
             improvement), and consent (optional location sharing, marketing communications if any).
-            To exercise these rights, contact us at [SUPPORT EMAIL].
+            To exercise these rights, contact us at Admin@collectorschest.com.
           </p>
 
           <h3>7.4 Do Not Track</h3>
@@ -364,7 +364,7 @@ export default function PrivacyPolicyPage() {
             collect personal information from anyone under 18. If we become aware that we have
             collected personal information from a person under 18, we will take steps to delete that
             information promptly. If you believe a minor has provided us with personal information,
-            please contact us at [SUPPORT EMAIL].
+            please contact us at Admin@collectorschest.com.
           </p>
 
           <h2>9. International Data Transfers</h2>
@@ -392,11 +392,13 @@ export default function PrivacyPolicyPage() {
             contact us at:
           </p>
           <p>
-            [LEGAL BUSINESS NAME]
+            Twisted Jester LLC
             <br />
-            [ADDRESS]
+            889 Elm St
             <br />
-            [SUPPORT EMAIL]
+            Hatfield, PA 19440
+            <br />
+            Admin@collectorschest.com
             <br />
             Website: collectors-chest.com
           </p>

@@ -18,7 +18,7 @@ export default function AcceptableUsePolicyPage() {
             Back to Home
           </Link>
           <h1 className="text-3xl font-bold text-gray-900">Acceptable Use Policy</h1>
-          <p className="text-gray-600 mt-2">Last updated: February 27, 2026</p>
+          <p className="text-gray-600 mt-2">Last updated: March 13, 2026</p>
         </div>
       </div>
 
@@ -27,7 +27,7 @@ export default function AcceptableUsePolicyPage() {
         <div className="bg-white rounded-xl shadow-sm p-8 prose prose-gray max-w-none">
           <h2>Collector&apos;s Chest - Acceptable Use Policy</h2>
           <p>
-            <strong>Effective Date:</strong> [DATE]
+            <strong>Effective Date:</strong> March 13, 2026
           </p>
           <p>
             This Acceptable Use Policy (&quot;AUP&quot;) governs your conduct when using the
@@ -258,15 +258,14 @@ export default function AcceptableUsePolicyPage() {
             images for use outside the Service, submit images to the Community Cover Database that
             you do not have the right to share, or use the Service&apos;s AI features to generate
             content that infringes on others&apos; intellectual property. If you believe content on
-            the Service infringes your intellectual property rights, please contact us at [SUPPORT
-            EMAIL] with a detailed description of the alleged infringement.
+            the Service infringes your intellectual property rights, please contact us at Admin@collectorschest.com with a detailed description of the alleged infringement.
           </p>
 
           <h2>10. Reporting Violations</h2>
           <p>
             If you encounter content or behavior that violates this Acceptable Use Policy, please
             report it using the reporting functionality within the Platform or by contacting us at
-            [SUPPORT EMAIL]. We take all reports seriously and will investigate promptly. We may, but
+            Admin@collectorschest.com. We take all reports seriously and will investigate promptly. We may, but
             are not obligated to, take action based on reports, including content removal, warnings,
             temporary suspension, or permanent account termination.
           </p>
@@ -320,11 +319,13 @@ export default function AcceptableUsePolicyPage() {
             If you have questions about this Acceptable Use Policy, please contact us at:
           </p>
           <p>
-            [LEGAL BUSINESS NAME]
+            Twisted Jester LLC
             <br />
-            [ADDRESS]
+            889 Elm St
             <br />
-            [SUPPORT EMAIL]
+            Hatfield, PA 19440
+            <br />
+            Admin@collectorschest.com
             <br />
             Website: collectors-chest.com
           </p>

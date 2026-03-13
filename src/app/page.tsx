@@ -16,10 +16,7 @@ import {
   ChevronRight,
   Clock,
   DollarSign,
-  Flame,
-  Loader2,
   Receipt,
-  RefreshCw,
   Tag,
   TrendingDown,
   TrendingUp,
@@ -28,7 +25,6 @@ import {
 } from "lucide-react";
 
 import { calculateCollectionValue, getComicValue } from "@/lib/gradePrice";
-import { formatCurrency } from "@/lib/statsCalculator";
 import { storage } from "@/lib/storage";
 
 import { useGuestScans } from "@/hooks/useGuestScans";
@@ -38,47 +34,6 @@ import { CollectionItem } from "@/types/comic";
 // Duration filter options
 type DurationDays = 30 | 60 | 90;
 
-// Hottest books client-side cache (24 hours)
-const HOT_BOOKS_CACHE_KEY = "hottest_books_cache";
-const HOT_BOOKS_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours in ms
-
-interface HotBooksCache {
-  books: HotBook[];
-  timestamp: number;
-}
-
-function getCachedHotBooks(): HotBook[] | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const cached = localStorage.getItem(HOT_BOOKS_CACHE_KEY);
-    if (!cached) return null;
-
-    const { books, timestamp }: HotBooksCache = JSON.parse(cached);
-    const age = Date.now() - timestamp;
-
-    if (age < HOT_BOOKS_CACHE_TTL) {
-      return books;
-    }
-    // Cache expired, remove it
-    localStorage.removeItem(HOT_BOOKS_CACHE_KEY);
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-function setCachedHotBooks(books: HotBook[]): void {
-  if (typeof window === "undefined") return;
-  try {
-    const cache: HotBooksCache = {
-      books,
-      timestamp: Date.now(),
-    };
-    localStorage.setItem(HOT_BOOKS_CACHE_KEY, JSON.stringify(cache));
-  } catch {
-    // localStorage might be full or disabled
-  }
-}
 
 interface InsightBook {
   item: CollectionItem;
@@ -96,21 +51,6 @@ interface BestBuyBook {
   profit: number;
 }
 
-interface HotBook {
-  rank: number;
-  title: string;
-  issueNumber: string;
-  publisher: string;
-  year: string;
-  keyFacts: string[];
-  whyHot: string;
-  priceRange: {
-    low: number;
-    mid: number;
-    high: number;
-  };
-  coverImageUrl?: string;
-}
 
 export default function Home() {
   const router = useRouter();
@@ -126,11 +66,6 @@ export default function Home() {
   const [showBiggestDecline, setShowBiggestDecline] = useState(false);
   const [increaseDuration, setIncreaseDuration] = useState<DurationDays>(30);
   const [declineDuration, setDeclineDuration] = useState<DurationDays>(30);
-
-  // Hottest books state
-  const [hotBooks, setHotBooks] = useState<HotBook[]>([]);
-  const [hotBooksLoading, setHotBooksLoading] = useState(true);
-  const [hotBooksError, setHotBooksError] = useState<string | null>(null);
 
   // Redirect signed-in users to their collection
   useEffect(() => {
@@ -152,42 +87,6 @@ export default function Home() {
       setSalesStats({ totalSales: 0, totalRevenue: 0, totalProfit: 0 });
     }
   }, [isLoaded, isSignedIn]);
-
-  // Fetch hottest books for all users (with client-side caching)
-  useEffect(() => {
-    const fetchHotBooks = async () => {
-      // Check client-side cache first (prevents unnecessary API calls)
-      const cached = getCachedHotBooks();
-      if (cached && cached.length > 0) {
-        setHotBooks(cached);
-        setHotBooksLoading(false);
-        return;
-      }
-
-      setHotBooksLoading(true);
-      setHotBooksError(null);
-      try {
-        const response = await fetch("/api/hottest-books");
-        const data = await response.json();
-        if (data.error) {
-          setHotBooksError(data.error);
-        } else {
-          const books = data.books || [];
-          setHotBooks(books);
-          // Cache the result in localStorage for 24 hours
-          if (books.length > 0) {
-            setCachedHotBooks(books);
-          }
-        }
-      } catch (err) {
-        console.error("Error fetching hot books:", err);
-        setHotBooksError("Couldn't load hottest books");
-      } finally {
-        setHotBooksLoading(false);
-      }
-    };
-    fetchHotBooks();
-  }, []);
 
   // Calculate stats from collection using grade-aware pricing
   const collectionValue = calculateCollectionValue(collection);
@@ -448,7 +347,8 @@ export default function Home() {
         {/* Features - Only shown to non-logged-in users */}
         {isLoaded && !isSignedIn && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12 max-w-4xl mx-auto">
-            <div className="bg-pop-white border-4 border-pop-black shadow-[6px_6px_0px_#000] p-6 text-center">
+            <div className="relative overflow-hidden bg-pop-white border-4 border-pop-black shadow-[6px_6px_0px_#000] p-6 text-center">
+              <div className="absolute top-0 left-0 w-20 h-20 dots-blue opacity-20 pointer-events-none" />
               <div className="w-16 h-16 bg-pop-red border-3 border-pop-black shadow-comic-sm flex items-center justify-center mx-auto mb-4">
                 <Camera className="w-8 h-8 text-pop-white" />
               </div>
@@ -485,7 +385,8 @@ export default function Home() {
 
         {/* How It Works - Only shown to non-logged-in users */}
         {isLoaded && !isSignedIn && (
-          <div className="bg-pop-white border-4 border-pop-black shadow-[6px_6px_0px_#000] p-8 mb-8 max-w-4xl mx-auto">
+          <div className="relative overflow-hidden bg-pop-white border-4 border-pop-black shadow-[6px_6px_0px_#000] p-8 mb-8 max-w-4xl mx-auto">
+            <div className="absolute bottom-0 right-0 w-24 h-24 dots-red opacity-25 pointer-events-none" />
             <h2 className="font-comic text-3xl text-pop-black text-center mb-8">HOW IT WORKS!</h2>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               <div className="text-center">
@@ -570,7 +471,8 @@ export default function Home() {
       {/* Stats Cards */}
       {stats.totalComics > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-12">
-          <div className="comic-panel bg-pop-white p-4">
+          <div className="relative overflow-hidden comic-panel bg-pop-white p-4">
+            <div className="absolute top-0 right-0 w-16 h-16 dots-red opacity-20 pointer-events-none" />
             <div className="flex items-center gap-3">
               <div className="p-2 bg-pop-blue border-2 border-pop-black">
                 <BookOpen className="w-5 h-5 text-pop-white" />
@@ -642,7 +544,8 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="comic-panel bg-pop-white p-4">
+          <div className="relative overflow-hidden comic-panel bg-pop-white p-4">
+            <div className="absolute bottom-0 left-0 w-20 h-20 dots-blue opacity-30 pointer-events-none" />
             <div className="flex items-center gap-3">
               <div
                 className={`p-2 border-2 border-pop-black ${profitLoss >= 0 ? "bg-pop-green" : "bg-pop-red"}`}
@@ -674,78 +577,6 @@ export default function Home() {
           </div>
         </div>
       )}
-
-      {/* Professor's Hottest Books - Inline List */}
-      <div className="mb-12">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-pop-red border-3 border-pop-black shadow-comic-sm">
-              <Flame className="w-6 h-6 text-pop-yellow" />
-            </div>
-            <div>
-              <h2 className="font-comic text-2xl text-pop-black">
-                PROFESSOR&apos;S HOTTEST BOOKS!
-              </h2>
-              <p className="text-sm font-body text-pop-black/70">
-                Weekly market analysis of the most in-demand comics
-              </p>
-            </div>
-          </div>
-          <Link href="/hottest-books" className="btn-pop btn-pop-blue text-sm">
-            VIEW ALL
-            <ChevronRight className="w-4 h-4" />
-          </Link>
-        </div>
-
-        {hotBooksLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="w-8 h-8 animate-spin text-pop-red" />
-          </div>
-        ) : hotBooksError ? (
-          <div className="text-center py-8">
-            <p className="font-body text-pop-black/70 mb-2">{hotBooksError}</p>
-            <button
-              onClick={() => window.location.reload()}
-              className="btn-pop btn-pop-yellow text-sm"
-            >
-              <RefreshCw className="w-4 h-4" />
-              TRY AGAIN
-            </button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            {hotBooks.slice(0, 5).map((book) => (
-              <Link
-                key={book.rank}
-                href="/hottest-books"
-                className="comic-panel bg-pop-white p-4 hover:shadow-comic-lg"
-              >
-                <div className="flex items-start gap-3 mb-3">
-                  <div className="w-10 h-10 bg-pop-red border-2 border-pop-black shadow-comic-sm flex items-center justify-center text-pop-white font-comic text-lg flex-shrink-0">
-                    {book.rank}
-                  </div>
-                  {book.coverImageUrl && (
-                    <img
-                      src={book.coverImageUrl}
-                      alt={`${book.title} #${book.issueNumber}`}
-                      className="w-12 h-18 object-cover border-2 border-pop-black shadow-comic-sm"
-                    />
-                  )}
-                </div>
-                <h3 className="font-comic text-pop-black text-sm leading-tight mb-1">
-                  {book.title?.toUpperCase()} #{book.issueNumber}
-                </h3>
-                <p className="text-xs font-body text-pop-black/70 mb-2">{book.publisher}</p>
-                <div className="price-tag text-sm">
-                  <DollarSign className="w-3 h-3" />
-                  <span>${formatCurrency(book.priceRange.mid)}</span>
-                  <span className="text-pop-black/60 text-xs">mid</span>
-                </div>
-              </Link>
-            ))}
-          </div>
-        )}
-      </div>
 
       {/* Recently Viewed */}
       {recentlyViewed.length > 0 && (

@@ -18,7 +18,7 @@ export default function CookieTrackingPolicyPage() {
             Back to Home
           </Link>
           <h1 className="text-3xl font-bold text-gray-900">Cookie &amp; Tracking Policy</h1>
-          <p className="text-gray-600 mt-2">Last updated: February 27, 2026</p>
+          <p className="text-gray-600 mt-2">Last updated: March 13, 2026</p>
         </div>
       </div>
 
@@ -27,7 +27,7 @@ export default function CookieTrackingPolicyPage() {
         <div className="bg-white rounded-xl shadow-sm p-8 prose prose-gray max-w-none">
           <h2>Collector&apos;s Chest - Cookie &amp; Tracking Policy</h2>
           <p>
-            <strong>Effective Date:</strong> [DATE]
+            <strong>Effective Date:</strong> March 13, 2026
           </p>
           <p>
             This Cookie &amp; Tracking Policy explains how Collector&apos;s Chest
@@ -237,11 +237,13 @@ export default function CookieTrackingPolicyPage() {
             If you have questions about this Cookie &amp; Tracking Policy, please contact us at:
           </p>
           <p>
-            [LEGAL BUSINESS NAME]
+            Twisted Jester LLC
             <br />
-            [ADDRESS]
+            889 Elm St
             <br />
-            [SUPPORT EMAIL]
+            Hatfield, PA 19440
+            <br />
+            Admin@collectorschest.com
             <br />
             Website: collectors-chest.com
           </p>

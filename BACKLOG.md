@@ -135,7 +135,7 @@ Configure webhook at `https://collectors-chest.com/api/webhooks/stripe` for even
 
 ### Finalize Legal Pages (Placeholder Replacement)
 **Priority:** Critical
-**Status:** Pending (Blocked by LLC Formation + Stripe Setup)
+**Status:** ✅ Complete (Mar 13, 2026)
 **Added:** Feb 18, 2026
 
 All four legal pages (Terms of Service, Privacy Policy, Acceptable Use Policy, Cookie & Tracking Policy) are deployed with placeholder fields that must be updated once the business is formed and Stripe is configured.
@@ -1737,7 +1737,7 @@ Allow users to import their existing comic collections from files or other track
 
 ### Professor's Hottest Books Feature
 **Priority:** Medium
-**Status:** ✅ Complete (Jan 8, 2026)
+**Status:** ✅ Complete (Jan 8, 2026) — Hidden/commented out as of Mar 13, 2026 (available to re-enable)
 
 Weekly market analysis showing the hottest comics based on recent sales activity. Similar to Key Collector's "Hot 10" feature.
 
@@ -1822,9 +1822,9 @@ Removed external image search API integration after discovering no providers ava
 
 ---
 
-### Fill In About Page Content
+### About Page Copy
 **Priority:** Medium
 **Status:** Pending
-**Added:** Mar 9, 2026
+**Added:** Mar 13, 2026
 
-The About page needs real content filled in for the Our Story, Meet the Team, and Contact sections. Currently these sections are placeholder or incomplete.
+Write "Our Story" origin narrative and "Meet the Team" bios for the About page. Placeholder text is currently highlighted in red. Also complete the "Get in Touch" contact section.
