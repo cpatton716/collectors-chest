@@ -105,6 +105,15 @@ export function ComicDetailsForm({
     initialComic.isSignatureSeries || false
   );
   const [signedBy, setSignedBy] = useState(initialComic.signedBy || "");
+  // Multi-signature support: parse comma-separated signedBy into array
+  const [signatures, setSignatures] = useState<string[]>(() => {
+    const raw = initialComic.signedBy || "";
+    return raw
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+  });
+  const [newSignature, setNewSignature] = useState("");
   const [certificationNumber, setCertificationNumber] = useState(
     initialComic.certificationNumber || ""
   );
@@ -264,6 +273,12 @@ export function ComicDetailsForm({
     setGrade(initialComic.grade || "");
     setIsSignatureSeries(initialComic.isSignatureSeries || false);
     setSignedBy(initialComic.signedBy || "");
+    setSignatures(
+      (initialComic.signedBy || "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0)
+    );
   }, [initialComic]);
 
   // Detect title/issue changes in edit mode and prompt for re-lookup
@@ -348,8 +363,16 @@ export function ComicDetailsForm({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Sync signatures back to comic before saving
+    const signedByValue = signatures.length > 0 ? signatures.join(", ") : null;
+    const updatedComic = {
+      ...comic,
+      signedBy: signedByValue,
+      isSignatureSeries: signatures.length > 0 ? isSignatureSeries : false,
+    };
+
     onSave({
-      comic,
+      comic: updatedComic,
       coverImageUrl,
       conditionGrade: grade ? parseFloat(grade) : null,
       conditionLabel: null, // We're using numeric grades now
@@ -418,6 +441,12 @@ export function ComicDetailsForm({
           if (data.data.signatures) {
             setIsSignatureSeries(true);
             setSignedBy(data.data.signatures);
+            setSignatures(
+              data.data.signatures
+                .split(",")
+                .map((s: string) => s.trim())
+                .filter((s: string) => s.length > 0)
+            );
           }
         }
       }
@@ -940,17 +969,30 @@ export function ComicDetailsForm({
         {/* Database Key Info (read-only) */}
         {comic.keyInfo && comic.keyInfo.length > 0 && (
           <div className="space-y-2 mb-3">
-            {comic.keyInfo.map((info, index) => (
-              <div
-                key={`db-${index}`}
-                className="flex items-start gap-2 p-2 bg-yellow-50 border border-yellow-200 rounded-lg"
-              >
-                <span className="flex-1 text-sm text-gray-700">{info}</span>
-                <span className="text-xs text-yellow-600 bg-yellow-100 px-2 py-0.5 rounded">
-                  Verified
-                </span>
-              </div>
-            ))}
+            {comic.keyInfo.map((info, index) => {
+              const isVerified = comic.keyInfoSource === "database" || comic.keyInfoSource === "cgc";
+              return (
+                <div
+                  key={`db-${index}`}
+                  className={`flex items-start gap-2 p-2 rounded-lg ${
+                    isVerified
+                      ? "bg-yellow-50 border border-yellow-200"
+                      : "bg-gray-50 border border-gray-200"
+                  }`}
+                >
+                  <span className="flex-1 text-sm text-gray-700">{info}</span>
+                  {isVerified ? (
+                    <span className="text-xs text-yellow-600 bg-yellow-100 px-2 py-0.5 rounded">
+                      Verified
+                    </span>
+                  ) : (
+                    <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded">
+                      AI
+                    </span>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
 
@@ -1160,34 +1202,89 @@ export function ComicDetailsForm({
               </div>
             )}
 
-            {/* Signature Series */}
-            <div className="mt-4 space-y-3">
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={isSignatureSeries}
-                  onChange={(e) => setIsSignatureSeries(e.target.checked)}
-                  className="w-4 h-4 text-primary-600 rounded focus:ring-primary-500"
-                />
-                <span className="text-sm text-gray-700">
-                  Signature Series (Signed & Authenticated)
-                </span>
-              </label>
-
-              {isSignatureSeries && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Signed By</label>
-                  <input
-                    type="text"
-                    value={signedBy}
-                    onChange={(e) => setSignedBy(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white text-gray-900"
-                    placeholder="e.g., Jim Starlin"
-                  />
-                </div>
-              )}
-            </div>
           </>
+        )}
+      </div>
+
+      {/* Signatures */}
+      <div>
+        <h3 className="text-sm font-semibold text-gray-900 mb-3">Signatures</h3>
+
+        {isGraded && (
+          <div className="mb-3">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={isSignatureSeries}
+                onChange={(e) => setIsSignatureSeries(e.target.checked)}
+                className="w-4 h-4 text-primary-600 rounded focus:ring-primary-500"
+              />
+              <span className="text-sm text-gray-700">
+                Signature Series (Signed & Authenticated)
+              </span>
+            </label>
+          </div>
+        )}
+
+        {/* Signature chips */}
+        {signatures.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-3">
+            {signatures.map((sig, index) => (
+              <span
+                key={`sig-${index}`}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-full text-sm text-blue-800"
+              >
+                {sig}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSignatures((prev) => prev.filter((_, i) => i !== index));
+                  }}
+                  className="p-0.5 text-blue-400 hover:text-red-500 transition-colors rounded-full hover:bg-blue-100"
+                  aria-label={`Remove ${sig}`}
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Add signature input */}
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={newSignature}
+            onChange={(e) => setNewSignature(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && newSignature.trim()) {
+                e.preventDefault();
+                setSignatures((prev) => [...prev, newSignature.trim()]);
+                setNewSignature("");
+              }
+            }}
+            placeholder="e.g., Stan Lee"
+            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white text-gray-900 text-sm"
+          />
+          <button
+            type="button"
+            onClick={() => {
+              if (newSignature.trim()) {
+                setSignatures((prev) => [...prev, newSignature.trim()]);
+                setNewSignature("");
+              }
+            }}
+            disabled={!newSignature.trim()}
+            className="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Plus className="w-4 h-4" />
+          </button>
+        </div>
+        {!isGraded && signatures.length > 0 && (
+          <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
+            <Info className="w-3 h-3" />
+            Unsigned raw books are valued higher when signed by notable creators
+          </p>
         )}
       </div>
 
@@ -1344,7 +1441,7 @@ export function ComicDetailsForm({
       </div>
 
       {/* Actions */}
-      <div className="flex items-center justify-end gap-3 pt-4 border-t">
+      <div className="flex flex-wrap items-center justify-end gap-3 pt-4 border-t">
         <button
           type="button"
           onClick={onCancel}

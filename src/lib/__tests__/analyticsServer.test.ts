@@ -67,29 +67,29 @@ describe("estimateScanCostCents - provider awareness", () => {
     expect(cost).toBe(2.25); // 1.5 + 0.6 + 0.15
   });
 
-  it("returns lower OpenAI costs", () => {
+  it("returns lower Gemini costs", () => {
     const cost = estimateScanCostCents({
       metadataCacheHit: false,
       aiCallsMade: 2,
       ebayLookup: true,
-      provider: "openai",
+      provider: "gemini",
     });
-    expect(cost).toBe(1.75); // 1.2 + 0.4 + 0.15
+    expect(cost).toBe(0.55); // 0.3 + 0.1 + 0.15
   });
 
   it("returns 0 for 0 AI calls regardless of provider", () => {
     expect(
-      estimateScanCostCents({ metadataCacheHit: false, aiCallsMade: 0, ebayLookup: false, provider: "openai" })
+      estimateScanCostCents({ metadataCacheHit: false, aiCallsMade: 0, ebayLookup: false, provider: "gemini" })
     ).toBe(0);
   });
 
-  it("handles 3 AI calls with OpenAI provider", () => {
+  it("handles 3 AI calls with Gemini provider", () => {
     const cost = estimateScanCostCents({
       metadataCacheHit: false,
       aiCallsMade: 3,
       ebayLookup: false,
-      provider: "openai",
+      provider: "gemini",
     });
-    expect(cost).toBe(2); // 1.2 + 0.4 + 0.4
+    expect(cost).toBe(0.5); // 0.3 + 0.1 + 0.1
   });
 });

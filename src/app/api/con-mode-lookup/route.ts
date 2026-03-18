@@ -60,6 +60,9 @@ export async function POST(request: NextRequest) {
           (g) => g.grade === selectedGrade
         );
 
+        // Preserve original price source so UI can show AI warnings
+        const originalSource = dbResult.priceData.priceSource || "database";
+
         const result: ConModeLookupResult = {
           title: dbResult.title,
           issueNumber: dbResult.issueNumber,
@@ -71,8 +74,8 @@ export async function POST(request: NextRequest) {
           gradeEstimates: dbResult.priceData.gradeEstimates || [],
           keyInfo: dbResult.keyInfo || [],
           coverImageUrl: dbResult.coverImageUrl,
-          source: "database",
-          disclaimer: "Values are estimates based on market knowledge. Actual prices may vary.",
+          source: originalSource,
+          disclaimer: dbResult.priceData.disclaimer || "Values are estimates based on market knowledge. Actual prices may vary.",
         };
 
         // Increment lookup count (non-blocking)
@@ -104,7 +107,7 @@ export async function POST(request: NextRequest) {
           // Try to fetch a cover image (non-blocking)
           let coverImageUrl: string | null = null;
           try {
-            coverImageUrl = await fetchCoverImage(normalizedTitle, normalizedIssue);
+            coverImageUrl = await fetchCoverImage(normalizedTitle, normalizedIssue, undefined, seriesYears?.match(/\d{4}/)?.[0]);
           } catch {
             // Ignore cover fetch errors
           }
@@ -250,7 +253,7 @@ Rules:
       // Try to fetch a cover image (non-blocking, best effort)
       let coverImageUrl: string | null = null;
       try {
-        coverImageUrl = await fetchCoverImage(normalizedTitle, normalizedIssue, parsed.publisher);
+        coverImageUrl = await fetchCoverImage(normalizedTitle, normalizedIssue, parsed.publisher, parsed.releaseYear);
       } catch (_coverError) {}
 
       const result: ConModeLookupResult = {
@@ -282,6 +285,7 @@ Rules:
           recentSales: parsed.recentSale ? [parsed.recentSale] : [],
           gradeEstimates: parsed.gradeEstimates || [],
           disclaimer: "Values are estimates based on market knowledge. Actual prices may vary.",
+          priceSource: "ai",
         },
       }).catch((err) => {
         console.error("[con-mode-lookup] Failed to save to database:", err);
@@ -322,12 +326,15 @@ Rules:
 async function fetchCoverImage(
   title: string,
   issueNumber: string,
-  publisher?: string
+  publisher?: string,
+  releaseYear?: string | null
 ): Promise<string | null> {
   // Try Comic Vine API if we have a key
   if (process.env.COMIC_VINE_API_KEY) {
     try {
-      const searchQuery = `${title} ${issueNumber}`;
+      const searchQuery = releaseYear
+        ? `${title} ${issueNumber} ${releaseYear}`
+        : `${title} ${issueNumber}`;
       const cvResponse = await fetch(
         `https://comicvine.gamespot.com/api/search/?api_key=${process.env.COMIC_VINE_API_KEY}&format=json&query=${encodeURIComponent(searchQuery)}&resources=issue&limit=1`,
         { headers: { "User-Agent": "CollectorsChest/1.0" } }

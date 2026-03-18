@@ -1252,4 +1252,72 @@ If you encounter bugs or unexpected behavior:
 | 1 | Friendly error message | Attempt to list an item without Stripe Connect account | Shows "Please connect your Stripe account before proceeding." | Pending |
 | 2 | No raw error code | Attempt to list without Stripe Connect | Does NOT display raw "CONNECT_REQUIRED" error code | Pending |
 
-*Last Updated: March 11, 2026*
+### Scanner - Foil/Vintage Covers (Mar 18, 2026)
+
+**Location:** Home → Scan a Book
+
+| # | Test | Steps | Expected | Status |
+|---|------|-------|----------|--------|
+| 1 | Foil cover detection | Scan a comic with a foil/holographic cover | Scanner detects foil cover, UI tip displays | Pending |
+| 2 | Vintage cover recognition | Scan a pre-1980 comic cover | Scanner correctly identifies vintage book without defaulting to wrong issue | Pending |
+| 3 | Variant detection | Scan a variant cover | Variant details populated in scan results | Pending |
+
+### Scanner - Gemini Fallback (Mar 18, 2026)
+
+**Location:** Home → Scan a Book
+
+| # | Test | Steps | Expected | Status |
+|---|------|-------|----------|--------|
+| 1 | Low confidence triggers Gemini | Scan a book that Claude identifies with low confidence | Gemini fallback fires, "Cerebro" badge appears on result | Pending |
+| 2 | Gemini improves result | Compare result quality when Gemini fallback activates | Gemini result should be equal or better than low-confidence Claude result | Pending |
+| 3 | Claude high confidence skips Gemini | Scan a well-known comic (e.g., Amazing Spider-Man #300) | No Gemini fallback, no "Cerebro" badge | Pending |
+
+### Scanner - Metron Verification (Mar 18, 2026)
+
+**Location:** Home → Scan a Book (background verification)
+
+| # | Test | Steps | Expected | Status |
+|---|------|-------|----------|--------|
+| 1 | Metron verifies scan result | Scan a comic and check result details | Metron verification runs non-blocking, enriches data if match found | Pending |
+| 2 | Metron no-match graceful | Scan an obscure comic not in Metron DB | Scan completes normally without Metron data, no errors | Pending |
+
+### Key Info - Badges & Year Disambiguation (Mar 18, 2026)
+
+**Location:** Comic Detail Modal / Scan Results
+
+| # | Test | Steps | Expected | Status |
+|---|------|-------|----------|--------|
+| 1 | Verified badge on curated key info | View a comic with curated key info (e.g., Amazing Spider-Man #300) | "Verified" badge displays next to key info | Pending |
+| 2 | AI badge on AI-generated key info | View a comic with AI-generated key info | "AI" badge displays instead of "Verified" | Pending |
+| 3 | Year disambiguation | Scan Avengers #54 (1968 vs 2002 volume) | Correct volume identified based on year, correct cover art displayed | Pending |
+
+### Signatures - Raw Books (Mar 18, 2026)
+
+**Location:** Comic Detail Modal → Edit
+
+| # | Test | Steps | Expected | Status |
+|---|------|-------|----------|--------|
+| 1 | Add signature to raw book | Edit a raw (non-slabbed) comic, add a signature | Signature saves and displays correctly | Pending |
+| 2 | Multiple signatures | Add 2+ signatures to a raw book | All signatures display correctly | Pending |
+| 3 | Remove signature | Remove a signature from a raw book | Signature removed, others remain | Pending |
+
+### Scan Limit - Atomic Enforcement (Mar 18, 2026)
+
+**Location:** Home → Scan (as free user)
+
+| # | Test | Steps | Expected | Status |
+|---|------|-------|----------|--------|
+| 1 | Exactly 10 scans allowed | As free user, perform 10 scans in a month | All 10 scans succeed | Pending |
+| 2 | 11th scan blocked | Attempt an 11th scan as free user | User-friendly limit message displayed (not raw error code) | Pending |
+| 3 | No race condition | Rapidly tap scan multiple times near limit | Exactly 10 scans recorded, no extras slip through | Pending |
+
+### eBay Button - Sold Listings (Mar 18, 2026)
+
+**Location:** Key Hunt → Scan Result → "Check eBay Listings"
+
+| # | Test | Steps | Expected | Status |
+|---|------|-------|----------|--------|
+| 1 | Links to sold listings | Scan a comic in Key Hunt, tap "Check eBay Listings" | Opens eBay filtered to SOLD/completed listings for that comic | Pending |
+| 2 | Search terms accurate | Check the eBay URL parameters | Title, issue number, and relevant details included in search | Pending |
+
+*Last Updated: March 18, 2026*

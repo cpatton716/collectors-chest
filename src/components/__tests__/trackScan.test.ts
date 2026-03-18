@@ -37,12 +37,12 @@ describe("buildScanEventProps", () => {
 
   it("includes fallback reason when fallback was used", () => {
     const meta: ScanResponseMeta = {
-      provider: "openai",
+      provider: "gemini",
       fallbackUsed: true,
       fallbackReason: "timeout",
       confidence: "medium",
       callDetails: {
-        imageAnalysis: { provider: "openai", fallbackUsed: true },
+        imageAnalysis: { provider: "gemini", fallbackUsed: true },
         verification: null,
         priceEstimation: null,
       },
@@ -50,6 +50,6 @@ describe("buildScanEventProps", () => {
     const result = buildScanEventProps("upload", true, meta);
     expect(result.fallbackUsed).toBe(true);
     expect(result.fallbackReason).toBe("timeout");
-    expect(result.provider).toBe("openai");
+    expect(result.provider).toBe("gemini");
   });
 });

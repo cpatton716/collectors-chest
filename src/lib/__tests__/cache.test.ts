@@ -138,52 +138,46 @@ describe("Image Hashing", () => {
       expect(hash1).not.toBe(hash2);
     });
 
-    it("includes image length in hash for collision resistance", () => {
+    it("produces collision-free hashes for different content", () => {
       const shortImage = "abc";
       const longerImage = "abcdefghijklmnop";
       const hash1 = hashImageData(shortImage);
       const hash2 = hashImageData(longerImage);
 
-      // Both have different lengths, so hashes should differ
       expect(hash1).not.toBe(hash2);
-
-      // Hash format should include length
-      expect(hash1).toContain("_3"); // length of "abc"
-      expect(hash2).toContain("_16"); // length of longer string
     });
 
-    it("returns hex format hash with length suffix", () => {
+    it("returns 64-character hex SHA-256 hash", () => {
       const imageData = "test image data";
       const hash = hashImageData(imageData);
 
-      // Should match format: hexhash_length
-      expect(hash).toMatch(/^-?[0-9a-f]+_\d+$/);
+      // SHA-256 produces 64 hex characters
+      expect(hash).toMatch(/^[0-9a-f]{64}$/);
     });
 
     it("handles empty string", () => {
       const hash = hashImageData("");
-      expect(hash).toBe("0_0"); // hash of empty = 0, length = 0
+      // SHA-256 of empty string is a known constant
+      expect(hash).toMatch(/^[0-9a-f]{64}$/);
     });
 
-    it("handles very long strings efficiently", () => {
-      // Only uses first 1000 chars for hashing
+    it("handles very long strings", () => {
       const longImage = "x".repeat(100000);
       const start = Date.now();
       const hash = hashImageData(longImage);
       const duration = Date.now() - start;
 
-      // Should be fast (< 10ms) since it only processes first 1000 chars
-      expect(duration).toBeLessThan(100);
-      expect(hash).toContain("_100000"); // but includes full length
+      expect(duration).toBeLessThan(500);
+      expect(hash).toMatch(/^[0-9a-f]{64}$/);
     });
 
-    it("differentiates images with same prefix but different lengths", () => {
+    it("differentiates images with same prefix but different content", () => {
+      // SHA-256 hashes the full content, not just a prefix
       const image1 = "a".repeat(1000);
-      const image2 = "a".repeat(2000);
+      const image2 = "a".repeat(1000) + "b";
       const hash1 = hashImageData(image1);
       const hash2 = hashImageData(image2);
 
-      // Same first 1000 chars, but different lengths
       expect(hash1).not.toBe(hash2);
     });
   });

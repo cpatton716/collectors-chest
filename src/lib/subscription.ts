@@ -131,73 +131,215 @@ export async function canUserScan(profileId: string): Promise<boolean> {
 }
 
 /**
- * Increment scan count for a user
- * Returns success status and remaining scans
+ * Atomically reserve a scan slot for a user.
+ * Combines check + increment into one conditional UPDATE to prevent race conditions
+ * where rapid scans all pass the check before any increment runs.
+ *
+ * Flow:
+ * 1. Check tier/trial — premium/trialing get unlimited scans
+ * 2. If scan_month_start is stale (previous month), reset count to 0 and set to 1 atomically
+ * 3. Otherwise, conditional UPDATE: increment only if scans_used_this_month < limit
+ * 4. If monthly quota exhausted, try purchased scans (also conditional)
+ *
+ * Returns { success, remaining, usedPurchased, message }
  */
-export async function incrementScanCount(
+export async function reserveScanSlot(
   profileId: string,
   source: "scan" | "import" | "key_hunt" = "scan"
-): Promise<ScanResult> {
+): Promise<ScanResult & { usedPurchased?: boolean }> {
+  // First, get subscription status to check tier/trial
   const status = await getSubscriptionStatus(profileId);
 
   if (!status) {
     return { success: false, remaining: 0, message: "User not found" };
   }
 
-  // Premium and trialing users have unlimited scans
+  // Premium and trialing users have unlimited scans — no reservation needed
   if (status.tier === "premium" || status.isTrialing) {
-    // Still log the scan for analytics
     await logScanUsage(profileId, source);
     return { success: true, remaining: 999999 };
   }
 
-  // Check if user can scan
-  if (!status.canScan) {
-    return {
-      success: false,
-      remaining: 0,
-      message: "Scan limit reached. Upgrade to Premium or buy more scans.",
-    };
+  // Check if monthly reset is needed by querying the raw DB value
+  const now = new Date();
+  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const currentMonthStr = currentMonthStart.toISOString().split("T")[0];
+
+  // Read the raw profile to see the actual DB scan_month_start
+  const { data: rawProfile, error: readError } = await supabaseAdmin
+    .from("profiles")
+    .select("scan_month_start, scans_used_this_month, purchased_scans")
+    .eq("id", profileId)
+    .single();
+
+  if (readError || !rawProfile) {
+    console.error("Error reading profile for scan reservation:", readError);
+    return { success: false, remaining: 0, message: "Database error" };
   }
 
-  // Determine whether to use monthly scans or purchased scans
-  const monthlyRemaining = Math.max(0, FREE_MONTHLY_SCAN_LIMIT - status.scansUsed);
+  const dbMonthStart = new Date(rawProfile.scan_month_start);
+  const needsReset = dbMonthStart < currentMonthStart;
 
-  if (monthlyRemaining > 0) {
-    // Use monthly quota
-    const { error } = await supabaseAdmin
+  if (needsReset) {
+    // Month is stale — reset count to 0 and immediately reserve 1 slot.
+    // Conditional: only reset if scan_month_start is still stale (guards against concurrent reset).
+    const { data, error } = await supabaseAdmin
       .from("profiles")
       .update({
-        scans_used_this_month: status.scansUsed + 1,
+        scans_used_this_month: 1,
+        scan_month_start: currentMonthStr,
       })
-      .eq("id", profileId);
+      .eq("id", profileId)
+      .lt("scan_month_start", currentMonthStr)
+      .select("scans_used_this_month, purchased_scans");
 
     if (error) {
-      console.error("Error incrementing scan count:", error);
-      return { success: false, remaining: status.scansRemaining, message: "Database error" };
+      console.error("Error reserving scan slot (reset path):", error);
+      return { success: false, remaining: 0, message: "Database error" };
     }
 
-    await logScanUsage(profileId, source);
-    return { success: true, remaining: status.scansRemaining - 1 };
-  } else if (status.purchasedScans > 0) {
-    // Use purchased scans
-    const { error } = await supabaseAdmin
+    if (data && data.length > 0) {
+      // Successfully reset and reserved
+      await logScanUsage(profileId, source);
+      const remaining = Math.max(0, FREE_MONTHLY_SCAN_LIMIT - 1) + (data[0].purchased_scans || 0);
+      return { success: true, remaining };
+    }
+
+    // Another request already reset the month — fall through to normal path
+    // Re-read the current count since it was just reset by the other request
+    const { data: freshProfile } = await supabaseAdmin
       .from("profiles")
-      .update({
-        purchased_scans: status.purchasedScans - 1,
-      })
-      .eq("id", profileId);
+      .select("scans_used_this_month, purchased_scans")
+      .eq("id", profileId)
+      .single();
 
-    if (error) {
-      console.error("Error decrementing purchased scans:", error);
-      return { success: false, remaining: status.scansRemaining, message: "Database error" };
+    if (freshProfile) {
+      rawProfile.scans_used_this_month = freshProfile.scans_used_this_month;
+      rawProfile.purchased_scans = freshProfile.purchased_scans;
     }
-
-    await logScanUsage(profileId, source);
-    return { success: true, remaining: status.scansRemaining - 1 };
   }
 
-  return { success: false, remaining: 0, message: "No scans remaining" };
+  // Normal path: atomically increment only if below the limit.
+  // The .lt() condition makes this atomic — concurrent requests that both read count=9
+  // will both try UPDATE ... SET count=count+1 WHERE count < 10, but Postgres row-level
+  // locking means only one sees count=9; the other sees count=10 and gets 0 rows.
+  //
+  // IMPORTANT: We set the value to scans_used_this_month + 1 using the DB's current value
+  // via the conditional filter, not a stale JS variable.
+  const currentDbCount = rawProfile.scans_used_this_month || 0;
+  const { data: updated, error: updateError } = await supabaseAdmin
+    .from("profiles")
+    .update({
+      scans_used_this_month: currentDbCount + 1,
+    })
+    .eq("id", profileId)
+    .eq("scans_used_this_month", currentDbCount)
+    .lt("scans_used_this_month", FREE_MONTHLY_SCAN_LIMIT)
+    .select("scans_used_this_month, purchased_scans");
+
+  if (updateError) {
+    console.error("Error reserving scan slot:", updateError);
+    return { success: false, remaining: status.scansRemaining, message: "Database error" };
+  }
+
+  if (updated && updated.length > 0) {
+    // Successfully reserved a monthly scan slot
+    await logScanUsage(profileId, source);
+    const remaining = Math.max(0, FREE_MONTHLY_SCAN_LIMIT - updated[0].scans_used_this_month) +
+      (updated[0].purchased_scans || 0);
+    return { success: true, remaining };
+  }
+
+  // Monthly quota exhausted — try purchased scans with conditional decrement
+  const purchasedScans = rawProfile.purchased_scans || 0;
+  if (purchasedScans > 0) {
+    const { data: purchaseData, error: purchaseError } = await supabaseAdmin
+      .from("profiles")
+      .update({
+        purchased_scans: purchasedScans - 1,
+      })
+      .eq("id", profileId)
+      .gt("purchased_scans", 0)
+      .select("purchased_scans");
+
+    if (purchaseError) {
+      console.error("Error decrementing purchased scans:", purchaseError);
+      return { success: false, remaining: 0, message: "Database error" };
+    }
+
+    if (purchaseData && purchaseData.length > 0) {
+      await logScanUsage(profileId, source);
+      return { success: true, remaining: purchaseData[0].purchased_scans, usedPurchased: true };
+    }
+  }
+
+  // No scans available
+  return {
+    success: false,
+    remaining: 0,
+    message: "Scan limit reached. Upgrade to Premium or buy more scans.",
+  };
+}
+
+/**
+ * Release a previously reserved scan slot (rollback on failure).
+ * Call this if the AI analysis fails after reserveScanSlot succeeded.
+ */
+export async function releaseScanSlot(
+  profileId: string,
+  usedPurchased: boolean = false
+): Promise<void> {
+  if (usedPurchased) {
+    // Restore the purchased scan
+    const { error } = await supabaseAdmin.rpc("increment_field", {
+      row_id: profileId,
+      table_name: "profiles",
+      field_name: "purchased_scans",
+      amount: 1,
+    }).single();
+
+    // Fallback: if RPC doesn't exist, do a read-then-write
+    if (error) {
+      const { data } = await supabaseAdmin
+        .from("profiles")
+        .select("purchased_scans")
+        .eq("id", profileId)
+        .single();
+
+      if (data) {
+        await supabaseAdmin
+          .from("profiles")
+          .update({ purchased_scans: (data.purchased_scans || 0) + 1 })
+          .eq("id", profileId);
+      }
+    }
+  } else {
+    // Decrement monthly scans_used_this_month (but not below 0)
+    const { data } = await supabaseAdmin
+      .from("profiles")
+      .select("scans_used_this_month")
+      .eq("id", profileId)
+      .single();
+
+    if (data && data.scans_used_this_month > 0) {
+      await supabaseAdmin
+        .from("profiles")
+        .update({ scans_used_this_month: data.scans_used_this_month - 1 })
+        .eq("id", profileId);
+    }
+  }
+}
+
+/**
+ * Increment scan count for a user (legacy wrapper around reserveScanSlot)
+ * Returns success status and remaining scans
+ */
+export async function incrementScanCount(
+  profileId: string,
+  source: "scan" | "import" | "key_hunt" = "scan"
+): Promise<ScanResult> {
+  const result = await reserveScanSlot(profileId, source);
+  return { success: result.success, remaining: result.remaining, message: result.message };
 }
 
 /**

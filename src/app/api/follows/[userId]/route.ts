@@ -24,6 +24,11 @@ export async function POST(_request: NextRequest, context: RouteParams) {
 
     const { userId } = await context.params;
 
+    // Prevent self-follow
+    if (profile.id === userId) {
+      return NextResponse.json({ error: "You cannot follow yourself" }, { status: 400 });
+    }
+
     const result = await followUser(profile.id, userId);
 
     if (!result.success) {
@@ -86,6 +91,16 @@ export async function GET(_request: NextRequest, context: RouteParams) {
     const profile = await getProfileByClerkId(clerkId);
     if (!profile) {
       return NextResponse.json({
+        isFollowing: false,
+        followedAt: null,
+        ...counts,
+      });
+    }
+
+    // Check if user is viewing their own profile
+    if (profile.id === userId) {
+      return NextResponse.json({
+        isOwnProfile: true,
         isFollowing: false,
         followedAt: null,
         ...counts,

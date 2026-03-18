@@ -281,9 +281,9 @@ export function Navigation() {
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
-            <Link href="/" className="flex items-center space-x-2 group">
+            <Link href="/" className="flex items-center space-x-2 group" style={{ WebkitTapHighlightColor: "transparent" }}>
               <ChestIcon size={36} />
-              <span className="font-comic text-2xl text-pop-black tracking-wide group-hover:text-pop-red transition-colors">
+              <span className="font-comic text-2xl text-pop-black tracking-wide md:group-hover:text-pop-red transition-colors">
                 COLLECTORS CHEST
               </span>
             </Link>

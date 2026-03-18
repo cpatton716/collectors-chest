@@ -1,7 +1,7 @@
 import type { AIProvider } from "@/lib/providers/types";
 
 export interface ProbeResult {
-  provider: "anthropic" | "openai";
+  provider: "anthropic" | "gemini";
   healthy: boolean;
   latencyMs: number;
   error: string | null;
@@ -51,7 +51,7 @@ export async function probeProvider(provider: AIProvider): Promise<ProbeResult> 
 /**
  * Build alert metrics from probe results.
  * Primary provider (anthropic) down = critical.
- * Secondary provider (openai) down = warning.
+ * Secondary provider (gemini) down = warning.
  * Both down = both critical.
  */
 export function buildHealthAlerts(results: ProbeResult[]): AlertMetric[] {
@@ -62,7 +62,7 @@ export function buildHealthAlerts(results: ProbeResult[]): AlertMetric[] {
 
     const isPrimary = result.provider === "anthropic";
     const displayName =
-      result.provider === "anthropic" ? "Anthropic" : "OpenAI";
+      result.provider === "anthropic" ? "Anthropic" : "Gemini";
 
     alerts.push({
       name: `${displayName} Provider Health`,

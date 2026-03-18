@@ -85,7 +85,13 @@ function getFindingApiUrl(): string {
 export function buildSearchKeywords(params: FindingSearchParams): string {
   const { title, issueNumber, grade, isSlabbed, gradingCompany } = params;
 
-  let keywords = title.trim();
+  // Clean title: remove special characters that break eBay's Finding API
+  // Apostrophes get XML-escaped to &apos; which eBay treats as literal text
+  // Colons can be interpreted as search operators
+  let keywords = title
+    .trim()
+    .replace(/[':;]/g, "") // Remove apostrophes, colons, semicolons
+    .replace(/\s+/g, " "); // Normalize whitespace
 
   // Add issue number (without # prefix - eBay searches work better without it)
   if (issueNumber) {

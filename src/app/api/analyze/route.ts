@@ -14,17 +14,18 @@ import {
   isCacheAvailable,
 } from "@/lib/cache";
 import { lookupCertification } from "@/lib/certLookup";
-import { getComicMetadata, getProfileByClerkId, saveComicMetadata } from "@/lib/db";
+import { getComicMetadata, getProfileByClerkId, saveComicMetadata, lookupBarcodeCatalog } from "@/lib/db";
 import { isFindingApiConfigured, lookupEbaySoldPrices } from "@/lib/ebayFinding";
 import { ComicMetadata, mergeMetadataIntoDetails, buildMetadataSavePayload } from "@/lib/metadataCache";
 import { lookupKeyInfo } from "@/lib/keyComicsDatabase";
+import { verifyWithMetron, MetronVerifyResult } from "@/lib/metronVerify";
 import { estimateScanCostCents, trackScanServer, recordScanAnalytics } from "@/lib/analyticsServer";
 import { checkRateLimit, getRateLimitIdentifier, rateLimiters } from "@/lib/rateLimit";
 import {
   GUEST_SCAN_LIMIT,
-  canUserScan,
   getSubscriptionStatus,
-  incrementScanCount,
+  reserveScanSlot,
+  releaseScanSlot,
 } from "@/lib/subscription";
 
 import { PriceData } from "@/types/comic";
@@ -56,6 +57,7 @@ interface ComicDetails {
   isSignatureSeries?: boolean;
   signedBy?: string | null;
   keyInfo: string[];
+  keyInfoSource?: "database" | "cgc" | "ai" | "cache";
   labelType?: string;
   pageQuality?: string;
   gradeDate?: string;
@@ -64,6 +66,8 @@ interface ComicDetails {
   barcodeNumber?: string | null; // UPC barcode if visible in image (legacy field)
   barcode?: { raw: string; confidence: "high" | "medium" | "low"; parsed?: ParsedBarcode } | null; // Enhanced barcode detection
   dataSource?: "barcode" | "ai" | "cache"; // Track where primary data came from
+  coverImage?: string | null; // Cover image URL (e.g. from Metron)
+  metronId?: string | null; // Metron database ID for cross-reference
 }
 
 /**
@@ -107,6 +111,8 @@ export async function POST(request: NextRequest) {
   // Track profile for scan counting at the end
   let profileId: string | null = null;
   let subscriptionTier: string = "free";
+  let scanSlotReserved = false;
+  let scanSlotUsedPurchased = false;
 
   // Tracking variables (declared outside try so catch block can access them)
   const scanStartTime = Date.now();
@@ -145,14 +151,15 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Registered user - check subscription limits
+      // Registered user - atomically reserve a scan slot (check + increment in one step)
       const profile = await getProfileByClerkId(userId);
       if (profile) {
         profileId = profile.id;
         subscriptionTier = profile.subscription_tier || "free";
-        const canScan = await canUserScan(profile.id);
 
-        if (!canScan) {
+        const reservation = await reserveScanSlot(profile.id, "scan");
+
+        if (!reservation.success) {
           const status = await getSubscriptionStatus(profile.id);
           return NextResponse.json(
             {
@@ -166,6 +173,9 @@ export async function POST(request: NextRequest) {
             { status: 403 }
           );
         }
+
+        scanSlotReserved = true;
+        scanSlotUsedPurchased = reservation.usedPurchased ?? false;
       }
     } else {
       // Guest user - check client-provided guest scan count
@@ -249,6 +259,7 @@ export async function POST(request: NextRequest) {
     p1 = aiProviders[0]?.name || "anthropic";
     let fb1 = false;
     let fr1: string | null = null;
+    let cerebro_assisted = false;
     if (cachedAnalysis && cachedAnalysis.title) {
       comicDetails = { ...cachedAnalysis };
       usedCache = true;
@@ -302,11 +313,82 @@ export async function POST(request: NextRequest) {
         barcodeNumber: imageResult.barcodeNumber || null,
       };
 
+      // Debug: log AI identification results
+      console.info(`[scan] AI result: title="${comicDetails.title}" issue="${comicDetails.issueNumber}" variant="${comicDetails.variant}" barcode="${comicDetails.barcodeNumber}" barcode_raw="${comicDetails.barcode?.raw}" confidence="${comicDetails.confidence}" provider="${imageProvider}"`);
+
+      // Low-confidence fallback: if primary returned low confidence, re-scan with the other provider
+      const fallbackProvider = aiProviders.find((p) => p.name !== imageProvider);
+      if (imageResult.confidence === "low" && fallbackProvider) {
+        const fallbackBudget = getRemainingBudget(scanStartTime);
+        if (fallbackBudget >= 5000) {
+          try {
+            const fallbackTimeout = Math.min(10_000, fallbackBudget);
+            const fallbackSignal = AbortSignal.timeout(fallbackTimeout);
+            const fallbackResult = await fallbackProvider.analyzeImage(
+              { base64Data, mediaType: mediaType || "image/jpeg" },
+              { signal: fallbackSignal }
+            );
+            aiCallsMade++;
+
+            // Prefer fallback's result over the low-confidence primary result
+            if (fallbackResult.confidence !== "low") {
+              comicDetails = {
+                title: fallbackResult.title,
+                issueNumber: fallbackResult.issueNumber,
+                publisher: fallbackResult.publisher,
+                releaseYear: fallbackResult.releaseYear,
+                variant: fallbackResult.variant,
+                writer: fallbackResult.writer,
+                coverArtist: fallbackResult.coverArtist,
+                interiorArtist: fallbackResult.interiorArtist,
+                confidence: fallbackResult.confidence || "medium",
+                isSlabbed: fallbackResult.isSlabbed || false,
+                gradingCompany: fallbackResult.gradingCompany || null,
+                grade: fallbackResult.grade || null,
+                certificationNumber: fallbackResult.certificationNumber || null,
+                isSignatureSeries: fallbackResult.isSignatureSeries || false,
+                signedBy: fallbackResult.signedBy || null,
+                labelType: fallbackResult.labelType || undefined,
+                pageQuality: fallbackResult.pageQuality || undefined,
+                gradeDate: fallbackResult.gradeDate || undefined,
+                graderNotes: fallbackResult.graderNotes || undefined,
+                keyInfo: [],
+                barcode: fallbackResult.barcode || null,
+                barcodeNumber: fallbackResult.barcodeNumber || null,
+              };
+              p1 = fallbackProvider.name;
+              cerebro_assisted = true;
+              console.info(`[scan] Low-confidence fallback: ${fallbackProvider.name} provided better result`);
+            }
+          } catch (fallbackErr) {
+            console.warn("[scan] Low-confidence fallback failed:", fallbackErr);
+            // Continue with original low-confidence result
+          }
+        }
+      }
+
       // Parse the barcode into components if detected
       if (comicDetails.barcode && comicDetails.barcode.raw) {
         const parsed = parseBarcode(comicDetails.barcode.raw);
         if (parsed) {
           comicDetails.barcode.parsed = parsed;
+
+          console.info(`[scan] Barcode parsed: raw="${comicDetails.barcode.raw}" addonIssue="${parsed.addonIssue}" addonVariant="${parsed.addonVariant}" digits=${comicDetails.barcode.raw.length}`);
+
+          // Map barcode variant code to variant field if AI didn't detect one
+          // UPC add-on digits 16-17 encode cover variant + printing info
+          // Common schemes vary by publisher:
+          //   Scheme A: 01=Cover A, 02=Cover B, 03=Cover C...
+          //   Scheme B: 11=Cover A 1st print, 12=Cover A 2nd print, 21=Cover B 1st print...
+          // We use the FIRST digit as the cover letter (1=A, 2=B, 3=C...)
+          // and only flag as variant if cover > A (first digit > 1)
+          if (parsed.addonVariant && !comicDetails.variant) {
+            const firstDigit = parseInt(parsed.addonVariant[0], 10);
+            if (firstDigit > 1 && firstDigit <= 9) {
+              const variantLetters = ["", "A", "B", "C", "D", "E", "F", "G", "H", "I"];
+              comicDetails.variant = `Cover ${variantLetters[firstDigit]}`;
+            }
+          }
         }
       }
 
@@ -344,10 +426,17 @@ export async function POST(request: NextRequest) {
     }
 
     // ============================================
-    // BARCODE LOOKUP (Optimization)
-    // If Claude detected a barcode, try fast database lookup first
-    // Barcode lookups are cached and much faster than AI analysis
+    // BARCODE LOOKUP
+    // Priority: 1) Our barcode_catalog (crowd-sourced, verified)
+    //           2) Redis cache
+    //           3) Comic Vine API (external, unreliable UPC mappings)
+    // IMPORTANT: Only use barcode data to FILL IN missing fields when
+    // the AI already identified the book with confidence. External sources
+    // (Comic Vine) have known bad UPC mappings and must never override.
+    // Our own barcode_catalog IS trusted for overrides (user-verified data).
     // ============================================
+    const aiAlreadyIdentified = comicDetails.title && comicDetails.issueNumber &&
+      comicDetails.confidence !== "low";
     if (comicDetails.barcodeNumber && !usedCache) {
       try {
         // Clean the barcode (remove any spaces/dashes)
@@ -355,19 +444,10 @@ export async function POST(request: NextRequest) {
 
         // Only proceed if it looks like a valid UPC (8-13 digits)
         if (/^\d{8,13}$/.test(cleanBarcode)) {
-          // Check barcode cache first
-          const cachedBarcode = await cacheGet<{
-            title: string | null;
-            issueNumber: string | null;
-            publisher: string | null;
-            releaseYear: string | null;
-            writer: string | null;
-            coverArtist: string | null;
-            interiorArtist: string | null;
-          }>(cleanBarcode, "barcode");
-
-          if (cachedBarcode && cachedBarcode.title) {
-            // Use barcode lookup data, but keep AI-detected grading info
+          // Priority 1: Check our own barcode_catalog (crowd-sourced, verified)
+          const catalogResult = await lookupBarcodeCatalog(cleanBarcode);
+          if (catalogResult && catalogResult.title) {
+            // Our catalog is trusted — use it to fill in or override
             const gradingInfo = {
               isSlabbed: comicDetails.isSlabbed,
               gradingCompany: comicDetails.gradingCompany,
@@ -379,95 +459,25 @@ export async function POST(request: NextRequest) {
 
             comicDetails = {
               ...comicDetails,
-              title: cachedBarcode.title || comicDetails.title,
-              issueNumber: cachedBarcode.issueNumber || comicDetails.issueNumber,
-              publisher: cachedBarcode.publisher || comicDetails.publisher,
-              releaseYear: cachedBarcode.releaseYear || comicDetails.releaseYear,
-              writer: cachedBarcode.writer || comicDetails.writer,
-              coverArtist: cachedBarcode.coverArtist || comicDetails.coverArtist,
-              interiorArtist: cachedBarcode.interiorArtist || comicDetails.interiorArtist,
+              title: catalogResult.title || comicDetails.title,
+              issueNumber: catalogResult.issueNumber || comicDetails.issueNumber,
+              publisher: catalogResult.publisher || comicDetails.publisher,
+              releaseYear: catalogResult.releaseYear || comicDetails.releaseYear,
+              variant: catalogResult.variant || comicDetails.variant,
+              writer: catalogResult.writer || comicDetails.writer,
+              coverArtist: catalogResult.coverArtist || comicDetails.coverArtist,
+              interiorArtist: catalogResult.interiorArtist || comicDetails.interiorArtist,
               ...gradingInfo,
               dataSource: "barcode",
-              keyInfo: [], // Will be populated later
+              keyInfo: [],
             };
-          } else {
-            // Try fresh barcode lookup via Comic Vine
-            const COMIC_VINE_API_KEY = process.env.COMIC_VINE_API_KEY;
-            if (COMIC_VINE_API_KEY) {
-              const upcWithoutCheckDigit = cleanBarcode.slice(0, -1);
-              const searchUrl = `https://comicvine.gamespot.com/api/issues/?api_key=${COMIC_VINE_API_KEY}&format=json&filter=upc:${upcWithoutCheckDigit}&field_list=id,name,issue_number,cover_date,image,volume,person_credits`;
-
-              const barcodeResponse = await fetch(searchUrl, {
-                headers: { "User-Agent": "ComicTracker/1.0" },
-              });
-
-              if (barcodeResponse.ok) {
-                const barcodeData = await barcodeResponse.json();
-                if (barcodeData.results && barcodeData.results.length > 0) {
-                  const issue = barcodeData.results[0];
-                  const gradingInfo = {
-                    isSlabbed: comicDetails.isSlabbed,
-                    gradingCompany: comicDetails.gradingCompany,
-                    grade: comicDetails.grade,
-                    certificationNumber: comicDetails.certificationNumber,
-                    isSignatureSeries: comicDetails.isSignatureSeries,
-                    signedBy: comicDetails.signedBy,
-                  };
-
-                  // Extract year from cover_date
-                  let releaseYear: string | null = null;
-                  if (issue.cover_date) {
-                    const yearMatch = issue.cover_date.match(/(\d{4})/);
-                    if (yearMatch) releaseYear = yearMatch[1];
-                  }
-
-                  // Extract creators
-                  let writer: string | null = null;
-                  let coverArtist: string | null = null;
-                  let interiorArtist: string | null = null;
-                  if (issue.person_credits) {
-                    for (const credit of issue.person_credits) {
-                      const role = credit.role?.toLowerCase() || "";
-                      if (role.includes("writer") && !writer) writer = credit.name;
-                      if (role.includes("cover") && !coverArtist) coverArtist = credit.name;
-                      if ((role.includes("artist") || role.includes("pencil")) && !interiorArtist) {
-                        interiorArtist = credit.name;
-                      }
-                    }
-                  }
-
-                  comicDetails = {
-                    ...comicDetails,
-                    title: issue.volume?.name || comicDetails.title,
-                    issueNumber: issue.issue_number || comicDetails.issueNumber,
-                    publisher: issue.volume?.publisher?.name || comicDetails.publisher,
-                    releaseYear: releaseYear || comicDetails.releaseYear,
-                    writer: writer || comicDetails.writer,
-                    coverArtist: coverArtist || comicDetails.coverArtist,
-                    interiorArtist: interiorArtist || comicDetails.interiorArtist,
-                    ...gradingInfo,
-                    dataSource: "barcode",
-                    keyInfo: [],
-                  };
-
-                  // Cache the barcode result for future lookups (fire and forget)
-                  cacheSet(
-                    cleanBarcode,
-                    {
-                      title: comicDetails.title,
-                      issueNumber: comicDetails.issueNumber,
-                      publisher: comicDetails.publisher,
-                      releaseYear: comicDetails.releaseYear,
-                      writer: comicDetails.writer,
-                      coverArtist: comicDetails.coverArtist,
-                      interiorArtist: comicDetails.interiorArtist,
-                    },
-                    "barcode"
-                  ).catch(() => {});
-                }
-              }
-            }
           }
+
+          // Priority 2: Check Redis barcode cache (may contain Comic Vine data)
+          // Skip if our catalog already provided data
+          // Comic Vine barcode lookups REMOVED — unreliable UPC data
+          // (see docs/BARCODE_SCANNER_SPEC.md for history)
+          // Our barcode_catalog (crowd-sourced from verified scans) is the only trusted source
         }
       } catch (barcodeError) {
         console.error("[analyze] Barcode lookup error:", barcodeError);
@@ -534,6 +544,7 @@ export async function POST(request: NextRequest) {
               .split(/[.\n]+/)
               .map((s) => s.trim())
               .filter((s) => s.length > 0);
+            comicDetails.keyInfoSource = "cgc";
           }
         } else {
           // Continue with AI-detected data
@@ -553,10 +564,21 @@ export async function POST(request: NextRequest) {
     // First, check our curated key comics database (fast, guaranteed accurate, FREE)
     let databaseKeyInfo: string[] | null = null;
     if (comicDetails.title && comicDetails.issueNumber) {
-      databaseKeyInfo = lookupKeyInfo(comicDetails.title, comicDetails.issueNumber);
+      databaseKeyInfo = lookupKeyInfo(comicDetails.title, comicDetails.issueNumber, comicDetails.releaseYear ? parseInt(String(comicDetails.releaseYear)) : null);
       if (databaseKeyInfo && databaseKeyInfo.length > 0) {
         comicDetails.keyInfo = databaseKeyInfo;
+        comicDetails.keyInfoSource = "database";
       }
+    }
+
+    // ============================================
+    // Metron Verification (non-blocking, fire-and-settle alongside cache lookup)
+    // ============================================
+    let metronPromise: Promise<PromiseSettledResult<MetronVerifyResult>> | null = null;
+    if (comicDetails.title && comicDetails.issueNumber) {
+      metronPromise = Promise.allSettled([
+        verifyWithMetron(comicDetails.title, comicDetails.issueNumber),
+      ]).then((results) => results[0]);
     }
 
     // ============================================
@@ -621,6 +643,7 @@ export async function POST(request: NextRequest) {
           if (!comicDetails.interiorArtist) missingFields.push("interiorArtist");
           if (!comicDetails.publisher) missingFields.push("publisher");
           if (!comicDetails.releaseYear) missingFields.push("releaseYear");
+          if (!comicDetails.variant) missingFields.push("variant");
 
           const { result: verifyResult, ...meta } = await executeWithFallback(
             (provider, signal) =>
@@ -656,6 +679,7 @@ export async function POST(request: NextRequest) {
           // Only use AI keyInfo if we didn't get it from database
           if (needsKeyInfoFromAI && verifyResult.keyInfo?.length) {
             comicDetails.keyInfo = verifyResult.keyInfo;
+            comicDetails.keyInfoSource = "ai";
           }
         } catch {
           // Continue with partial data — image analysis result is still valid
@@ -715,8 +739,8 @@ export async function POST(request: NextRequest) {
               // Cache in Redis (fire and forget)
               cacheSet(cacheKey, ebayPriceData, "ebayPrice").catch(() => {});
             } else {
-              // Cache "no results" marker to avoid repeated API calls
-              cacheSet(cacheKey, { noData: true }, "ebayPrice").catch(() => {});
+              // Cache "no results" marker with short TTL (1 hour) so we retry sooner
+              cacheSet(cacheKey, { noData: true }, "ebayPrice", 60 * 60).catch(() => {});
             }
           }
         } catch (ebayError) {
@@ -724,8 +748,14 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // 2. Fall back to AI estimates if eBay didn't return results
+      // 2. No eBay data = no price shown (AI price estimation DISABLED)
+      // AI estimates were generating fake prices displayed as real data.
+      // If eBay has no sold data, we show nothing. See git history for Call 3 code.
       if (!priceDataFound) {
+        comicDetails.priceData = null;
+      }
+      /* AI price estimation (Call 3) REMOVED — see git history
+      if (false) {
         const call3Budget = getRemainingBudget(scanStartTime);
         if (call3Budget < 3000) {
           console.warn(`[scan] Skipping price estimation: only ${call3Budget}ms remaining`);
@@ -844,18 +874,37 @@ export async function POST(request: NextRequest) {
           }
         }
       }
+      */ // END disabled AI price estimation
     } else {
       comicDetails.priceData = null;
     }
 
+    // Scan count was already incremented atomically via reserveScanSlot() at the start
+
     // ============================================
-    // Increment Scan Count (after successful analysis)
+    // Metron Verification Merge (non-blocking result)
     // ============================================
-    if (profileId) {
-      // Fire and forget - don't block the response
-      incrementScanCount(profileId, "scan").catch((err) => {
-        console.error("Failed to increment scan count:", err);
-      });
+    if (metronPromise) {
+      try {
+        const settled = await metronPromise;
+        if (settled.status === "fulfilled" && settled.value.verified) {
+          const metronResult = settled.value;
+          // Boost confidence if Metron verified the comic
+          if (metronResult.confidence_boost && comicDetails.confidence !== "high") {
+            comicDetails.confidence = "high";
+          }
+          // Use Metron cover image if we don't have one
+          if (metronResult.cover_image && !comicDetails.coverImage) {
+            comicDetails.coverImage = metronResult.cover_image;
+          }
+          // Store Metron ID for future reference
+          if (metronResult.metron_id) {
+            comicDetails.metronId = metronResult.metron_id;
+          }
+        }
+      } catch {
+        // Metron merge failed — proceed silently
+      }
     }
 
     // ============================================
@@ -885,7 +934,7 @@ export async function POST(request: NextRequest) {
       metadataCacheHit,
       aiCallsMade,
       ebayLookup: ebayLookupMade,
-      provider: p1 as "anthropic" | "openai",
+      provider: p1 as "anthropic" | "gemini",
     });
 
     if (profileId) {
@@ -901,7 +950,7 @@ export async function POST(request: NextRequest) {
         success: true,
         userId: profileId,
         subscriptionTier,
-        provider: p1 as "anthropic" | "openai",
+        provider: p1 as "anthropic" | "gemini",
         fallbackUsed: fb1 || verificationMeta.fallbackUsed || priceMeta.fallbackUsed,
         fallbackReason: fr1 || verificationMeta.fallbackReason || priceMeta.fallbackReason,
       }).catch((err) => {
@@ -928,10 +977,11 @@ export async function POST(request: NextRequest) {
     });
 
     const _meta: ScanResponseMeta = {
-      provider: p1 as "anthropic" | "openai",
+      provider: p1 as "anthropic" | "gemini",
       fallbackUsed: fb1 || verificationMeta.fallbackUsed || priceMeta.fallbackUsed,
       fallbackReason: fr1 || verificationMeta.fallbackReason || priceMeta.fallbackReason,
       confidence: fb1 ? "medium" : ((comicDetails.confidence || "medium") as "high" | "medium" | "low"),
+      ...(cerebro_assisted ? { cerebro_assisted: true } : {}),
       callDetails: {
         imageAnalysis: { provider: p1, fallbackUsed: fb1 },
         verification: needsAIVerification
@@ -943,9 +993,16 @@ export async function POST(request: NextRequest) {
       },
     };
 
-    return NextResponse.json({ ...comicDetails, _meta });
+    return NextResponse.json({ ...comicDetails, cerebro_assisted, _meta });
   } catch (error) {
     console.error("Error analyzing comic:", error);
+
+    // Rollback: release the reserved scan slot so the user isn't charged for a failed scan
+    if (profileId && scanSlotReserved) {
+      releaseScanSlot(profileId, scanSlotUsedPurchased).catch((err) => {
+        console.error("Failed to release scan slot:", err);
+      });
+    }
 
     // Record the failed scan (failed scans still consume AI credits)
     const failDuration = Date.now() - scanStartTime;
@@ -954,7 +1011,7 @@ export async function POST(request: NextRequest) {
       metadataCacheHit: false,
       aiCallsMade,
       ebayLookup: ebayLookupMade,
-      provider: failProvider as "anthropic" | "openai",
+      provider: failProvider as "anthropic" | "gemini",
     });
     recordScanAnalytics({
       profile_id: profileId || null,

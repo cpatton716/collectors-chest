@@ -112,24 +112,24 @@ export function PublicCollectionView({ profile, comics, lists, stats }: Props) {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        <div className="bg-white rounded-lg p-4 shadow-sm border border-blue-200 flex items-center gap-3">
-          <div className="p-3 bg-blue-100 rounded-lg">
-            <BookOpen className="w-5 h-5 text-blue-600" />
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
+        <div className="bg-pop-white border-3 border-pop-black p-3 shadow-[3px_3px_0px_#000] flex items-center gap-3">
+          <div className="w-10 h-10 bg-pop-blue border-2 border-pop-black flex items-center justify-center flex-shrink-0">
+            <BookOpen className="w-5 h-5 text-white" />
           </div>
           <div>
-            <p className="text-sm text-gray-500">Comics</p>
-            <p className="text-xl font-bold text-gray-900">{stats.totalComics}</p>
+            <p className="text-xs font-comic text-pop-black/60 uppercase">Comics</p>
+            <p className="text-xl font-black text-pop-black">{stats.totalComics}</p>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg p-4 shadow-sm border border-green-200 flex items-center gap-3">
-          <div className="p-3 bg-green-100 rounded-lg">
-            <DollarSign className="w-5 h-5 text-green-600" />
+        <div className="bg-pop-white border-3 border-pop-black p-3 shadow-[3px_3px_0px_#000] flex items-center gap-3">
+          <div className="w-10 h-10 bg-pop-green border-2 border-pop-black flex items-center justify-center flex-shrink-0">
+            <DollarSign className="w-5 h-5 text-white" />
           </div>
           <div>
-            <p className="text-sm text-gray-500">Est. Value</p>
-            <p className="text-xl font-bold text-gray-900">
+            <p className="text-xs font-comic text-pop-black/60 uppercase">Est. Value</p>
+            <p className="text-xl font-black text-pop-black">
               $
               {stats.totalValue.toLocaleString(undefined, {
                 minimumFractionDigits: 0,
@@ -139,25 +139,25 @@ export function PublicCollectionView({ profile, comics, lists, stats }: Props) {
           </div>
         </div>
 
-        <div className="bg-white rounded-lg p-4 shadow-sm border border-purple-200 flex items-center gap-3 min-w-0">
-          <div className="p-3 bg-purple-100 rounded-lg shrink-0">
-            <Building className="w-5 h-5 text-purple-600" />
+        <div className="bg-pop-white border-3 border-pop-black p-3 shadow-[3px_3px_0px_#000] flex items-center gap-3 min-w-0">
+          <div className="w-10 h-10 bg-purple-600 border-2 border-pop-black flex items-center justify-center flex-shrink-0">
+            <Building className="w-5 h-5 text-white" />
           </div>
           <div className="min-w-0">
-            <p className="text-sm text-gray-500">Top Publisher</p>
-            <p className="text-lg font-bold text-gray-900 truncate">
+            <p className="text-xs font-comic text-pop-black/60 uppercase">Top Publisher</p>
+            <p className="text-lg font-black text-pop-black truncate">
               {stats.topPublishers[0]?.publisher || "N/A"}
             </p>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg p-4 shadow-sm border border-orange-200 flex items-center gap-3">
-          <div className="p-3 bg-orange-100 rounded-lg">
-            <Calendar className="w-5 h-5 text-orange-600" />
+        <div className="bg-pop-white border-3 border-pop-black p-3 shadow-[3px_3px_0px_#000] flex items-center gap-3">
+          <div className="w-10 h-10 bg-orange-500 border-2 border-pop-black flex items-center justify-center flex-shrink-0">
+            <Calendar className="w-5 h-5 text-white" />
           </div>
           <div>
-            <p className="text-sm text-gray-500">Year Range</p>
-            <p className="text-lg font-bold text-gray-900">
+            <p className="text-xs font-comic text-pop-black/60 uppercase">Year Range</p>
+            <p className="text-lg font-black text-pop-black">
               {stats.oldestComic && stats.newestComic
                 ? `${stats.oldestComic.year}-${stats.newestComic.year}`
                 : "N/A"}

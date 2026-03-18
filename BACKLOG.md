@@ -308,6 +308,15 @@ Root cause: related to model ID issues causing API failures. Resolved after cent
 
 ## Pending Enhancements
 
+### Evaluate Gemini API Costs
+**Priority:** High
+**Status:** Pending
+**Added:** Mar 18, 2026
+
+Currently on free plan for Gemini. Need to evaluate costs vs Anthropic as scan volume increases. Compare pricing tiers and usage limits.
+
+---
+
 ### Auto-Harvest Cover Images from Graded Book Scans
 **Priority:** High
 **Status:** Pending
@@ -1828,3 +1837,30 @@ Removed external image search API integration after discovering no providers ava
 **Added:** Mar 13, 2026
 
 Write "Our Story" origin narrative and "Meet the Team" bios for the About page. Placeholder text is currently highlighted in red. Also complete the "Get in Touch" contact section.
+
+---
+
+### Flip Claude/Gemini Provider Order
+**Priority:** Medium
+**Status:** Pending
+**Added:** Mar 18, 2026
+
+Evaluate whether Gemini should be the primary scanner provider instead of Claude, based on production accuracy comparison data. Currently Claude is primary with Gemini as fallback.
+
+---
+
+### Expand Curated Key Info DB
+**Priority:** Medium
+**Status:** Pending
+**Added:** Mar 18, 2026
+
+Add more vintage key issues to the curated key info database based on user scanning patterns. Current DB has 403+ entries — expand with additional silver/bronze/copper age keys that users are frequently scanning.
+
+---
+
+### Native App Wrapper
+**Priority:** Low
+**Status:** Pending
+**Added:** Mar 18, 2026
+
+Create a native app wrapper (PWA or native shell) to hide the browser URL bar and provide a more app-like experience on mobile. Addresses feedback item #16 (browser URL bar showing on public collection).

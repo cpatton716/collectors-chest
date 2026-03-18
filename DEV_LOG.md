@@ -7,8 +7,8 @@ This log tracks session-by-session progress on Collectors Chest.
 ## Changes Since Last Deploy
 
 **Last Deploy:** March 11, 2026 (Session 19 — deployed during partner meeting)
-**Sessions Since Last Deploy:** 1
-**Deploy Readiness:** Ready
+**Sessions Since Last Deploy:** 2
+**Deploy Readiness:** Needs Testing — scanner changes require production validation
 
 ### Changes:
 - Legal pages finalized — all 4 pages (Privacy, ToS, AUP, Cookies) updated with Twisted Jester LLC info
@@ -16,6 +16,53 @@ This log tracks session-by-session progress on Collectors Chest.
 - Hottest Books removed from homepage, commented out in navigation
 - Navigation dropdown overflow fix for short viewports
 - About page placeholder text highlighted in red for review
+- **Session 21 (Mar 18):** Addressed all 21 feedback items from production mobile testing
+- Key Info overhaul: keyInfoSource tracking, year disambiguation for 403+ curated entries, production data migration (117 comics reviewed, 53 replaced, 12 cleared)
+- Scanner fixes: SHA-256 image hash (Chamber of Chills fix), atomic scan limit enforcement, AI price source persistence
+- New Gemini fallback provider (Claude → Gemini chain, low-confidence auto-fallback, "Cerebro" badge)
+- Metron API integration as non-blocking verification layer (8 tests)
+- Merged system prompt with vintage/foil/variant expertise
+- Comic Vine cover search now includes year for volume disambiguation
+- UI fixes: Hot Books link, scan limit error message, self-follow prevention, logo red fix, notifications overflow, Key Hunt autofocus, scroll-to-top, select button label, financial toggle race condition, Android layout, public page pop-art styling, action buttons wrapping
+- New features: unlimited signatures for raw books, variant detection in scan prompt, foil cover UI tip
+- Curated DB enriched: 16 copper/modern age keys fleshed out with variant/edition details
+- Gemini provider order fix (was never actually being used as primary despite config)
+- Comic Vine barcode lookup removed entirely (unreliable UPC data)
+- AI price estimation (Call 3) disabled (showing fake prices)
+- Barcode catalog lookup wired into analyze route
+- eBay search special character fix (apostrophes/colons stripped)
+- "No data" cache TTL reduced to 1 hour
+
+---
+
+## Mar 18, 2026 - Session 21: Massive Bug Fix & Scanner Enhancement Session
+
+### Summary
+- Addressed all 21 feedback items from production mobile testing (FEEDBACK_MAR_18.md)
+- Key Info overhaul: keyInfoSource tracking, year disambiguation for 403+ curated entries, production data migration (117 comics reviewed, 53 replaced, 12 cleared)
+- Scanner fixes: SHA-256 image hash (Chamber of Chills fix), atomic scan limit enforcement, AI price source persistence
+- New Gemini fallback provider (Claude → Gemini chain, low-confidence auto-fallback, "Cerebro" badge)
+- Metron API integration as non-blocking verification layer (8 tests)
+- Merged system prompt with vintage/foil/variant expertise
+- Comic Vine cover search now includes year for volume disambiguation
+- UI fixes: Hot Books link, scan limit error message, self-follow prevention, logo red fix, notifications overflow, Key Hunt autofocus, scroll-to-top, select button label, financial toggle race condition, Android layout, public page pop-art styling, action buttons wrapping
+- New features: unlimited signatures for raw books, variant detection in scan prompt, foil cover UI tip
+- Curated DB enriched: 16 copper/modern age keys fleshed out with variant/edition details
+- Gemini provider order fix (was never actually being used as primary despite config)
+- Comic Vine barcode lookup removed entirely (unreliable UPC data)
+- AI price estimation (Call 3) disabled (showing fake prices)
+- Barcode catalog lookup wired into analyze route
+- eBay search special character fix (apostrophes/colons stripped)
+- "No data" cache TTL reduced to 1 hour
+
+### Key Files Modified
+Too many to list individually — touches ~30 files across providers, components, API routes, types, database, and tests
+
+### Issues Encountered
+- API overload (529) on initial subagent dispatch, worked around by executing directly
+
+### Deploy Notes
+- Ready for deploy to test scanner improvements in real production conditions
 
 ---
 

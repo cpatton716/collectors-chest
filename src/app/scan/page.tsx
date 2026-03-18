@@ -14,6 +14,7 @@ import {
   Check,
   ClipboardCheck,
   FileSpreadsheet,
+  Info,
   Loader2,
   PenLine,
   Save,
@@ -164,7 +165,10 @@ export default function ScanPage() {
         const contentType = response.headers.get("content-type");
         if (contentType && contentType.includes("application/json")) {
           const errorData = await response.json();
-          throw new Error(errorData.error || "Failed to analyze image");
+          const errorMsg = errorData.error === "scan_limit_reached"
+            ? "You've used all your free scans this month. Upgrade to Premium for unlimited scans!"
+            : errorData.error || "Failed to analyze image";
+          throw new Error(errorMsg);
         } else {
           // Edge function timeout or other non-JSON error
           const errorText = await response.text();
@@ -182,7 +186,7 @@ export default function ScanPage() {
         }
       }
 
-      const { _meta, ...details } = await response.json();
+      const { _meta, cerebro_assisted: cerebroFlag, ...details } = await response.json();
 
       if (_meta?.fallbackUsed) {
         console.info("[scan] Fallback provider used:", _meta);
@@ -192,6 +196,7 @@ export default function ScanPage() {
       const comicWithId = {
         ...details,
         id: uuidv4(),
+        cerebro_assisted: cerebroFlag || false,
       };
       setComicDetails(comicWithId);
       setState("review");
@@ -279,6 +284,8 @@ export default function ScanPage() {
     setComicDetails(null);
     setSavedComic(null);
     setError("");
+    // Scroll to top so camera area is visible
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const handleCancel = () => {
@@ -430,6 +437,12 @@ export default function ScanPage() {
               style={{ boxShadow: "4px 4px 0px #000" }}
             >
               <ImageUpload onImageSelect={handleImageSelect} />
+
+              {/* Foil/shiny cover tip */}
+              <p className="flex items-start gap-1.5 mt-3 text-xs text-gray-400">
+                <Info className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                <span>For foil, holographic, or shiny covers, photograph at a slight angle to reduce glare for best results.</span>
+              </p>
 
               {/* Alternative add methods */}
               <div className="mt-8 pt-6 border-t-2 border-pop-black">
@@ -626,7 +639,15 @@ export default function ScanPage() {
 
             {/* Form */}
             <div className="lg:w-2/3 p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-6">Verify Comic Details</h2>
+              <div className="flex items-center gap-3 mb-6">
+                <h2 className="text-xl font-semibold text-gray-900">Verify Comic Details</h2>
+                {comicDetails.cerebro_assisted && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700 border border-purple-200">
+                    <Sparkles className="w-3 h-3" />
+                    Assisted by Cerebro
+                  </span>
+                )}
+              </div>
               <ComicDetailsForm
                 key={comicDetails.id}
                 comic={comicDetails}

@@ -1080,3 +1080,95 @@ export async function catalogBarcode(entry: BarcodeCatalogEntry): Promise<void> 
     // Don't throw - barcode cataloging shouldn't break the main flow
   }
 }
+
+/**
+ * Look up a barcode in our crowd-sourced barcode catalog.
+ * Only returns auto_approved or manually approved entries.
+ * Joins to the comics table to get full metadata.
+ */
+export async function lookupBarcodeCatalog(rawBarcode: string): Promise<{
+  title: string | null;
+  issueNumber: string | null;
+  publisher: string | null;
+  releaseYear: string | null;
+  writer: string | null;
+  coverArtist: string | null;
+  interiorArtist: string | null;
+  variant: string | null;
+} | null> {
+  if (!supabaseAdmin) return null;
+
+  try {
+    // Clean the barcode
+    const cleanBarcode = rawBarcode.replace(/[\s-]/g, "");
+
+    // Look up in barcode_catalog — only approved entries
+    const { data: catalogEntry, error } = await supabaseAdmin
+      .from("barcode_catalog")
+      .select("comic_id, status")
+      .eq("raw_barcode", cleanBarcode)
+      .in("status", ["auto_approved", "approved"])
+      .limit(1)
+      .single();
+
+    if (error || !catalogEntry) {
+      // Also try without check digit (last digit of main UPC)
+      if (cleanBarcode.length >= 12) {
+        const withoutCheck = cleanBarcode.slice(0, -1);
+        const { data: entry2 } = await supabaseAdmin
+          .from("barcode_catalog")
+          .select("comic_id, status")
+          .like("raw_barcode", `${withoutCheck}%`)
+          .in("status", ["auto_approved", "approved"])
+          .limit(1)
+          .single();
+
+        if (!entry2) return null;
+
+        // Found via prefix match — get the comic data
+        const { data: comic } = await supabaseAdmin
+          .from("comics")
+          .select("title, issue_number, publisher, release_year, writer, cover_artist, interior_artist, variant")
+          .eq("id", entry2.comic_id)
+          .single();
+
+        if (!comic) return null;
+
+        return {
+          title: comic.title,
+          issueNumber: comic.issue_number,
+          publisher: comic.publisher,
+          releaseYear: comic.release_year,
+          writer: comic.writer,
+          coverArtist: comic.cover_artist,
+          interiorArtist: comic.interior_artist,
+          variant: comic.variant,
+        };
+      }
+      return null;
+    }
+
+    // Get the comic data linked to this barcode
+    const { data: comic } = await supabaseAdmin
+      .from("comics")
+      .select("title, issue_number, publisher, release_year, writer, cover_artist, interior_artist, variant")
+      .eq("id", catalogEntry.comic_id)
+      .single();
+
+    if (!comic) return null;
+
+    return {
+      title: comic.title,
+      issueNumber: comic.issue_number,
+      publisher: comic.publisher,
+      releaseYear: comic.release_year,
+      writer: comic.writer,
+      coverArtist: comic.cover_artist,
+      interiorArtist: comic.interior_artist,
+      variant: comic.variant,
+    };
+  } catch (error) {
+    console.error("[lookupBarcodeCatalog] Error:", error);
+    return null;
+  }
+}

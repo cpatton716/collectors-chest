@@ -70,6 +70,10 @@ export function mergeMetadataIntoDetails(
     metadata.keyInfo.length > 0
   ) {
     details.keyInfo = metadata.keyInfo;
+    // Cache may contain AI-sourced or database-sourced keyInfo — mark as cache
+    if (!details.keyInfoSource) {
+      details.keyInfoSource = "cache";
+    }
   }
 
   return details;

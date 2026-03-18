@@ -2,7 +2,7 @@
 
 > **This document is the guiding light for development priorities. It takes precedence over BACKLOG.md.**
 
-*Last Updated: March 13, 2026*
+*Last Updated: March 18, 2026*
 
 ---
 
@@ -55,6 +55,20 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 - ✅ **Ben-day dots accents** — Added scattered pop art dot patterns to About, Homepage, and Pricing pages
 - ✅ **Hottest Books hidden** — Removed from homepage, commented out in navigation (not ready for launch)
 - ✅ **Navigation dropdown scroll fix** — More menu now scrollable on short viewports
+- ✅ **Mar 18 feedback — all 21 items addressed** (Mar 18, 2026) — 19 done, 1 deferred (native app), 1 deferred (scanning conversation)
+- ✅ **Key Info overhaul** — keyInfoSource tracking, year disambiguation for 403+ curated entries, production data migration (117 reviewed, 53 replaced, 12 cleared)
+- ✅ **Scanner: SHA-256 image hash** — Fixed Chamber of Chills #13 fallback bug
+- ✅ **Scanner: atomic scan limit enforcement** — Fixed race condition allowing >10 scans
+- ✅ **Scanner: AI price source persistence** — Price source tracked correctly
+- ✅ **Gemini fallback provider** — Claude → Gemini chain, low-confidence auto-fallback, "Cerebro" badge
+- ✅ **Metron API integration** — Non-blocking verification layer (8 tests)
+- ✅ **Merged system prompt** — Vintage/foil/variant expertise added
+- ✅ **Comic Vine year disambiguation** — Cover search includes year for multi-volume titles
+- ✅ **UI fixes batch** — Hot Books link, scan limit error, self-follow prevention, logo red fix, notifications overflow, Key Hunt autofocus, scroll-to-top, select button label, financial toggle race condition, Android layout, public page pop-art styling, action buttons wrapping
+- ✅ **Unlimited signatures for raw books** — Signature field added for non-slabbed books
+- ✅ **Variant detection in scan prompt** — AI now detects variant/edition details
+- ✅ **Foil cover UI tip** — Visual indicator for foil covers
+- ✅ **Curated DB enrichment** — 16 copper/modern age keys fleshed out with variant/edition details
 
 ---
 
@@ -458,6 +472,29 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 35. ~~**Legal pages — replace LLC placeholders**~~ ✅ (Mar 13, 2026) — All 4 pages updated with Twisted Jester LLC info
 36. ~~**Ben-day dots accents across guest pages**~~ ✅ (Mar 13, 2026) — About, Homepage, Pricing
 37. ~~**Hottest Books hidden from homepage + nav**~~ ✅ (Mar 13, 2026)
+38. ~~**Mar 18 feedback — all 21 items**~~ ✅ (Mar 18, 2026) — 19 done, 1 deferred (native app), 1 deferred (scanning conversation)
+39. ~~**Key Info overhaul + production data migration**~~ ✅ (Mar 18, 2026) — keyInfoSource tracking, year disambiguation, 117 comics reviewed
+40. ~~**SHA-256 image hash (Chamber of Chills fix)**~~ ✅ (Mar 18, 2026)
+41. ~~**Atomic scan limit enforcement**~~ ✅ (Mar 18, 2026) — Fixed race condition
+42. ~~**Gemini fallback provider**~~ ✅ (Mar 18, 2026) — Claude → Gemini chain, "Cerebro" badge
+43. ~~**Metron API verification layer**~~ ✅ (Mar 18, 2026) — 8 tests
+44. ~~**Comic Vine year disambiguation**~~ ✅ (Mar 18, 2026)
+45. ~~**Unlimited signatures for raw books**~~ ✅ (Mar 18, 2026)
+46. ~~**Variant detection + foil cover UI**~~ ✅ (Mar 18, 2026)
+47. ~~**Curated DB enrichment (16 copper/modern keys)**~~ ✅ (Mar 18, 2026)
+48. ~~**UI fixes batch (13 items)**~~ ✅ (Mar 18, 2026) — Logo, notifications, autofocus, scroll, Android layout, etc.
+49. ~~**Comic Vine barcode lookup removed**~~ ✅ (Mar 18, 2026) — Unreliable external UPC data
+50. ~~**AI price estimation disabled**~~ ✅ (Mar 18, 2026) — Was showing fake prices as real data
+51. ~~**Gemini provider wired as primary**~~ ✅ (Mar 18, 2026) — Was never actually first despite config
+52. ~~**Barcode catalog lookup integrated into scan pipeline**~~ ✅ (Mar 18, 2026)
+53. ~~**eBay search query fix for special characters**~~ ✅ (Mar 18, 2026)
+
+### Recommended Next Steps
+1. **Validate Gemini as primary provider in production** — Confirm it's actually being used first and compare recognition quality
+2. **Fix remaining scan issues** — Barcode reading accuracy, creator name formatting, "no sales found" UI message
+3. **Evaluate Gemini API costs** — Currently on free plan, need to compare with Anthropic as volume increases
+4. **Populate barcode_catalog from verified scans** — Build up the local barcode database from confirmed matches
+5. **Expand curated key info DB** — Add more vintage keys based on user scanning patterns
 
 ### 🔴 Before Opening Registration (See Section 0)
 

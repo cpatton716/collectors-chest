@@ -148,6 +148,8 @@ For ad-hoc use during development:
 | **Clerk** | Authentication | [dashboard.clerk.com](https://dashboard.clerk.com) | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY` |
 | **Stripe** | Payments | [dashboard.stripe.com](https://dashboard.stripe.com) | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` |
 | **Anthropic** | AI (Claude) for cover recognition | [console.anthropic.com](https://console.anthropic.com) | `ANTHROPIC_API_KEY` |
+| **Google AI (Gemini)** | AI fallback for cover recognition | [aistudio.google.com](https://aistudio.google.com) | `GEMINI_API_KEY` |
+| **Metron** | Comic database verification | [metron.cloud](https://metron.cloud) | `METRON_USERNAME`, `METRON_PASSWORD` |
 
 ### Supporting Services
 | Service | Purpose | Dashboard | Env Variable |

@@ -91,8 +91,8 @@ export function KeyHuntPriceResult({
     const cleanIssue = issueNumber.replace(/^#/, "").trim();
     query += ` #${cleanIssue}`;
     const encodedQuery = encodeURIComponent(query);
-    // Comic book category, sorted by best match, Buy It Now
-    return `https://www.ebay.com/sch/i.html?_nkw=${encodedQuery}&_sacat=259104&_sop=12&LH_BIN=1`;
+    // Comic book category, sorted by most recent, SOLD listings only
+    return `https://www.ebay.com/sch/i.html?_nkw=${encodedQuery}&_sacat=259104&_sop=10&LH_Complete=1&LH_Sold=1`;
   };
   if (!isOpen) return null;
 
@@ -148,7 +148,7 @@ export function KeyHuntPriceResult({
       />
 
       {/* Result Card */}
-      <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-xl animate-in zoom-in-95 fade-in duration-300 overflow-hidden">
+      <div className="relative w-full max-w-sm max-h-[90vh] overflow-y-auto bg-white rounded-2xl shadow-xl animate-in zoom-in-95 fade-in duration-300">
         {/* Close Button */}
         <button
           onClick={onClose}
@@ -356,7 +356,7 @@ export function KeyHuntPriceResult({
             className="w-full mb-3 py-2.5 px-4 bg-[#0064D2] text-white rounded-xl font-medium hover:bg-[#004BA0] transition-colors flex items-center justify-center gap-2 text-sm"
           >
             <ExternalLink className="w-4 h-4" />
-            For Sale Now on eBay
+            Recent Sales on eBay
           </a>
 
           {/* Add to Hunt List Button */}

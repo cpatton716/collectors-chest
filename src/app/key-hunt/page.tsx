@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 
 import { useUser } from "@clerk/nextjs";
 
-import { Database, History, KeyRound, Loader2, Smartphone, Camera, Zap, Target } from "lucide-react";
+import { Database, History, Info, KeyRound, Loader2, Smartphone, Camera, Zap, Target } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 
 import {
@@ -121,6 +121,8 @@ export default function KeyHuntPage() {
           setFlow("error");
         } else {
           setFlow("cover-scan");
+          // Scroll to top so camera area is visible on mobile
+          window.scrollTo({ top: 0, behavior: "smooth" });
         }
         break;
       case "manual":
@@ -156,7 +158,10 @@ export default function KeyHuntPage() {
         const contentType = response.headers.get("content-type");
         if (contentType && contentType.includes("application/json")) {
           const errorData = await response.json();
-          throw new Error(errorData.error || "Failed to analyze image");
+          const errorMsg = errorData.error === "scan_limit_reached"
+            ? "You've used all your free scans this month. Upgrade to Premium for unlimited scans!"
+            : errorData.error || "Failed to analyze image";
+          throw new Error(errorMsg);
         } else {
           throw new Error("The image took too long to process. Please try a smaller image.");
         }
@@ -172,6 +177,7 @@ export default function KeyHuntPage() {
           issueNumber: details.issueNumber || "1",
           publisher: details.publisher,
           releaseYear: details.releaseYear,
+          coverImageUrl: preview,
           detectedGrade: parseFloat(details.grade),
           isSlabbed: true,
         });
@@ -188,6 +194,7 @@ export default function KeyHuntPage() {
           issueNumber: details.issueNumber || "1",
           publisher: details.publisher,
           releaseYear: details.releaseYear,
+          coverImageUrl: preview,
           isSlabbed: false,
         });
         setFlow("grade-select");
@@ -279,7 +286,7 @@ export default function KeyHuntPage() {
         grade,
         averagePrice: data.averagePrice,
         recentSale: data.recentSale,
-        coverImageUrl: data.coverImageUrl || pendingComic?.coverImageUrl,
+        coverImageUrl: pendingComic?.coverImageUrl || data.coverImageUrl,
         keyInfo: data.keyInfo,
         gradeEstimates: data.gradeEstimates,
         fromCache: false,
@@ -439,6 +446,8 @@ export default function KeyHuntPage() {
     setSelectedHistoryEntry(null);
     setError(null);
     setFlow("options");
+    // Scroll to top so camera area is visible
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   // Handle selecting a history entry to view details
@@ -756,6 +765,11 @@ export default function KeyHuntPage() {
               </p>
             </div>
             <ImageUpload onImageSelect={handleCoverImageSelect} disabled={false} />
+            {/* Foil/shiny cover tip */}
+            <p className="flex items-start gap-1.5 mt-3 text-xs text-gray-400">
+              <Info className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+              <span>For foil, holographic, or shiny covers, photograph at a slight angle to reduce glare for best results.</span>
+            </p>
             <button
               onClick={() => setFlow("options")}
               className="mt-4 w-full py-3 text-gray-600 hover:text-gray-900 transition-colors"

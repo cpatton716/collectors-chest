@@ -20,17 +20,20 @@ export function FollowButton({
   const [isLoading, setIsLoading] = useState(false);
   const [isChecking, setIsChecking] = useState(initialIsFollowing === undefined);
   const [isHovered, setIsHovered] = useState(false);
+  const [isOwnProfile, setIsOwnProfile] = useState(false);
 
   // Fetch follow status on mount when not provided by parent
   useEffect(() => {
-    if (initialIsFollowing !== undefined) return;
-
     const checkStatus = async () => {
       try {
         const res = await fetch(`/api/follows/${userId}`);
         if (res.ok) {
           const data = await res.json();
-          setIsFollowing(data.isFollowing ?? false);
+          if (data.isOwnProfile) {
+            setIsOwnProfile(true);
+          } else {
+            setIsFollowing(data.isFollowing ?? false);
+          }
         }
       } catch {
         // Silently fail — button defaults to "Follow"
@@ -39,8 +42,15 @@ export function FollowButton({
       }
     };
 
-    checkStatus();
+    if (initialIsFollowing !== undefined) {
+      setIsChecking(false);
+    } else {
+      checkStatus();
+    }
   }, [userId, initialIsFollowing]);
+
+  // Don't render follow button for own profile
+  if (isOwnProfile) return null;
 
   const sizeClasses = {
     sm: "px-2 py-1 text-xs gap-1",

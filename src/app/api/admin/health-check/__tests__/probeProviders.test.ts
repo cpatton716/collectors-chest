@@ -2,7 +2,7 @@ import { probeProvider, buildHealthAlerts } from "../probeProviders";
 import type { AIProvider } from "@/lib/providers/types";
 
 // Mock provider that succeeds
-function mockProvider(name: "anthropic" | "openai"): AIProvider {
+function mockProvider(name: "anthropic" | "gemini"): AIProvider {
   return {
     name,
     analyzeImage: jest.fn().mockResolvedValue({ title: "test" }),
@@ -14,7 +14,7 @@ function mockProvider(name: "anthropic" | "openai"): AIProvider {
 
 // Mock provider that fails
 function failingProvider(
-  name: "anthropic" | "openai",
+  name: "anthropic" | "gemini",
   error: string
 ): AIProvider {
   return {
@@ -55,7 +55,7 @@ describe("buildHealthAlerts", () => {
         error: null,
       },
       {
-        provider: "openai" as const,
+        provider: "gemini" as const,
         healthy: true,
         latencyMs: 300,
         error: null,
@@ -79,7 +79,7 @@ describe("buildHealthAlerts", () => {
     expect(alerts[0].name).toContain("Anthropic");
   });
 
-  it("returns warning alert when secondary (openai) is down", () => {
+  it("returns warning alert when secondary (gemini) is down", () => {
     const results = [
       {
         provider: "anthropic" as const,
@@ -88,7 +88,7 @@ describe("buildHealthAlerts", () => {
         error: null,
       },
       {
-        provider: "openai" as const,
+        provider: "gemini" as const,
         healthy: false,
         latencyMs: 0,
         error: "401 Unauthorized",
@@ -97,7 +97,7 @@ describe("buildHealthAlerts", () => {
     const alerts = buildHealthAlerts(results);
     expect(alerts).toHaveLength(1);
     expect(alerts[0].alertType).toBe("warning");
-    expect(alerts[0].name).toContain("OpenAI");
+    expect(alerts[0].name).toContain("Gemini");
   });
 
   it("returns critical when both providers down", () => {
@@ -109,7 +109,7 @@ describe("buildHealthAlerts", () => {
         error: "500",
       },
       {
-        provider: "openai" as const,
+        provider: "gemini" as const,
         healthy: false,
         latencyMs: 0,
         error: "500",

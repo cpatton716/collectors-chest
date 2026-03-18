@@ -1,19 +1,25 @@
 // src/lib/aiProvider.ts
 // Fallback orchestrator for multi-provider AI calls.
 // Each AI call is independently wrapped with per-call fallback.
-// If Anthropic fails on Call 2, we retry Call 2 on OpenAI — we do NOT re-run Call 1.
+// If Anthropic fails on Call 2, we retry Call 2 on Gemini — we do NOT re-run Call 1.
 
 import { AnthropicProvider } from "./providers/anthropic";
-import { OpenAIProvider } from "./providers/openai";
+import { GeminiProvider } from "./providers/gemini";
 import type { AIProvider, CallResult, ErrorReason } from "./providers/types";
 import { NON_RETRYABLE_ERRORS } from "./providers/types";
+import { VISION_PROVIDER_ORDER } from "./models";
 
 // ── Safe Provider Construction ──
 // Guard: missing API keys must NOT crash the app on cold start.
-const providers: AIProvider[] = [
-  ...(process.env.ANTHROPIC_API_KEY ? [new AnthropicProvider()] : []),
-  ...(process.env.OPENAI_API_KEY ? [new OpenAIProvider()] : []),
-];
+// Provider order is controlled by VISION_PROVIDER_ORDER in models.ts
+const availableProviders: Record<string, AIProvider | null> = {
+  anthropic: process.env.ANTHROPIC_API_KEY ? new AnthropicProvider() : null,
+  gemini: process.env.GEMINI_API_KEY ? new GeminiProvider() : null,
+};
+
+const providers: AIProvider[] = VISION_PROVIDER_ORDER
+  .map((name) => availableProviders[name])
+  .filter((p): p is AIProvider => p !== null);
 
 if (providers.length === 0) {
   console.error(

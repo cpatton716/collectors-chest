@@ -319,8 +319,10 @@ export function CustomProfilePage() {
     }
   }, [searchParams]);
 
-  // Fetch display preferences on mount
+  // Fetch display preferences on mount (once)
+  const [prefsFetched, setPrefsFetched] = useState(false);
   useEffect(() => {
+    if (prefsFetched || !user) return;
     async function fetchPreferences() {
       try {
         const res = await fetch("/api/settings/preferences");
@@ -329,9 +331,10 @@ export function CustomProfilePage() {
           setShowFinancials(data.showFinancials ?? true);
         }
       } catch {}
+      setPrefsFetched(true);
     }
-    if (user) fetchPreferences();
-  }, [user]);
+    fetchPreferences();
+  }, [user, prefsFetched]);
 
   const handleToggleFinancials = async () => {
     const newValue = !showFinancials;

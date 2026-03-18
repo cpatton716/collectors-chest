@@ -111,7 +111,7 @@ export const NON_RETRYABLE_ERRORS: ErrorReason[] = ["bad_request", "content_poli
 export type AICallType = "imageAnalysis" | "verification" | "priceEstimation";
 
 export interface AIProvider {
-  readonly name: "anthropic" | "openai";
+  readonly name: "anthropic" | "gemini";
   analyzeImage(req: ImageAnalysisRequest, opts?: CallOptions): Promise<ImageAnalysisResult>;
   verifyAndEnrich(req: VerificationRequest, opts?: CallOptions): Promise<VerificationResult>;
   estimatePrice(req: PriceEstimationRequest, opts?: CallOptions): Promise<PriceEstimationResult>;
@@ -131,10 +131,11 @@ export interface CallResult<T> {
 // ── Response Metadata ──
 
 export interface ScanResponseMeta {
-  provider: "anthropic" | "openai";
+  provider: "anthropic" | "gemini";
   fallbackUsed: boolean;
   fallbackReason: string | null;
   confidence: "high" | "medium" | "low";
+  cerebro_assisted?: boolean;
   callDetails: {
     imageAnalysis: { provider: string; fallbackUsed: boolean };
     verification: { provider: string; fallbackUsed: boolean } | null;

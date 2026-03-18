@@ -36,7 +36,8 @@ function normalizeTitle(title: string): string {
  */
 export async function lookupKeyInfoFromDb(
   title: string,
-  issueNumber: string
+  issueNumber: string,
+  releaseYear?: number | null
 ): Promise<string[] | null> {
   // Try database first
   if (supabase) {
@@ -75,7 +76,7 @@ export async function lookupKeyInfoFromDb(
   }
 
   // Fallback to static database
-  return lookupKeyInfoStatic(title, issueNumber);
+  return lookupKeyInfoStatic(title, issueNumber, releaseYear);
 }
 
 /**

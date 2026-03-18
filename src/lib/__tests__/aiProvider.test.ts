@@ -9,12 +9,12 @@ import type { AIProvider, ImageAnalysisResult } from "../providers/types";
 jest.mock("../providers/anthropic", () => ({
   AnthropicProvider: jest.fn(),
 }));
-jest.mock("../providers/openai", () => ({
-  OpenAIProvider: jest.fn(),
+jest.mock("../providers/gemini", () => ({
+  GeminiProvider: jest.fn(),
 }));
 
 function createMockProvider(
-  name: "anthropic" | "openai"
+  name: "anthropic" | "gemini"
 ): AIProvider & {
   analyzeImage: jest.Mock;
   verifyAndEnrich: jest.Mock;
@@ -176,7 +176,7 @@ describe("executeWithFallback", () => {
 
   it("falls back when primary fails with server error", async () => {
     const primary = createMockProvider("anthropic");
-    const secondary = createMockProvider("openai");
+    const secondary = createMockProvider("gemini");
 
     primary.analyzeImage.mockRejectedValueOnce({
       status: 500,
@@ -196,14 +196,14 @@ describe("executeWithFallback", () => {
       [primary, secondary]
     );
 
-    expect(result.provider).toBe("openai");
+    expect(result.provider).toBe("gemini");
     expect(result.fallbackUsed).toBe(true);
     expect(result.fallbackReason).toBe("server_error");
   });
 
   it("does NOT fallback on 400 bad_request", async () => {
     const primary = createMockProvider("anthropic");
-    const secondary = createMockProvider("openai");
+    const secondary = createMockProvider("gemini");
 
     primary.analyzeImage.mockRejectedValueOnce({
       status: 400,
@@ -229,7 +229,7 @@ describe("executeWithFallback", () => {
 
   it("does NOT fallback on content_policy", async () => {
     const primary = createMockProvider("anthropic");
-    const secondary = createMockProvider("openai");
+    const secondary = createMockProvider("gemini");
 
     primary.analyzeImage.mockRejectedValueOnce(
       new Error("content policy violation")
@@ -254,7 +254,7 @@ describe("executeWithFallback", () => {
 
   it("throws when all providers fail with retryable error", async () => {
     const primary = createMockProvider("anthropic");
-    const secondary = createMockProvider("openai");
+    const secondary = createMockProvider("gemini");
 
     primary.analyzeImage.mockRejectedValueOnce({
       status: 500,
@@ -302,7 +302,7 @@ describe("executeWithFallback", () => {
 
   it("falls back on rate limit (429)", async () => {
     const primary = createMockProvider("anthropic");
-    const secondary = createMockProvider("openai");
+    const secondary = createMockProvider("gemini");
 
     primary.analyzeImage.mockRejectedValueOnce({
       status: 429,
@@ -328,7 +328,7 @@ describe("executeWithFallback", () => {
 
   it("falls back on model_not_found (404)", async () => {
     const primary = createMockProvider("anthropic");
-    const secondary = createMockProvider("openai");
+    const secondary = createMockProvider("gemini");
 
     primary.analyzeImage.mockRejectedValueOnce({
       status: 404,
@@ -354,7 +354,7 @@ describe("executeWithFallback", () => {
 
   it("preserves per-call independence", async () => {
     const primary = createMockProvider("anthropic");
-    const secondary = createMockProvider("openai");
+    const secondary = createMockProvider("gemini");
 
     // Call 1: primary fails, secondary succeeds
     primary.analyzeImage.mockRejectedValueOnce({
@@ -406,7 +406,7 @@ describe("executeWithFallback", () => {
 
   it("includes fallback raw error in result", async () => {
     const primary = createMockProvider("anthropic");
-    const secondary = createMockProvider("openai");
+    const secondary = createMockProvider("gemini");
 
     primary.analyzeImage.mockRejectedValueOnce(
       new Error("Connection reset by peer")

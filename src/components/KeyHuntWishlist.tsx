@@ -85,14 +85,8 @@ export function KeyHuntWishlist({ onClose }: KeyHuntWishlistProps) {
         <Target className="w-12 h-12 text-gray-300 mx-auto mb-4" />
         <h3 className="text-lg font-semibold text-gray-900 mb-2">Your Key Hunt list is empty</h3>
         <p className="text-gray-600 mb-6">
-          Add comics from Hot Books or scan results to track the books you&apos;re hunting for.
+          Scan comics or use Quick Price Lookup to find books, then add them to your hunt list.
         </p>
-        <Link
-          href="/hottest-books"
-          className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors"
-        >
-          Browse Hot Books
-        </Link>
       </div>
     );
   }

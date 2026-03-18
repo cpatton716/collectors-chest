@@ -23,7 +23,7 @@ export interface ScanEventProperties {
   success: boolean;
   userId?: string;
   subscriptionTier?: string;
-  provider: "anthropic" | "openai";
+  provider: "anthropic" | "gemini";
   fallbackUsed: boolean;
   fallbackReason: string | null;
 }
@@ -50,18 +50,18 @@ export async function trackScanServer(
 // Per-provider cost constants (in cents)
 const PROVIDER_COSTS = {
   anthropic: { imageAnalysis: 1.5, verification: 0.6, ebay: 0.15 },
-  openai: { imageAnalysis: 1.2, verification: 0.4, ebay: 0.15 },
+  gemini: { imageAnalysis: 0.3, verification: 0.1, ebay: 0.15 },
 } as const;
 
 /**
  * Estimate the cost of a scan in cents based on what API calls were made.
- * Provider-aware: OpenAI costs slightly less per call than Anthropic.
+ * Provider-aware: Gemini costs less per call than Anthropic.
  */
 export function estimateScanCostCents(params: {
   metadataCacheHit: boolean;
   aiCallsMade: number;
   ebayLookup: boolean;
-  provider?: "anthropic" | "openai";
+  provider?: "anthropic" | "gemini";
 }): number {
   const c = PROVIDER_COSTS[params.provider || "anthropic"];
   let cost = 0;

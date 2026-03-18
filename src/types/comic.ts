@@ -37,8 +37,12 @@ export interface ComicDetails {
   priceData: PriceData | null;
   // Key info (first appearances, deaths, team changes, etc.)
   keyInfo: string[];
+  // Source of keyInfo — controls whether "Verified" badge is shown
+  keyInfoSource?: "database" | "cgc" | "ai" | "cache";
   // Barcode data (detected during cover scan)
   barcode?: BarcodeData | null;
+  // Cerebro-assisted scan (Gemini low-confidence fallback was used)
+  cerebro_assisted?: boolean;
 }
 
 export interface PriceData {

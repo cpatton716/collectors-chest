@@ -507,15 +507,22 @@ export function ComicDetailModal({
               </div>
               {(comic.keyInfo && comic.keyInfo.length > 0) || (item.customKeyInfo && item.customKeyInfo.length > 0) ? (
                 <div className="flex flex-wrap gap-2">
-                  {/* Database key info (verified) */}
-                  {comic.keyInfo?.map((info, idx) => (
-                    <span
-                      key={`db-${idx}`}
-                      className="px-2 py-1 bg-yellow-50 border border-yellow-200 text-yellow-800 rounded text-xs"
-                    >
-                      {info}
-                    </span>
-                  ))}
+                  {/* Key info — show source badge */}
+                  {comic.keyInfo?.map((info, idx) => {
+                    const isVerified = comic.keyInfoSource === "database" || comic.keyInfoSource === "cgc";
+                    return (
+                      <span
+                        key={`db-${idx}`}
+                        className={`px-2 py-1 rounded text-xs ${
+                          isVerified
+                            ? "bg-yellow-50 border border-yellow-200 text-yellow-800"
+                            : "bg-gray-50 border border-gray-200 text-gray-600"
+                        }`}
+                      >
+                        {info}
+                      </span>
+                    );
+                  })}
                   {/* Custom key info (pending review, only visible to owner) */}
                   {item.customKeyInfo?.map((info, idx) => (
                     <span

@@ -73,13 +73,14 @@ export async function cacheGet<T>(
 export async function cacheSet<T>(
   key: string,
   value: T,
-  prefix: keyof typeof CACHE_PREFIX
+  prefix: keyof typeof CACHE_PREFIX,
+  ttlOverride?: number
 ): Promise<void> {
   if (!redis) return;
 
   try {
     const fullKey = `${CACHE_PREFIX[prefix]}${key}`;
-    const ttl = CACHE_TTL[prefix];
+    const ttl = ttlOverride || CACHE_TTL[prefix];
     await redis.set(fullKey, value, { ex: ttl });
   } catch (error) {
     console.error("Redis cache set error:", error);
@@ -169,18 +170,10 @@ export function generateAiAnalyzeCacheKey(imageHash: string): string {
 }
 
 /**
- * Simple hash function for creating cache keys from image data
- * Uses a fast non-cryptographic hash
+ * Hash function for creating cache keys from image data
+ * Uses SHA-256 for collision-free fingerprinting
  */
 export function hashImageData(base64Image: string): string {
-  // Use first 1000 chars + length as a simple fingerprint
-  // This is fast and good enough for cache keys
-  const sample = base64Image.slice(0, 1000);
-  let hash = 0;
-  for (let i = 0; i < sample.length; i++) {
-    const char = sample.charCodeAt(i);
-    hash = (hash << 5) - hash + char;
-    hash = hash & hash; // Convert to 32-bit integer
-  }
-  return `${hash.toString(16)}_${base64Image.length}`;
+  const crypto = require("crypto");
+  return crypto.createHash("sha256").update(base64Image).digest("hex");
 }
