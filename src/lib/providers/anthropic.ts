@@ -12,8 +12,6 @@ import type {
   CallOptions,
   ImageAnalysisRequest,
   ImageAnalysisResult,
-  PriceEstimationRequest,
-  PriceEstimationResult,
   VerificationRequest,
   VerificationResult,
 } from "./types";
@@ -138,63 +136,6 @@ Rules:
 - Return ONLY valid JSON, no other text.`;
 }
 
-export function buildPriceEstimationPrompt(req: PriceEstimationRequest): string {
-  const gradeInfo = req.grade ? `Grade: ${req.grade}` : "Raw/Ungraded";
-  const signatureInfo = req.isSignatureSeries
-    ? `Signature Series signed by ${req.signedBy || "unknown"}`
-    : "";
-  const gradingCompanyInfo = req.gradingCompany ? `Graded by ${req.gradingCompany}` : "";
-
-  return `You are a comic book market expert with knowledge of recent comic book sales and values.
-
-I need estimated recent sale prices for this comic:
-- Title: ${req.title}
-- Issue Number: ${req.issueNumber}
-- Publisher: ${req.publisher || "Unknown"}
-- Year: ${req.releaseYear || "Unknown"}
-- Condition: ${gradeInfo} ${gradingCompanyInfo} ${signatureInfo}
-
-Based on your knowledge of the comic book market, provide realistic estimated recent sale prices. Consider:
-- The significance/key status of this issue
-- The grade/condition
-- Whether it's a signature series (adds value)
-- Recent market trends for this title
-
-Return a JSON object with estimated recent sales data AND grade-specific price estimates:
-{
-  "recentSales": [
-    { "price": estimated_price_1, "date": "YYYY-MM-DD", "source": "eBay", "daysAgo": number },
-    { "price": estimated_price_2, "date": "YYYY-MM-DD", "source": "eBay", "daysAgo": number },
-    { "price": estimated_price_3, "date": "YYYY-MM-DD", "source": "eBay", "daysAgo": number }
-  ],
-  "gradeEstimates": [
-    { "grade": 9.8, "label": "Near Mint/Mint", "rawValue": price, "slabbedValue": price },
-    { "grade": 9.4, "label": "Near Mint", "rawValue": price, "slabbedValue": price },
-    { "grade": 8.0, "label": "Very Fine", "rawValue": price, "slabbedValue": price },
-    { "grade": 6.0, "label": "Fine", "rawValue": price, "slabbedValue": price },
-    { "grade": 4.0, "label": "Very Good", "rawValue": price, "slabbedValue": price },
-    { "grade": 2.0, "label": "Good", "rawValue": price, "slabbedValue": price }
-  ],
-  "marketNotes": "brief note about this comic's market value"
-}
-
-Important:
-- Return ONLY the JSON object, no other text
-- For recentSales: provide 3 realistic sale prices at the scanned grade (or 9.4 NM for raw)
-- Use dates within the last 6 months (late 2025/early 2026)
-- For gradeEstimates: provide realistic price differences between grades
-  - Raw comics are ungraded copies (typically 10-30% less than slabbed)
-  - Slabbed values are for CGC/CBCS graded copies (command a premium)
-  - Higher grades exponentially more valuable for key issues
-  - Lower grades have smaller price gaps between them
-- Price scaling rules:
-  - For KEY issues (first appearances, deaths): 9.8 can be 2-10x the 9.4 price
-  - For regular issues: grade premiums are more modest (9.8 ~1.5-2x of 9.4)
-  - Raw copies typically 70-90% of equivalent slabbed value
-  - Lower grades (2.0-4.0) may be affordable entry points for expensive keys
-- Be realistic with actual market pricing behavior`;
-}
-
 // ── Provider Class ──
 
 export class AnthropicProvider implements AIProvider {
@@ -294,34 +235,6 @@ export class AnthropicProvider implements AIProvider {
     return this.parseJsonResponse(textBlock.text) as VerificationResult;
   }
 
-  // ── Call 3: Price Estimation ──
-
-  async estimatePrice(
-    req: PriceEstimationRequest,
-    opts?: CallOptions
-  ): Promise<PriceEstimationResult> {
-    const response = await this.client.messages.create(
-      {
-        model: MODEL_PRIMARY,
-        max_tokens: 512,
-        messages: [
-          {
-            role: "user",
-            content: buildPriceEstimationPrompt(req),
-          },
-        ],
-      },
-      { signal: opts?.signal }
-    );
-
-    const textBlock = response.content.find((b) => b.type === "text");
-    if (!textBlock || textBlock.type !== "text") {
-      throw new Error("Price estimation call returned no text content.");
-    }
-
-    return this.parseJsonResponse(textBlock.text) as PriceEstimationResult;
-  }
-
   // ── Cost Estimation ──
 
   estimateCostCents(callType: AICallType): number {
@@ -329,8 +242,6 @@ export class AnthropicProvider implements AIProvider {
       case "imageAnalysis":
         return 1.5;
       case "verification":
-        return 0.6;
-      case "priceEstimation":
         return 0.6;
     }
   }

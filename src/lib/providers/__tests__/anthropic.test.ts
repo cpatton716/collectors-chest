@@ -2,10 +2,9 @@ import {
   AnthropicProvider,
   IMAGE_ANALYSIS_PROMPT,
   buildVerificationPrompt,
-  buildPriceEstimationPrompt,
 } from "../anthropic";
 
-import type { VerificationRequest, PriceEstimationRequest } from "../types";
+import type { VerificationRequest } from "../types";
 
 // ── Mocks ──
 
@@ -92,10 +91,6 @@ describe("AnthropicProvider", () => {
 
     it("returns 0.6 for verification", () => {
       expect(provider.estimateCostCents("verification")).toBe(0.6);
-    });
-
-    it("returns 0.6 for priceEstimation", () => {
-      expect(provider.estimateCostCents("priceEstimation")).toBe(0.6);
     });
   });
 
@@ -228,47 +223,6 @@ describe("AnthropicProvider", () => {
     });
   });
 
-  // ── estimatePrice ──
-
-  describe("estimatePrice", () => {
-    it("calls SDK and returns parsed price result", async () => {
-      const provider = makeProvider();
-      const client = getClient(provider);
-      const mockResult = {
-        recentSales: [
-          { price: 150, date: "2026-01-15", source: "eBay", daysAgo: 45 },
-        ],
-        gradeEstimates: [
-          { grade: 9.8, label: "Near Mint/Mint", rawValue: 200, slabbedValue: 300 },
-        ],
-        marketNotes: "Key issue - first appearance of Venom",
-      };
-
-      client.messages.create.mockResolvedValueOnce({
-        content: [{ type: "text", text: JSON.stringify(mockResult) }],
-      });
-
-      const req: PriceEstimationRequest = {
-        title: "Amazing Spider-Man",
-        issueNumber: "300",
-        publisher: "Marvel Comics",
-        releaseYear: "1988",
-        grade: "9.4",
-        gradingCompany: "CGC",
-        isSlabbed: true,
-        isSignatureSeries: false,
-        signedBy: null,
-      };
-
-      const result = await provider.estimatePrice(req);
-      expect(result).toEqual(mockResult);
-
-      const [body] = client.messages.create.mock.calls[0];
-      expect(body.max_tokens).toBe(512);
-      expect(body.messages[0].content).toContain("Amazing Spider-Man");
-    });
-  });
-
   // ── Prompt Builders ──
 
   describe("buildVerificationPrompt", () => {
@@ -302,42 +256,6 @@ describe("AnthropicProvider", () => {
       });
       expect(prompt).toContain("Publisher=?");
       expect(prompt).toContain("Year=?");
-    });
-  });
-
-  describe("buildPriceEstimationPrompt", () => {
-    it("includes grade and grading company info for slabbed comics", () => {
-      const prompt = buildPriceEstimationPrompt({
-        title: "X-Men",
-        issueNumber: "1",
-        publisher: "Marvel Comics",
-        releaseYear: "1963",
-        grade: "9.8",
-        gradingCompany: "CGC",
-        isSlabbed: true,
-        isSignatureSeries: true,
-        signedBy: "Stan Lee",
-      });
-      expect(prompt).toContain("Grade: 9.8");
-      expect(prompt).toContain("Graded by CGC");
-      expect(prompt).toContain("Signature Series signed by Stan Lee");
-    });
-
-    it("shows Raw/Ungraded when no grade provided", () => {
-      const prompt = buildPriceEstimationPrompt({
-        title: "Spawn",
-        issueNumber: "1",
-        publisher: "Image Comics",
-        releaseYear: "1992",
-        grade: null,
-        gradingCompany: null,
-        isSlabbed: false,
-        isSignatureSeries: false,
-        signedBy: null,
-      });
-      expect(prompt).toContain("Raw/Ungraded");
-      expect(prompt).not.toContain("Graded by");
-      expect(prompt).not.toContain("Signature Series");
     });
   });
 });

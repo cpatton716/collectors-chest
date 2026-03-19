@@ -22,7 +22,7 @@ describe("buildScanEventProps", () => {
       callDetails: {
         imageAnalysis: { provider: "anthropic", fallbackUsed: false },
         verification: null,
-        priceEstimation: null,
+
       },
     };
     const result = buildScanEventProps("camera", true, meta);
@@ -44,7 +44,7 @@ describe("buildScanEventProps", () => {
       callDetails: {
         imageAnalysis: { provider: "gemini", fallbackUsed: true },
         verification: null,
-        priceEstimation: null,
+
       },
     };
     const result = buildScanEventProps("upload", true, meta);

@@ -7,7 +7,6 @@ import { GEMINI_PRIMARY } from "@/lib/models";
 import {
   IMAGE_ANALYSIS_PROMPT,
   buildVerificationPrompt,
-  buildPriceEstimationPrompt,
 } from "./anthropic";
 import type {
   AIProvider,
@@ -17,8 +16,6 @@ import type {
   ImageAnalysisResult,
   VerificationRequest,
   VerificationResult,
-  PriceEstimationRequest,
-  PriceEstimationResult,
 } from "./types";
 
 export class GeminiProvider implements AIProvider {
@@ -103,24 +100,6 @@ export class GeminiProvider implements AIProvider {
     return this.parseJsonResponse(text) as VerificationResult;
   }
 
-  // ── Call 3: Price Estimation ──
-
-  async estimatePrice(
-    req: PriceEstimationRequest,
-    opts?: CallOptions
-  ): Promise<PriceEstimationResult> {
-    const model = this.genAI.getGenerativeModel({ model: GEMINI_PRIMARY });
-
-    const result = await this.withTimeout(
-      model.generateContent(buildPriceEstimationPrompt(req)),
-      opts?.signal
-    );
-
-    const text = result.response.text();
-    if (!text) throw new Error("No response from Gemini price estimation");
-    return this.parseJsonResponse(text) as PriceEstimationResult;
-  }
-
   // ── Cost Estimation ──
 
   estimateCostCents(callType: AICallType): number {
@@ -129,8 +108,6 @@ export class GeminiProvider implements AIProvider {
       case "imageAnalysis":
         return 0.3;
       case "verification":
-        return 0.1;
-      case "priceEstimation":
         return 0.1;
     }
   }

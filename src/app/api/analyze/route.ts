@@ -709,13 +709,13 @@ export async function POST(request: NextRequest) {
 
           // Check Redis cache first
           const cachedResult = await cacheGet<PriceData | { noData: true }>(cacheKey, "ebayPrice");
-          if (cachedResult !== null && !("noData" in cachedResult) && (cachedResult as PriceData).priceSource !== "ai") {
+          if (cachedResult !== null && !("noData" in cachedResult) && (cachedResult as PriceData).priceSource === "ebay") {
               comicDetails.priceData = {
                 ...cachedResult,
                 priceSource: "ebay",
               };
               priceDataFound = true;
-          } else if (cachedResult === null || (cachedResult !== null && !("noData" in cachedResult) && (cachedResult as PriceData).priceSource === "ai")) {
+          } else if (cachedResult === null || (cachedResult !== null && !("noData" in cachedResult) && (cachedResult as PriceData).priceSource !== "ebay")) {
             // Cache miss or stale AI price — fetch from eBay Browse API
             const ebayPriceData = await searchActiveListings(
               comicDetails.title,
@@ -868,7 +868,6 @@ export async function POST(request: NextRequest) {
         verification: needsAIVerification
           ? { provider: verificationMeta.provider, fallbackUsed: verificationMeta.fallbackUsed }
           : null,
-        priceEstimation: null,
       },
     };
 

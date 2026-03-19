@@ -1,7 +1,7 @@
 // src/lib/providers/types.ts
 // Shared types for the multi-provider AI fallback system.
 
-import type { GradingCompany, GradeEstimate } from "@/types/comic";
+import type { GradingCompany } from "@/types/comic";
 
 // ── Call Options ──
 
@@ -26,18 +26,6 @@ export interface VerificationRequest {
   coverArtist: string | null;
   interiorArtist: string | null;
   missingFields: string[];
-}
-
-export interface PriceEstimationRequest {
-  title: string;
-  issueNumber: string;
-  publisher: string | null;
-  releaseYear: string | null;
-  grade: string | null;
-  gradingCompany: string | null;
-  isSlabbed: boolean;
-  isSignatureSeries: boolean;
-  signedBy: string | null;
 }
 
 // ── Result Types ──
@@ -80,17 +68,6 @@ export interface VerificationResult {
   keyInfo: string[];
 }
 
-export interface PriceEstimationResult {
-  recentSales: {
-    price: number;
-    date: string;
-    source: string;
-    daysAgo?: number;
-  }[];
-  gradeEstimates: GradeEstimate[];
-  marketNotes: string;
-}
-
 // ── Error Types ──
 
 export type ErrorReason =
@@ -108,13 +85,12 @@ export const NON_RETRYABLE_ERRORS: ErrorReason[] = ["bad_request", "content_poli
 
 // ── Provider Interface ──
 
-export type AICallType = "imageAnalysis" | "verification" | "priceEstimation";
+export type AICallType = "imageAnalysis" | "verification";
 
 export interface AIProvider {
   readonly name: "anthropic" | "gemini";
   analyzeImage(req: ImageAnalysisRequest, opts?: CallOptions): Promise<ImageAnalysisResult>;
   verifyAndEnrich(req: VerificationRequest, opts?: CallOptions): Promise<VerificationResult>;
-  estimatePrice(req: PriceEstimationRequest, opts?: CallOptions): Promise<PriceEstimationResult>;
   estimateCostCents(callType: AICallType): number;
 }
 
@@ -139,6 +115,5 @@ export interface ScanResponseMeta {
   callDetails: {
     imageAnalysis: { provider: string; fallbackUsed: boolean };
     verification: { provider: string; fallbackUsed: boolean } | null;
-    priceEstimation: { provider: string; fallbackUsed: boolean } | null;
   };
 }

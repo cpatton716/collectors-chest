@@ -7,7 +7,6 @@ function mockProvider(name: "anthropic" | "gemini"): AIProvider {
     name,
     analyzeImage: jest.fn().mockResolvedValue({ title: "test" }),
     verifyAndEnrich: jest.fn().mockResolvedValue({}),
-    estimatePrice: jest.fn().mockResolvedValue({}),
     estimateCostCents: jest.fn().mockReturnValue(0),
   } as unknown as AIProvider;
 }
@@ -21,7 +20,6 @@ function failingProvider(
     name,
     analyzeImage: jest.fn().mockRejectedValue(new Error(error)),
     verifyAndEnrich: jest.fn().mockRejectedValue(new Error(error)),
-    estimatePrice: jest.fn().mockRejectedValue(new Error(error)),
     estimateCostCents: jest.fn().mockReturnValue(0),
   } as unknown as AIProvider;
 }
