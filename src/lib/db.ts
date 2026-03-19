@@ -488,7 +488,7 @@ export interface ComicMetadata {
       slabbedValue: number;
     }[];
     disclaimer: string;
-    priceSource?: "ebay" | "ai";
+    priceSource?: "ebay";
   } | null;
   lookupCount: number;
   createdAt: string;

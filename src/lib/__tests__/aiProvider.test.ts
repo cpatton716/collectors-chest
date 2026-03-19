@@ -18,13 +18,11 @@ function createMockProvider(
 ): AIProvider & {
   analyzeImage: jest.Mock;
   verifyAndEnrich: jest.Mock;
-  estimatePrice: jest.Mock;
 } {
   return {
     name,
     analyzeImage: jest.fn(),
     verifyAndEnrich: jest.fn(),
-    estimatePrice: jest.fn(),
     estimateCostCents: jest.fn().mockReturnValue(1.5),
   };
 }

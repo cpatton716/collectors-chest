@@ -72,7 +72,9 @@ interface LookupResult {
   keyInfo?: string[];
   gradeEstimates?: GradeEstimate[];
   fromCache?: boolean;
-  source?: "database" | "ebay" | "ai";
+  source?: "database" | "ebay";
+  totalListings?: number;
+  ebaySearchQuery?: string;
 }
 
 export default function KeyHuntPage() {
@@ -291,6 +293,8 @@ export default function KeyHuntPage() {
         gradeEstimates: data.gradeEstimates,
         fromCache: false,
         source: data.source,
+        totalListings: data.totalListings,
+        ebaySearchQuery: data.ebaySearchQuery,
       };
 
       // Cache the result for offline use
@@ -401,14 +405,14 @@ export default function KeyHuntPage() {
                 ? [
                     {
                       ...result.recentSale,
-                      source: "Technopathic Estimate",
+                      source: "offline",
                       isOlderThan6Months: false,
                     },
                   ]
                 : [],
               mostRecentSaleDate: result.recentSale?.date || null,
               isAveraged: true,
-              disclaimer: "Technopathic estimate",
+              disclaimer: null,
             }
           : null,
       },
@@ -517,14 +521,14 @@ export default function KeyHuntPage() {
                   ? [
                       {
                         ...entry.priceResult.recentSale,
-                        source: "Technopathic Estimate",
+                        source: "offline",
                         isOlderThan6Months: false,
                       },
                     ]
                   : [],
                 mostRecentSaleDate: entry.priceResult.recentSale?.date || null,
                 isAveraged: true,
-                disclaimer: "Technopathic estimate",
+                disclaimer: null,
               }
             : null,
         },
@@ -902,6 +906,8 @@ export default function KeyHuntPage() {
             fromCache={result.fromCache}
             isOffline={isOfflineMode}
             source={result.source}
+            totalListings={result.totalListings}
+            ebaySearchQuery={result.ebaySearchQuery}
           />
         )}
 

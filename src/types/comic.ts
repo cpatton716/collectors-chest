@@ -55,7 +55,7 @@ export interface PriceData {
   gradeEstimates?: GradeEstimate[];
   baseGrade?: number; // The grade the estimatedValue is based on (default 9.4 for raw estimates)
   // Price source indicator
-  priceSource?: "ebay" | "ai"; // Where the price data came from
+  priceSource?: "ebay"; // Where the price data came from
 }
 
 export interface GradeEstimate {

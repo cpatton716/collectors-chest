@@ -18,7 +18,6 @@ jest.mock("@/lib/models", () => ({
 jest.mock("../anthropic", () => ({
   IMAGE_ANALYSIS_PROMPT: "mock image prompt",
   buildVerificationPrompt: jest.fn().mockReturnValue("mock verify prompt"),
-  buildPriceEstimationPrompt: jest.fn().mockReturnValue("mock price prompt"),
 }));
 
 describe("GeminiProvider", () => {
@@ -46,9 +45,6 @@ describe("GeminiProvider", () => {
     });
     it("returns 0.1 for verification", () => {
       expect(provider.estimateCostCents("verification")).toBe(0.1);
-    });
-    it("returns 0.1 for priceEstimation", () => {
-      expect(provider.estimateCostCents("priceEstimation")).toBe(0.1);
     });
   });
 
@@ -147,35 +143,6 @@ describe("GeminiProvider", () => {
       });
       expect(result.writer).toBe("Alan Moore");
       expect(result.keyInfo).toContain("First appearance of Rorschach");
-    });
-  });
-
-  describe("estimatePrice", () => {
-    it("calls Gemini with price estimation prompt and returns parsed result", async () => {
-      mockGenerateContent.mockResolvedValueOnce({
-        response: {
-          text: () =>
-            JSON.stringify({
-              recentSales: [
-                { price: 45, date: "2026-01-15", source: "eBay" },
-              ],
-              gradeEstimates: [],
-              marketNotes: "Steady",
-            }),
-        },
-      });
-      const result = await provider.estimatePrice({
-        title: "X-Men",
-        issueNumber: "1",
-        publisher: "Marvel",
-        releaseYear: "1991",
-        grade: null,
-        gradingCompany: null,
-        isSlabbed: false,
-        isSignatureSeries: false,
-        signedBy: null,
-      });
-      expect(result.recentSales[0].price).toBe(45);
     });
   });
 });

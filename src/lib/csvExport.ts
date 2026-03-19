@@ -47,7 +47,7 @@ export function collectionToCSV(items: CollectionItem[]): string {
     "Grade",
     "Purchase Price",
     "Purchase Date",
-    "Estimated Value",
+    "Listed Value",
     "For Sale",
     "Asking Price",
     "Notes",
