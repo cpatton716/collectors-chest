@@ -30,20 +30,9 @@ export async function POST(request: Request) {
     try {
       const dbResult = await getComicMetadata(normalizedTitle, normalizedIssue);
       if (dbResult) {
-        // Return in the format expected by CSV import
+        // Return in the format expected by CSV import (no AI pricing — eBay Browse API handles pricing)
         return NextResponse.json({
-          priceData: dbResult.priceData
-            ? {
-                estimatedValue: dbResult.priceData.estimatedValue,
-                recentSales: dbResult.priceData.recentSales || [],
-                mostRecentSaleDate: dbResult.priceData.mostRecentSaleDate,
-                isAveraged: false,
-                disclaimer:
-                  dbResult.priceData.disclaimer ||
-                  "Values are estimates based on market knowledge.",
-                gradeEstimates: dbResult.priceData.gradeEstimates,
-              }
-            : null,
+          priceData: null,
           keyInfo: dbResult.keyInfo || [],
           // Also return metadata for enriching imports
           writer: dbResult.writer,
@@ -65,14 +54,14 @@ export async function POST(request: Request) {
     // Build the comic identifier string
     const comicIdentifier = `${title} #${issueNumber}${variant ? ` (${variant})` : ""}${publisher ? ` - ${publisher}` : ""}${releaseYear ? ` (${releaseYear})` : ""}`;
 
-    // Use Claude to get full details including price data
+    // Use Claude to get metadata and key info (pricing now handled by eBay Browse API)
     const message = await anthropic.messages.create({
       model: MODEL_PRIMARY,
-      max_tokens: 1024,
+      max_tokens: 512,
       messages: [
         {
           role: "user",
-          content: `You are a comic book expert and pricing specialist. For the following comic, provide:
+          content: `You are a comic book expert. For the following comic, provide:
 
 Comic: ${comicIdentifier}
 
@@ -83,16 +72,7 @@ Return ONLY a JSON object:
   "writer": "Writer Name" or null,
   "coverArtist": "Artist Name" or null,
   "interiorArtist": "Artist Name" or null,
-  "estimatedValue": number (average price for 9.4 raw copy) or null,
-  "keyInfo": ["MAJOR key facts only - empty if none"],
-  "gradeEstimates": [
-    { "grade": 9.8, "label": "Near Mint/Mint", "rawValue": price, "slabbedValue": price },
-    { "grade": 9.4, "label": "Near Mint", "rawValue": price, "slabbedValue": price },
-    { "grade": 8.0, "label": "Very Fine", "rawValue": price, "slabbedValue": price },
-    { "grade": 6.0, "label": "Fine", "rawValue": price, "slabbedValue": price },
-    { "grade": 4.0, "label": "Very Good", "rawValue": price, "slabbedValue": price },
-    { "grade": 2.0, "label": "Good", "rawValue": price, "slabbedValue": price }
-  ]
+  "keyInfo": ["MAJOR key facts only - empty if none"]
 }
 
 For keyInfo, ONLY include facts that significantly impact collector value:
@@ -101,21 +81,17 @@ For keyInfo, ONLY include facts that significantly impact collector value:
 - Origin stories of major characters
 - Creator milestones
 
-Most issues should have an empty keyInfo array.
-Be realistic with prices based on typical eBay sold listings.`,
+Most issues should have an empty keyInfo array.`,
         },
       ],
     });
 
-    let priceData = null;
     let keyInfo: string[] = [];
     let writer = null;
     let coverArtist = null;
     let interiorArtist = null;
     let detectedPublisher = publisher || null;
     let detectedYear = releaseYear || null;
-    let gradeEstimates: { grade: number; label: string; rawValue: number; slabbedValue: number }[] =
-      [];
 
     // Parse Claude's response
     const responseText = message.content[0].type === "text" ? message.content[0].text : "";
@@ -137,24 +113,12 @@ Be realistic with prices based on typical eBay sold listings.`,
         interiorArtist = parsed.interiorArtist || null;
         detectedPublisher = parsed.publisher || publisher || null;
         detectedYear = parsed.releaseYear || releaseYear || null;
-        gradeEstimates = Array.isArray(parsed.gradeEstimates) ? parsed.gradeEstimates : [];
-
-        if (parsed.estimatedValue !== null && typeof parsed.estimatedValue === "number") {
-          priceData = {
-            estimatedValue: parsed.estimatedValue,
-            recentSales: [],
-            mostRecentSaleDate: null,
-            isAveraged: false,
-            disclaimer: "Values are estimates based on market knowledge. Actual prices may vary.",
-            gradeEstimates,
-          };
-        }
 
         if (Array.isArray(parsed.keyInfo)) {
           keyInfo = parsed.keyInfo;
         }
 
-        // 3. Save to database for future lookups (non-blocking)
+        // Save metadata to database for future lookups (non-blocking, no price data)
         saveComicMetadata({
           title: normalizedTitle,
           issueNumber: normalizedIssue,
@@ -164,15 +128,6 @@ Be realistic with prices based on typical eBay sold listings.`,
           coverArtist,
           interiorArtist,
           keyInfo,
-          priceData: priceData
-            ? {
-                estimatedValue: priceData.estimatedValue,
-                mostRecentSaleDate: null,
-                recentSales: [],
-                gradeEstimates,
-                disclaimer: priceData.disclaimer,
-              }
-            : undefined,
         }).catch((err) => {
           console.error("[import-lookup] Failed to save to database:", err);
         });
@@ -194,7 +149,7 @@ Be realistic with prices based on typical eBay sold listings.`,
     }).catch(() => {});
 
     return NextResponse.json({
-      priceData,
+      priceData: null,
       keyInfo,
       writer,
       coverArtist,

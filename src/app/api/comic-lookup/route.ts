@@ -11,21 +11,6 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
-interface GradeEstimate {
-  grade: number;
-  label: string;
-  rawValue: number;
-  slabbedValue: number;
-}
-
-interface PriceData {
-  estimatedValue: number;
-  mostRecentSaleDate: string | null;
-  recentSales: { price: number; date: string }[];
-  gradeEstimates: GradeEstimate[];
-  disclaimer: string;
-}
-
 interface ComicLookupResult {
   publisher: string | null;
   releaseYear: string | null;
@@ -33,7 +18,7 @@ interface ComicLookupResult {
   coverArtist: string | null;
   interiorArtist: string | null;
   keyInfo: string[];
-  priceData?: PriceData;
+  priceData?: null;
   source?: "database" | "ai"; // Track where the data came from
 }
 
@@ -90,6 +75,10 @@ export async function POST(request: NextRequest) {
     try {
       const redisCached = await cacheGet<ComicLookupResult>(cacheKey, "comicMetadata");
       if (redisCached) {
+        // Transition guard: strip non-eBay price data from cached results
+        if (redisCached.priceData && (redisCached.priceData as unknown as Record<string, unknown>).priceSource !== 'ebay') {
+          (redisCached as unknown as Record<string, unknown>).priceData = null;
+        }
         return NextResponse.json({ ...redisCached, source: "cache" });
       }
     } catch (redisError) {
@@ -107,15 +96,9 @@ export async function POST(request: NextRequest) {
           coverArtist: dbResult.coverArtist,
           interiorArtist: dbResult.interiorArtist,
           keyInfo: dbResult.keyInfo,
-          priceData: dbResult.priceData || undefined,
+          priceData: null,
           source: "database",
         };
-
-        // Add disclaimer if price data exists
-        if (result.priceData) {
-          result.priceData.disclaimer =
-            "Values are estimates based on market knowledge. Actual prices may vary.";
-        }
 
         // Backfill Redis cache and increment lookup count (non-blocking)
         cacheSet(cacheKey, result, "comicMetadata");
@@ -151,7 +134,6 @@ export async function POST(request: NextRequest) {
       coverArtist: result.coverArtist,
       interiorArtist: result.interiorArtist,
       keyInfo: result.keyInfo,
-      priceData: result.priceData,
     }).catch((err) => {
       console.error("[comic-lookup] Failed to save to database:", err);
     });
@@ -224,9 +206,9 @@ If you're not sure, return {"publisher": null}`;
   }
 }
 
-// Fetch full comic details from Claude API
+// Fetch comic metadata from Claude API (pricing now handled by eBay Browse API)
 async function fetchFromClaudeAPI(title: string, issueNumber: string): Promise<ComicLookupResult> {
-  const prompt = `You are a comic book expert and pricing specialist. For the comic "${title}" issue #${issueNumber}, provide:
+  const prompt = `You are a comic book expert. For the comic "${title}" issue #${issueNumber}, provide:
 
 1. Publisher (the company that published this comic)
 2. Release Year (the year this specific issue was published)
@@ -234,7 +216,6 @@ async function fetchFromClaudeAPI(title: string, issueNumber: string): Promise<C
 4. Cover Artist (cover artist for this issue)
 5. Interior Artist (interior/pencil artist for this issue)
 6. Key Info (significant facts about this issue)
-7. Price Data (estimated market values)
 
 Return ONLY a JSON object with this format, no other text:
 {
@@ -243,22 +224,7 @@ Return ONLY a JSON object with this format, no other text:
   "writer": "Writer Name",
   "coverArtist": "Artist Name",
   "interiorArtist": "Artist Name",
-  "keyInfo": ["array of MAJOR key facts - leave empty if none"],
-  "priceData": {
-    "estimatedValue": number (average price for 9.4 raw copy based on recent eBay sales),
-    "mostRecentSaleDate": "YYYY-MM-DD" or null,
-    "recentSales": [
-      { "price": number, "date": "YYYY-MM-DD" }
-    ],
-    "gradeEstimates": [
-      { "grade": 9.8, "label": "Near Mint/Mint", "rawValue": price, "slabbedValue": price },
-      { "grade": 9.4, "label": "Near Mint", "rawValue": price, "slabbedValue": price },
-      { "grade": 8.0, "label": "Very Fine", "rawValue": price, "slabbedValue": price },
-      { "grade": 6.0, "label": "Fine", "rawValue": price, "slabbedValue": price },
-      { "grade": 4.0, "label": "Very Good", "rawValue": price, "slabbedValue": price },
-      { "grade": 2.0, "label": "Good", "rawValue": price, "slabbedValue": price }
-    ]
-  }
+  "keyInfo": ["array of MAJOR key facts - leave empty if none"]
 }
 
 For keyInfo, ONLY include facts that significantly impact collector value:
@@ -271,16 +237,11 @@ For keyInfo, ONLY include facts that significantly impact collector value:
 
 Do NOT include: minor character appearances, team roster changes, crossover tie-ins, deaths that were quickly reversed, relationship milestones, or cameo appearances.
 
-For priceData:
-- estimatedValue: Average of last 5 eBay sales for a 9.4 raw copy. Be realistic.
-- recentSales: Up to 3 recent sales with prices and dates (within last 30 days if available)
-- gradeEstimates: Realistic values for each grade. Slabbed typically 10-30% more than raw.
-
 Use null for any field you're not confident about. Most issues should have empty keyInfo array.`;
 
   const response = await anthropic.messages.create({
     model: MODEL_PRIMARY,
-    max_tokens: 1024,
+    max_tokens: 512,
     messages: [{ role: "user", content: prompt }],
   });
 
@@ -309,17 +270,8 @@ Use null for any field you're not confident about. Most issues should have empty
       result.keyInfo = [];
     }
 
-    // Add disclaimer and ensure arrays in priceData
-    if (result.priceData) {
-      result.priceData.disclaimer =
-        "Values are estimates based on market knowledge. Actual prices may vary.";
-      if (!result.priceData.recentSales || !Array.isArray(result.priceData.recentSales)) {
-        result.priceData.recentSales = [];
-      }
-      if (!result.priceData.gradeEstimates || !Array.isArray(result.priceData.gradeEstimates)) {
-        result.priceData.gradeEstimates = [];
-      }
-    }
+    // No price data — pricing handled by eBay Browse API
+    result.priceData = null;
 
     return result;
   } catch {

@@ -109,6 +109,19 @@ export async function POST(request: NextRequest) {
     try {
       const dbResult = await getComicMetadata(comicDetails.title, comicDetails.issueNumber || "1");
       if (dbResult && dbResult.priceData) {
+        // Transition guard: only return eBay-sourced price data
+        const dbPriceSource = (dbResult.priceData as Record<string, unknown>)?.priceSource;
+        const safePriceData = dbPriceSource === 'ebay' ? {
+          estimatedValue: dbResult.priceData.estimatedValue,
+          recentSales: dbResult.priceData.recentSales || [],
+          mostRecentSale: dbResult.priceData.recentSales?.[0] || null,
+          mostRecentSaleDate: dbResult.priceData.mostRecentSaleDate,
+          isAveraged: true,
+          disclaimer: null,
+          gradeEstimates: dbResult.priceData.gradeEstimates,
+          baseGrade: 9.4,
+        } : null;
+
         return NextResponse.json({
           comic: {
             id: `quick-${Date.now()}`,
@@ -124,16 +137,7 @@ export async function POST(request: NextRequest) {
             isSignatureSeries: false,
             signedBy: null,
             keyInfo: dbResult.keyInfo || [],
-            priceData: {
-              estimatedValue: dbResult.priceData.estimatedValue,
-              recentSales: dbResult.priceData.recentSales || [],
-              mostRecentSale: dbResult.priceData.recentSales?.[0] || null,
-              mostRecentSaleDate: dbResult.priceData.mostRecentSaleDate,
-              isAveraged: true,
-              disclaimer: "Values are estimates based on market knowledge.",
-              gradeEstimates: dbResult.priceData.gradeEstimates,
-              baseGrade: 9.4,
-            },
+            priceData: safePriceData,
             writer: dbResult.writer,
             coverArtist: dbResult.coverArtist,
             interiorArtist: dbResult.interiorArtist,
@@ -171,41 +175,28 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Combined lookup for key info + prices (faster than separate calls)
+    // Lookup key info only (pricing now handled by eBay Browse API)
     const lookupResponse = await anthropic.messages.create({
       model: MODEL_PRIMARY,
-      max_tokens: 1024,
+      max_tokens: 512,
       messages: [
         {
           role: "user",
           content: `You are a comic book expert. For "${comicDetails.title}" issue #${comicDetails.issueNumber} (${comicDetails.publisher || "Unknown"}, ${comicDetails.releaseYear || "Unknown"}):
 
-Provide key facts and estimated market values as JSON:
+Provide key facts as JSON:
 {
-  "keyInfo": ["MAJOR key facts only - empty array if none"],
-  "gradeEstimates": [
-    { "grade": 9.8, "label": "Near Mint/Mint", "rawValue": price, "slabbedValue": price },
-    { "grade": 9.4, "label": "Near Mint", "rawValue": price, "slabbedValue": price },
-    { "grade": 8.0, "label": "Very Fine", "rawValue": price, "slabbedValue": price },
-    { "grade": 6.0, "label": "Fine", "rawValue": price, "slabbedValue": price },
-    { "grade": 4.0, "label": "Very Good", "rawValue": price, "slabbedValue": price },
-    { "grade": 2.0, "label": "Good", "rawValue": price, "slabbedValue": price }
-  ],
-  "estimatedValue": number (9.4 raw value as default),
-  "recentSale": { "price": number, "date": "YYYY-MM-DD" }
+  "keyInfo": ["MAJOR key facts only - empty array if none"]
 }
 
 Rules:
 - keyInfo: ONLY major first appearances, major storyline events, origin stories, iconic costume/item debuts, iconic cover art, or creator milestones. Empty array for regular issues.
-- Prices: Realistic market values based on recent eBay sold listings. Key issues have larger grade spreads. Slabbed > raw by 10-30%.
-- recentSale: Estimate a realistic most recent sale price and date (within last 30 days) for a 9.4 raw copy.
 - Return ONLY the JSON object, no other text.`,
         },
       ],
     });
 
     let keyInfo: string[] = [];
-    let priceData = null;
 
     const textContent = lookupResponse.content.find((block) => block.type === "text");
     if (textContent && textContent.type === "text") {
@@ -218,43 +209,18 @@ Rules:
         const parsed = JSON.parse(jsonText.trim());
         keyInfo = parsed.keyInfo || [];
 
-        if (parsed.gradeEstimates) {
-          priceData = {
-            estimatedValue:
-              parsed.estimatedValue ||
-              parsed.gradeEstimates.find((g: { grade: number }) => g.grade === 9.4)?.rawValue ||
-              null,
-            recentSales: parsed.recentSale
-              ? [{ price: parsed.recentSale.price, date: parsed.recentSale.date }]
-              : [],
-            mostRecentSale: parsed.recentSale || null,
-            mostRecentSaleDate: parsed.recentSale?.date || null,
-            isAveraged: true,
-            disclaimer: "Technopathic estimates based on market knowledge. Actual prices may vary.",
-            gradeEstimates: parsed.gradeEstimates,
-            baseGrade: 9.4,
-          };
-
-          // Save to database for future lookups (non-blocking)
-          if (comicDetails.title && comicDetails.issueNumber) {
-            saveComicMetadata({
-              title: comicDetails.title,
-              issueNumber: comicDetails.issueNumber,
-              publisher: comicDetails.publisher,
-              releaseYear: comicDetails.releaseYear,
-              coverImageUrl: comicDetails.coverImageUrl,
-              keyInfo,
-              priceData: {
-                estimatedValue: priceData.estimatedValue || 0,
-                mostRecentSaleDate: parsed.recentSale?.date || null,
-                recentSales: parsed.recentSale ? [parsed.recentSale] : [],
-                gradeEstimates: parsed.gradeEstimates || [],
-                disclaimer: priceData.disclaimer,
-              },
-            }).catch((err) => {
-              console.error("[quick-lookup] Failed to save to database:", err);
-            });
-          }
+        // Save keyInfo to database for future lookups (non-blocking)
+        if (comicDetails.title && comicDetails.issueNumber) {
+          saveComicMetadata({
+            title: comicDetails.title,
+            issueNumber: comicDetails.issueNumber,
+            publisher: comicDetails.publisher,
+            releaseYear: comicDetails.releaseYear,
+            coverImageUrl: comicDetails.coverImageUrl,
+            keyInfo,
+          }).catch((err) => {
+            console.error("[quick-lookup] Failed to save to database:", err);
+          });
         }
       } catch {
         console.error("Failed to parse quick lookup response");
@@ -290,7 +256,7 @@ Rules:
         isSignatureSeries: false,
         signedBy: null,
         keyInfo,
-        priceData,
+        priceData: null,
         writer: null,
         coverArtist: null,
         interiorArtist: null,
