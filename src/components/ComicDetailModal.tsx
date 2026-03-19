@@ -554,7 +554,7 @@ export function ComicDetailModal({
                   <div>
                     <h3 className="text-sm font-semibold text-gray-900 mb-1 flex items-center gap-2">
                       <TrendingUp className="w-4 h-4 text-green-600" />
-                      Estimated Value
+                      Listed Value
                     </h3>
                     <div className="flex items-baseline gap-1">
                       <DollarSign className="w-5 h-5 text-green-600" />
@@ -565,18 +565,8 @@ export function ComicDetailModal({
                         })}
                       </span>
                     </div>
-                    {comic.priceData.mostRecentSaleDate && (
-                      <p className="text-xs text-gray-500 mt-1">
-                        Most recent sale:{" "}
-                        {new Date(comic.priceData.mostRecentSaleDate).toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                        })}
-                      </p>
-                    )}
                   </div>
-                  {comic.priceData.recentSales.length > 0 && comic.priceData.priceSource !== "ai" && (
+                  {comic.priceData.recentSales?.length > 0 && (
                     <div className="text-right">
                       <p className="text-xs text-gray-500 mb-1">Recent Sales</p>
                       <div className="space-y-0.5">
@@ -597,23 +587,10 @@ export function ComicDetailModal({
                     </div>
                   )}
                 </div>
-                {/* AI Price Warning */}
-                {comic.priceData.priceSource === "ai" && (
-                  <div className="mt-3 pt-3 border-t border-amber-200 bg-amber-50 -mx-4 -mb-4 px-4 py-3 rounded-b-lg">
-                    <p className="text-xs text-amber-700 flex items-start gap-2">
-                      <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-                      <span>
-                        <span className="font-semibold">Technopathic Estimate:</span> No eBay sales
-                        data found. This price is an estimate and may not be accurate.
-                      </span>
-                    </p>
-                  </div>
-                )}
-
                 {/* Signature Series Price Note */}
                 {comic.isSignatureSeries && (
                   <div
-                    className={`mt-3 pt-3 border-t border-blue-200 bg-blue-50 ${comic.priceData.priceSource === "ai" ? "" : "-mx-4 -mb-4 px-4 py-3 rounded-b-lg"}`}
+                    className="mt-3 pt-3 border-t border-blue-200 bg-blue-50 -mx-4 -mb-4 px-4 py-3 rounded-b-lg"
                   >
                     <p className="text-xs text-blue-700 flex items-start gap-2">
                       <Info className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
@@ -626,8 +603,8 @@ export function ComicDetailModal({
                   </div>
                 )}
 
-                {/* Disclaimer - only show for eBay data */}
-                {comic.priceData.disclaimer && comic.priceData.priceSource !== "ai" && (
+                {/* Disclaimer */}
+                {comic.priceData.disclaimer && (
                   <div className="mt-3 pt-3 border-t border-green-200">
                     <p className="text-xs text-gray-500 flex items-start gap-1">
                       <Info className="w-3 h-3 mt-0.5 flex-shrink-0" />

@@ -709,7 +709,7 @@ export default function ScanPage() {
               {savedComic.comic.priceData?.estimatedValue && (
                 <div className="mt-4 px-4 py-2 bg-pop-green border-2 border-pop-black">
                   <p className="text-sm text-white font-bold">
-                    Estimated Value:{" "}
+                    Listed Value:{" "}
                     <span className="font-black">
                       ${savedComic.comic.priceData.estimatedValue.toFixed(2)}
                     </span>
