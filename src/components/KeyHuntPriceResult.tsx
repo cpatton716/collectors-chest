@@ -3,18 +3,14 @@
 import { useState } from "react";
 
 import {
-  AlertTriangle,
   Check,
   CloudOff,
   Database,
   ExternalLink,
   Loader2,
-  Minus,
   Plus,
   RotateCcw,
   Target,
-  TrendingDown,
-  TrendingUp,
   X,
 } from "lucide-react";
 
@@ -48,7 +44,9 @@ interface KeyHuntPriceResultProps {
   isInHuntList?: boolean;
   fromCache?: boolean;
   isOffline?: boolean;
-  source?: "database" | "ebay" | "ai";
+  source?: "database" | "ebay";
+  totalListings?: number;
+  ebaySearchQuery?: string;
 }
 
 export function KeyHuntPriceResult({
@@ -67,7 +65,9 @@ export function KeyHuntPriceResult({
   isInHuntList = false,
   fromCache = false,
   isOffline = false,
-  source = "ai",
+  source = "ebay",
+  totalListings,
+  ebaySearchQuery,
 }: KeyHuntPriceResultProps) {
   const [showSlabbed, setShowSlabbed] = useState(false);
   const [isAddingToHunt, setIsAddingToHunt] = useState(false);
@@ -96,19 +96,6 @@ export function KeyHuntPriceResult({
   };
   if (!isOpen) return null;
 
-  // Calculate if recent sale differs significantly from average
-  const getRecentSaleStatus = () => {
-    if (!recentSale || !averagePrice || averagePrice === 0) return "normal";
-
-    const percentDiff = ((recentSale.price - averagePrice) / averagePrice) * 100;
-
-    if (percentDiff >= 20) return "high"; // Recent sale 20%+ above avg - red (market cooling)
-    if (percentDiff <= -20) return "low"; // Recent sale 20%+ below avg - green (deal)
-    return "normal";
-  };
-
-  const recentSaleStatus = getRecentSaleStatus();
-
   // Format grade display
   const formatGrade = (g: number) => {
     if (g >= 9.8) return `${g} (NM/M)`;
@@ -123,20 +110,6 @@ export function KeyHuntPriceResult({
   const formatPrice = (price: number | null) => {
     if (price === null) return "N/A";
     return `$${price.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
-  };
-
-  // Format date
-  const formatDate = (dateStr: string) => {
-    try {
-      const date = new Date(dateStr);
-      return date.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      });
-    } catch {
-      return dateStr;
-    }
   };
 
   return (
@@ -245,90 +218,34 @@ export function KeyHuntPriceResult({
             <p className="text-sm text-gray-500 mb-1">
               {hasRawSlabbedData
                 ? showSlabbed
-                  ? "Slabbed Value (CGC/CBCS)"
-                  : "Raw Value"
-                : "Average Price (Last 5 Sales)"}
+                  ? "Listed Value (Slabbed)"
+                  : "Listed Value (Raw)"
+                : "Listed Value"}
             </p>
             <p className="text-4xl font-bold text-gray-900">{formatPrice(displayPrice)}</p>
             {fromCache && <p className="text-xs text-amber-600 mt-1">Price from cached lookup</p>}
           </div>
 
-          {/* AI Price Warning */}
-          {source === "ai" && averagePrice && (
-            <div className="mb-4 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
-              <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-              <p className="text-xs text-amber-700">
-                <span className="font-medium">Technopathic Estimate:</span> No eBay sales data
-                found. This price is an estimate and may not be accurate.
-              </p>
-            </div>
+          {/* eBay Source Note */}
+          {source === "ebay" && averagePrice && (
+            <p className="text-xs text-gray-400 text-center mb-4">
+              Based on current eBay listings
+            </p>
           )}
 
-          {/* Recent Sale */}
-          {recentSale && (
-            <div
-              className={`rounded-xl p-4 mb-6 ${
-                recentSaleStatus === "high"
-                  ? "bg-red-50 border border-red-200"
-                  : recentSaleStatus === "low"
-                    ? "bg-green-50 border border-green-200"
-                    : "bg-gray-50 border border-gray-200"
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p
-                    className={`text-xs font-medium mb-1 ${
-                      recentSaleStatus === "high"
-                        ? "text-red-600"
-                        : recentSaleStatus === "low"
-                          ? "text-green-600"
-                          : "text-gray-500"
-                    }`}
-                  >
-                    Most Recent Sale
-                  </p>
-                  <p
-                    className={`text-xl font-bold ${
-                      recentSaleStatus === "high"
-                        ? "text-red-700"
-                        : recentSaleStatus === "low"
-                          ? "text-green-700"
-                          : "text-gray-900"
-                    }`}
-                  >
-                    {formatPrice(recentSale.price)}
-                  </p>
-                  <p className="text-xs text-gray-500 mt-0.5">{formatDate(recentSale.date)}</p>
-                </div>
-                <div
-                  className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                    recentSaleStatus === "high"
-                      ? "bg-red-100"
-                      : recentSaleStatus === "low"
-                        ? "bg-green-100"
-                        : "bg-gray-100"
-                  }`}
+          {/* Below-threshold display */}
+          {totalListings && totalListings > 0 && !averagePrice && (
+            <div className="text-center text-gray-400 mt-2 mb-4">
+              <p>{totalListings} active listing{totalListings !== 1 ? "s" : ""} found</p>
+              {ebaySearchQuery && (
+                <a
+                  href={`https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(ebaySearchQuery)}&_sacat=259104`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-400 underline text-sm"
                 >
-                  {recentSaleStatus === "high" ? (
-                    <TrendingUp className="w-5 h-5 text-red-600" />
-                  ) : recentSaleStatus === "low" ? (
-                    <TrendingDown className="w-5 h-5 text-green-600" />
-                  ) : (
-                    <Minus className="w-5 h-5 text-gray-400" />
-                  )}
-                </div>
-              </div>
-              {recentSaleStatus !== "normal" && averagePrice && (
-                <p
-                  className={`text-xs mt-2 ${
-                    recentSaleStatus === "high" ? "text-red-600" : "text-green-600"
-                  }`}
-                >
-                  {recentSaleStatus === "high"
-                    ? `${Math.round(((recentSale.price - averagePrice) / averagePrice) * 100)}% above average - market may be cooling`
-                    : `${Math.abs(Math.round(((recentSale.price - averagePrice) / averagePrice) * 100))}% below average - potential deal!`}
-                </p>
+                  View on eBay
+                </a>
               )}
             </div>
           )}
