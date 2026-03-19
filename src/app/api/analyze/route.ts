@@ -15,7 +15,7 @@ import {
 } from "@/lib/cache";
 import { lookupCertification } from "@/lib/certLookup";
 import { getComicMetadata, getProfileByClerkId, saveComicMetadata, lookupBarcodeCatalog } from "@/lib/db";
-import { isFindingApiConfigured, lookupEbaySoldPrices } from "@/lib/ebayFinding";
+import { isBrowseApiConfigured, searchActiveListings, convertBrowseToPriceData } from "@/lib/ebayBrowse";
 import { ComicMetadata, mergeMetadataIntoDetails, buildMetadataSavePayload } from "@/lib/metadataCache";
 import { lookupKeyInfo } from "@/lib/keyComicsDatabase";
 import { verifyWithMetron, MetronVerifyResult } from "@/lib/metronVerify";
@@ -62,7 +62,7 @@ interface ComicDetails {
   pageQuality?: string;
   gradeDate?: string;
   graderNotes?: string;
-  priceData?: (PriceData & { priceSource: "ebay" | "ai" }) | null;
+  priceData?: (PriceData & { priceSource: "ebay" }) | null;
   barcodeNumber?: string | null; // UPC barcode if visible in image (legacy field)
   barcode?: { raw: string; confidence: "high" | "medium" | "low"; parsed?: ParsedBarcode } | null; // Enhanced barcode detection
   dataSource?: "barcode" | "ai" | "cache"; // Track where primary data came from
@@ -688,17 +688,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Price/Value lookup - Try eBay first, fall back to AI
-    let priceMeta = { provider: p1, fallbackUsed: false, fallbackReason: null as string | null };
+    // Price/Value lookup - Try eBay Browse API for active listings
     let priceDataFound = false;
 
     if (comicDetails.title && comicDetails.issueNumber) {
       const isSlabbed = comicDetails.isSlabbed || false;
       const grade = comicDetails.grade ? parseFloat(comicDetails.grade) : 9.4;
 
-      // 1. Try eBay Finding API first (real sold listings) - with Redis caching only
+      // 1. Try eBay Browse API (active listings) - with Redis caching only
       // Phase 3: Simplified to use Redis only (removed Supabase cache layer)
-      if (isFindingApiConfigured()) {
+      if (isBrowseApiConfigured()) {
         try {
           const cacheKey = generateEbayPriceCacheKey(
             comicDetails.title,
@@ -710,171 +709,53 @@ export async function POST(request: NextRequest) {
 
           // Check Redis cache first
           const cachedResult = await cacheGet<PriceData | { noData: true }>(cacheKey, "ebayPrice");
-          if (cachedResult !== null) {
-            if (!("noData" in cachedResult)) {
+          if (cachedResult !== null && !("noData" in cachedResult) && (cachedResult as PriceData).priceSource !== "ai") {
               comicDetails.priceData = {
                 ...cachedResult,
                 priceSource: "ebay",
               };
               priceDataFound = true;
-            }
-            // If noData marker, priceDataFound stays false - will fall back to AI
-          } else {
-            // Cache miss - fetch from eBay API
-            const ebayPriceData = await lookupEbaySoldPrices(
+          } else if (cachedResult === null || (cachedResult !== null && !("noData" in cachedResult) && (cachedResult as PriceData).priceSource === "ai")) {
+            // Cache miss or stale AI price — fetch from eBay Browse API
+            const ebayPriceData = await searchActiveListings(
               comicDetails.title,
               comicDetails.issueNumber,
-              grade,
+              String(grade),
               isSlabbed,
               comicDetails.gradingCompany || undefined
             );
             ebayLookupMade = true;
 
-            if (ebayPriceData && ebayPriceData.estimatedValue) {
-              comicDetails.priceData = {
-                ...ebayPriceData,
-                priceSource: "ebay",
-              };
-              priceDataFound = true;
-              // Cache in Redis (fire and forget)
-              cacheSet(cacheKey, ebayPriceData, "ebayPrice").catch(() => {});
+            if (ebayPriceData) {
+              const priceData = convertBrowseToPriceData(ebayPriceData, String(grade));
+              if (priceData && priceData.estimatedValue) {
+                comicDetails.priceData = {
+                  ...priceData,
+                  priceSource: "ebay",
+                };
+                priceDataFound = true;
+                // Cache in Redis with 12-hour TTL (fire and forget)
+                cacheSet(cacheKey, priceData, "ebayPrice", 12 * 60 * 60).catch(() => {});
+              } else {
+                // Cache "no results" marker with short TTL (1 hour) so we retry sooner
+                cacheSet(cacheKey, { noData: true }, "ebayPrice", 60 * 60).catch(() => {});
+              }
             } else {
               // Cache "no results" marker with short TTL (1 hour) so we retry sooner
               cacheSet(cacheKey, { noData: true }, "ebayPrice", 60 * 60).catch(() => {});
             }
           }
+          // If noData marker in cache, priceDataFound stays false - no pricing data shown
         } catch (ebayError) {
           console.error("[analyze] eBay lookup failed:", ebayError);
         }
       }
 
-      // 2. No eBay data = no price shown (AI price estimation DISABLED)
-      // AI estimates were generating fake prices displayed as real data.
-      // If eBay has no sold data, we show nothing. See git history for Call 3 code.
+      // 2. No eBay data = no pricing data shown
+      // If eBay Browse API has no active listings, we show nothing.
       if (!priceDataFound) {
         comicDetails.priceData = null;
       }
-      /* AI price estimation (Call 3) REMOVED — see git history
-      if (false) {
-        const call3Budget = getRemainingBudget(scanStartTime);
-        if (call3Budget < 3000) {
-          console.warn(`[scan] Skipping price estimation: only ${call3Budget}ms remaining`);
-        } else {
-          try {
-            const { result: priceResult, ...meta } = await executeWithFallback(
-              (provider, signal) =>
-                provider.estimatePrice(
-                  {
-                    title: comicDetails.title || "",
-                    issueNumber: comicDetails.issueNumber || "",
-                    publisher: comicDetails.publisher,
-                    releaseYear: comicDetails.releaseYear,
-                    grade: comicDetails.grade,
-                    gradingCompany: comicDetails.gradingCompany,
-                    isSlabbed: comicDetails.isSlabbed,
-                    isSignatureSeries: comicDetails.isSignatureSeries || false,
-                    signedBy: comicDetails.signedBy || null,
-                  },
-                  { signal }
-                ),
-              Math.min(8_000, call3Budget),
-              Math.min(6_000, getRemainingBudget(scanStartTime)),
-              "priceEstimation",
-              aiProviders
-            );
-            priceMeta = meta;
-            aiCallsMade++;
-
-            // Process the sales data according to business rules
-            const now = new Date();
-            const sixMonthsAgo = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000);
-
-            const processedSales = priceResult.recentSales.map(
-              (sale: { price: number; date: string; source: string; daysAgo?: number }) => {
-                const saleDate = new Date(sale.date);
-                return {
-                  price: sale.price,
-                  date: sale.date,
-                  source: sale.source || "eBay",
-                  isOlderThan6Months: saleDate < sixMonthsAgo,
-                };
-              }
-            );
-
-            // Filter to recent sales (within 6 months)
-            const recentSales = processedSales.filter(
-              (s: { isOlderThan6Months: boolean }) => !s.isOlderThan6Months
-            );
-
-            let estimatedValue: number | null = null;
-            let isAveraged = false;
-            let disclaimer: string | null = null;
-            let mostRecentSaleDate: string | null = null;
-
-            // Sort by date to find most recent
-            const sortedSales = [...processedSales].sort(
-              (a: { date: string }, b: { date: string }) =>
-                new Date(b.date).getTime() - new Date(a.date).getTime()
-            );
-
-            if (sortedSales.length > 0) {
-              mostRecentSaleDate = sortedSales[0].date;
-            }
-
-            if (recentSales.length >= 3) {
-              // Average of last 3 recent sales
-              const last3 = recentSales.slice(0, 3);
-              estimatedValue =
-                last3.reduce((sum: number, s: { price: number }) => sum + s.price, 0) / 3;
-              isAveraged = true;
-              disclaimer = "Technopathic estimate - actual prices may vary.";
-            } else if (recentSales.length > 0) {
-              // Average of available recent sales
-              estimatedValue =
-                recentSales.reduce((sum: number, s: { price: number }) => sum + s.price, 0) /
-                recentSales.length;
-              isAveraged = recentSales.length > 1;
-              disclaimer = "Technopathic estimate - actual prices may vary.";
-            } else if (processedSales.length > 0) {
-              // Only older sales available - use most recent only
-              estimatedValue = sortedSales[0].price;
-              isAveraged = false;
-              disclaimer = "Technopathic estimate - actual prices may vary.";
-            }
-
-            // Process grade estimates if available
-            let gradeEstimates = undefined;
-            if (priceResult.gradeEstimates && Array.isArray(priceResult.gradeEstimates)) {
-              gradeEstimates = priceResult.gradeEstimates.map(
-                (ge: { grade: number; label: string; rawValue: number; slabbedValue: number }) => ({
-                  grade: ge.grade,
-                  label: ge.label,
-                  rawValue: Math.round(ge.rawValue * 100) / 100,
-                  slabbedValue: Math.round(ge.slabbedValue * 100) / 100,
-                })
-              );
-            }
-
-            // Determine base grade for the estimate
-            const baseGrade = comicDetails.grade ? parseFloat(comicDetails.grade) : 9.4;
-
-            comicDetails.priceData = {
-              estimatedValue: estimatedValue ? Math.round(estimatedValue * 100) / 100 : null,
-              recentSales: processedSales,
-              mostRecentSaleDate,
-              isAveraged,
-              disclaimer,
-              gradeEstimates,
-              baseGrade,
-              priceSource: "ai",
-            };
-          } catch {
-            comicDetails.priceData = null;
-            console.warn("[scan] Price estimation failed on all providers");
-          }
-        }
-      }
-      */ // END disabled AI price estimation
     } else {
       comicDetails.priceData = null;
     }
@@ -951,8 +832,8 @@ export async function POST(request: NextRequest) {
         userId: profileId,
         subscriptionTier,
         provider: p1 as "anthropic" | "gemini",
-        fallbackUsed: fb1 || verificationMeta.fallbackUsed || priceMeta.fallbackUsed,
-        fallbackReason: fr1 || verificationMeta.fallbackReason || priceMeta.fallbackReason,
+        fallbackUsed: fb1 || verificationMeta.fallbackUsed,
+        fallbackReason: fr1 || verificationMeta.fallbackReason,
       }).catch((err) => {
         console.error("PostHog tracking failed:", err);
       });
@@ -970,16 +851,16 @@ export async function POST(request: NextRequest) {
       success: true,
       subscription_tier: subscriptionTier || "guest",
       provider: p1,
-      fallback_used: fb1 || verificationMeta.fallbackUsed || priceMeta.fallbackUsed,
-      fallback_reason: fr1 || verificationMeta.fallbackReason || priceMeta.fallbackReason,
+      fallback_used: fb1 || verificationMeta.fallbackUsed,
+      fallback_reason: fr1 || verificationMeta.fallbackReason,
     }).catch((err) => {
       console.error("Scan analytics recording failed:", err);
     });
 
     const _meta: ScanResponseMeta = {
       provider: p1 as "anthropic" | "gemini",
-      fallbackUsed: fb1 || verificationMeta.fallbackUsed || priceMeta.fallbackUsed,
-      fallbackReason: fr1 || verificationMeta.fallbackReason || priceMeta.fallbackReason,
+      fallbackUsed: fb1 || verificationMeta.fallbackUsed,
+      fallbackReason: fr1 || verificationMeta.fallbackReason,
       confidence: fb1 ? "medium" : ((comicDetails.confidence || "medium") as "high" | "medium" | "low"),
       ...(cerebro_assisted ? { cerebro_assisted: true } : {}),
       callDetails: {
@@ -987,9 +868,7 @@ export async function POST(request: NextRequest) {
         verification: needsAIVerification
           ? { provider: verificationMeta.provider, fallbackUsed: verificationMeta.fallbackUsed }
           : null,
-        priceEstimation: !priceDataFound
-          ? { provider: priceMeta.provider, fallbackUsed: priceMeta.fallbackUsed }
-          : null,
+        priceEstimation: null,
       },
     };
 
