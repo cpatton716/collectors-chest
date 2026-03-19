@@ -170,7 +170,7 @@ export function PublicComicModal({ item, onClose }: PublicComicModalProps) {
                   <div>
                     <h3 className="text-sm font-semibold text-gray-900 mb-1 flex items-center gap-2">
                       <TrendingUp className="w-4 h-4 text-green-600" />
-                      Estimated Value
+                      Listed Value
                     </h3>
                     <div className="flex items-baseline gap-1">
                       <DollarSign className="w-5 h-5 text-green-600" />
@@ -192,7 +192,7 @@ export function PublicComicModal({ item, onClose }: PublicComicModalProps) {
                       </p>
                     )}
                   </div>
-                  {comic.priceData.recentSales.length > 0 && comic.priceData.priceSource !== "ai" && (
+                  {comic.priceData.recentSales?.length > 0 && (
                     <div className="text-right">
                       <p className="text-xs text-gray-500 mb-1">Recent Sales</p>
                       <div className="space-y-0.5">

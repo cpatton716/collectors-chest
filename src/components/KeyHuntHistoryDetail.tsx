@@ -157,7 +157,7 @@ export function KeyHuntHistoryDetail({
 
             {/* Average Price */}
             <div className="text-center mb-6">
-              <p className="text-sm text-gray-500 mb-1">Average Price</p>
+              <p className="text-sm text-gray-500 mb-1">Listed Value</p>
               <p className="text-4xl font-bold text-gray-900">
                 {formatPrice(entry.priceResult.rawPrice)}
               </p>

@@ -74,7 +74,7 @@ const faqs = [
   {
     question: "How accurate are the price estimates?",
     answer:
-      "Prices are AI estimates based on recent market trends and eBay sold listings. They provide a solid guideline but actual prices vary based on condition, demand, and where you sell. For the most accurate values, check recent eBay completed sales.",
+      "Prices are based on current eBay listings and may vary from actual sale prices. For the most accurate values, check recent eBay completed sales.",
   },
   {
     question: "What is Key Hunt?",

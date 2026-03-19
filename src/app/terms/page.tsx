@@ -261,13 +261,11 @@ export default function TermsOfServicePage() {
 
           <h3>5.2 Pricing Information</h3>
           <p>
-            The Service provides pricing data sourced from completed eBay sales and, where available,
-            other third-party pricing services. When market data is unavailable, the AI may provide
-            an estimated value with an appropriate disclaimer. All pricing information, whether
-            sourced from market data or AI estimation, is provided for informational purposes only
-            and does not constitute an appraisal, guarantee of value, or recommendation to buy or
-            sell at any particular price. The Company is not liable for decisions made based on
-            pricing information displayed on the Platform.
+            The Service provides pricing data sourced from current eBay listings. When market data
+            is unavailable, no price is displayed. All pricing information is provided for
+            informational purposes only and does not constitute an appraisal, guarantee of value,
+            or recommendation to buy or sell at any particular price. The Company is not liable for
+            decisions made based on pricing information displayed on the Platform.
           </p>
 
           <h3>5.3 Image Processing</h3>
