@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -114,6 +114,7 @@ export default function ScanPage() {
   const [milestoneToShow, setMilestoneToShow] = useState<MilestoneType>(null);
   const [showEnlargedImage, setShowEnlargedImage] = useState(false);
   const [showSlowMessage, setShowSlowMessage] = useState(false);
+  const reviewSectionRef = useRef<HTMLDivElement>(null);
 
   // Rotate fun facts every 7 seconds during analyzing state
   useEffect(() => {
@@ -322,6 +323,10 @@ export default function ScanPage() {
       graderNotes: null,
     });
     setState("review");
+    // Scroll to the form after React renders the review section
+    setTimeout(() => {
+      reviewSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
   };
 
   const handleRetry = () => {
@@ -592,6 +597,7 @@ export default function ScanPage() {
       {/* Review State */}
       {state === "review" && comicDetails && (
         <div
+          ref={reviewSectionRef}
           className="bg-pop-white border-3 border-pop-black overflow-hidden"
           style={{ boxShadow: "4px 4px 0px #000" }}
         >

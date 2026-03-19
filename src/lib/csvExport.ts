@@ -85,7 +85,7 @@ export function collectionToCSV(items: CollectionItem[]): string {
       escapeCSVValue(item.notes),
       escapeCSVValue(comic.keyInfo?.join(", ")),
       escapeCSVValue(item.dateAdded),
-      escapeCSVValue(item.coverImageUrl),
+      escapeCSVValue(item.coverImageUrl?.startsWith("data:") ? "" : item.coverImageUrl),
     ];
 
     rows.push(row.join(","));
