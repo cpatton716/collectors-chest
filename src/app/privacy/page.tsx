@@ -334,7 +334,7 @@ export default function PrivacyPolicyPage() {
             collect, use, and disclose; the right to request deletion of your personal information;
             the right to opt out of the sale of personal information (we do not sell personal
             information); and the right to non-discrimination for exercising your CCPA rights. To
-            exercise these rights, contact us at Admin@collectorschest.com.
+            exercise these rights, contact us at admin@collectors-chest.com.
           </p>
 
           <h3>
@@ -348,7 +348,7 @@ export default function PrivacyPolicyPage() {
             withdraw consent at any time. Our legal basis for processing your data is: performance of
             a contract (to provide the Service), legitimate interests (analytics, security, service
             improvement), and consent (optional location sharing, marketing communications if any).
-            To exercise these rights, contact us at Admin@collectorschest.com.
+            To exercise these rights, contact us at admin@collectors-chest.com.
           </p>
 
           <h3>7.4 Do Not Track</h3>
@@ -364,7 +364,7 @@ export default function PrivacyPolicyPage() {
             collect personal information from anyone under 18. If we become aware that we have
             collected personal information from a person under 18, we will take steps to delete that
             information promptly. If you believe a minor has provided us with personal information,
-            please contact us at Admin@collectorschest.com.
+            please contact us at admin@collectors-chest.com.
           </p>
 
           <h2>9. International Data Transfers</h2>
@@ -398,7 +398,7 @@ export default function PrivacyPolicyPage() {
             <br />
             Hatfield, PA 19440
             <br />
-            Admin@collectorschest.com
+            admin@collectors-chest.com
             <br />
             Website: collectors-chest.com
           </p>

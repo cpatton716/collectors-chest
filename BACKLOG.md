@@ -317,6 +317,19 @@ Currently on free plan for Gemini. Need to evaluate costs vs Anthropic as scan v
 
 ---
 
+### Replace Dead eBay Finding API with Browse API
+**Priority:** High
+**Status:** Plan Complete — Implementation Pending
+**Added:** Mar 18, 2026
+
+eBay Finding API was decommissioned Feb 2025. All pricing calls silently fail, falling back to AI-fabricated estimates. Implementation plan for Browse API replacement has been written and reviewed (8 rounds of sr. engineering review). 13 tasks, 32 files affected. Key changes: "Listed Value" from active listings median, no AI price fallback, 12h cache, database migration to clear fake prices.
+
+**Files:**
+- Spec: `docs/superpowers/specs/2026-03-18-ebay-browse-api-design.md`
+- Plan: `docs/superpowers/plans/2026-03-18-ebay-browse-api.md`
+
+---
+
 ### Auto-Harvest Cover Images from Graded Book Scans
 **Priority:** High
 **Status:** Pending

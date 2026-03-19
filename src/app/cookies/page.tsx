@@ -243,7 +243,7 @@ export default function CookieTrackingPolicyPage() {
             <br />
             Hatfield, PA 19440
             <br />
-            Admin@collectorschest.com
+            admin@collectors-chest.com
             <br />
             Website: collectors-chest.com
           </p>

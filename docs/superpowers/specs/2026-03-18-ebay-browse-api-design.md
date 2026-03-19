@@ -17,9 +17,11 @@ Replace the dead Finding API with the eBay Browse API to show real pricing from 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | Price label | "Listed Value" | Neutral term — clearly not a sold price, not claiming to be market value |
-| Price calculation | Median of active listings | Filters outlier listings (both too cheap and inflated) |
-| AI fallback | None | If no eBay listings found → "No pricing data available". No fabricated prices ever |
-| Search strategy | Grade-aware with 24h cache | Separate queries for raw vs slabbed comics, cached aggressively to minimize API calls |
+| Price calculation | Actual median of active listings | Deliberate change from Finding API code which used mean. True median is more resilient to outlier skew in comic listings |
+| AI fallback | None | If no eBay listings found → "No pricing data available". No fabricated prices ever. Key info AI calls (`fetchKeyInfoFromAI()`) are preserved — only price estimation AI is removed |
+| Search strategy | Grade-aware with 12h cache | Separate queries for raw vs slabbed comics, cached aggressively to minimize API calls. Active listings change more frequently than sold data, so 12h TTL balances freshness with API budget |
+| Listing type filter | `FIXED_PRICE` only | Exclude auctions — current bid prices skew median low and don't represent actual market value |
+| Minimum listing threshold | 3 listings | Below 3 listings: show "X active listings found" with eBay link, no price displayed. Prevents unreliable medians from tiny sample sizes |
 
 ## Architecture
 
@@ -35,13 +37,15 @@ Replaces `ebayFinding.ts`. Responsibilities:
 2. **Core function: `searchActiveListings()`**
    - Signature: `searchActiveListings(title, issueNumber?, grade?, isSlabbed?, gradingCompany?) → BrowsePriceResult | null`
    - Endpoint: `GET https://api.ebay.com/buy/browse/v1/item_summary/search`
-   - Query params: `q` (search keywords), `category_ids` (259104 for comics), `filter` (price currency USD), `limit` (30)
+   - Query params: `q` (search keywords), `category_ids` (259104 for comics), `filter` (price currency USD, `buyingOptions:{FIXED_PRICE}` — excludes auctions whose current bid prices skew median low), `limit` (30)
+   - **Category ID fallback:** 259104 (Collectible Comics) may need verification against Browse API taxonomy. If 259104 returns 0 results, retry with broader category 63 (Comic Books). If that also returns 0, retry without category filter as a last resort.
    - For slabbed: includes grading company + grade in search keywords
    - For raw: searches title + issue only
 
-3. **Outlier filtering**
-   - Same median-based approach as Finding API: remove prices > 3x median or < 0.2x median
-   - Calculate median, high, low from filtered set
+3. **Outlier filtering & minimum threshold**
+   - Remove prices > 3x median or < 0.2x median
+   - Calculate actual median (not mean — deliberate change from Finding API), high, low from filtered set
+   - **Minimum 3 listings required** to calculate and return a median "Listed Value". Below 3: return `medianPrice: null` with `totalResults` set to actual count so UI can show "X active listings found" with an eBay link
 
 4. **Grade estimate multipliers**
    - Preserve existing grade multiplier table (9.8, 9.4, 8.0, 6.0, 4.0, 2.0)
@@ -51,6 +55,7 @@ Replaces `ebayFinding.ts`. Responsibilities:
    - Returns true only if both `EBAY_APP_ID` and `EBAY_CLIENT_SECRET` are set
 
 6. **URL builder: `buildEbaySearchUrl()`**
+   - Moved from `ebayFinding.ts` into this new `ebayBrowse.ts` file
    - Keep existing function that builds eBay browser search URLs for "Recent Sales on eBay" button
 
 ### Interfaces
@@ -61,7 +66,7 @@ interface BrowseListingItem {
   title: string;
   price: number;
   currency: string;
-  condition: string;
+  condition: string;       // Browse API returns enum values: "NEW", "LIKE_NEW", "VERY_GOOD", "GOOD", "ACCEPTABLE", "FOR_PARTS_OR_NOT_WORKING"
   itemUrl: string;
   imageUrl?: string;
 }
@@ -92,7 +97,7 @@ interface PriceData {
 }
 ```
 
-### Routes Updated (4 files)
+### Routes Updated (5 files)
 
 1. **`/api/con-mode-lookup/route.ts`**
    - Swap `lookupEbaySoldPrices()` → `searchActiveListings()`
@@ -104,11 +109,16 @@ interface PriceData {
    - Remove AI price estimation fallback
    - If no eBay data: `comicDetails.priceData = null`
 
-3. **`/api/ebay-prices/route.ts`**
-   - Swap to new Browse API function
-   - Keep 24h Redis cache
+3. **`/api/quick-lookup/route.ts`**
+   - This route does NOT use `ebayFinding.ts` — it generates prices purely through AI (Claude)
+   - Remove AI price generation entirely. Either add Browse API call for real pricing, or remove pricing from this route altogether (it's a barcode-based lookup)
+   - Remove `disclaimer: "AI-estimated values based on market knowledge."` text
 
-4. **`/api/hottest-books/route.ts`**
+4. **`/api/ebay-prices/route.ts`**
+   - Swap to new Browse API function
+   - Keep 12h Redis cache
+
+5. **`/api/hottest-books/route.ts`**
    - Swap to new Browse API function
 
 ### UI Changes
@@ -120,7 +130,9 @@ interface PriceData {
 - Remove "Technopathic Estimate" disclaimer and warning styling
 - New disclaimer when source is eBay: "Based on current eBay listings"
 - When no eBay data: show "No pricing data available" (no AI fallback)
-- Keep "Recent Sales on eBay" button (just a URL link, still works)
+- **Below-threshold display:** When fewer than 3 listings exist, show "X active listings found" with a link to eBay so users have something actionable (no price displayed)
+- Keep "Recent Sales on eBay" button — this intentionally links to SOLD listings (`LH_Complete=1&LH_Sold=1`), showing actual transaction history which is most useful for collectors, even though our Listed Value comes from active listings
+- The inline `buildEbaySearchUrl` in this component should keep pointing to sold listings
 
 **`ComicDetailModal.tsx` and `ComicDetailsForm.tsx`:**
 - Same label changes: "Listed Value" instead of estimate language
@@ -128,10 +140,23 @@ interface PriceData {
 - Show "Based on current eBay listings" when eBay data present
 - Show "No pricing data available" when no data
 
+**`useOffline.ts` (offline hook):**
+- Hardcodes "Technopathic Estimate" branding in price data construction
+- Update to match new approach: no AI pricing, use "Listed Value" language
+- Remove all "Technopathic Estimate" / "AI Estimate" disclaimer text
+- When constructing offline price data, use "Based on current eBay listings" or null
+
+**`PublicComicModal.tsx` and `KeyHuntHistoryDetail.tsx`:**
+- Both consume `recentSales` and `mostRecentSaleDate` from `PriceData`
+- Same label updates: "Listed Value" instead of estimate language
+- Same disclaimer changes: remove AI/Technopathic warnings, show "Based on current eBay listings"
+- Handle null `recentSales`/`mostRecentSaleDate` gracefully (these will always be empty/null with Browse API)
+
 ### Environment Variables
 
 - **Existing:** `EBAY_APP_ID` (reused as OAuth client ID)
 - **New:** `EBAY_CLIENT_SECRET` (OAuth client secret from eBay Developer Console)
+- **Optional:** `EBAY_SANDBOX` — when set to `"true"`, use sandbox base URL (`https://api.sandbox.ebay.com/buy/browse/v1/...`) instead of production (`https://api.ebay.com/buy/browse/v1/...`). Useful for development and testing without consuming production quota.
 - Must be added to both `.env.local` and Netlify environment variables before deploy
 
 ### What Gets Removed
@@ -139,14 +164,36 @@ interface PriceData {
 - `src/lib/ebayFinding.ts` — entire file (dead code, Finding API decommissioned)
 - AI price estimation code in `con-mode-lookup/route.ts` (Tier 3 fallback)
 - AI price estimation code in `analyze/route.ts`
-- All "Technopathic Estimate" / "AI Estimate" disclaimer text
+- AI price generation code in `quick-lookup/route.ts` (generates prices purely through Claude, not via ebayFinding.ts)
+- All "Technopathic Estimate" / "AI Estimate" disclaimer text (including hardcoded strings in `useOffline.ts`)
 - Fake "Most Recent Sale" data generation
 - `findCompletedItems` and related Finding API functions
+
+### Database Migration
+
+One-time cleanup to remove fabricated AI prices from the database:
+
+- Clear all entries in `comic_metadata` where `priceSource = 'ai'`
+- This removes cached AI-generated prices so they are never served again
+- Can be run as a SQL script or directly in the Supabase dashboard:
+  ```sql
+  -- Remove all AI-fabricated price data from cache
+  UPDATE comic_metadata
+  SET price_data = NULL, price_source = NULL
+  WHERE price_source = 'ai';
+  ```
+- Run this migration AFTER deploying the Browse API code, so new lookups repopulate with real eBay data
+
+### Rate Limits
+
+- **Browse API default:** 5,000 calls/day
+- **Mitigation:** 12-hour Redis caching on price data means each unique comic query hits eBay at most twice per day. Even with hundreds of unique lookups, usage stays well within the 5,000/day limit.
+- **"No data" caching:** 1-hour TTL ensures failed lookups retry sooner without excessive API calls.
 
 ### Caching Strategy
 
 - **OAuth tokens:** In-memory, 2-hour TTL
-- **Price data:** Redis cache, 24-hour TTL (existing pattern)
+- **Price data:** Redis cache, 12-hour TTL (active listings change more frequently than sold data)
 - **"No data" results:** Redis cache, 1-hour TTL (existing pattern — retry sooner)
 
 ### Error Handling

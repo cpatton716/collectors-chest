@@ -258,14 +258,14 @@ export default function AcceptableUsePolicyPage() {
             images for use outside the Service, submit images to the Community Cover Database that
             you do not have the right to share, or use the Service&apos;s AI features to generate
             content that infringes on others&apos; intellectual property. If you believe content on
-            the Service infringes your intellectual property rights, please contact us at Admin@collectorschest.com with a detailed description of the alleged infringement.
+            the Service infringes your intellectual property rights, please contact us at admin@collectors-chest.com with a detailed description of the alleged infringement.
           </p>
 
           <h2>10. Reporting Violations</h2>
           <p>
             If you encounter content or behavior that violates this Acceptable Use Policy, please
             report it using the reporting functionality within the Platform or by contacting us at
-            Admin@collectorschest.com. We take all reports seriously and will investigate promptly. We may, but
+            admin@collectors-chest.com. We take all reports seriously and will investigate promptly. We may, but
             are not obligated to, take action based on reports, including content removal, warnings,
             temporary suspension, or permanent account termination.
           </p>
@@ -325,7 +325,7 @@ export default function AcceptableUsePolicyPage() {
             <br />
             Hatfield, PA 19440
             <br />
-            Admin@collectorschest.com
+            admin@collectors-chest.com
             <br />
             Website: collectors-chest.com
           </p>

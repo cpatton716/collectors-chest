@@ -7,7 +7,7 @@ This log tracks session-by-session progress on Collectors Chest.
 ## Changes Since Last Deploy
 
 **Last Deploy:** March 11, 2026 (Session 19 — deployed during partner meeting)
-**Sessions Since Last Deploy:** 2
+**Sessions Since Last Deploy:** 3
 **Deploy Readiness:** Needs Testing — scanner changes require production validation
 
 ### Changes:
@@ -32,6 +32,38 @@ This log tracks session-by-session progress on Collectors Chest.
 - Barcode catalog lookup wired into analyze route
 - eBay search special character fix (apostrophes/colons stripped)
 - "No data" cache TTL reduced to 1 hour
+- **Session 22 PM (Mar 18):** eBay Finding API confirmed dead (decommissioned Feb 2025). Designed and planned Browse API replacement with 8 rounds of sr. engineering review. Admin email updated to admin@collectors-chest.com across all legal pages. Testing feedback items re-verified (8 confirmed, 3 broken, 8 need retest).
+
+---
+
+## Mar 18, 2026 PM - Session 22: eBay Browse API Design & Planning
+
+### Summary
+- Discovered eBay Finding API is dead (decommissioned Feb 2025) — all pricing calls silently failing, falling back to AI-fabricated estimates
+- Designed and planned eBay Browse API replacement (active listings instead of sold data)
+- 8 rounds of senior engineering review on the implementation plan
+- Admin email updated to admin@collectors-chest.com across all 4 legal pages
+- Re-tested Session 21 feedback items: 8 confirmed working, 3 still broken, 8 need retest
+
+### Key Design Decisions
+- "Listed Value" label (median of active FIXED_PRICE listings, minimum 3 listings)
+- No AI price fallback — show "No pricing data available" when no eBay data
+- 12-hour cache TTL (active listings change faster than sold data)
+- Database migration to clear fabricated AI prices
+
+### Key Files Created
+- `docs/superpowers/specs/2026-03-18-ebay-browse-api-design.md` — Design spec
+- `docs/superpowers/plans/2026-03-18-ebay-browse-api.md` — Implementation plan (13 tasks, 32 files)
+
+### Issues Encountered
+- eBay Finding API returns error 10001 (rate limit = 0, API shut down)
+- Marketplace Insights API (replacement) requires eBay business approval — effectively unavailable for indie developers
+- Implementation plan required 8 review rounds to reach clean pass due to cascading type changes, dead code cleanup, and transition window guards
+
+### Where We Left Off
+- Implementation plan has been through 8 sr. engineering reviews with all issues fixed
+- Plan needs one more clean pass review before implementation begins
+- 3 feedback items from Session 21 still broken: #4 (financial toggle), #10 (notifications overflow), #12 (Key Hunt dark theme)
 
 ---
 

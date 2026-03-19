@@ -69,6 +69,9 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 - ✅ **Variant detection in scan prompt** — AI now detects variant/edition details
 - ✅ **Foil cover UI tip** — Visual indicator for foil covers
 - ✅ **Curated DB enrichment** — 16 copper/modern age keys fleshed out with variant/edition details
+- ✅ **Admin email updated** — All 4 legal pages updated to admin@collectors-chest.com (Mar 18, 2026)
+- ⏳ **eBay Browse API migration** — Design spec + implementation plan written, 8 rounds of sr. engineering review. Replaces dead Finding API with Browse API for real pricing (Mar 18, 2026)
+- ✅ **eBay Finding API confirmed dead** — Decommissioned Feb 2025, all calls silently failing. Current prices are AI-fabricated (Mar 18, 2026)
 
 ---
 
@@ -100,6 +103,7 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 | Test Stripe Connect seller flow | ❌ Untested | Seller onboarding, sandbox purchase, verify fee split, test payout to seller bank |
 | Database backup strategy | ⚠️ Planned | **Upgrade to Supabase Pro ($25/mo) before opening registration** - daily backups + 7-day retention |
 | Rate limit on registered user scans | ✅ Done | Free: 10/month, Premium: unlimited |
+| Replace dead eBay Finding API | ⏳ Plan complete | Browse API integration plan written + reviewed. Implementation pending. 32 files affected |
 
 ### Medium Priority
 

@@ -245,3 +245,10 @@ This document tracks testing sessions with platform and account context.
 - **Device(s):** Android
 - **Desktop Backup:** Mac Chrome
 - **Focus:** To be filled as session progresses
+
+## Mar 18, 2026 - Session 22 Start
+- **Platform:** Mobile (Android)
+- **Account Type:** Free, Premium
+- **Device(s):** Android
+- **Browsers:** Mac Chrome (reference)
+- **Focus:** TBD

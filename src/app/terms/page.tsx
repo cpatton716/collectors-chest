@@ -463,7 +463,7 @@ export default function TermsOfServicePage() {
           <p>
             Any dispute, claim, or controversy arising out of or relating to these Terms or the
             Service shall first be attempted to be resolved through informal negotiation by
-            contacting us at Admin@collectorschest.com. If the dispute cannot be resolved informally within 30
+            contacting us at admin@collectors-chest.com. If the dispute cannot be resolved informally within 30
             days, either party may pursue resolution through binding arbitration administered by the
             American Arbitration Association (AAA) under its Consumer Arbitration Rules, conducted in
             Bucks County, Pennsylvania. You agree that any arbitration will be conducted on an individual basis
@@ -549,7 +549,7 @@ export default function TermsOfServicePage() {
             <br />
             Hatfield, PA 19440
             <br />
-            Admin@collectorschest.com
+            admin@collectors-chest.com
             <br />
             Website: collectors-chest.com
           </p>
