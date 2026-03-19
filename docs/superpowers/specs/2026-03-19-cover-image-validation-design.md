@@ -52,6 +52,8 @@ Is this the cover of [Title] #[Issue] ([Year], [Publisher])?
 Answer YES or NO. If NO, briefly say what comic this actually appears to be.
 ```
 
+When year or publisher is unknown, omit them from the prompt: `Is this the cover of [Title] #[Issue]?` The model can still identify most covers by title and issue alone.
+
 Flow:
 1. Take the highest-priority non-community candidate (eBay first, then Open Library)
 2. Send image URL to Gemini for validation
@@ -60,6 +62,8 @@ Flow:
 5. If all candidates fail → cache `coverValidated: true, coverImageUrl: null` (prevents retry for 7 days)
 
 **Community covers bypass validation** — they are admin-approved and trusted.
+
+**Image encoding:** The current Gemini provider (`src/lib/providers/gemini.ts`) accepts base64-encoded image data via `inlineData`, not image URLs. The cover validation function must fetch the candidate image URL, convert it to base64, and pass it to Gemini. This is the same pattern used by the existing scan flow.
 
 **Cost:** One Gemini vision call per comic, ever. After validation (pass or fail), the result is cached in `comic_metadata`. Approximate cost: ~$0.002 per validation call.
 
@@ -76,12 +80,12 @@ Flow:
 
 ### Integration Points
 
-The pipeline replaces the internals of the existing `fetchCoverImage()` function in two routes:
+The pipeline replaces the internals of `fetchCoverImage()` in `con-mode-lookup`. In the `analyze` route, which gets covers from Metron, the pipeline is called as a separate validation step when no Metron cover is available or to validate Metron-provided covers.
 
-1. **`con-mode-lookup` route** — after Browse API pricing call, harvest eBay listing images as candidates
-2. **`analyze` route** — same flow after scan's Browse API call
+1. **`con-mode-lookup` route** — after Browse API pricing call, harvest eBay listing images as candidates. The function signature stays the same so callers don't change.
+2. **`analyze` route** — after scan completes, if no Metron cover is available, call the cover pipeline with eBay listing images as candidates. The pipeline is called as a separate function, not by replacing `fetchCoverImage()`. The analyze route gets covers from Metron (`metronResult.cover_image`), so the pipeline serves as a fallback and validation step.
 
-The function signature stays the same so callers don't change.
+**Plumbing requirement:** The `BrowseListingItem[]` from `searchActiveListings()` is currently discarded after price extraction in `con-mode-lookup`. The cover pipeline needs the first listing's `imageUrl` passed through. The route must capture `browseResult.listings` and pass it to the cover pipeline function.
 
 ## Data Model Changes
 
@@ -130,7 +134,20 @@ In `getComicMetadata()` (`src/lib/db.ts`), change:
 
 **Title normalization:** To prevent case mismatches between save and lookup, normalize titles to title case before both saving and querying. This keeps matching exact but case-consistent.
 
-Apply the same fix to `saveComicMetadata()` and any other functions that query `comic_metadata` by title/issue.
+Apply the same fix to `saveComicMetadata()`, `incrementComicLookupCount()`, and any other functions that query `comic_metadata` by title/issue.
+
+### Title Normalization Consistency
+
+All routes that call `getComicMetadata()` or `saveComicMetadata()` must normalize titles identically before querying or saving. A shared `normalizeTitle()` function ensures consistency:
+
+```typescript
+function normalizeTitle(title: string): string {
+  return title.trim().replace(/\s+/g, ' ');
+  // Preserve original casing — the unique constraint handles deduplication
+}
+```
+
+This function is applied in `getComicMetadata()`, `saveComicMetadata()`, and `incrementComicLookupCount()` before any database operation. All five routes (analyze, con-mode-lookup, quick-lookup, comic-lookup, import-lookup) call these shared functions, so normalization is enforced at the database layer, not per-route.
 
 ## Files Affected
 
@@ -145,8 +162,11 @@ Apply the same fix to `saveComicMetadata()` and any other functions that query `
 |------|-------------|
 | `src/lib/db.ts` | `.ilike()` → `.eq()` in `getComicMetadata()`, add title normalization, read/write `cover_source` and `cover_validated` fields |
 | `src/app/api/con-mode-lookup/route.ts` | Replace `fetchCoverImage()` internals with new pipeline, pass eBay listing images as candidates |
-| `src/app/api/analyze/route.ts` | Same pipeline integration |
-| `src/lib/coverImageDb.ts` | May need minor updates to align `getCommunityCovers()` with new priority system |
+| `src/app/api/analyze/route.ts` | Call cover pipeline as a separate validation step when no Metron cover is available or to validate Metron-provided covers. Does not replace `fetchCoverImage()`. |
+| `src/app/api/quick-lookup/route.ts` | Apply `.ilike()` → `.eq()` fix and title normalization. These routes do not fetch covers — they write coverImageUrl only when provided by upstream (e.g., from scan results). No pipeline integration needed. |
+| `src/app/api/comic-lookup/route.ts` | Apply `.ilike()` → `.eq()` fix and title normalization. These routes do not fetch covers — they write coverImageUrl only when provided by upstream (e.g., from scan results). No pipeline integration needed. |
+| `src/app/api/import-lookup/route.ts` | Apply `.ilike()` → `.eq()` fix and title normalization. These routes do not fetch covers — they write coverImageUrl only when provided by upstream (e.g., from scan results). No pipeline integration needed. |
+| `src/lib/coverImageDb.ts` | No changes needed — `getCommunityCovers()` already uses its own normalized lookup against the `cover_images` table, independent of the `comic_metadata` query path. |
 
 ### Database Migration
 | File | What |
@@ -160,6 +180,7 @@ Apply the same fix to `saveComicMetadata()` and any other functions that query `
 - If Open Library API fails → no candidate from that source
 - If all sources fail and Gemini is unavailable → cache nothing, retry next lookup
 - No silent failures — all errors logged with `[cover-validation]` prefix
+- If Gemini errors repeatedly for the same comic → after 3 failed attempts (tracked in memory per request, not persisted), cache `coverValidated: false` and stop retrying for this lookup. The next lookup will try again. This prevents unbounded Gemini calls for frequently-accessed comics during API outages.
 
 ## Cost Analysis
 
