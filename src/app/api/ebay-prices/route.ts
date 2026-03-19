@@ -3,8 +3,8 @@
  *
  * POST /api/ebay-prices
  *
- * Fetches recent sold listings from eBay for comic book price estimation.
- * Uses Redis caching (24-hour TTL) to minimize eBay API calls.
+ * Fetches active listings from eBay for comic book pricing.
+ * Uses Redis caching (12-hour TTL) to minimize eBay API calls.
  *
  * Request body:
  * {
@@ -27,7 +27,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { cacheGet, cacheSet, generateEbayPriceCacheKey } from "@/lib/cache";
-import { isFindingApiConfigured, lookupEbaySoldPrices } from "@/lib/ebayFinding";
+import { isBrowseApiConfigured, searchActiveListings, convertBrowseToPriceData } from "@/lib/ebayBrowse";
 
 import { PriceData } from "@/types/comic";
 
@@ -104,7 +104,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<EbayPrice
     }
 
     // 2. Check if eBay API is configured
-    if (!isFindingApiConfigured()) {
+    if (!isBrowseApiConfigured()) {
       return NextResponse.json({
         success: true,
         data: null,
@@ -114,14 +114,9 @@ export async function POST(request: NextRequest): Promise<NextResponse<EbayPrice
       });
     }
 
-    // 3. Fetch from eBay Finding API
-    const priceData = await lookupEbaySoldPrices(
-      cleanTitle,
-      cleanIssue,
-      numericGrade,
-      slabbed,
-      company
-    );
+    // 3. Fetch from eBay Browse API
+    const browseResult = await searchActiveListings(cleanTitle, cleanIssue, numericGrade ? String(numericGrade) : undefined, slabbed, company);
+    const priceData = browseResult ? convertBrowseToPriceData(browseResult, numericGrade ? String(numericGrade) : undefined, slabbed) : null;
 
     // 4. Cache the result (fire and forget)
     if (priceData && priceData.estimatedValue) {
@@ -134,7 +129,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<EbayPrice
       });
     } else {
       // Cache negative results to avoid repeated lookups
-      cacheSet(cacheKey, { noData: true }, "ebayPrice").catch(() => {});
+      cacheSet(cacheKey, { noData: true }, "ebayPrice", 60 * 60).catch(() => {});
       return NextResponse.json({
         success: true,
         data: null,
@@ -145,7 +140,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<EbayPrice
   } catch (error) {
     console.error("[ebay-prices] Error:", error);
 
-    // Return graceful failure - let caller use AI estimates
+    // Return graceful failure - no pricing data available
     return NextResponse.json({
       success: false,
       data: null,

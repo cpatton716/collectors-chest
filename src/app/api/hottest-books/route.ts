@@ -4,11 +4,10 @@ import { createClient } from "@supabase/supabase-js";
 
 import Anthropic from "@anthropic-ai/sdk";
 
-import { cacheGet, cacheSet, generateEbayPriceCacheKey } from "@/lib/cache";
-import { isFindingApiConfigured, lookupEbaySoldPrices } from "@/lib/ebayFinding";
+import { cacheGet, cacheSet } from "@/lib/cache";
+import { isBrowseApiConfigured, searchActiveListings } from "@/lib/ebayBrowse";
 import { MODEL_PRIMARY } from "@/lib/models";
 
-import { PriceData } from "@/types/comic";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -73,57 +72,39 @@ function needsPriceRefresh(pricesUpdatedAt: string | null): boolean {
 }
 
 /**
- * Fetch eBay prices for a comic using the Finding API directly
+ * Fetch eBay prices for a comic using the Browse API directly
  * This avoids internal HTTP calls and uses Redis caching
  */
 async function fetchEbayPrices(
   title: string,
   issueNumber: string
 ): Promise<{ low: number; mid: number; high: number } | null> {
-  if (!isFindingApiConfigured()) {
+  if (!isBrowseApiConfigured()) {
     return null;
   }
 
   try {
-    // Generate cache key for hot books (raw grade 9.4)
-    const cacheKey = generateEbayPriceCacheKey(title, issueNumber, 9.4, false, undefined);
+    const cacheKey = `ebayBrowse:hotbooks:${title}:${issueNumber}`;
 
     // Check Redis cache first
-    const cachedResult = await cacheGet<PriceData | { noData: true }>(cacheKey, "ebayPrice");
-    if (cachedResult !== null) {
-      if ("noData" in cachedResult) {
-        return null;
-      }
-      // Extract price range from cached data
-      if (cachedResult.recentSales && cachedResult.recentSales.length > 0) {
-        const prices = cachedResult.recentSales.map((s) => s.price).sort((a, b) => a - b);
-        return {
-          low: prices[0],
-          mid: prices[Math.floor(prices.length / 2)],
-          high: prices[prices.length - 1],
-        };
-      }
+    const cached = await cacheGet<{ low: number; mid: number; high: number } | { noData: true }>(cacheKey, "ebayPrice");
+    if (cached) {
+      if ("noData" in cached) return null;
+      return cached as { low: number; mid: number; high: number };
+    }
+
+    const result = await searchActiveListings(title, issueNumber);
+    if (!result || result.medianPrice === null) {
+      await cacheSet(cacheKey, { noData: true }, "ebayPrice", 60 * 60); // 1h for no-data
       return null;
     }
-
-    // Fetch from eBay Finding API (raw copy search for hot books)
-    const priceData = await lookupEbaySoldPrices(title, issueNumber, undefined, false, undefined);
-
-    if (priceData && priceData.recentSales && priceData.recentSales.length > 0) {
-      // Cache the result
-      cacheSet(cacheKey, priceData, "ebayPrice").catch(() => {});
-
-      const prices = priceData.recentSales.map((s) => s.price).sort((a, b) => a - b);
-      return {
-        low: prices[0],
-        mid: prices[Math.floor(prices.length / 2)],
-        high: prices[prices.length - 1],
-      };
-    }
-
-    // Cache negative result
-    cacheSet(cacheKey, { noData: true }, "ebayPrice").catch(() => {});
-    return null;
+    const prices = {
+      low: result.lowPrice ?? result.medianPrice,
+      mid: result.medianPrice,
+      high: result.highPrice ?? result.medianPrice,
+    };
+    await cacheSet(cacheKey, prices, "ebayPrice", 12 * 60 * 60); // 12h TTL
+    return prices;
   } catch (error) {
     console.error("Error fetching eBay prices:", error);
     return null;

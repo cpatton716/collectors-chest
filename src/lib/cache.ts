@@ -24,7 +24,7 @@ const CACHE_PREFIX = {
 
 // TTL values in seconds
 const CACHE_TTL = {
-  ebayPrice: 60 * 60 * 24, // 24 hours
+  ebayPrice: 60 * 60 * 12, // 12 hours
   comicMetadata: 60 * 60 * 24 * 7, // 7 days
   aiAnalyze: 60 * 60 * 24 * 30, // 30 days (AI results are stable)
   barcode: 60 * 60 * 24 * 180, // 6 months (barcodes never change)
