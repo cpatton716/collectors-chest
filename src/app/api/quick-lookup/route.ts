@@ -213,20 +213,24 @@ Rules:
         const parsed = JSON.parse(jsonText.trim());
         keyInfo = parsed.keyInfo || [];
 
-        // Save keyInfo to database for future lookups (non-blocking)
+        // Save keyInfo to database for future lookups
         if (comicDetails.title && comicDetails.issueNumber) {
-          saveComicMetadata({
-            title: normalizedTitle,
-            issueNumber: normalizedIssue,
-            publisher: comicDetails.publisher,
-            releaseYear: comicDetails.releaseYear,
-            coverImageUrl: comicDetails.coverImageUrl,
-            coverSource: "comicvine",
-            coverValidated: false,
-            keyInfo,
-          }).catch((err) => {
-            console.error("[quick-lookup] Failed to save to database:", err);
-          });
+          try {
+            await saveComicMetadata({
+              title: normalizedTitle,
+              issueNumber: normalizedIssue,
+              publisher: comicDetails.publisher,
+              releaseYear: comicDetails.releaseYear,
+              ...(comicDetails.coverImageUrl ? {
+                coverImageUrl: comicDetails.coverImageUrl,
+                coverSource: "comicvine",
+                coverValidated: false,
+              } : {}),
+              keyInfo,
+            });
+          } catch (err) {
+            console.error("[quick-lookup] Failed to save metadata:", err);
+          }
         }
       } catch {
         console.error("Failed to parse quick lookup response");

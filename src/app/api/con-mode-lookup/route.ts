@@ -209,7 +209,7 @@ export async function POST(request: NextRequest) {
           },
           ...(pipelineRan && {
             coverSource: pipelineResult?.coverSource || undefined,
-            coverValidated: true,
+            coverValidated: pipelineResult?.coverUrl !== null, // true only if pipeline found a valid cover
           }),
         });
 

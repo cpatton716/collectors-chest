@@ -119,19 +119,21 @@ Most issues should have an empty keyInfo array.`,
           keyInfo = parsed.keyInfo;
         }
 
-        // Save metadata to database for future lookups (non-blocking, no price data)
-        saveComicMetadata({
-          title: normalizedTitle,
-          issueNumber: normalizedIssue,
-          publisher: detectedPublisher,
-          releaseYear: detectedYear,
-          writer,
-          coverArtist,
-          interiorArtist,
-          keyInfo,
-        }).catch((err) => {
-          console.error("[import-lookup] Failed to save to database:", err);
-        });
+        // Save metadata to database for future lookups
+        try {
+          await saveComicMetadata({
+            title: normalizedTitle,
+            issueNumber: normalizedIssue,
+            publisher: detectedPublisher,
+            releaseYear: detectedYear,
+            writer,
+            coverArtist,
+            interiorArtist,
+            keyInfo,
+          });
+        } catch (err) {
+          console.error("[import-lookup] Failed to save metadata:", err);
+        }
       }
     } catch {}
 
