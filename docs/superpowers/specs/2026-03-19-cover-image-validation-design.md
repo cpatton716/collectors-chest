@@ -54,6 +54,7 @@ Send the best candidate image to Gemini with a vision prompt:
 ```
 Is this a cover of [Title] #[Issue] ([Year], [Publisher])?
 Variant covers, reprints, and different printings of the same issue are acceptable.
+The comic may be shown inside a CGC/CBCS grading slab — this is still acceptable if the cover is visible.
 Answer YES or NO. If NO, briefly say what comic this actually appears to be.
 ```
 
@@ -70,11 +71,13 @@ Flow:
 
 **Response parsing:** Parse the first word of the Gemini response (case-insensitive). If it starts with 'YES', treat as validated. If it starts with 'NO', treat as rejected — try the next candidate. Any other response (empty, error, 'MAYBE', ambiguous text) is treated as a validation failure — cache with `coverValidated: false` so it retries on next lookup. Ambiguous responses do NOT count against the 3-failure retry limit.
 
-**Latency budget:** Image fetch ~200-500ms, Gemini validation ~1-2s. Total added latency: ~2-3s on first lookup. To avoid blocking the user, **validation runs asynchronously**: the route returns the unvalidated cover image immediately (for display), then validates in the background and updates `comic_metadata`. On subsequent lookups, the validated (or rejected) cover is served from cache. This keeps Key Hunt lookups fast at conventions.
+**Synchronous validation:** The Gemini validation call is awaited within the request lifecycle. Netlify Functions freeze/terminate immediately after the response is sent, so background promises will never complete. The full pipeline (candidate gathering + image fetch + base64 + Gemini call) adds ~2-3s to the first lookup. The `con-mode-lookup` route already takes several seconds (eBay API + key info), so the total response time remains acceptable for convention use.
 
-**First-lookup UX:** On first lookup, the client displays the unvalidated cover candidate (or a placeholder if no candidate was found synchronously). On subsequent lookups — including a second scan at the same convention — the validated result is served from cache. No client-side polling is required. The brief window of a potentially wrong cover on first lookup is an acceptable trade-off for fast response times.
+On subsequent lookups, the validated (or rejected) cover is served from cache with zero added latency.
 
-**Concurrency guard:** The `coverValidation.ts` pipeline uses an in-memory lock (`Map<string, Promise>` keyed by `title|issue_number`) so concurrent requests for the same comic deduplicate into a single Gemini call. If a validation is already in flight, subsequent requests await the existing promise. In a serverless environment (Netlify Functions), the lock works within a single function invocation lifetime — rare cross-instance duplication is acceptable since the validation result is idempotent.
+The entire `runCoverPipeline()` function is awaited. Candidate gathering (community DB query, eBay listing extraction) is fast (~10ms). The Gemini validation call (~2s) is the main latency contributor.
+
+**Duplicate prevention:** The pipeline checks `shouldRunPipeline()` before running. Once a cover is validated and cached, subsequent lookups skip the pipeline entirely. In the rare case of truly concurrent requests for the same comic, both will run the pipeline and both will write the same validated result — this is idempotent and harmless.
 
 **Community covers bypass validation** — they are admin-approved and trusted.
 
@@ -84,7 +87,9 @@ Flow:
 
 **Image encoding:** The current Gemini provider (`src/lib/providers/gemini.ts`) accepts base64-encoded image data via `inlineData`, not image URLs. The cover validation function must fetch the candidate image URL, convert it to base64, and pass it to Gemini. This is the same pattern used by the existing scan flow.
 
-**URL validation:** Before fetching any candidate image URL for base64 conversion, validate it with a `validateImageUrl()` function in `coverValidation.ts`. Only allow HTTPS URLs from known hostnames: `i.ebayimg.com`, `covers.openlibrary.org`, and `upload.wikimedia.org`. Reject URLs with HTTP scheme, private/internal IP ranges, or unexpected hostnames. This prevents SSRF attacks via crafted eBay listing data.
+**URL validation:** Before fetching any candidate image URL for base64 conversion, validate it with a `validateImageUrl()` function in `coverValidation.ts`. Only allow HTTPS URLs from known hostnames: eBay domains (`*.ebayimg.com`, `*.ebaystatic.com`) — use pattern matching: `hostname.endsWith('.ebayimg.com') || hostname.endsWith('.ebaystatic.com')`, `covers.openlibrary.org`, and `upload.wikimedia.org`. Reject URLs with HTTP scheme, private/internal IP ranges, or unexpected hostnames. This prevents SSRF attacks via crafted eBay listing data.
+
+**Image size limit:** Before base64 encoding, check the response `Content-Length` header or buffer size. Reject images over 5MB — this prevents memory exhaustion on serverless and stays well within Gemini's 20MB inline data limit. Skip to the next candidate if the image is too large.
 
 **Cost:** One Gemini vision call per comic, ever. After validation (pass or fail), the result is cached in `comic_metadata`. Approximate cost: ~$0.002 per validation call.
 
@@ -98,6 +103,8 @@ Flow:
 | Cached cover, `cover_source: "community"` | Use cached — skip pipeline (admin-approved) |
 | No cover found, `cover_validated: true` | Check `updated_at` — if older than 7 days, retry pipeline |
 | Manual cover submission via community DB | Immediately overrides any cached cover |
+
+**Known gap — CSV import:** Comics imported via CSV (`import-lookup` route) do not trigger the cover pipeline. They are saved with `coverImageUrl: null` and `coverValidated: false`. Users will see placeholder images until they individually look up each comic through Key Hunt or scan. A future batch-validation endpoint could process comics with missing covers.
 
 **Cache decision pseudocode** (in `coverValidation.ts`):
 ```typescript
@@ -123,12 +130,10 @@ function shouldRunPipeline(metadata: ComicMetadata | null): boolean {
 
 ```typescript
 interface CoverPipelineResult {
-  /** Best candidate URL for immediate display (before validation) */
-  candidateUrl: string | null;
-  /** Source of the candidate */
-  candidateSource: 'community' | 'ebay' | 'openlibrary' | null;
-  /** Whether this candidate is already validated (community covers or cached validated) */
-  isValidated: boolean;
+  /** Validated cover URL, or null if no valid cover found */
+  coverUrl: string | null;
+  /** Source of the cover */
+  coverSource: 'community' | 'ebay' | 'openlibrary' | null;
 }
 
 async function runCoverPipeline(
@@ -140,7 +145,7 @@ async function runCoverPipeline(
 ): Promise<CoverPipelineResult>
 ```
 
-The function returns synchronously-available candidate information. Gemini validation fires as a non-awaited background task (`void validateCoverAsync(...)`) that updates `comic_metadata` when complete. The caller uses `candidateUrl` for immediate display and does not wait for validation.
+The function awaits candidate gathering and Gemini validation before returning. The caller receives a fully validated result (or `null` if no valid cover was found). Community covers bypass Gemini validation and are returned immediately.
 
 ### Integration Points
 
@@ -264,38 +269,37 @@ BEGIN;
 DELETE FROM comic_metadata
 WHERE id NOT IN (
   SELECT DISTINCT ON (
-    LOWER(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(title), '[^a-zA-Z0-9\s\-]', '', 'g'), '\s+', ' ', 'g')),
+    LOWER(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(title), '[^a-zA-Z0-9[:space:]-]', '', 'g'), '\s+', ' ', 'g')),
     LOWER(REGEXP_REPLACE(TRIM(LEADING '#' FROM TRIM(issue_number)), '\s+', ' ', 'g'))
   ) id
   FROM comic_metadata
   ORDER BY
-    LOWER(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(title), '[^a-zA-Z0-9\s\-]', '', 'g'), '\s+', ' ', 'g')),
+    LOWER(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(title), '[^a-zA-Z0-9[:space:]-]', '', 'g'), '\s+', ' ', 'g')),
     LOWER(REGEXP_REPLACE(TRIM(LEADING '#' FROM TRIM(issue_number)), '\s+', ' ', 'g')),
     lookup_count DESC, cover_image_url IS NULL ASC, updated_at DESC
 );
 
 -- Step 2: Normalize titles and issue numbers
 UPDATE comic_metadata
-SET title = LOWER(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(title), '[^a-zA-Z0-9\s\-]', '', 'g'), '\s+', ' ', 'g')),
+SET title = LOWER(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(title), '[^a-zA-Z0-9[:space:]-]', '', 'g'), '\s+', ' ', 'g')),
     issue_number = LOWER(TRIM(LEADING '#' FROM TRIM(issue_number)));
 
 COMMIT;
 ```
 This prevents duplicate rows from case-variant titles after the `.eq()` switch.
 
-**Replace case-sensitive unique constraint with functional unique index:**
+**Keep existing unique constraint + add functional index:**
 ```sql
--- Drop the existing case-sensitive constraint
-ALTER TABLE comic_metadata DROP CONSTRAINT IF EXISTS comic_metadata_title_issue_number_key;
-
--- Create case-insensitive unique index on normalized form
-CREATE UNIQUE INDEX idx_comic_metadata_unique_normalized
+-- Keep the existing UNIQUE(title, issue_number) constraint for upsert targeting
+-- Add a functional index as a safety net for case-insensitive uniqueness
+CREATE UNIQUE INDEX IF NOT EXISTS idx_comic_metadata_unique_normalized
 ON comic_metadata (
-  LOWER(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(title), '[^a-zA-Z0-9\\s\\-]', '', 'g'), '\\s+', ' ', 'g')),
+  LOWER(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(title), '[^a-zA-Z0-9[:space:]-]', '', 'g'), '\s+', ' ', 'g')),
   LOWER(TRIM(LEADING '#' FROM TRIM(issue_number)))
 );
 ```
-This enforces uniqueness at the database level regardless of application-layer normalization. Even if a code path misses `normalizeTitle()`, the database prevents duplicate entries.
+
+The column-based constraint serves as the upsert target (`onConflict: 'title,issue_number'`). The functional index is a safety net that prevents duplicates even if a code path misses normalization. Both coexist without conflict since pre-normalized data satisfies both constraints.
 
 **Migration window note:** The dedup migration (Step 1) may delete rows that in-flight lookups are trying to read. This is benign — affected lookups will get a cache miss and perform a fresh API call, re-caching the result. No data is lost.
 
@@ -315,7 +319,7 @@ Both functions are applied in `getComicMetadata()`, `saveComicMetadata()`, and `
 ### Modified Files
 | File | What Changes |
 |------|-------------|
-| `src/lib/db.ts` | `.ilike()` → `.eq()` in `getComicMetadata()`, `saveComicMetadata()`, and `incrementComicLookupCount()`. Add title normalization. Update `saveComicMetadata()` function signature to accept optional `coverSource?: string` and `coverValidated?: boolean` parameters and include them in the upsert payload. Update `ComicMetadata` interface to include `coverSource` and `coverValidated` in the return type. Update `getComicMetadata()` to read and return the new columns. **Critical: conditional upsert fields.** The `saveComicMetadata()` upsert must only include `cover_source`, `cover_validated`, and `cover_image_url` in the payload when they are explicitly provided. If these fields are `undefined` in the input, they must be omitted from the upsert object — NOT sent as `null` or `false`. This prevents price-refresh calls (which don't pass cover fields) from resetting `cover_validated` back to `false` on every update. Use conditional spread: `...(coverSource !== undefined && { cover_source: coverSource })`. **Upsert conflict target:** After replacing the unique constraint with a functional unique index, the Supabase `.upsert({ onConflict: 'title,issue_number' })` will no longer match. Replace with a raw SQL `INSERT ... ON CONFLICT` using the functional index expression, OR keep a simple column-based unique constraint alongside the functional index. The simpler approach: normalize title and issue_number BEFORE passing to `saveComicMetadata()` (which the spec already requires), keeping the column-based constraint viable since all values are pre-normalized. **Conditional spread for ALL cover fields:** Apply the conditional spread pattern to `cover_image_url` in addition to `cover_source` and `cover_validated`: `...(metadata.coverImageUrl !== undefined && { cover_image_url: metadata.coverImageUrl }), ...(metadata.coverSource !== undefined && { cover_source: metadata.coverSource }), ...(metadata.coverValidated !== undefined && { cover_validated: metadata.coverValidated })`. This prevents price-refresh calls from overwriting validated covers with `null`. |
+| `src/lib/db.ts` | `.ilike()` → `.eq()` in `getComicMetadata()`, `saveComicMetadata()`, and `incrementComicLookupCount()`. Add title normalization. Update `saveComicMetadata()` function signature to accept optional `coverSource?: string` and `coverValidated?: boolean` parameters and include them in the upsert payload. Update `ComicMetadata` interface to include `coverSource` and `coverValidated` in the return type. Update `getComicMetadata()` to read and return the new columns. **Critical: conditional upsert fields.** The `saveComicMetadata()` upsert must only include `cover_source`, `cover_validated`, and `cover_image_url` in the payload when they are explicitly provided. If these fields are `undefined` in the input, they must be omitted from the upsert object — NOT sent as `null` or `false`. This prevents price-refresh calls (which don't pass cover fields) from resetting `cover_validated` back to `false` on every update. Use conditional spread: `...(coverSource !== undefined && { cover_source: coverSource })`. **Upsert conflict target:** The existing column-based unique constraint is kept (see migration section), so `.upsert({ onConflict: 'title,issue_number' })` continues to work. Since all values are pre-normalized before saving, the column-based constraint and functional index both remain satisfied. **Conditional spread for ALL cover fields:** Apply the conditional spread pattern to `cover_image_url` in addition to `cover_source` and `cover_validated`: `...(metadata.coverImageUrl !== undefined && { cover_image_url: metadata.coverImageUrl }), ...(metadata.coverSource !== undefined && { cover_source: metadata.coverSource }), ...(metadata.coverValidated !== undefined && { cover_validated: metadata.coverValidated })`. This prevents price-refresh calls from overwriting validated covers with `null`. |
 | `src/app/api/con-mode-lookup/route.ts` | Replace the `fetchCoverImage()` call with a call to `runCoverPipeline(title, issue, year, publisher, { ebayListings: browseResult.listings })` from `coverValidation.ts`. The old `fetchCoverImage()` function can be deleted. **Rate limiting must be added** using `rateLimiters.lookup` (20/min) alongside the pipeline integration. |
 | `src/app/api/analyze/route.ts` | Call cover pipeline as a separate validation step when no Metron cover is available or to validate Metron-provided covers. Does not replace `fetchCoverImage()`. |
 | `src/app/api/quick-lookup/route.ts` | Apply `.ilike()` → `.eq()` fix and title normalization. This route fetches covers from Comic Vine (when configured). **Update the `saveComicMetadata()` call to pass `coverSource: 'comicvine', coverValidated: false` when saving a Comic Vine cover URL.** This ensures Comic Vine covers are flagged for Gemini validation on the next lookup. |
@@ -373,5 +377,4 @@ Offline-cached covers (in localStorage via `useOffline.ts`) from before the pipe
 ### Mock Strategy
 - **Gemini calls:** `coverValidation.ts` should accept an optional `geminiClient` parameter (dependency injection) so tests can pass a mock. Tests use `vi.fn()` to return canned YES/NO responses.
 - **Image fetching:** Mock global `fetch` with `vi.fn()` to return fake image buffers for base64 conversion.
-- **Async validation:** The `validateCoverAsync()` function should return the internal Promise (even though callers don't await it) so tests can `await` completion and verify the database was updated.
-- **Concurrency lock:** Test by calling `runCoverPipeline()` twice in rapid succession for the same comic and verify only one Gemini call is made (via mock call count).
+- **Pipeline integration:** Call `runCoverPipeline()` and `await` the result. Verify that the returned `coverUrl` matches the expected validated URL and that `saveComicMetadata()` was called with `coverValidated: true`.
