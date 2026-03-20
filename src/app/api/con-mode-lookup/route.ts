@@ -6,6 +6,12 @@ import { getComicMetadata, incrementComicLookupCount, saveComicMetadata } from "
 import { MODEL_PRIMARY } from "@/lib/models";
 import { recordScanAnalytics, estimateScanCostCents } from "@/lib/analyticsServer";
 import { isBrowseApiConfigured, searchActiveListings, convertBrowseToPriceData } from "@/lib/ebayBrowse";
+import type { BrowseListingItem } from "@/lib/ebayBrowse";
+import { normalizeTitle, normalizeIssueNumber } from "@/lib/normalizeTitle";
+import { checkRateLimit, getRateLimitIdentifier, rateLimiters } from "@/lib/rateLimit";
+import { runCoverPipeline, shouldRunPipeline } from "@/lib/coverValidation";
+import type { CoverPipelineResult } from "@/lib/coverValidation";
+import { cacheDelete, generateComicMetadataCacheKey } from "@/lib/cache";
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -42,18 +48,30 @@ export async function POST(request: NextRequest) {
   let aiCallsMade = 0;
 
   try {
+    // Rate limit to protect API costs
+    const identifier = getRateLimitIdentifier(
+      null,
+      request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip")
+    );
+    const { success: rateLimitSuccess, response: rateLimitResponse } = await checkRateLimit(
+      rateLimiters.lookup,
+      identifier
+    );
+    if (!rateLimitSuccess) return rateLimitResponse;
+
     const { title, issueNumber, grade, years } = await request.json();
 
     if (!title || !issueNumber) {
       return NextResponse.json({ error: "Title and issue number are required." }, { status: 400 });
     }
 
-    const normalizedTitle = title.trim();
-    const normalizedIssue = issueNumber.toString().trim();
+    const normalizedTitle = normalizeTitle(title);
+    const normalizedIssue = normalizeIssueNumber(issueNumber.toString());
     const selectedGrade = grade || 9.4;
     const seriesYears = years?.trim() || null; // e.g., "1963-2011" for disambiguation
 
     // 1. Check database cache (fast ~50ms)
+    let existingMetadata: Awaited<ReturnType<typeof getComicMetadata>> = null;
     try {
       const dbResult = await getComicMetadata(normalizedTitle, normalizedIssue);
       if (dbResult && dbResult.priceData && dbResult.priceData.priceSource === 'ebay') {
@@ -82,6 +100,8 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json(result);
       }
+      // Keep the metadata reference even if priceData wasn't usable
+      existingMetadata = dbResult;
     } catch (dbError) {
       console.error("[con-mode-lookup] Database lookup failed, falling back to eBay:", dbError);
       // Continue to eBay lookup
@@ -93,6 +113,7 @@ export async function POST(request: NextRequest) {
 
     // 3. Try eBay Browse API for active listing data
     let ebayPriceData: ReturnType<typeof convertBrowseToPriceData> = null;
+    let browseListings: BrowseListingItem[] = [];
 
     if (isBrowseApiConfigured()) {
       try {
@@ -104,6 +125,7 @@ export async function POST(request: NextRequest) {
         );
 
         if (browseResult) {
+          browseListings = browseResult.listings || [];
           const priceData = convertBrowseToPriceData(browseResult, String(selectedGrade), false);
           if (priceData) {
             ebayPriceData = priceData;
@@ -126,12 +148,22 @@ export async function POST(request: NextRequest) {
         (g) => g.grade === selectedGrade
       );
 
-      // Try to fetch a cover image (non-blocking)
-      let coverImageUrl: string | null = null;
-      try {
-        coverImageUrl = await fetchCoverImage(normalizedTitle, normalizedIssue, undefined, seriesYears?.match(/\d{4}/)?.[0]);
-      } catch {
-        // Ignore cover fetch errors
+      // Run cover validation pipeline
+      const pipelineRan = shouldRunPipeline(existingMetadata);
+      let pipelineResult: CoverPipelineResult | null = null;
+      let coverImageUrl: string | null = existingMetadata?.coverImageUrl || null;
+
+      if (pipelineRan) {
+        pipelineResult = await runCoverPipeline(
+          normalizedTitle,
+          normalizedIssue,
+          seriesYears?.match(/\d{4}/)?.[0] || null,
+          null,
+          { ebayListings: browseListings }
+        );
+        if (pipelineResult.coverUrl) {
+          coverImageUrl = pipelineResult.coverUrl;
+        }
       }
 
       // We need key info from AI since eBay doesn't provide that
@@ -159,24 +191,34 @@ export async function POST(request: NextRequest) {
       };
 
       // Save to database for future lookups
-      saveComicMetadata({
-        title: normalizedTitle,
-        issueNumber: normalizedIssue,
-        publisher: null,
-        releaseYear: null,
-        coverImageUrl,
-        keyInfo,
-        priceData: {
-          estimatedValue: ebayPriceData.estimatedValue,
-          mostRecentSaleDate: ebayPriceData.mostRecentSaleDate,
-          recentSales: ebayPriceData.recentSales || [],
-          gradeEstimates: ebayPriceData.gradeEstimates || [],
-          disclaimer: ebayPriceData.disclaimer || "Based on current eBay listings",
-          priceSource: "ebay",
-        },
-      }).catch((err) => {
-        console.error("[con-mode-lookup] Failed to save eBay data to database:", err);
-      });
+      try {
+        await saveComicMetadata({
+          title: normalizedTitle,
+          issueNumber: normalizedIssue,
+          publisher: null,
+          releaseYear: null,
+          coverImageUrl,
+          keyInfo,
+          priceData: {
+            estimatedValue: ebayPriceData.estimatedValue,
+            mostRecentSaleDate: ebayPriceData.mostRecentSaleDate,
+            recentSales: ebayPriceData.recentSales || [],
+            gradeEstimates: ebayPriceData.gradeEstimates || [],
+            disclaimer: ebayPriceData.disclaimer || "Based on current eBay listings",
+            priceSource: "ebay",
+          },
+          ...(pipelineRan && {
+            coverSource: pipelineResult?.coverSource || undefined,
+            coverValidated: true,
+          }),
+        });
+
+        // Invalidate Redis cache to prevent stale reads
+        const cacheKey = generateComicMetadataCacheKey(normalizedTitle, normalizedIssue);
+        await cacheDelete(cacheKey, "comicMetadata");
+      } catch (saveErr) {
+        console.error("[con-mode-lookup] Failed to save eBay data to database:", saveErr);
+      }
 
       // Record scan analytics (fire-and-forget)
       const ebayCostCents = estimateScanCostCents({ metadataCacheHit: false, aiCallsMade, ebayLookup: true });
@@ -232,56 +274,6 @@ export async function POST(request: NextRequest) {
     console.error("Error in con mode lookup:", error);
     return NextResponse.json({ error: "Something went wrong. Please try again." }, { status: 500 });
   }
-}
-
-/**
- * Try to fetch a cover image URL for the comic
- * Uses multiple sources with fallbacks
- */
-async function fetchCoverImage(
-  title: string,
-  issueNumber: string,
-  publisher?: string,
-  releaseYear?: string | null
-): Promise<string | null> {
-  // Try Comic Vine API if we have a key
-  if (process.env.COMIC_VINE_API_KEY) {
-    try {
-      const searchQuery = releaseYear
-        ? `${title} ${issueNumber} ${releaseYear}`
-        : `${title} ${issueNumber}`;
-      const cvResponse = await fetch(
-        `https://comicvine.gamespot.com/api/search/?api_key=${process.env.COMIC_VINE_API_KEY}&format=json&query=${encodeURIComponent(searchQuery)}&resources=issue&limit=1`,
-        { headers: { "User-Agent": "CollectorsChest/1.0" } }
-      );
-
-      if (cvResponse.ok) {
-        const cvData = await cvResponse.json();
-        if (cvData.results?.[0]?.image?.medium_url) {
-          return cvData.results[0].image.medium_url;
-        }
-      }
-    } catch (e) {}
-  }
-
-  // Fallback: Try Open Library (works better for graphic novels)
-  try {
-    const searchQuery = `${title} ${issueNumber} ${publisher || ""} comic`.trim();
-    const olResponse = await fetch(
-      `https://openlibrary.org/search.json?q=${encodeURIComponent(searchQuery)}&limit=3`,
-      { signal: AbortSignal.timeout(3000) }
-    );
-
-    if (olResponse.ok) {
-      const olData = await olResponse.json();
-      const docWithCover = olData.docs?.find((doc: { cover_i?: number }) => doc.cover_i);
-      if (docWithCover?.cover_i) {
-        return `https://covers.openlibrary.org/b/id/${docWithCover.cover_i}-L.jpg`;
-      }
-    }
-  } catch (e) {}
-
-  return null;
 }
 
 /**
