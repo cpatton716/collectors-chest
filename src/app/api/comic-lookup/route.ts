@@ -5,6 +5,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { cacheGet, cacheSet, generateComicMetadataCacheKey } from "@/lib/cache";
 import { getComicMetadata, incrementComicLookupCount, saveComicMetadata } from "@/lib/db";
 import { MODEL_PRIMARY } from "@/lib/models";
+import { normalizeTitle, normalizeIssueNumber } from "@/lib/normalizeTitle";
 import { recordScanAnalytics, estimateScanCostCents } from "@/lib/analyticsServer";
 
 const anthropic = new Anthropic({
@@ -36,8 +37,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const normalizedTitle = title.trim();
-    const normalizedIssue = issueNumber?.trim() || "";
+    const normalizedTitle = normalizeTitle(title);
+    const normalizedIssue = normalizeIssueNumber(issueNumber || "");
 
     // For publisher-only lookups, use simple approach (no caching needed)
     if (lookupType === "publisher") {

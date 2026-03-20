@@ -4,6 +4,7 @@ import Anthropic from "@anthropic-ai/sdk";
 
 import { getComicMetadata, saveComicMetadata } from "@/lib/db";
 import { MODEL_PRIMARY } from "@/lib/models";
+import { normalizeTitle, normalizeIssueNumber } from "@/lib/normalizeTitle";
 import { recordScanAnalytics, estimateScanCostCents } from "@/lib/analyticsServer";
 import { checkRateLimit, getRateLimitIdentifier, rateLimiters } from "@/lib/rateLimit";
 
@@ -105,9 +106,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const normalizedTitle = normalizeTitle(comicDetails.title || '');
+    const normalizedIssue = normalizeIssueNumber(comicDetails.issueNumber || '1');
+
     // Step 2: Check database for cached data first
     try {
-      const dbResult = await getComicMetadata(comicDetails.title, comicDetails.issueNumber || "1");
+      const dbResult = await getComicMetadata(normalizedTitle, normalizedIssue);
       if (dbResult && dbResult.priceData) {
         // Transition guard: only return eBay-sourced price data
         const dbPriceSource = (dbResult.priceData as Record<string, unknown>)?.priceSource;
@@ -212,11 +216,13 @@ Rules:
         // Save keyInfo to database for future lookups (non-blocking)
         if (comicDetails.title && comicDetails.issueNumber) {
           saveComicMetadata({
-            title: comicDetails.title,
-            issueNumber: comicDetails.issueNumber,
+            title: normalizedTitle,
+            issueNumber: normalizedIssue,
             publisher: comicDetails.publisher,
             releaseYear: comicDetails.releaseYear,
             coverImageUrl: comicDetails.coverImageUrl,
+            coverSource: "comicvine",
+            coverValidated: false,
             keyInfo,
           }).catch((err) => {
             console.error("[quick-lookup] Failed to save to database:", err);

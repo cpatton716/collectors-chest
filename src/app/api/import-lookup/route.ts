@@ -4,6 +4,7 @@ import Anthropic from "@anthropic-ai/sdk";
 
 import { getComicMetadata, saveComicMetadata } from "@/lib/db";
 import { MODEL_PRIMARY } from "@/lib/models";
+import { normalizeTitle, normalizeIssueNumber } from "@/lib/normalizeTitle";
 import { recordScanAnalytics, estimateScanCostCents } from "@/lib/analyticsServer";
 
 const anthropic = new Anthropic({
@@ -23,8 +24,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const normalizedTitle = title.trim();
-    const normalizedIssue = issueNumber.toString().trim();
+    const normalizedTitle = normalizeTitle(title);
+    const normalizedIssue = normalizeIssueNumber(issueNumber.toString());
 
     // 1. Check database first (fast lookup)
     try {
