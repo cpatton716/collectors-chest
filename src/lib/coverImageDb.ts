@@ -1,18 +1,8 @@
 import { supabaseAdmin } from "./supabase";
+import { normalizeTitle, normalizeIssueNumber } from "./normalizeTitle";
+import { saveComicMetadata } from "./db";
 
 // --- Pure helpers (exported for testing) ---
-
-export function normalizeTitle(title: string): string {
-  return title
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9\s-]/g, "")
-    .replace(/\s+/g, " ");
-}
-
-export function normalizeIssueNumber(issue: string): string {
-  return issue.toLowerCase().trim().replace(/^#/, "");
-}
 
 export function buildCoverLookupKey(title: string, issue: string): string {
   return `${normalizeTitle(title)}|${normalizeIssueNumber(issue)}`;
@@ -128,6 +118,24 @@ export async function approveCover(
     .eq("id", coverId);
 
   if (error) throw new Error(`Failed to approve cover: ${error.message}`);
+
+  // Sync to comic_metadata so the pipeline uses this cover immediately
+  const { data: coverRow } = await supabaseAdmin
+    .from("cover_images")
+    .select("title_normalized, issue_number, image_url")
+    .eq("id", coverId)
+    .single();
+
+  if (coverRow) {
+    // @ts-expect-error — coverSource and coverValidated added in Task 4
+    await saveComicMetadata({
+      title: coverRow.title_normalized,
+      issueNumber: coverRow.issue_number,
+      coverImageUrl: coverRow.image_url,
+      coverSource: "community",
+      coverValidated: true,
+    });
+  }
 }
 
 /**

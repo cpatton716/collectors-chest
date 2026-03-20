@@ -5,11 +5,13 @@ jest.mock("@/lib/supabase", () => ({
   },
 }));
 
-import {
-  normalizeTitle,
-  normalizeIssueNumber,
-  buildCoverLookupKey,
-} from "../coverImageDb";
+// Mock db to avoid cache.ts → @upstash/redis → uncrypto ESM chain
+jest.mock("../db", () => ({
+  saveComicMetadata: jest.fn(),
+}));
+
+import { normalizeTitle, normalizeIssueNumber } from "../normalizeTitle";
+import { buildCoverLookupKey } from "../coverImageDb";
 
 describe("coverImageDb helpers", () => {
   describe("normalizeTitle", () => {
