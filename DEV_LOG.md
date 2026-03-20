@@ -7,13 +7,52 @@ This log tracks session-by-session progress on Collectors Chest.
 ## Changes Since Last Deploy
 
 **Last Deploy:** March 19, 2026 (Session 23 — eBay Browse API migration)
-**Sessions Since Last Deploy:** 0
-**Deploy Readiness:** Ready
+**Sessions Since Last Deploy:** 1
+**Deploy Readiness:** Needs Migration First
 
 ### Changes Since Last Deploy:
-- Auto-scroll to first field on manual entry (bug fix)
-- Exclude base64 image data from CSV export (bug fix)
-- Cover image validation pipeline design spec written (`docs/superpowers/specs/2026-03-19-cover-image-validation-design.md`) — docs only, no code deploy needed
+- Cover image validation pipeline — full implementation (11 commits, 38 new tests, 15 files)
+- DB migration required: run supabase/migrations/20260320_cover_validation.sql BEFORE deploy
+
+---
+
+## Mar 20, 2026 - Session 24: Cover Image Validation Pipeline Implementation
+
+### Summary
+- Implemented the complete cover image validation pipeline from the design spec (15 rounds of review, ~85 issues addressed in spec)
+- Two-stage pipeline: candidate gathering (Community DB → eBay listings → Open Library) + Gemini 2.0 Flash vision validation
+- Shared title normalization utility (normalizeTitle.ts) — single source of truth for comic_metadata and cover_images queries
+- Query fix: .ilike() → .eq() in all comic_metadata queries, with pre-normalization
+- Redis cache key alignment with DB normalization
+- Rate limiting added to con-mode-lookup route (was missing)
+- Fire-and-forget saves converted to await in 4 routes (Netlify serverless compliance)
+- Code review: 1 blocker (accepted — spec bug), 3 warnings fixed, 3 suggestions deferred
+- 11 commits, 38 new tests (459 total), 15 files changed
+
+### Key Files Created/Modified
+- `src/lib/normalizeTitle.ts` (NEW — shared normalization)
+- `src/lib/coverValidation.ts` (NEW — pipeline core, Gemini validation, URL safety)
+- `src/lib/__tests__/normalizeTitle.test.ts` (NEW — 11 tests)
+- `src/lib/__tests__/coverValidation.test.ts` (NEW — 24 tests)
+- `supabase/migrations/20260320_cover_validation.sql` (NEW — migration SQL)
+- `src/lib/db.ts` (modified — .ilike→.eq, cover fields, conditional upsert)
+- `src/lib/cache.ts` (modified — aligned cache keys)
+- `src/lib/coverImageDb.ts` (modified — shared normalizers, approveCover sync)
+- `src/lib/metadataCache.ts` (modified — SAVEABLE_FIELDS + interface)
+- `src/app/api/con-mode-lookup/route.ts` (modified — pipeline integration, rate limiting)
+- `src/app/api/analyze/route.ts` (modified — pipeline fallback, coverImage rename)
+- 3 other API routes (modified — normalization)
+
+### Issues Encountered
+- Spec bug: normalizeIssueNumber regex only stripped leading # but test case required stripping all #. Fixed in both TS and SQL.
+- coverImageDb import chain issue (db→cache→upstash→uncrypto) required jest.mock in test
+- Review found coverValidated:true set even when pipeline failed — fixed to be conditional
+
+### Where We Left Off
+- Implementation complete on feat/cover-image-validation branch (not merged to main)
+- DB migration SQL ready at supabase/migrations/20260320_cover_validation.sql
+- Must run migration in Supabase SQL Editor BEFORE deploying code
+- After migration + deploy: existing covers re-validate organically on next lookup
 
 ---
 

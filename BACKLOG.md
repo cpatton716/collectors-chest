@@ -317,14 +317,6 @@ Currently on free plan for Gemini. Need to evaluate costs vs Anthropic as scan v
 
 ---
 
-### Cover Image Validation Pipeline
-**Priority:** Medium
-**Status:** Pending
-**Added:** Mar 19, 2026
-
-Gemini-validated covers, eBay image harvesting, and `.ilike()` query fix. Design spec complete, implementation planned.
-
----
 
 ### Re-price Existing Collection Comics
 **Priority:** Medium
@@ -332,6 +324,24 @@ Gemini-validated covers, eBay image harvesting, and `.ilike()` query fix. Design
 **Added:** Mar 19, 2026
 
 After Browse API migration, existing comics show no price until re-looked up. Need an on-demand or batch refresh mechanism to reprice books already in users' collections without requiring manual re-scans.
+
+---
+
+### Cover Validation: Test Coverage for Error Paths
+**Priority:** Medium
+**Status:** Pending
+**Added:** Mar 20, 2026
+
+Add test coverage for Gemini API error paths: NO/error/rate-limit/ambiguous response handling. Tests should verify graceful degradation and proper fallback behavior when Gemini returns non-200 status codes or ambiguous classifications.
+
+---
+
+### Cover Validation: Distinguish "No Cover" from "Unavailable"
+**Priority:** Medium
+**Status:** Pending
+**Added:** Mar 20, 2026
+
+Add `validated` boolean to `CoverPipelineResult` to distinguish between "no cover found" (user/system action) vs "Gemini unavailable" (transient service issue). This enables smarter client-side UI decisions and re-validation retries.
 
 ---
 
@@ -1368,6 +1378,17 @@ Conduct a comprehensive review of launch readiness. Assess feature completeness,
 
 ## Completed
 
+### Cover Image Validation Pipeline
+**Priority:** Medium
+**Status:** ✅ Complete (Mar 20, 2026)
+
+Gemini-validated covers, eBay image harvesting, and `.ilike()` query fix. Full implementation with validation spec covering MIME types, URL validation (IPv4, regex), caching, and error handling for Gemini API timeouts, rate limits, and ambiguous responses.
+
+**Files:**
+- Spec: `docs/superpowers/specs/2026-03-20-cover-validation-spec.md`
+
+---
+
 ### eBay Browse API Migration
 **Priority:** High
 **Status:** ✅ Complete (Mar 19, 2026)
@@ -1903,3 +1924,30 @@ Create a native app wrapper (PWA or native shell) to hide the browser URL bar an
 **Added:** Mar 19, 2026
 
 Open Library has low accuracy for single-issue comics and burns Gemini quota on validation attempts. Consider removing entirely in favor of community covers + eBay image harvesting only.
+
+---
+
+### Batch Re-Validation for CSV Imports
+**Priority:** Low
+**Status:** Pending
+**Added:** Mar 20, 2026
+
+Build a batch re-validation endpoint for CSV-imported comics with missing covers. Allows users to trigger cover validation for entire import batches without requiring individual scans, respecting Gemini rate limits.
+
+---
+
+### Periodic HEAD Check for Cached eBay URLs
+**Priority:** Low
+**Status:** Pending
+**Added:** Mar 20, 2026
+
+Implement a 30-day cycle periodic HEAD check for cached eBay image URLs to detect dead links early. Prevents showing broken images to users and triggers re-harvesting if needed.
+
+---
+
+### IPv6 Private Address Checks in URL Validation
+**Priority:** Low
+**Status:** Pending
+**Added:** Mar 20, 2026
+
+Add IPv6 private address range checks (fd00::/8, fe80::/10, ::1) to URL validation. Currently only validates IPv4 loopback and private ranges; should expand for complete private/loopback detection.

@@ -2,7 +2,7 @@
 
 > **This document is the guiding light for development priorities. It takes precedence over BACKLOG.md.**
 
-*Last Updated: March 19, 2026*
+*Last Updated: March 20, 2026*
 
 ---
 
@@ -77,7 +77,7 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 - ✅ **ebayFinding.ts deleted** — 484 lines of dead code removed
 - ✅ **CSV export fix** — Base64 image data excluded from Cover Image URL column
 - ✅ **Manual entry scroll fix** — Auto-scroll to first field on manual entry
-- ⏳ **Cover image validation pipeline** — Design spec complete (15 rounds review, ~85 issues). Gemini validation, eBay image harvesting, query fix. Implementation next session.
+- ✅ **Cover image validation pipeline** — Full implementation complete (Mar 20, 2026). Two-stage pipeline: candidate gathering (Community → eBay → Open Library) + Gemini 2.0 Flash vision validation. Query fix (.ilike→.eq), shared title normalization, Redis cache alignment. 11 commits, 38 new tests (459 total), 15 files changed. DB migration ready (pre-deploy).
 
 ---
 
@@ -130,7 +130,7 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 
 | Issue | Severity | Status |
 |-------|----------|--------|
-| Test suite | 🟢 Good | 421 tests passing (Mar 19, 2026) |
+| Test suite | 🟢 Good | 459 tests passing (Mar 20, 2026) |
 | ESLint config | 🟢 Fixed | Working with Next.js defaults |
 | Viewport/themeColor metadata | 🟢 Fixed | Migrated to `export const viewport` |
 | Stripe webhook config export | 🟢 Fixed | Deprecated config removed |
