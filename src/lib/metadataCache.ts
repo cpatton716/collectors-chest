@@ -15,6 +15,8 @@ export interface ComicMetadata {
   coverArtist: string | null;
   interiorArtist: string | null;
   coverImageUrl: string | null;
+  coverSource?: string | null;
+  coverValidated?: boolean;
   keyInfo: string[];
   priceData: unknown;
   lookupCount: number;
@@ -40,6 +42,9 @@ const SAVEABLE_FIELDS = [
   "writer",
   "coverArtist",
   "interiorArtist",
+  "coverImageUrl",
+  "coverSource",
+  "coverValidated",
   "keyInfo",
 ] as const;
 
