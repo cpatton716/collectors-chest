@@ -15,8 +15,9 @@ import {
 } from "@/lib/cache";
 import { lookupCertification } from "@/lib/certLookup";
 import { getComicMetadata, getProfileByClerkId, saveComicMetadata, lookupBarcodeCatalog } from "@/lib/db";
-import { isBrowseApiConfigured, searchActiveListings, convertBrowseToPriceData } from "@/lib/ebayBrowse";
+import { isBrowseApiConfigured, searchActiveListings, convertBrowseToPriceData, type BrowsePriceResult } from "@/lib/ebayBrowse";
 import { ComicMetadata, mergeMetadataIntoDetails, buildMetadataSavePayload } from "@/lib/metadataCache";
+import { runCoverPipeline } from "@/lib/coverValidation";
 import { lookupKeyInfo } from "@/lib/keyComicsDatabase";
 import { verifyWithMetron, MetronVerifyResult } from "@/lib/metronVerify";
 import { estimateScanCostCents, trackScanServer, recordScanAnalytics } from "@/lib/analyticsServer";
@@ -66,7 +67,9 @@ interface ComicDetails {
   barcodeNumber?: string | null; // UPC barcode if visible in image (legacy field)
   barcode?: { raw: string; confidence: "high" | "medium" | "low"; parsed?: ParsedBarcode } | null; // Enhanced barcode detection
   dataSource?: "barcode" | "ai" | "cache"; // Track where primary data came from
-  coverImage?: string | null; // Cover image URL (e.g. from Metron)
+  coverImageUrl?: string | null; // Cover image URL (e.g. from Metron or pipeline)
+  coverSource?: string | null; // Where the cover came from (metron, community, ebay, etc.)
+  coverValidated?: boolean; // Whether the cover has been validated
   metronId?: string | null; // Metron database ID for cross-reference
 }
 
@@ -690,6 +693,7 @@ export async function POST(request: NextRequest) {
 
     // Price/Value lookup - Try eBay Browse API for active listings
     let priceDataFound = false;
+    let ebayPriceData: BrowsePriceResult | null = null;
 
     if (comicDetails.title && comicDetails.issueNumber) {
       const isSlabbed = comicDetails.isSlabbed || false;
@@ -717,7 +721,7 @@ export async function POST(request: NextRequest) {
               priceDataFound = true;
           } else if (cachedResult === null || (cachedResult !== null && !("noData" in cachedResult) && (cachedResult as PriceData).priceSource !== "ebay")) {
             // Cache miss or stale AI price — fetch from eBay Browse API
-            const ebayPriceData = await searchActiveListings(
+            ebayPriceData = await searchActiveListings(
               comicDetails.title,
               comicDetails.issueNumber,
               String(grade),
@@ -775,8 +779,10 @@ export async function POST(request: NextRequest) {
             comicDetails.confidence = "high";
           }
           // Use Metron cover image if we don't have one
-          if (metronResult.cover_image && !comicDetails.coverImage) {
-            comicDetails.coverImage = metronResult.cover_image;
+          if (metronResult.cover_image && !comicDetails.coverImageUrl) {
+            comicDetails.coverImageUrl = metronResult.cover_image;
+            comicDetails.coverSource = "metron";
+            comicDetails.coverValidated = false; // Flagged for validation on next lookup
           }
           // Store Metron ID for future reference
           if (metronResult.metron_id) {
@@ -789,7 +795,30 @@ export async function POST(request: NextRequest) {
     }
 
     // ============================================
-    // Save to Metadata Cache (fire-and-forget)
+    // Cover Image Pipeline Fallback
+    // If no cover from Metron, try the pipeline with eBay listing images
+    // ============================================
+    if (!comicDetails.coverImageUrl && comicDetails.title && comicDetails.issueNumber) {
+      try {
+        const pipelineResult = await runCoverPipeline(
+          comicDetails.title,
+          comicDetails.issueNumber,
+          comicDetails.releaseYear || null,
+          comicDetails.publisher || null,
+          { ebayListings: ebayPriceData?.listings }
+        );
+        if (pipelineResult.coverUrl) {
+          comicDetails.coverImageUrl = pipelineResult.coverUrl;
+          comicDetails.coverSource = pipelineResult.coverSource;
+          comicDetails.coverValidated = true;
+        }
+      } catch (coverErr) {
+        console.error("[analyze] Cover pipeline failed:", coverErr);
+      }
+    }
+
+    // ============================================
+    // Save to Metadata Cache (awaited to ensure persistence)
     // ============================================
     const savePayload = buildMetadataSavePayload(
       comicDetails as unknown as Record<string, unknown>
@@ -799,12 +828,14 @@ export async function POST(request: NextRequest) {
         savePayload.title,
         savePayload.issueNumber
       );
-      Promise.all([
-        saveComicMetadata(savePayload),
-        cacheSet(metaSaveKey, savePayload, "comicMetadata"),
-      ]).catch((err) => {
+      try {
+        await Promise.all([
+          saveComicMetadata(savePayload),
+          cacheSet(metaSaveKey, savePayload, "comicMetadata"),
+        ]);
+      } catch (err) {
         console.error("Metadata cache save failed:", err);
-      });
+      }
     }
 
     // ============================================
