@@ -23,7 +23,7 @@ A two-stage cover image pipeline: gather candidates from multiple sources, then 
 | Comic Vine | Removed | API never returned reliable results. Not configured in production. Dead code. |
 | Cache strategy | Validated covers cached permanently; "no cover" cached 7 days | Covers don't change, so permanent cache is safe. 7-day retry ensures new listings/sources are checked periodically. |
 | Existing covers | Re-validated on next lookup | All current covers have `cover_validated: false`, triggering Gemini validation. Flushes bad covers organically. |
-| Query matching | `.eq()` with title normalization | Fixes root cause of wrong cached records. Title case normalization ensures consistent matching. |
+| Query matching | `.eq()` with title normalization | Fixes root cause of wrong cached records. Lowercase normalization ensures consistent matching. |
 
 ## Architecture
 
@@ -43,12 +43,15 @@ Collect cover image URLs from multiple sources. Do not short-circuit — gather 
 
 **eBay candidate selection:** Use the first listing's image URL. eBay's default sort puts the most relevant listing first.
 
+**eBay image selection:** Skip listings where `imageUrl` is undefined. eBay images are seller-uploaded photos (varying quality, may show slabs/angles). They are suitable for Gemini validation ('is this the right comic?') and as display covers when no cleaner source exists. If a community cover or validated Open Library cover becomes available later, it takes priority.
+
 **Stage 2 — Gemini Validation**
 
 Send the best candidate image to Gemini with a vision prompt:
 
 ```
-Is this the cover of [Title] #[Issue] ([Year], [Publisher])?
+Is this a cover of [Title] #[Issue] ([Year], [Publisher])?
+Variant covers, reprints, and different printings of the same issue are acceptable.
 Answer YES or NO. If NO, briefly say what comic this actually appears to be.
 ```
 
@@ -56,10 +59,16 @@ When year or publisher is unknown, omit them from the prompt: `Is this the cover
 
 Flow:
 1. Take the highest-priority non-community candidate (eBay first, then Open Library)
-2. Send image URL to Gemini for validation
+2. Fetch the candidate image into a buffer, base64-encode it, and send to Gemini via `inlineData` for validation
 3. If **YES** → cache the URL with `coverSource` and `coverValidated: true`
 4. If **NO** → try the next candidate
 5. If all candidates fail → cache `coverValidated: true, coverImageUrl: null` (prevents retry for 7 days)
+
+**Latency budget:** Image fetch ~200-500ms, Gemini validation ~1-2s. Total added latency: ~2-3s on first lookup. To avoid blocking the user, **validation runs asynchronously**: the route returns the unvalidated cover image immediately (for display), then validates in the background and updates `comic_metadata`. On subsequent lookups, the validated (or rejected) cover is served from cache. This keeps Key Hunt lookups fast at conventions.
+
+**First-lookup UX:** On first lookup, the client displays the unvalidated cover candidate (or a placeholder if no candidate was found synchronously). On subsequent lookups — including a second scan at the same convention — the validated result is served from cache. No client-side polling is required. The brief window of a potentially wrong cover on first lookup is an acceptable trade-off for fast response times.
+
+**Concurrency guard:** The `coverValidation.ts` pipeline uses an in-memory lock (`Map<string, Promise>` keyed by `title|issue_number`) so concurrent requests for the same comic deduplicate into a single Gemini call. If a validation is already in flight, subsequent requests await the existing promise. In a serverless environment (Netlify Functions), the lock works within a single function invocation lifetime — rare cross-instance duplication is acceptable since the validation result is idempotent.
 
 **Community covers bypass validation** — they are admin-approved and trusted.
 
@@ -78,6 +87,22 @@ Flow:
 | No cover found, `cover_validated: true` | Check `updated_at` — if older than 7 days, retry pipeline |
 | Manual cover submission via community DB | Immediately overrides any cached cover |
 
+**Cache decision pseudocode** (in `coverValidation.ts`):
+```typescript
+function shouldRunPipeline(metadata: ComicMetadata): boolean {
+  // Community covers are always trusted
+  if (metadata.coverSource === 'community') return false;
+  // Already validated with a cover — keep it
+  if (metadata.coverValidated && metadata.coverImageUrl) return false;
+  // Validated but no cover found — retry after 7 days
+  if (metadata.coverValidated && !metadata.coverImageUrl) {
+    return daysSince(metadata.updatedAt) > 7;
+  }
+  // Not yet validated — run pipeline
+  return true;
+}
+```
+
 ### Integration Points
 
 The pipeline replaces the internals of `fetchCoverImage()` in `con-mode-lookup`. In the `analyze` route, which gets covers from Metron, the pipeline is called as a separate validation step when no Metron cover is available or to validate Metron-provided covers.
@@ -93,7 +118,7 @@ The pipeline replaces the internals of `fetchCoverImage()` in `con-mode-lookup`.
 
 | Column | Type | Default | Purpose |
 |--------|------|---------|---------|
-| `cover_source` | TEXT | `NULL` | Where the cover came from: `"community"`, `"ebay"`, `"openlibrary"` |
+| `cover_source` | TEXT | `NULL` | Where the cover came from: `"community"`, `"ebay"`, `"openlibrary"`, `"metron"`, `"comicvine"` |
 | `cover_validated` | BOOLEAN | `false` | Whether Gemini has validated this cover |
 
 ### Re-validation logic
@@ -105,6 +130,10 @@ The pipeline replaces the internals of `fetchCoverImage()` in `con-mode-lookup`.
 | `"ebay"` | `false` | Validate with Gemini |
 | `"openlibrary"` | `true` | Trust — use cached |
 | `"openlibrary"` | `false` | Validate with Gemini |
+| `"metron"` | `true` | Trust — use cached |
+| `"metron"` | `false` | Validate with Gemini |
+| `"comicvine"` | `true` | Trust — use cached |
+| `"comicvine"` | `false` | Validate with Gemini |
 | `null` (no cover) | `true` | Retry after 7 days (check `updated_at`) |
 | `null` | `false` | Run full pipeline |
 
@@ -116,7 +145,27 @@ All current `cover_image_url` values get `cover_source: NULL, cover_validated: f
 -- Add new columns
 ALTER TABLE comic_metadata ADD COLUMN cover_source TEXT;
 ALTER TABLE comic_metadata ADD COLUMN cover_validated BOOLEAN DEFAULT false;
+
+-- Existing covers are preserved with `cover_validated: false` (the default for the new column).
+-- The pipeline will re-validate each cover organically on next lookup — correct covers pass
+-- validation and stay; wrong covers are cleared. This avoids a flash of missing covers for all users.
 ```
+
+### Cleanup: Existing Bad Covers on `comics` Table
+
+The `comics` table stores `cover_image_url` independently of `comic_metadata`. Bad covers from Open Library are already cached on users' collection records. The pipeline fixes future lookups but does not propagate back to individual comic records.
+
+**One-time migration:**
+```sql
+-- Clear Open Library covers from user comics (known unreliable source)
+UPDATE comics
+SET cover_image_url = NULL
+WHERE cover_image_url LIKE '%openlibrary.org%';
+```
+
+Run after deploying the pipeline. Users will see placeholder images until covers are re-fetched through validated lookups. Community-submitted and eBay covers are unaffected.
+
+**Future propagation:** When `comic_metadata` gets a validated cover, the display components should prefer `comic_metadata.cover_image_url` (validated) over the `comics` table cover when available. This is handled at render time in `ComicDetailModal.tsx` and `ComicDetailsForm.tsx` — no schema change needed.
 
 ## Query Fix — `.ilike()` → `.eq()`
 
@@ -132,22 +181,62 @@ In `getComicMetadata()` (`src/lib/db.ts`), change:
 .eq("issue_number", issueNumber)
 ```
 
-**Title normalization:** To prevent case mismatches between save and lookup, normalize titles to title case before both saving and querying. This keeps matching exact but case-consistent.
+**Title normalization:** To prevent case mismatches between save and lookup, normalize titles to lowercase before both saving and querying. This keeps matching exact but case-consistent.
 
 Apply the same fix to `saveComicMetadata()`, `incrementComicLookupCount()`, and any other functions that query `comic_metadata` by title/issue.
 
 ### Title Normalization Consistency
 
-All routes that call `getComicMetadata()` or `saveComicMetadata()` must normalize titles identically before querying or saving. A shared `normalizeTitle()` function ensures consistency:
+All routes that call `getComicMetadata()` or `saveComicMetadata()` must normalize titles identically before querying or saving. Shared `normalizeTitle()` and `normalizeIssueNumber()` functions ensure consistency:
 
 ```typescript
 function normalizeTitle(title: string): string {
-  return title.trim().replace(/\s+/g, ' ');
-  // Preserve original casing — the unique constraint handles deduplication
+  return title.toLowerCase().trim().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, ' ');
+}
+// Lowercase, strip non-alphanumeric characters (except hyphens), and collapse whitespace.
+// Matches the normalization used by `coverImageDb.ts` for consistency across both lookup tables.
+//
+// This function should be defined in a shared utility (e.g., `src/lib/normalizeTitle.ts`) and
+// imported by both `db.ts` and `coverImageDb.ts` to guarantee a single source of truth.
+// Update `coverImageDb.ts` to import from the shared utility instead of defining its own copy.
+
+function normalizeIssueNumber(issue: string): string {
+  return issue.trim().replace(/^#/, '');
 }
 ```
 
-This function is applied in `getComicMetadata()`, `saveComicMetadata()`, and `incrementComicLookupCount()` before any database operation. All five routes (analyze, con-mode-lookup, quick-lookup, comic-lookup, import-lookup) call these shared functions, so normalization is enforced at the database layer, not per-route.
+**Data migration:** Normalize all existing `comic_metadata.title` and `issue_number` values as part of the database migration:
+```sql
+BEGIN;
+-- Both steps MUST run atomically — Step 2 will fail if Step 1 is skipped
+
+-- Step 1: Deduplicate rows that will conflict after title normalization
+-- Keeps the row with the highest lookup_count (most popular)
+DELETE FROM comic_metadata
+WHERE id NOT IN (
+  SELECT DISTINCT ON (
+    LOWER(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(title), '[^a-zA-Z0-9\s\-]', '', 'g'), '\s+', ' ', 'g')),
+    LOWER(REGEXP_REPLACE(TRIM(LEADING '#' FROM TRIM(issue_number)), '\s+', ' ', 'g'))
+  ) id
+  FROM comic_metadata
+  ORDER BY
+    LOWER(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(title), '[^a-zA-Z0-9\s\-]', '', 'g'), '\s+', ' ', 'g')),
+    LOWER(REGEXP_REPLACE(TRIM(LEADING '#' FROM TRIM(issue_number)), '\s+', ' ', 'g')),
+    lookup_count DESC
+);
+
+-- Step 2: Normalize titles and issue numbers
+UPDATE comic_metadata
+SET title = LOWER(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(title), '[^a-zA-Z0-9\s\-]', '', 'g'), '\s+', ' ', 'g')),
+    issue_number = TRIM(LEADING '#' FROM TRIM(issue_number));
+
+COMMIT;
+```
+This prevents duplicate rows from case-variant titles after the `.eq()` switch.
+
+**Deploy ordering:** This migration is a **deploy prerequisite** — it must run in the Supabase SQL Editor BEFORE the application code that calls `normalizeTitle()` goes live. If the migration is delayed, the application's `.eq()` queries will search for lowercase titles while the database still stores mixed-case, causing cache misses on every lookup.
+
+Both functions are applied in `getComicMetadata()`, `saveComicMetadata()`, and `incrementComicLookupCount()` before any database operation. All five routes (analyze, con-mode-lookup, quick-lookup, comic-lookup, import-lookup) call these shared functions, so normalization is enforced at the database layer, not per-route.
 
 ## Files Affected
 
@@ -156,17 +245,22 @@ This function is applied in `getComicMetadata()`, `saveComicMetadata()`, and `in
 |------|---------------|
 | `src/lib/coverValidation.ts` | Gemini validation function, candidate gathering, pipeline orchestration |
 | `src/lib/__tests__/coverValidation.test.ts` | Unit tests for candidate ranking, validation flow, cache logic |
+| `src/lib/normalizeTitle.ts` | Shared title and issue number normalization functions used by both `db.ts` and `coverImageDb.ts` |
 
 ### Modified Files
 | File | What Changes |
 |------|-------------|
-| `src/lib/db.ts` | `.ilike()` → `.eq()` in `getComicMetadata()`, add title normalization, read/write `cover_source` and `cover_validated` fields |
-| `src/app/api/con-mode-lookup/route.ts` | Replace `fetchCoverImage()` internals with new pipeline, pass eBay listing images as candidates |
+| `src/lib/db.ts` | `.ilike()` → `.eq()` in `getComicMetadata()`, `saveComicMetadata()`, and `incrementComicLookupCount()`. Add title normalization. Update `saveComicMetadata()` function signature to accept optional `coverSource?: string` and `coverValidated?: boolean` parameters and include them in the upsert payload. Update `ComicMetadata` interface to include `coverSource` and `coverValidated` in the return type. Update `getComicMetadata()` to read and return the new columns. |
+| `src/app/api/con-mode-lookup/route.ts` | Replace the `fetchCoverImage()` call with a call to `runCoverPipeline(title, issue, year, publisher, { ebayListings: browseResult.listings })` from `coverValidation.ts`. The old `fetchCoverImage()` function can be deleted. |
 | `src/app/api/analyze/route.ts` | Call cover pipeline as a separate validation step when no Metron cover is available or to validate Metron-provided covers. Does not replace `fetchCoverImage()`. |
-| `src/app/api/quick-lookup/route.ts` | Apply `.ilike()` → `.eq()` fix and title normalization. These routes do not fetch covers — they write coverImageUrl only when provided by upstream (e.g., from scan results). No pipeline integration needed. |
+| `src/app/api/quick-lookup/route.ts` | Apply `.ilike()` → `.eq()` fix and title normalization. This route fetches covers from Comic Vine (when configured). **Update the `saveComicMetadata()` call to pass `coverSource: 'comicvine', coverValidated: false` when saving a Comic Vine cover URL.** This ensures Comic Vine covers are flagged for Gemini validation on the next lookup. |
 | `src/app/api/comic-lookup/route.ts` | Apply `.ilike()` → `.eq()` fix and title normalization. These routes do not fetch covers — they write coverImageUrl only when provided by upstream (e.g., from scan results). No pipeline integration needed. |
 | `src/app/api/import-lookup/route.ts` | Apply `.ilike()` → `.eq()` fix and title normalization. These routes do not fetch covers — they write coverImageUrl only when provided by upstream (e.g., from scan results). No pipeline integration needed. |
-| `src/lib/coverImageDb.ts` | No changes needed — `getCommunityCovers()` already uses its own normalized lookup against the `cover_images` table, independent of the `comic_metadata` query path. |
+| `src/app/api/cover-search/route.ts` | Route through the cover validation pipeline. Currently calls Open Library directly with no validation. This route is called by `ComicDetailsForm.tsx`. Update the route to use the `runCoverPipeline()` from `coverValidation.ts`, returning only validated cover URLs. Also add `src/components/ComicDetailsForm.tsx` to the Modified Files table if the API response shape changes. This route is independent of the Key Hunt pipeline and can be implemented and tested separately. |
+| `src/lib/metadataCache.ts` | Add `coverImageUrl`, `coverSource`, and `coverValidated` to the `SAVEABLE_FIELDS` array so the analyze route can persist cover data through `buildMetadataSavePayload()`. Note: this is an intentional behavior change — the analyze route will now persist cover URLs through `buildMetadataSavePayload()` where it previously did not. |
+| `src/lib/coverImageDb.ts` | Import `normalizeTitle` from shared `src/lib/normalizeTitle.ts` instead of defining its own local copy. Ensures a single source of truth for normalization. |
+
+**Read-only consumers:** `src/app/api/hottest-books/route.ts` and `src/app/key-hunt/page.tsx` read `cover_image_url` from `comic_metadata`. No code changes needed — they will serve validated covers organically after the pipeline re-validates each comic. During the transition, existing covers are preserved with `cover_validated: false` and re-validated on next lookup.
 
 ### Database Migration
 | File | What |
