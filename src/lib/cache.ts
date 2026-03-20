@@ -1,4 +1,5 @@
 import { Redis } from "@upstash/redis";
+import { normalizeTitle, normalizeIssueNumber } from "./normalizeTitle";
 
 // Initialize Redis only when environment variables are present
 const redis =
@@ -158,7 +159,7 @@ export function generateEbayPriceCacheKey(
  * Generate cache key for comic metadata lookup
  */
 export function generateComicMetadataCacheKey(title: string, issueNumber: string): string {
-  return `${title.toLowerCase().trim()}|${issueNumber.toLowerCase().trim()}`;
+  return `${normalizeTitle(title)}|${normalizeIssueNumber(issueNumber)}`;
 }
 
 /**

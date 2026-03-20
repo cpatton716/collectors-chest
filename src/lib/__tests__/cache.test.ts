@@ -104,6 +104,21 @@ describe("Cache Key Generation", () => {
       const key = generateComicMetadataCacheKey("Amazing Spider-Man", "300");
       expect(key).toBe("amazing spider-man|300");
     });
+
+    it("normalizes title with special chars to match DB normalization", () => {
+      const key = generateComicMetadataCacheKey("Batman: Year One", "1");
+      expect(key).toBe("batman year one|1");
+    });
+
+    it("strips leading hashes from issue number", () => {
+      const key = generateComicMetadataCacheKey("Batman", "#5");
+      expect(key).toBe("batman|5");
+    });
+
+    it("collapses whitespace in title", () => {
+      const key = generateComicMetadataCacheKey("The  Amazing  Spider-Man", "300");
+      expect(key).toBe("the amazing spider-man|300");
+    });
   });
 
   describe("generateAiAnalyzeCacheKey", () => {
