@@ -127,7 +127,6 @@ export async function approveCover(
     .single();
 
   if (coverRow) {
-    // @ts-expect-error — coverSource and coverValidated added in Task 4
     await saveComicMetadata({
       title: coverRow.title_normalized,
       issueNumber: coverRow.issue_number,

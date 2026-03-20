@@ -2,6 +2,7 @@ import { CollectionItem, SaleRecord, UserList } from "@/types/comic";
 
 import { cacheDelete, cacheGet, cacheSet } from "./cache";
 import { filterCustomKeyInfoForPublic } from "./keyInfoHelpers";
+import { normalizeTitle, normalizeIssueNumber } from "./normalizeTitle";
 import { supabase, supabaseAdmin } from "./supabase";
 
 // Profile management
@@ -490,6 +491,8 @@ export interface ComicMetadata {
     disclaimer: string;
     priceSource?: "ebay";
   } | null;
+  coverSource?: string | null;
+  coverValidated?: boolean;
   lookupCount: number;
   createdAt: string;
   updatedAt: string;
@@ -503,11 +506,14 @@ export async function getComicMetadata(
   title: string,
   issueNumber: string
 ): Promise<ComicMetadata | null> {
+  const normalizedTitle = normalizeTitle(title);
+  const normalizedIssue = normalizeIssueNumber(issueNumber);
+
   const { data, error } = await supabase
     .from("comic_metadata")
     .select("*")
-    .ilike("title", title)
-    .ilike("issue_number", issueNumber)
+    .eq("title", normalizedTitle)
+    .eq("issue_number", normalizedIssue)
     .single();
 
   if (error || !data) return null;
@@ -524,6 +530,8 @@ export async function getComicMetadata(
     coverImageUrl: data.cover_image_url || null,
     keyInfo: data.key_info || [],
     priceData: data.price_data,
+    coverSource: data.cover_source,
+    coverValidated: data.cover_validated,
     lookupCount: data.lookup_count,
     createdAt: data.created_at,
     updatedAt: data.updated_at,
@@ -543,21 +551,29 @@ export async function saveComicMetadata(metadata: {
   coverArtist?: string | null;
   interiorArtist?: string | null;
   coverImageUrl?: string | null;
+  coverSource?: string;
+  coverValidated?: boolean;
   keyInfo?: string[];
   priceData?: ComicMetadata["priceData"];
 }): Promise<void> {
+  const normalizedTitle = normalizeTitle(metadata.title);
+  const normalizedIssue = normalizeIssueNumber(metadata.issueNumber);
+
   const { error } = await supabase.from("comic_metadata").upsert(
     {
-      title: metadata.title,
-      issue_number: metadata.issueNumber,
+      title: normalizedTitle,
+      issue_number: normalizedIssue,
       publisher: metadata.publisher,
       release_year: metadata.releaseYear,
       writer: metadata.writer,
       cover_artist: metadata.coverArtist,
       interior_artist: metadata.interiorArtist,
-      cover_image_url: metadata.coverImageUrl,
       key_info: metadata.keyInfo || [],
       price_data: metadata.priceData,
+      // Conditional spread — only include cover fields when explicitly provided
+      ...(metadata.coverImageUrl !== undefined && { cover_image_url: metadata.coverImageUrl }),
+      ...(metadata.coverSource !== undefined && { cover_source: metadata.coverSource }),
+      ...(metadata.coverValidated !== undefined && { cover_validated: metadata.coverValidated }),
     },
     {
       onConflict: "title,issue_number",
@@ -566,7 +582,10 @@ export async function saveComicMetadata(metadata: {
   );
 
   if (error) {
-    console.error("Error saving comic metadata:", error);
+    if (error.code === "23505") {
+      console.warn("[metadata] Duplicate key violation — possible unnormalized title:", metadata.title);
+    }
+    console.error("[metadata] Save failed:", error);
     // Don't throw - cache failures shouldn't break the app
   }
 }
@@ -575,12 +594,15 @@ export async function saveComicMetadata(metadata: {
  * Increment lookup count for a comic (for analytics/popularity)
  */
 export async function incrementComicLookupCount(title: string, issueNumber: string): Promise<void> {
+  const normalizedTitle = normalizeTitle(title);
+  const normalizedIssue = normalizeIssueNumber(issueNumber);
+
   // The trigger handles incrementing on update, so we just touch the record
   await supabase
     .from("comic_metadata")
     .update({ updated_at: new Date().toISOString() })
-    .ilike("title", title)
-    .ilike("issue_number", issueNumber);
+    .eq("title", normalizedTitle)
+    .eq("issue_number", normalizedIssue);
 }
 
 // ============================================
