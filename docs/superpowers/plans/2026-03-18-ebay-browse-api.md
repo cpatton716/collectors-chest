@@ -705,6 +705,8 @@ Expected: FAIL
 
 > **Implementation note:** Verify the Browse API filter syntax `priceCurrency:USD,buyingOptions:{FIXED_PRICE}` against eBay's current API documentation during implementation. The curly brace syntax may vary.
 
+> **URLSearchParams encoding note:** `URLSearchParams` will URL-encode `{` and `}` to `%7B` and `%7D`. If the eBay Browse API rejects encoded curly braces, construct the URL string manually: `` `${getBaseUrl()}/item_summary/search?q=${encodeURIComponent(keywords)}&category_ids=${categoryId}&filter=priceCurrency:USD,buyingOptions:{FIXED_PRICE}&limit=30` `` instead of using `URLSearchParams`.
+
 Add to `src/lib/ebayBrowse.ts`:
 
 ```typescript
@@ -843,7 +845,7 @@ git commit -m "feat: ebayBrowse search, response parsing, and URL builder"
 ## Task 5: Update API Route — `con-mode-lookup`
 
 **Files:**
-- Modify: `src/app/api/con-mode-lookup/route.ts` (line 8: import, lines 91-271: eBay + AI sections)
+- Modify: `src/app/api/con-mode-lookup/route.ts` (line 8: import, lines 91-315: eBay + AI sections)
 
 - [ ] **Step 1: Swap import from ebayFinding to ebayBrowse**
 
@@ -871,6 +873,19 @@ if (isBrowseApiConfigured()) {
 }
 ```
 
+Also pass `browseResult.totalResults` and `browseResult.searchQuery` to the response when `convertBrowseToPriceData` returns null:
+```typescript
+if (!priceData && browseResult.totalResults > 0) {
+  // Below threshold — pass listing count so UI can show "X active listings found"
+  return NextResponse.json({
+    ...baseResponse,
+    priceData: null,
+    totalListings: browseResult.totalResults,
+    ebaySearchQuery: browseResult.searchQuery,
+  });
+}
+```
+
 - [ ] **Step 3: Remove AI price estimation fallback (Tier 3)**
 
 Remove the Claude API fallback section (lines 181-315 — the entire AI fallback block including scan analytics recording and response return for the AI path — all unreachable without the AI fallback). Keep `fetchKeyInfoFromAI()` call — that provides key issue facts (first appearances, etc.), NOT prices.
@@ -885,11 +900,17 @@ Ensure that when Browse API returns no data or returns fewer than 3 listings, th
 
 > **"No data" caching:** When Browse API returns no results, cache a "no data" marker in Redis for 1 hour (matching the existing pattern in the codebase). This prevents hammering the eBay API for comics with no listings.
 
-> **Transition window note:** Between deploy and running the SQL migration (Task 13), the database cache path (lines 56-85) may still serve cached `priceSource: 'ai'` data. The SQL migration in Task 13 MUST be run promptly after deploy. Add the guard at line 57, before the DB cache is used: `if (dbResult && dbResult.priceData && dbResult.priceData.priceSource !== 'ai')` — if the cached data is AI-sourced, skip it and proceed to Browse API lookup. This prevents serving fabricated AI prices during the transition window between deploy and SQL migration.
+> **Transition window note:** Between deploy and running the SQL migration (Task 13), the database cache path (lines 56-85) may still serve cached `priceSource: 'ai'` data. The SQL migration in Task 13 MUST be run promptly after deploy. Add the guard at line 57, before the DB cache is used: `if (dbResult && dbResult.priceData && dbResult.priceData.priceSource === 'ebay')` — this is the most defensive guard — only eBay-sourced cached data is served from the DB cache. Records with `priceSource: undefined` (pre-migration) or `priceSource: 'ai'` are both skipped. The SQL migration in Task 13 clears these records permanently.
 
 - [ ] **Step 5: Update `ConModeLookupResult` source type**
 
 Update the `ConModeLookupResult` source type at line 34: change `source: "database" | "ebay" | "ai"` to `source: "database" | "ebay"`. The `"ai"` option is no longer possible after removing the AI fallback.
+
+Also add these fields to the `ConModeLookupResult` type:
+```typescript
+totalListings?: number;
+ebaySearchQuery?: string;
+```
 
 - [ ] **Step 6: Note semantic changes to ConModeLookupResult**
 
@@ -933,6 +954,8 @@ Replace the `isFindingApiConfigured()` check and `lookupEbaySoldPrices()` call w
 Add a guard in the Redis cache path (around line 714): if cached price data has `priceSource === 'ai'`, treat it as a cache miss and re-fetch from Browse API. This prevents serving stale AI prices during the transition window.
 
 Modify the cache hit check at line 714 to: `if (!('noData' in cachedResult) && (cachedResult as PriceData).priceSource !== 'ai')` — this skips AI-cached entries during the transition window.
+
+> **Redis transition note:** Cached entries with `priceSource: undefined` (from pre-migration eBay Finding API data) will pass this guard and may serve stale Finding API prices. These entries will naturally expire within 24 hours (the current Redis TTL). No additional handling needed — the data is stale but was originally eBay-sourced, not AI-fabricated.
 
 - [ ] **Step 3: Actively clean up dead AI price estimation code**
 
@@ -982,7 +1005,7 @@ git commit -m "feat: analyze route uses Browse API for pricing"
 
 The `quick-lookup` route does NOT use `ebayFinding.ts` — it generates prices purely through Claude AI. The AI prompt asks for BOTH keyInfo AND pricing. Simply deleting the entire section loses keyInfo. Restructure the Claude prompt (lines 174-205) to only ask for `keyInfo` — remove all pricing-related fields (`estimatedValue`, `gradeEstimates`, `recentSale`) from the prompt schema and response parsing. Keep the keyInfo lookup intact. Set `priceData: null` in the response. Remove the pricing disclaimer at line 233.
 
-Add a transition guard in the DB cache path (around line 112): if cached priceData has `priceSource === 'ai'`, skip it or set `priceData: null`. Prevents serving stale AI prices during transition.
+Add a transition guard in the DB cache path (around line 112): if cached priceData has `priceSource !== 'ebay'` (catches both `'ai'` and `undefined`/`null`), set `priceData: null`. This is more defensive than checking `!== 'ai'` since `quick-lookup` records may have no `priceSource` set.
 
 - [ ] **Step 2: Remove the disclaimer text and fix DB cache disclaimer in quick-lookup**
 
@@ -994,9 +1017,11 @@ For the DB cache path at lines 111-136: if `priceData.priceSource !== 'ebay'`, s
 
 - [ ] **Step 3: Remove AI price generation from comic-lookup**
 
-The `comic-lookup` route generates prices through AI the same way as `quick-lookup`. Update the Claude prompt in `fetchFromClaudeAPI` (lines 229-279) to NOT ask for pricing data — remove the priceData section from the prompt schema. Remove the local `PriceData` interface redeclaration (lines 21-27) if not needed. Remove the pricing disclaimer at lines 314-315. Set `priceData: null` in the response. The `source: 'ai'` in the route response at line 173 refers to the metadata origin (the data came from an AI lookup), NOT price estimation. This is accurate and should remain as-is. Only remove pricing-related AI code, not the metadata source indicator.
+The `comic-lookup` route generates prices through AI the same way as `quick-lookup`. Update the Claude prompt in `fetchFromClaudeAPI` (lines 229-279) to NOT ask for pricing data — remove the priceData section from the prompt schema. Explicitly remove the local `PriceData` interface (lines 21-27) and the `GradeEstimate` interface (lines 14-19) — these are no longer needed since no pricing data is generated. Also remove the `priceData` field from the `saveComicMetadata` call (lines 145-157) — do not save any price data from this route. Set `priceData: null` in both the DB save and the API response. Remove the pricing disclaimer at lines 314-315. The `source: 'ai'` in the route response at line 173 refers to the metadata origin (the data came from an AI lookup), NOT price estimation. This is accurate and should remain as-is. Only remove pricing-related AI code, not the metadata source indicator.
 
-Add a transition guard in the Redis cache path (around line 91): if cached data has AI-sourced pricing, treat as cache miss.
+Add a transition guard in the Redis cache path (around line 91): if cached priceData has `priceSource !== 'ebay'`, set `priceData: null`.
+
+> **Type note:** The local `PriceData` interface (lines 21-27) does not include `priceSource`. Since this interface is being deleted in this step, add the Redis cache guard AFTER deleting the local interface — the cached `ComicLookupResult` object will then use the base `PriceData` type from `comic.ts` which includes `priceSource`. Guard the cache read with: `if (redisCached?.priceData && (redisCached.priceData as Record<string, unknown>).priceSource !== 'ebay') { redisCached.priceData = undefined; }`
 
 Also update the stale disclaimer at lines 116-117 in the DB cache return path: set to `null` — this route does not use eBay, so an eBay disclaimer would be misleading.
 
@@ -1004,7 +1029,7 @@ Also update the stale disclaimer at lines 116-117 in the DB cache return path: s
 
 The `import-lookup` route also generates prices through AI. Update the Claude prompt (lines 69-108) to NOT request `estimatedValue` or `gradeEstimates`. Remove pricing fields from the response parsing. Set `priceData: null`. The `source: 'ai'` in the route response at line 205 refers to the metadata origin (the data came from an AI lookup), NOT price estimation. This is accurate and should remain as-is. Only remove pricing-related AI code, not the metadata source indicator.
 
-Add a transition guard in the DB cache path (around line 31): if cached priceData has AI-sourced pricing, set priceData to null.
+Check `dbResult.priceData.priceSource` on the raw DB result object (at line 32) rather than the reconstructed priceData. Since `import-lookup` never calls eBay, the simplest approach is to always set `priceData: null` in the DB cache response, preserving only keyInfo and metadata. The reconstructed priceData object (lines 35-45) does not include `priceSource`, so checking it on the reconstructed object would always be `undefined`.
 
 Also update the fallback disclaimer at line 43: set to `null` — this route does not use eBay.
 
@@ -1036,9 +1061,15 @@ import { isBrowseApiConfigured, searchActiveListings, convertBrowseToPriceData }
 ```
 Replace `lookupEbaySoldPrices()` call at lines 118-124 with `searchActiveListings()` + `convertBrowseToPriceData()`. Update Redis cache TTL to 12 hours (`12 * 60 * 60`).
 
+Also fix the no-data cache TTL: change `cacheSet(cacheKey, { noData: true }, "ebayPrice")` (line 137) to `cacheSet(cacheKey, { noData: true }, "ebayPrice", 60 * 60)` to use an explicit 1-hour TTL for no-data results, matching the design spec.
+
 Update the file header JSDoc comment (lines 1-16) from 'Fetches recent sold listings from eBay' to 'Fetches active listings from eBay for comic book pricing'.
 
 Also clean up the stale comment at line 148: `// Return graceful failure - let caller use AI estimates` — change it to `// Return graceful failure - no pricing data available`.
+
+- [ ] **Step 2b: Update default eBay cache TTL in cache.ts**
+
+Update `src/lib/cache.ts` line 27: change `ebayPrice: 60 * 60 * 24` (24 hours) to `ebayPrice: 60 * 60 * 12` (12 hours) to match the design spec. This affects all callers using the `ebayPrice` cache prefix. Add `src/lib/cache.ts` to the Task 8 commit.
 
 - [ ] **Step 2: Update hottest-books route**
 
@@ -1055,7 +1086,10 @@ The `fetchEbayPrices` function (lines 79-131) currently extracts `{low, mid, hig
 async function fetchEbayPrices(title: string, issueNumber: string): Promise<{ low: number; mid: number; high: number } | null> {
   const cacheKey = `ebayBrowse:hotbooks:${title}:${issueNumber}`;
   const cached = await cacheGet(cacheKey);
-  if (cached) return cached as { low: number; mid: number; high: number };
+  if (cached) {
+    if ('noData' in (cached as Record<string, unknown>)) return null;
+    return cached as { low: number; mid: number; high: number };
+  }
 
   const result = await searchActiveListings(title, issueNumber);
   if (!result || result.medianPrice === null) {
@@ -1087,7 +1121,7 @@ Expected: No TypeScript errors
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/app/api/ebay-prices/route.ts src/app/api/hottest-books/route.ts
+git add src/app/api/ebay-prices/route.ts src/app/api/hottest-books/route.ts src/lib/cache.ts
 git commit -m "feat: ebay-prices and hottest-books routes use Browse API"
 ```
 
@@ -1116,8 +1150,7 @@ Update the default prop value at line 70 from `source = "ai"` to `source = "ebay
 
 - [ ] **Step 5: Add below-threshold display**
 
-When `totalResults` is provided but price is null (fewer than 3 listings), show:
-"X active listings found" with a link to eBay search.
+When `totalListings` is provided in the API response but `priceData` is null (fewer than 3 listings), show "X active listings found" with a link to eBay search. The `totalListings` and `ebaySearchQuery` fields are passed through from the `ConModeLookupResult` response. Add `totalListings?: number` and `ebaySearchQuery?: string` to the `KeyHuntPriceResultProps` interface.
 
 - [ ] **Step 6: Keep "Recent Sales on eBay" button**
 
@@ -1210,6 +1243,11 @@ Replace hardcoded strings:
 
 - [ ] **Step 4: Update key-hunt/page.tsx**
 
+Before updating hardcoded strings, wire up the below-threshold display data flow:
+- Add `totalListings?: number` and `ebaySearchQuery?: string` to the `LookupResult` interface (lines 63-76)
+- In the con-mode-lookup response handler (around line 356 where `setLookupResult` is called), capture `totalListings` and `ebaySearchQuery` from the API response and include them in the `LookupResult` object
+- At lines 873-905 where `<KeyHuntPriceResult>` is rendered, pass `totalListings={result.totalListings}` and `ebaySearchQuery={result.ebaySearchQuery}` as props
+
 Replace ALL four price-related hardcoded strings:
 - Line 404: `source: "Technopathic Estimate"` → `source: "offline"` (or appropriate source)
 - Line 411: `disclaimer: "Technopathic estimate"` → `disclaimer: null`
@@ -1289,6 +1327,8 @@ In `src/lib/providers/types.ts`:
 - Remove both `PriceEstimationResult` and `PriceEstimationRequest` interfaces.
 - Remove `"priceEstimation"` from the `AICallType` union (line 111).
 - Remove the `priceEstimation` field from `ScanResponseMeta.callDetails` (lines 139-143).
+
+> **Ordering dependency:** Remove `"priceEstimation"` from the `AICallType` union type BEFORE removing the corresponding `case` from the switch statements in `estimateCostCents()`. This prevents a temporary TypeScript exhaustiveness error.
 - **After removing `priceEstimation` from `ScanResponseMeta.callDetails` type, also update `analyze/route.ts` to fully remove the `priceEstimation: null` field from the `_meta.callDetails` object (it was set to null in Task 6 as a bridge).**
 - Verify no other consumers reference these types before deleting.
 
@@ -1298,6 +1338,7 @@ In `src/lib/providers/anthropic.ts`:
 In `src/lib/providers/gemini.ts`:
 - Remove the `estimatePrice` method if present.
 - Remove `PriceEstimationRequest` and `PriceEstimationResult` imports (lines 20-21) — these imports will break compilation when the types are deleted from `types.ts`.
+- Remove `buildPriceEstimationPrompt` import from `gemini.ts` line 10.
 - Remove `case "priceEstimation"` from `estimateCostCents()` (line 133).
 
 In test files:
@@ -1316,6 +1357,11 @@ Change `priceSource?: "ebay" | "ai"` to `priceSource?: "ebay"`. Add this file to
 - [ ] **Step 7: Remove `estimatePrice` from test files**
 
 Remove `estimatePrice` test blocks from `src/lib/providers/__tests__/anthropic.test.ts` (lines 231, 233, 263) and `src/lib/providers/__tests__/gemini.test.ts` (lines 153, 167). Remove `estimatePrice` from mock objects in `src/lib/__tests__/aiProvider.test.ts` (lines 21, 27) and `src/app/api/admin/health-check/__tests__/probeProviders.test.ts` (lines 10, 24). Also remove `priceEstimation: null` from mock objects in `src/components/__tests__/trackScan.test.ts` (lines 25, 47). Add all 5 test files to the commit.
+
+Additionally:
+- Remove the `buildPriceEstimationPrompt` import from `anthropic.test.ts` line 5
+- Remove the entire `describe("buildPriceEstimationPrompt")` block from `anthropic.test.ts` (lines 308-340)
+- Remove the `buildPriceEstimationPrompt` mock from `gemini.test.ts` line 21
 
 - [ ] **Step 8: Run full test suite**
 

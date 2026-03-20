@@ -178,9 +178,10 @@ One-time cleanup to remove fabricated AI prices from the database:
 - Can be run as a SQL script or directly in the Supabase dashboard:
   ```sql
   -- Remove all AI-fabricated price data from cache
+  -- Also clears entries saved without priceSource (e.g., from comic-lookup route)
   UPDATE comic_metadata
   SET price_data = NULL, price_source = NULL
-  WHERE price_source = 'ai';
+  WHERE price_source = 'ai' OR price_source IS NULL;
   ```
 - Run this migration AFTER deploying the Browse API code, so new lookups repopulate with real eBay data
 

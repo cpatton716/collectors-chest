@@ -2,7 +2,7 @@
 
 > **This document is the guiding light for development priorities. It takes precedence over BACKLOG.md.**
 
-*Last Updated: March 18, 2026*
+*Last Updated: March 19, 2026*
 
 ---
 
@@ -10,7 +10,7 @@
 
 Collectors Chest is a comic book collection tracking app with AI-powered cover recognition and a new auction marketplace feature. The app is currently in **Private Beta** with public registration disabled.
 
-**Overall Score: 8.7/10**
+**Overall Score: 8.8/10**
 
 **Current Status: PRIVATE BETA**
 - Site is live at collectors-chest.com
@@ -70,8 +70,14 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 - ✅ **Foil cover UI tip** — Visual indicator for foil covers
 - ✅ **Curated DB enrichment** — 16 copper/modern age keys fleshed out with variant/edition details
 - ✅ **Admin email updated** — All 4 legal pages updated to admin@collectors-chest.com (Mar 18, 2026)
-- ⏳ **eBay Browse API migration** — Design spec + implementation plan written, 8 rounds of sr. engineering review. Replaces dead Finding API with Browse API for real pricing (Mar 18, 2026)
+- ✅ **eBay Browse API migration** — Dead Finding API replaced with Browse API. Real pricing from active eBay listings. 32 files, 33 new tests, 421 total tests passing. Deployed Mar 19, 2026.
 - ✅ **eBay Finding API confirmed dead** — Decommissioned Feb 2025, all calls silently failing. Current prices are AI-fabricated (Mar 18, 2026)
+- ✅ **"Listed Value" labels** — All "Estimated Value", "AI Estimate", "Technopathic Estimate" labels replaced with "Listed Value" across all components
+- ✅ **AI price estimation removed** — All fabricated price code deleted. No more fake prices.
+- ✅ **ebayFinding.ts deleted** — 484 lines of dead code removed
+- ✅ **CSV export fix** — Base64 image data excluded from Cover Image URL column
+- ✅ **Manual entry scroll fix** — Auto-scroll to first field on manual entry
+- ⏳ **Cover image validation pipeline** — Design spec complete (15 rounds review, ~85 issues). Gemini validation, eBay image harvesting, query fix. Implementation next session.
 
 ---
 
@@ -103,7 +109,7 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 | Test Stripe Connect seller flow | ❌ Untested | Seller onboarding, sandbox purchase, verify fee split, test payout to seller bank |
 | Database backup strategy | ⚠️ Planned | **Upgrade to Supabase Pro ($25/mo) before opening registration** - daily backups + 7-day retention |
 | Rate limit on registered user scans | ✅ Done | Free: 10/month, Premium: unlimited |
-| Replace dead eBay Finding API | ⏳ Plan complete | Browse API integration plan written + reviewed. Implementation pending. 32 files affected |
+| Replace dead eBay Finding API | ✅ Done — Browse API deployed Mar 19, 2026 | Browse API integration plan written + reviewed. Deployed Mar 19, 2026. 32 files affected |
 
 ### Medium Priority
 
@@ -124,7 +130,7 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 
 | Issue | Severity | Status |
 |-------|----------|--------|
-| Test suite | 🟢 Good | 386 tests passing (Mar 3, 2026) |
+| Test suite | 🟢 Good | 421 tests passing (Mar 19, 2026) |
 | ESLint config | 🟢 Fixed | Working with Next.js defaults |
 | Viewport/themeColor metadata | 🟢 Fixed | Migrated to `export const viewport` |
 | Stripe webhook config export | 🟢 Fixed | Deprecated config removed |
@@ -135,7 +141,7 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 
 ### Remaining Work
 
-1. ~~**Add test suite**~~ ✅ Done — 386 tests passing (Mar 3, 2026)
+1. ~~**Add test suite**~~ ✅ Done — 421 tests passing (Mar 19, 2026)
 2. **Expand test coverage** - Add tests for auction bid logic, authentication flows, payment webhooks
 
 ---
@@ -326,7 +332,7 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 |---------|--------|
 | Core Collection Management | ✅ Complete |
 | AI Cover Recognition | ✅ Complete |
-| Price Estimates (eBay) | ✅ Complete |
+| Listed Value (eBay Browse API) | ✅ Complete |
 | Grade-Aware Pricing | ✅ Complete |
 | Key Hunt (offline) | ✅ Complete |
 | CSV Import/Export | ✅ Complete |
@@ -401,7 +407,7 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 ### Active Risks ⚠️
 | Risk | Severity | Mitigation |
 |------|----------|------------|
-| ~~No tests~~ | ~~🟡 Medium~~ | ✅ 386 tests passing (Mar 3, 2026) |
+| ~~No tests~~ | ~~🟡 Medium~~ | ✅ 421 tests passing (Mar 19, 2026) |
 | Single AI provider dependency | 🟢 Low | Self-healing model pipeline auto-updates deprecated models. OpenAI fallback available. |
 | Limited deploys | 🟡 Medium | Strategic batching |
 | Auction fraud potential | 🟡 Medium | Add monitoring |
@@ -492,13 +498,20 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 51. ~~**Gemini provider wired as primary**~~ ✅ (Mar 18, 2026) — Was never actually first despite config
 52. ~~**Barcode catalog lookup integrated into scan pipeline**~~ ✅ (Mar 18, 2026)
 53. ~~**eBay search query fix for special characters**~~ ✅ (Mar 18, 2026)
+54. ~~**eBay Browse API migration**~~ ✅ (Mar 19, 2026)
+55. ~~**"Listed Value" labels across all components**~~ ✅ (Mar 19, 2026)
+56. ~~**AI price estimation removed**~~ ✅ (Mar 19, 2026)
+57. ~~**ebayFinding.ts deleted**~~ ✅ (Mar 19, 2026)
+58. ~~**CSV base64 export fix**~~ ✅ (Mar 19, 2026)
+59. ~~**Manual entry scroll fix**~~ ✅ (Mar 19, 2026)
+60. ~~**eBay Developer account verified**~~ ✅ (Mar 19, 2026)
 
 ### Recommended Next Steps
-1. **Validate Gemini as primary provider in production** — Confirm it's actually being used first and compare recognition quality
-2. **Fix remaining scan issues** — Barcode reading accuracy, creator name formatting, "no sales found" UI message
-3. **Evaluate Gemini API costs** — Currently on free plan, need to compare with Anthropic as volume increases
-4. **Populate barcode_catalog from verified scans** — Build up the local barcode database from confirmed matches
-5. **Expand curated key info DB** — Add more vintage keys based on user scanning patterns
+1. **Implement cover image validation pipeline** — Design spec complete, implementation plan needed. Fixes wrong cover images across the app.
+2. **Re-price existing collection** — After Browse API deploy, existing comics show no price. Need mechanism to refresh prices on demand or via batch.
+3. **Session 21 feedback re-test** — 3 items still broken, 8 need retest from production mobile testing
+4. **Validate Gemini as primary provider in production**
+5. **Stripe account setup + payment testing**
 
 ### 🔴 Before Opening Registration (See Section 0)
 
@@ -773,6 +786,7 @@ Items addressed:
 | Mar 6, 2026 | 8.5/10 | +Fixed Start Free Trial button, +Fixed cover lightbox on mobile, +Created FEEDBACK_MAR_6.md |
 | Mar 11, 2026 | 8.7/10 | +All 11 Mar 6 feedback items, +LLC formed, +Age gate, +Show/hide financials, +Grade sort/filter, +Grading company deep links, +Guest homepage fix |
 | Mar 13, 2026 | 8.7/10 | +Legal pages finalized, +Ben-day dots polish, +Hottest Books hidden |
+| Mar 19, 2026 | 8.8/10 | +eBay Browse API (real pricing), +Listed Value labels, +AI estimation removed, +CSV fix, +Manual entry scroll |
 
 ---
 

@@ -6,33 +6,52 @@ This log tracks session-by-session progress on Collectors Chest.
 
 ## Changes Since Last Deploy
 
-**Last Deploy:** March 11, 2026 (Session 19 — deployed during partner meeting)
-**Sessions Since Last Deploy:** 3
-**Deploy Readiness:** Needs Testing — scanner changes require production validation
+**Last Deploy:** March 19, 2026 (Session 23 — eBay Browse API migration)
+**Sessions Since Last Deploy:** 0
+**Deploy Readiness:** Ready
 
-### Changes:
-- Legal pages finalized — all 4 pages (Privacy, ToS, AUP, Cookies) updated with Twisted Jester LLC info
-- Ben-day dots accents added to About, Homepage, and Pricing pages
-- Hottest Books removed from homepage, commented out in navigation
-- Navigation dropdown overflow fix for short viewports
-- About page placeholder text highlighted in red for review
-- **Session 21 (Mar 18):** Addressed all 21 feedback items from production mobile testing
-- Key Info overhaul: keyInfoSource tracking, year disambiguation for 403+ curated entries, production data migration (117 comics reviewed, 53 replaced, 12 cleared)
-- Scanner fixes: SHA-256 image hash (Chamber of Chills fix), atomic scan limit enforcement, AI price source persistence
-- New Gemini fallback provider (Claude → Gemini chain, low-confidence auto-fallback, "Cerebro" badge)
-- Metron API integration as non-blocking verification layer (8 tests)
-- Merged system prompt with vintage/foil/variant expertise
-- Comic Vine cover search now includes year for volume disambiguation
-- UI fixes: Hot Books link, scan limit error message, self-follow prevention, logo red fix, notifications overflow, Key Hunt autofocus, scroll-to-top, select button label, financial toggle race condition, Android layout, public page pop-art styling, action buttons wrapping
-- New features: unlimited signatures for raw books, variant detection in scan prompt, foil cover UI tip
-- Curated DB enriched: 16 copper/modern age keys fleshed out with variant/edition details
-- Gemini provider order fix (was never actually being used as primary despite config)
-- Comic Vine barcode lookup removed entirely (unreliable UPC data)
-- AI price estimation (Call 3) disabled (showing fake prices)
-- Barcode catalog lookup wired into analyze route
-- eBay search special character fix (apostrophes/colons stripped)
-- "No data" cache TTL reduced to 1 hour
-- **Session 22 PM (Mar 18):** eBay Finding API confirmed dead (decommissioned Feb 2025). Designed and planned Browse API replacement with 8 rounds of sr. engineering review. Admin email updated to admin@collectors-chest.com across all legal pages. Testing feedback items re-verified (8 confirmed, 3 broken, 8 need retest).
+### Changes Since Last Deploy:
+- Auto-scroll to first field on manual entry (bug fix)
+- Exclude base64 image data from CSV export (bug fix)
+- Cover image validation pipeline design spec written (`docs/superpowers/specs/2026-03-19-cover-image-validation-design.md`) — docs only, no code deploy needed
+
+---
+
+## Mar 19, 2026 - Session 23: eBay Browse API Migration
+
+### Summary
+- eBay Browse API migration: Replaced dead Finding API (decommissioned Feb 2025) with Browse API for real pricing from active eBay listings. 32 files changed, 1,006 insertions / 1,508 deletions.
+- New `ebayBrowse.ts` module: OAuth 2.0 auth, Browse API search, outlier filtering, grade multipliers (410 lines, 33 new tests)
+- "Listed Value" labels replace "Estimated Value" / "AI Estimate" / "Technopathic Estimate" across all components
+- All AI price estimation code removed — no more fabricated prices
+- Deleted `ebayFinding.ts` (484 lines dead code)
+- eBay Developer account verified — Browse API confirmed working with production credentials
+- SQL migration run in Supabase to clear AI-fabricated prices from both `comic_metadata` and `comics` tables
+- Bug fixes: auto-scroll to first field on manual entry, exclude base64 image data from CSV export
+- Cover image validation pipeline design spec written — 15 rounds of sr. engineering review (~85 issues found and fixed). Addresses wrong cover images (e.g., Batman #423 showing 2000 AD cover). Implementation planned for next session.
+- New env var deployed: `EBAY_CLIENT_SECRET` added to Netlify
+
+### Key Files Created/Modified
+- `src/lib/ebayBrowse.ts` (NEW — OAuth, search, filtering, grade multipliers)
+- `src/lib/__tests__/ebayBrowse.test.ts` (NEW — 33 tests)
+- `src/lib/ebayFinding.ts` (DELETED)
+- 5 API routes updated (analyze, con-mode-lookup, quick-lookup, comic-lookup, import-lookup, ebay-prices, hottest-books)
+- 7 UI components updated
+- `docs/superpowers/specs/2026-03-19-cover-image-validation-design.md` (NEW — cover validation spec)
+
+### Issues Encountered
+- SQL migration initially targeted wrong column (`price_source` doesn't exist — data is inside `price_data` JSONB)
+- Second migration needed for `comics` table (user collection records had cached AI prices)
+- Worktree test runner picked up stale test copies
+
+### Deploy Status
+- Deployed to production during session
+- New env var `EBAY_CLIENT_SECRET` added to Netlify before deploy
+- SQL migrations run post-deploy
+
+### Where We Left Off
+- Cover image validation pipeline design spec is complete and ready for implementation next session
+- 2 post-deploy bug fixes committed (auto-scroll on manual entry, base64 exclusion from CSV export)
 
 ---
 

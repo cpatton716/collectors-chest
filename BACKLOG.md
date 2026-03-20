@@ -317,16 +317,21 @@ Currently on free plan for Gemini. Need to evaluate costs vs Anthropic as scan v
 
 ---
 
-### Replace Dead eBay Finding API with Browse API
-**Priority:** High
-**Status:** Plan Complete — Implementation Pending
-**Added:** Mar 18, 2026
+### Cover Image Validation Pipeline
+**Priority:** Medium
+**Status:** Pending
+**Added:** Mar 19, 2026
 
-eBay Finding API was decommissioned Feb 2025. All pricing calls silently fail, falling back to AI-fabricated estimates. Implementation plan for Browse API replacement has been written and reviewed (8 rounds of sr. engineering review). 13 tasks, 32 files affected. Key changes: "Listed Value" from active listings median, no AI price fallback, 12h cache, database migration to clear fake prices.
+Gemini-validated covers, eBay image harvesting, and `.ilike()` query fix. Design spec complete, implementation planned.
 
-**Files:**
-- Spec: `docs/superpowers/specs/2026-03-18-ebay-browse-api-design.md`
-- Plan: `docs/superpowers/plans/2026-03-18-ebay-browse-api.md`
+---
+
+### Re-price Existing Collection Comics
+**Priority:** Medium
+**Status:** Pending
+**Added:** Mar 19, 2026
+
+After Browse API migration, existing comics show no price until re-looked up. Need an on-demand or batch refresh mechanism to reprice books already in users' collections without requiring manual re-scans.
 
 ---
 
@@ -1363,6 +1368,18 @@ Conduct a comprehensive review of launch readiness. Assess feature completeness,
 
 ## Completed
 
+### eBay Browse API Migration
+**Priority:** High
+**Status:** ✅ Complete (Mar 19, 2026)
+
+Replaced the decommissioned eBay Finding API (shut down Feb 2025) with the Browse API. All pricing calls previously failed silently and fell back to AI-fabricated estimates. 13 tasks, 32 files affected. Key changes: "Listed Value" sourced from active listings median, AI price fallback removed, 12h cache, database migration to clear fake prices.
+
+**Files:**
+- Spec: `docs/superpowers/specs/2026-03-18-ebay-browse-api-design.md`
+- Plan: `docs/superpowers/plans/2026-03-18-ebay-browse-api.md`
+
+---
+
 ### Sort Collection by Grade
 **Priority:** Medium
 **Status:** ✅ Complete (Mar 11, 2026)
@@ -1877,3 +1894,12 @@ Add more vintage key issues to the curated key info database based on user scann
 **Added:** Mar 18, 2026
 
 Create a native app wrapper (PWA or native shell) to hide the browser URL bar and provide a more app-like experience on mobile. Addresses feedback item #16 (browser URL bar showing on public collection).
+
+---
+
+### Remove Open Library from Cover Pipeline
+**Priority:** Low
+**Status:** Pending
+**Added:** Mar 19, 2026
+
+Open Library has low accuracy for single-issue comics and burns Gemini quota on validation attempts. Consider removing entirely in favor of community covers + eBay image harvesting only.
