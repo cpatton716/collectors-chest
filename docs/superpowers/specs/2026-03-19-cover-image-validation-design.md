@@ -269,19 +269,19 @@ BEGIN;
 DELETE FROM comic_metadata
 WHERE id NOT IN (
   SELECT DISTINCT ON (
-    LOWER(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(title), '[^a-zA-Z0-9[:space:]-]', '', 'g'), '\s+', ' ', 'g')),
-    LOWER(REGEXP_REPLACE(TRIM(LEADING '#' FROM TRIM(issue_number)), '\s+', ' ', 'g'))
+    LOWER(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(title), '[^a-zA-Z0-9[:space:]-]', '', 'g'), '[[:space:]]+', ' ', 'g')),
+    LOWER(REGEXP_REPLACE(TRIM(LEADING '#' FROM TRIM(issue_number)), '[[:space:]]+', ' ', 'g'))
   ) id
   FROM comic_metadata
   ORDER BY
-    LOWER(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(title), '[^a-zA-Z0-9[:space:]-]', '', 'g'), '\s+', ' ', 'g')),
-    LOWER(REGEXP_REPLACE(TRIM(LEADING '#' FROM TRIM(issue_number)), '\s+', ' ', 'g')),
+    LOWER(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(title), '[^a-zA-Z0-9[:space:]-]', '', 'g'), '[[:space:]]+', ' ', 'g')),
+    LOWER(REGEXP_REPLACE(TRIM(LEADING '#' FROM TRIM(issue_number)), '[[:space:]]+', ' ', 'g')),
     lookup_count DESC, cover_image_url IS NULL ASC, updated_at DESC
 );
 
 -- Step 2: Normalize titles and issue numbers
 UPDATE comic_metadata
-SET title = LOWER(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(title), '[^a-zA-Z0-9[:space:]-]', '', 'g'), '\s+', ' ', 'g')),
+SET title = LOWER(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(title), '[^a-zA-Z0-9[:space:]-]', '', 'g'), '[[:space:]]+', ' ', 'g')),
     issue_number = LOWER(TRIM(LEADING '#' FROM TRIM(issue_number)));
 
 COMMIT;
@@ -294,7 +294,7 @@ This prevents duplicate rows from case-variant titles after the `.eq()` switch.
 -- Add a functional index as a safety net for case-insensitive uniqueness
 CREATE UNIQUE INDEX IF NOT EXISTS idx_comic_metadata_unique_normalized
 ON comic_metadata (
-  LOWER(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(title), '[^a-zA-Z0-9[:space:]-]', '', 'g'), '\s+', ' ', 'g')),
+  LOWER(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(title), '[^a-zA-Z0-9[:space:]-]', '', 'g'), '[[:space:]]+', ' ', 'g')),
   LOWER(TRIM(LEADING '#' FROM TRIM(issue_number)))
 );
 ```
