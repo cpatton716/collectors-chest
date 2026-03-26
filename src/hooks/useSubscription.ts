@@ -28,6 +28,7 @@ export interface SubscriptionState {
 
   // Trial info
   isTrialing: boolean;
+  trialUsed: boolean;
   trialAvailable: boolean;
   trialEndsAt: Date | null;
   trialDaysRemaining: number;
@@ -57,7 +58,8 @@ export interface SubscriptionState {
   resetTrial: () => Promise<{ success: boolean; error?: string }>; // For testing only
   startCheckout: (
     priceType: "monthly" | "annual" | "scan_pack",
-    withTrial?: boolean
+    withTrial?: boolean,
+    promoTrial?: boolean
   ) => Promise<string | null>;
   openBillingPortal: () => Promise<string | null>;
 }
@@ -113,6 +115,7 @@ export function useSubscription(): SubscriptionState {
         purchasedScans: result.purchasedScans,
         monthResetDate: result.monthResetDate ? new Date(result.monthResetDate) : null,
         isTrialing: result.isTrialing,
+        trialUsed: result.trialUsed ?? false,
         trialAvailable: result.trialAvailable,
         trialEndsAt: result.trialEndsAt ? new Date(result.trialEndsAt) : null,
         trialDaysRemaining: result.trialDaysRemaining,
@@ -139,6 +142,7 @@ export function useSubscription(): SubscriptionState {
         purchasedScans: 0,
         monthResetDate: null,
         isTrialing: false,
+        trialUsed: false,
         trialAvailable: isSignedIn || false,
         trialEndsAt: null,
         trialDaysRemaining: 0,
@@ -221,13 +225,14 @@ export function useSubscription(): SubscriptionState {
   const startCheckout = useCallback(
     async (
       priceType: "monthly" | "annual" | "scan_pack",
-      withTrial = false
+      withTrial = false,
+      promoTrial = false
     ): Promise<string | null> => {
       try {
         const response = await fetch("/api/billing/checkout", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ priceType, withTrial }),
+          body: JSON.stringify({ priceType, withTrial, promoTrial }),
         });
 
         if (!response.ok) {
@@ -282,6 +287,7 @@ export function useSubscription(): SubscriptionState {
       purchasedScans: 0,
       monthResetDate: null,
       isTrialing: false,
+      trialUsed: false,
       trialAvailable: false,
       trialEndsAt: null,
       trialDaysRemaining: 0,

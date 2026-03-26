@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { Check, Crown, Loader2, X, Zap } from "lucide-react";
 import { useSubscription } from "@/hooks/useSubscription";
+import { getPromoTrialFlag, clearPromoTrialFlag } from "@/lib/promoTrial";
+import { getPromoTrialAction } from "@/lib/choosePlanHelpers";
 
 const premiumFeatures = [
   "Unlimited scans",
@@ -28,24 +30,95 @@ const freeFeatures = [
 export default function ChoosePlanPage() {
   const router = useRouter();
   const { user } = useUser();
-  const { startFreeTrial, startCheckout, trialAvailable, tier, isTrialing, isLoading } =
+  const { startFreeTrial, startCheckout, trialAvailable, trialUsed, tier, isTrialing, isLoading } =
     useSubscription();
   const [loading, setLoading] = useState<"trial" | "free" | null>(null);
+  const promoCheckoutStarted = useRef(false);
+  const [promoError, setPromoError] = useState(false);
+  const [promoResolved, setPromoResolved] = useState(false);
+  const [hasPromoFlag] = useState(() => getPromoTrialFlag());
 
   const firstName = user?.firstName || "there";
 
   // Guard: redirect if user already has a plan
   useEffect(() => {
     if (!isLoading && (tier === "premium" || isTrialing)) {
+      clearPromoTrialFlag(); // Clean up stale promo flag
       router.replace("/collection");
     }
   }, [isLoading, tier, isTrialing, router]);
+
+  // Promo auto-checkout effect
+  useEffect(() => {
+    if (!hasPromoFlag || isLoading || promoCheckoutStarted.current) return;
+
+    // Check if user just returned from Stripe cancel — prevent infinite loop
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("billing") === "cancelled") {
+      clearPromoTrialFlag();
+      setPromoResolved(true);
+      return;
+    }
+
+    const promoAction = getPromoTrialAction(hasPromoFlag, trialUsed, tier === "premium");
+
+    // Clear stale promo flag if user can't use it
+    if (promoAction === "none") {
+      clearPromoTrialFlag();
+      setPromoResolved(true);
+      return;
+    }
+
+    promoCheckoutStarted.current = true;
+    startCheckout("monthly", false, true)
+      .then((url) => {
+        if (url) window.location.href = url;
+      })
+      .catch(() => {
+        setPromoError(true);
+        promoCheckoutStarted.current = false;
+      });
+  }, [hasPromoFlag, isLoading, trialUsed, tier, startCheckout]);
 
   // Show loading spinner while subscription state is loading
   if (isLoading) {
     return (
       <div className="min-h-[80vh] flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+      </div>
+    );
+  }
+
+  // Promo loading state
+  if (hasPromoFlag && !promoError && !promoResolved) {
+    return (
+      <div className="min-h-screen bg-pop-yellow flex items-center justify-center">
+        <div className="bg-white border-4 border-pop-black shadow-comic-sm p-6 sm:p-8 text-center max-w-md">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-pop-red" />
+          <h2 className="text-xl font-comic font-bold text-pop-black">Setting up your 30-day free trial...</h2>
+          <p className="text-gray-600 mt-2">You&apos;ll be redirected to enter your payment info.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Promo error state
+  if (hasPromoFlag && promoError) {
+    return (
+      <div className="min-h-screen bg-pop-yellow flex items-center justify-center">
+        <div className="bg-white border-4 border-pop-black shadow-comic-sm p-6 sm:p-8 text-center max-w-md">
+          <h2 className="text-xl font-comic font-bold text-pop-black">Something went wrong</h2>
+          <p className="text-gray-600 mt-2">We couldn&apos;t start your trial. Let&apos;s try again.</p>
+          <button
+            onClick={() => {
+              setPromoError(false);
+              promoCheckoutStarted.current = false;
+            }}
+            className="mt-4 bg-pop-red text-white font-bold py-3 px-6 border-2 border-pop-black shadow-comic-sm hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] active:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-all"
+          >
+            Try Again
+          </button>
+        </div>
       </div>
     );
   }

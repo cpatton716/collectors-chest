@@ -1,5 +1,5 @@
 import { describe, it, expect } from "@jest/globals";
-import { shouldRedirectAway, getTrialAction } from "../choosePlanHelpers";
+import { shouldRedirectAway, getTrialAction, getPromoTrialAction } from "../choosePlanHelpers";
 
 describe("choosePlanHelpers", () => {
   describe("shouldRedirectAway", () => {
@@ -31,6 +31,24 @@ describe("choosePlanHelpers", () => {
 
     it("returns stripeCheckout when trial is not available", () => {
       expect(getTrialAction(false)).toBe("stripeCheckout");
+    });
+  });
+
+  describe("getPromoTrialAction", () => {
+    it('returns "start_promo_checkout" when promo flag is true and trial not used', () => {
+      expect(getPromoTrialAction(true, false, false)).toBe("start_promo_checkout");
+    });
+
+    it('returns "none" when promo flag is false', () => {
+      expect(getPromoTrialAction(false, false, false)).toBe("none");
+    });
+
+    it('returns "none" when trial already used', () => {
+      expect(getPromoTrialAction(true, true, false)).toBe("none");
+    });
+
+    it('returns "none" when already premium', () => {
+      expect(getPromoTrialAction(true, false, true)).toBe("none");
     });
   });
 });

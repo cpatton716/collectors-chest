@@ -83,6 +83,7 @@ export async function GET() {
           : FREE_MONTHLY_SCAN_LIMIT,
       canScan: status.canScan,
       isTrialing: status.isTrialing,
+      trialUsed,
       trialAvailable,
       trialEndsAt: status.trialEndsAt?.toISOString() || null,
       trialDaysRemaining: status.trialDaysRemaining,

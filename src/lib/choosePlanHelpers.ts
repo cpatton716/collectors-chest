@@ -13,3 +13,18 @@ export function shouldRedirectAway(tier: string, isTrialing: boolean): boolean {
 export function getTrialAction(trialAvailable: boolean): "startTrial" | "stripeCheckout" {
   return trialAvailable ? "startTrial" : "stripeCheckout";
 }
+
+/**
+ * Determines if the promo trial checkout should auto-start.
+ * Returns "start_promo_checkout" if conditions are met, "none" otherwise.
+ */
+export function getPromoTrialAction(
+  hasPromoFlag: boolean,
+  trialUsed: boolean,
+  isPremium: boolean
+): "start_promo_checkout" | "none" {
+  if (!hasPromoFlag) return "none";
+  if (trialUsed) return "none";
+  if (isPremium) return "none";
+  return "start_promo_checkout";
+}
