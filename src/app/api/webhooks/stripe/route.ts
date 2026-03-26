@@ -157,8 +157,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
 async function handleScanPackPurchase(profileId: string) {
   const result = await addPurchasedScans(profileId, SCAN_PACK_AMOUNT);
-  if (result.success) {
-  } else {
+  if (!result.success) {
     console.error(`Failed to add scans to profile ${profileId}`);
   }
 }

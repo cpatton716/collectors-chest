@@ -7,12 +7,44 @@ This log tracks session-by-session progress on Collectors Chest.
 ## Changes Since Last Deploy
 
 **Last Deploy:** March 19, 2026 (Session 23 — eBay Browse API migration)
-**Sessions Since Last Deploy:** 1
-**Deploy Readiness:** Needs Migration First
+**Sessions Since Last Deploy:** 2
+**Deploy Readiness:** Needs Migration First + Netlify Env Vars
 
 ### Changes Since Last Deploy:
 - Cover image validation pipeline — full implementation (11 commits, 38 new tests, 15 files)
-- DB migration required: run supabase/migrations/20260320_cover_validation.sql BEFORE deploy
+- Stripe payment integration — products, webhooks, checkout flow, scan pack purchases
+- Post-signup Choose Your Plan page with 7-day trial CTA
+- Billing tab fixes — redirect after purchase, scan count display with purchased scans
+- Profile page hydration fix (dynamic import)
+- Seller Payments loading fix (fallback to default state)
+- Pop-art button styling across Profile/Security/Billing tabs
+- Publisher clickable links on Stats page → filtered collection
+- Sign-up page restored from waitlist to Clerk registration
+- Waitlist/private beta copy removed from SignUpPromptModal and GuestLimitBanner
+- Pricing page "Most Popular" badge overflow fix
+- Display Preferences spacing fix
+- Gemini API cost evaluation completed
+- DB migration still required: run 20260320_cover_validation.sql BEFORE deploy
+- New Netlify env vars required: 7 Stripe variables + NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL
+
+---
+
+## Mar 25, 2026 - Session 25: Stripe Payment Integration & Public Registration
+
+### Summary
+- Stripe payment integration (products, webhook, checkout), post-signup plan selection page, billing tab UX fixes, re-enabled public registration, pop-art button styling, publisher clickable stats, Gemini cost evaluation
+
+### Key Files Created/Modified
+- 10 modified, 4 new (choose-plan page, helpers, tests, plan doc)
+
+### Issues Encountered
+- Hydration errors on profile/stats pages (fixed with dynamic import and sandbox Stripe keys)
+- Seller Payments stuck loading (fixed with fallback state)
+
+### Where We Left Off
+- Stripe integration complete on current branch
+- DB migration still required: run 20260320_cover_validation.sql BEFORE deploy
+- New Netlify env vars required: 7 Stripe variables + NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL
 
 ---
 

@@ -34,11 +34,11 @@ const getSubtitle = (milestone: ValidMilestone, scanCount: number): string => {
 
   switch (milestone) {
     case "fiveRemaining":
-      return `You've scanned ${scanCount} comics! We're in private beta - join the waitlist to get early access.`;
+      return `You've scanned ${scanCount} comics! Create a free account to unlock unlimited scans.`;
     case "threeRemaining":
-      return `Only ${remaining} free scans left! Join the waitlist to be notified when full registration opens.`;
+      return `Only ${remaining} free scans left! Sign up free to unlock unlimited scanning.`;
     case "finalScan":
-      return "This is your final free scan. Join our waitlist to get access when we launch.";
+      return "This is your final free scan. Sign up free to keep scanning.";
   }
 };
 
@@ -76,7 +76,7 @@ const milestoneContent: Record<
       { icon: Infinity, text: "Unlimited comic scans" },
       { icon: Shield, text: "Never lose your collection data" },
     ],
-    ctaText: "Join Waitlist",
+    ctaText: "Sign Up Free",
     dismissText: "Maybe later",
   },
   threeRemaining: {
@@ -84,11 +84,11 @@ const milestoneContent: Record<
     iconBg: "bg-amber-100",
     iconColor: "text-amber-600",
     benefits: [
-      { icon: Infinity, text: "Unlimited scanning when we launch" },
+      { icon: Infinity, text: "Unlimited comic scanning" },
       { icon: Cloud, text: "Your collection saved to the cloud" },
       { icon: Smartphone, text: "Access from any device" },
     ],
-    ctaText: "Join Waitlist",
+    ctaText: "Sign Up Free",
     dismissText: "Maybe later",
   },
   finalScan: {
@@ -100,7 +100,7 @@ const milestoneContent: Record<
       { icon: Cloud, text: "Cloud-synced collection" },
       { icon: Shield, text: "Your data is always safe" },
     ],
-    ctaText: "Join Waitlist",
+    ctaText: "Sign Up Free",
     dismissText: "Use my last scan",
   },
 };
@@ -158,16 +158,11 @@ export function SignUpPromptModal({ milestone, scanCount, onClose }: SignUpPromp
           </div>
           <h2 className="text-2xl font-bold text-gray-900">{title}</h2>
           <p className="text-gray-600 mt-2">{subtitle}</p>
-
-          {/* Beta badge */}
-          <div className="inline-flex items-center gap-2 mt-4 px-3 py-1.5 bg-primary-100 text-primary-700 rounded-full">
-            <span className="text-sm font-medium">Private Beta</span>
-          </div>
         </div>
 
         {/* Benefits */}
         <div className="px-6 pb-6">
-          <p className="text-sm text-gray-500 mb-3">When we launch, you&apos;ll get:</p>
+          <p className="text-sm text-gray-500 mb-3">With a free account, you&apos;ll get:</p>
           <div className="bg-gray-50 rounded-xl p-4 space-y-3">
             {content.benefits.map((benefit, index) => {
               const BenefitIcon = benefit.icon;

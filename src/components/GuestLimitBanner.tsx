@@ -24,8 +24,8 @@ export function GuestLimitBanner({ variant = "info" }: GuestLimitBannerProps) {
           <div className="flex-1">
             <h3 className="font-semibold text-red-800">Free Scan Limit Reached</h3>
             <p className="text-sm text-red-700 mt-1">
-              You&apos;ve used all 10 free scans. Join our waitlist to be notified when full
-              registration opens.
+              You&apos;ve used all 10 free scans. Create a free account to unlock unlimited
+              scanning.
             </p>
             <div className="mt-3 flex gap-3">
               <Link
@@ -33,7 +33,7 @@ export function GuestLimitBanner({ variant = "info" }: GuestLimitBannerProps) {
                 className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium"
               >
                 <Mail className="w-4 h-4" />
-                Join Waitlist
+                Sign Up Free
               </Link>
               <Link
                 href="/sign-in"
@@ -58,15 +58,14 @@ export function GuestLimitBanner({ variant = "info" }: GuestLimitBannerProps) {
               {remaining} Free Scan{remaining !== 1 ? "s" : ""} Remaining
             </h3>
             <p className="text-sm text-amber-700 mt-1">
-              We&apos;re currently in private beta. Join the waitlist to be first in line when we
-              open registration.
+              Sign up for a free account to unlock unlimited scanning and cloud sync.
             </p>
             <Link
               href="/sign-up"
               className="inline-flex items-center gap-2 mt-2 text-sm font-medium text-amber-800 hover:text-amber-900"
             >
               <Sparkles className="w-4 h-4" />
-              Join Waitlist →
+              Sign Up Free →
             </Link>
           </div>
         </div>
@@ -95,7 +94,7 @@ export function GuestLimitBanner({ variant = "info" }: GuestLimitBannerProps) {
             <span className="font-comic text-pop-black text-lg">FREE SCANS LEFT</span>
           </div>
           <Link href="/sign-up" className="font-comic text-pop-black hover:underline">
-            Join waitlist →
+            Sign up free →
           </Link>
         </div>
       </div>

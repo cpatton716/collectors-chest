@@ -2,7 +2,7 @@
 
 > **This document is the guiding light for development priorities. It takes precedence over BACKLOG.md.**
 
-*Last Updated: March 20, 2026*
+*Last Updated: March 25, 2026*
 
 ---
 
@@ -30,7 +30,7 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 - ✅ Offers system API routes
 - ✅ Email notifications via Resend
 - ✅ **DISABLED PUBLIC REGISTRATION** (private beta mode)
-- ⏳ **Premium subscription billing** (code complete, pending Stripe setup)
+- ✅ **Premium subscription billing** — ✅ Stripe products configured, checkout working (Mar 25, 2026)
 - ✅ Scan limits for registered users (10/month free, unlimited premium)
 - ✅ Feature gating (Key Hunt, CSV Export, Stats, Listings)
 - ✅ Pricing page with tier comparison
@@ -78,6 +78,15 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 - ✅ **CSV export fix** — Base64 image data excluded from Cover Image URL column
 - ✅ **Manual entry scroll fix** — Auto-scroll to first field on manual entry
 - ✅ **Cover image validation pipeline** — Full implementation complete (Mar 20, 2026). Two-stage pipeline: candidate gathering (Community → eBay → Open Library) + Gemini 2.0 Flash vision validation. Query fix (.ilike→.eq), shared title normalization, Redis cache alignment. 11 commits, 38 new tests (459 total), 15 files changed. DB migration ready (pre-deploy).
+- ✅ **Stripe payment integration** — Products configured (Premium Monthly $4.99, Premium Annual $49.99, Scan Pack $1.99), webhook setup, checkout flow working, scan pack purchases credited
+- ✅ **Post-signup Choose Your Plan page** — New /choose-plan route with Premium trial CTA and Free option, Clerk redirect configured
+- ✅ **Billing tab UX fixes** — Redirect to billing after purchase, success banner, scan count includes purchased scans
+- ✅ **Public registration re-enabled** — Clerk sign-up restored, waitlist/private beta copy removed
+- ✅ **Pop-art button styling** — Profile, Security, and Billing tab buttons updated to Lichtenstein design
+- ✅ **Publisher clickable on Stats page** — Publisher names link to filtered collection
+- ✅ **Gemini API costs evaluated** — Free tier sufficient for current volume, ~$200/mo at 50K scans
+- ✅ **Seller Payments loading fix** — Fallback to default state instead of infinite loading
+- ✅ **Pricing page "Most Popular" badge fix** — No longer clipped by overflow
 
 ---
 

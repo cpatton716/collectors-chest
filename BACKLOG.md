@@ -69,7 +69,7 @@ Implemented Lichtenstein pop-art design theme with distinct visual identity.
 
 ### Set Up the Business
 **Priority:** Critical
-**Status:** Pending
+**Status:** In Progress
 
 Complete business formation and financial infrastructure before public launch.
 
@@ -83,10 +83,10 @@ Complete business formation and financial infrastructure before public launch.
 
 | Step | Task | Time | Notes |
 |------|------|------|-------|
-| 1 | **Form LLC** | 30 min + 1-7 days processing | ZenBusiness, LegalZoom, or state website ($50-500) |
-| 2 | **Get EIN** | 10 min (instant) | IRS.gov - free, requires LLC first |
-| 3 | **Open Business Bank Account** | 1-2 hours | Requires LLC docs + EIN, get business debit card |
-| 4 | **Set Up Stripe** | 30 min | Use business name, EIN, bank account |
+| 1 | ✅ **Form LLC** | 30 min + 1-7 days processing | ZenBusiness, LegalZoom, or state website ($50-500) |
+| 2 | ✅ **Get EIN** | 10 min (instant) | IRS.gov - free, requires LLC first |
+| 3 | ✅ **Open Business Bank Account** | 1-2 hours | Requires LLC docs + EIN, get business debit card |
+| 4 | ✅ **Set Up Stripe** | 30 min | Use business name, EIN, bank account |
 | 5 | **Update Payment Methods** | 30 min | Switch all services to company card |
 
 **Step 4 - Stripe Configuration Details:**
@@ -309,11 +309,25 @@ Root cause: related to model ID issues causing API failures. Resolved after cent
 ## Pending Enhancements
 
 ### Evaluate Gemini API Costs
-**Priority:** High
-**Status:** Pending
-**Added:** Mar 18, 2026
+**Priority:** Low
+**Status:** ✅ Evaluated (Mar 25, 2026)
 
-Currently on free plan for Gemini. Need to evaluate costs vs Anthropic as scan volume increases. Compare pricing tiers and usage limits.
+Evaluated Gemini vs Anthropic costs for cover recognition at scale.
+
+**Key Findings:**
+- Gemini 2.0 Flash: ~0.4¢/scan (primary provider)
+- Anthropic Claude: ~2.1¢/scan (fallback only)
+- Gemini free tier: 1,500 requests/day (~45K/month)
+- At 1,000 users × 50 scans = 50K scans/month → ~$200/mo on paid Gemini tier
+- Current low volume comfortably fits within free tier
+
+**Monitoring in place:**
+- Scan analytics table with per-scan provider/cost tracking
+- Admin dashboard (/admin/usage) with daily/weekly/monthly spend
+- Email alerts at $3/day and $15/week thresholds
+- PostHog provider usage events
+
+**Action item (future):** Add daily Gemini request counter with alerts at 80% (1,200) and 90% (1,350) of free tier limit. Not urgent until volume increases.
 
 ---
 
@@ -484,8 +498,9 @@ When analyzing a cover image, if a barcode is visible in the photo, detect and u
 
 ### Re-introduce Dedicated Barcode Scanning
 **Priority:** Low
-**Status:** Pending
+**Status:** Pending (Blocked)
 **Added:** Feb 4, 2026
+**Blocked:** Requires a barcode database to be set up first before this feature can proceed.
 
 Re-enable dedicated barcode scanning feature once the crowd-sourced barcode catalog has sufficient data to provide reliable lookups.
 
@@ -1348,7 +1363,7 @@ Update ADMIN_EMAIL GitHub secret from personal Gmail to company email (collector
 
 ### Make Publisher Clickable on Stats Page
 **Priority:** Low
-**Status:** Pending
+**Status:** ✅ Complete (Mar 25, 2026)
 **Added:** Mar 11, 2026
 **Source:** User Feedback (Session 19)
 

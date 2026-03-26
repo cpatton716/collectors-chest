@@ -136,10 +136,12 @@ function CollectionPageContent() {
   useEffect(() => {
     const gradeParam = searchParams.get("grade");
     const gradingCompanyParam = searchParams.get("gradingCompany");
+    const publisherParam = searchParams.get("publisher");
     const sortParam = searchParams.get("sortBy") as SortOption | null;
 
     if (gradeParam) setGradeFilter(gradeParam);
     if (gradingCompanyParam) setGradingCompanyFilter(gradingCompanyParam);
+    if (publisherParam) setPublisherFilter(publisherParam);
     if (sortParam) setSortBy(sortParam);
   }, [searchParams]);
 

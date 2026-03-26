@@ -144,6 +144,8 @@ export function CustomProfilePage() {
     trialDaysRemaining,
     trialEndsAt,
     scansUsed,
+    purchasedScans,
+    scansRemaining,
     monthResetDate,
     trialAvailable,
     startCheckout,
@@ -155,6 +157,7 @@ export function CustomProfilePage() {
   const searchParams = useSearchParams();
   const [connectStatus, setConnectStatus] = useState<ConnectStatus | null>(null);
   const [connectBanner, setConnectBanner] = useState<"success" | "incomplete" | "error" | null>(null);
+  const [billingBanner, setBillingBanner] = useState<"success" | "cancelled" | null>(null);
 
   // Display preferences state
   const [showFinancials, setShowFinancials] = useState(true);
@@ -291,9 +294,21 @@ export function CustomProfilePage() {
         if (res.ok) {
           const data: ConnectStatus = await res.json();
           setConnectStatus(data);
+        } else {
+          // API not available or user has no connect account — show "not connected" state
+          setConnectStatus({
+            connected: false,
+            onboardingComplete: false,
+            completedSales: 0,
+          });
         }
       } catch (error) {
         console.error("Failed to fetch connect status:", error);
+        setConnectStatus({
+          connected: false,
+          onboardingComplete: false,
+          completedSales: 0,
+        });
       }
     }
     fetchConnectStatus();
@@ -316,6 +331,22 @@ export function CustomProfilePage() {
         .then((res) => res.ok ? res.json() : null)
         .then((data) => { if (data) setConnectStatus(data); })
         .catch(() => {});
+    }
+  }, [searchParams]);
+
+  // Handle ?billing= query param from Stripe checkout return
+  useEffect(() => {
+    const billingParam = searchParams.get("billing");
+    if (billingParam === "success" || billingParam === "cancelled") {
+      setBillingBanner(billingParam);
+      setActiveTab("billing");
+      // Clear the query params from URL without navigation
+      const url = new URL(window.location.href);
+      url.searchParams.delete("billing");
+      url.searchParams.delete("type");
+      window.history.replaceState({}, "", url.toString());
+      // Auto-dismiss after 8 seconds
+      setTimeout(() => setBillingBanner(null), 8000);
     }
   }, [searchParams]);
 
@@ -733,7 +764,7 @@ export function CustomProfilePage() {
                   <button
                     onClick={handleUpdateProfile}
                     disabled={!hasProfileChanges || isUpdatingProfile}
-                    className="px-4 py-2 text-sm font-bold text-white bg-pop-blue border-2 border-pop-black hover:shadow-[2px_2px_0px_#000] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    className="px-4 py-2 text-sm font-comic text-pop-black bg-pop-yellow border-2 border-pop-black shadow-comic-sm hover:translate-y-0.5 hover:shadow-none transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                   >
                     {isUpdatingProfile ? (
                       <>
@@ -835,7 +866,7 @@ export function CustomProfilePage() {
                       <button
                         onClick={handleSaveUsername}
                         disabled={!canSaveUsername}
-                        className="px-4 py-2 text-sm font-bold text-white bg-pop-blue border-2 border-pop-black hover:shadow-[2px_2px_0px_#000] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        className="px-4 py-2 text-sm font-comic text-pop-black bg-pop-yellow border-2 border-pop-black shadow-comic-sm hover:translate-y-0.5 hover:shadow-none transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                       >
                         {isSavingUsername ? (
                           <>
@@ -981,7 +1012,7 @@ export function CustomProfilePage() {
                       <button
                         onClick={handleSaveLocation}
                         disabled={!canSaveLocation}
-                        className="px-4 py-2 text-sm font-bold text-white bg-pop-blue border-2 border-pop-black hover:shadow-[2px_2px_0px_#000] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        className="px-4 py-2 text-sm font-comic text-pop-black bg-pop-yellow border-2 border-pop-black shadow-comic-sm hover:translate-y-0.5 hover:shadow-none transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                       >
                         {isSavingLocation ? (
                           <>
@@ -1010,7 +1041,7 @@ export function CustomProfilePage() {
               </div>
 
               {/* Creator Credits Section */}
-              <div className="border-t border-gray-100 pt-8">
+              <div className="border-t border-gray-100 pt-8 mb-8">
                 <h3 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
                   <Shield className="w-4 h-4" />
                   Creator Credits & Feedback
@@ -1069,7 +1100,7 @@ export function CustomProfilePage() {
 
           {/* Display Preferences */}
           {activeTab === "profile" && (
-            <div className="bg-pop-white border-3 border-pop-black p-6" style={{ boxShadow: "4px 4px 0px #000" }}>
+            <div className="bg-pop-white border-3 border-pop-black p-6 mt-8 mb-8" style={{ boxShadow: "4px 4px 0px #000" }}>
               <h3 className="text-lg font-black text-pop-black mb-4">Display Preferences</h3>
               <div className="flex items-center justify-between">
                 <div>
@@ -1100,7 +1131,7 @@ export function CustomProfilePage() {
                 </p>
                 <button
                   onClick={() => openUserProfile()}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2"
+                  className="px-4 py-2 text-sm font-comic text-pop-black bg-pop-yellow border-2 border-pop-black shadow-comic-sm hover:translate-y-0.5 hover:shadow-none transition-all flex items-center gap-2 disabled:opacity-50"
                 >
                   <KeyRound className="w-4 h-4" />
                   Change Password
@@ -1165,7 +1196,7 @@ export function CustomProfilePage() {
                       <p className="text-sm">No connected accounts</p>
                       <button
                         onClick={() => openUserProfile()}
-                        className="mt-2 text-sm text-indigo-600 hover:text-indigo-700"
+                        className="mt-2 px-3 py-1 text-sm font-comic text-pop-black bg-pop-yellow border-2 border-pop-black shadow-comic-sm hover:translate-y-0.5 hover:shadow-none transition-all"
                       >
                         Connect an account
                       </button>
@@ -1220,7 +1251,7 @@ export function CustomProfilePage() {
                           <button
                             onClick={() => handleRevokeSession(session.id)}
                             disabled={isRevokingSession === session.id}
-                            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                            className="p-2 text-pop-black hover:bg-pop-red hover:text-white border-2 border-pop-black transition-all disabled:opacity-50"
                           >
                             {isRevokingSession === session.id ? (
                               <Loader2 className="w-4 h-4 animate-spin" />
@@ -1241,7 +1272,7 @@ export function CustomProfilePage() {
               <div className="border-t border-gray-100 pt-8">
                 <button
                   onClick={() => signOut()}
-                  className="px-4 py-2 text-sm font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors flex items-center gap-2"
+                  className="px-4 py-2 text-sm font-comic text-white bg-pop-red border-2 border-pop-black shadow-comic-sm hover:translate-y-0.5 hover:shadow-none transition-all flex items-center gap-2"
                 >
                   <LogOut className="w-4 h-4" />
                   Sign Out
@@ -1288,6 +1319,30 @@ export function CustomProfilePage() {
                 </div>
               )}
 
+              {/* Billing Checkout Banner */}
+              {billingBanner === "success" && (
+                <div className="bg-green-50 border-2 border-green-300 rounded-lg p-3 flex items-center gap-2">
+                  <Check className="w-5 h-5 text-green-600 flex-shrink-0" />
+                  <p className="font-body text-sm text-green-800">
+                    Purchase successful! Your account has been updated.
+                  </p>
+                  <button onClick={() => setBillingBanner(null)} className="ml-auto text-green-600 hover:text-green-800">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+              {billingBanner === "cancelled" && (
+                <div className="bg-amber-50 border-2 border-amber-300 rounded-lg p-3 flex items-center gap-2">
+                  <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
+                  <p className="font-body text-sm text-amber-800">
+                    Checkout was cancelled. No charges were made.
+                  </p>
+                  <button onClick={() => setBillingBanner(null)} className="ml-auto text-amber-600 hover:text-amber-800">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
               {/* Current Plan */}
               <div className="flex items-start justify-between">
                 <div>
@@ -1319,7 +1374,7 @@ export function CustomProfilePage() {
                   <button
                     onClick={openBillingPortal}
                     disabled={isSubscriptionLoading}
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                    className="flex items-center gap-2 px-4 py-2 font-comic text-pop-black bg-pop-yellow border-2 border-pop-black shadow-comic-sm hover:translate-y-0.5 hover:shadow-none transition-all disabled:opacity-50"
                   >
                     Manage Plan
                     <ExternalLink className="w-4 h-4" />
@@ -1328,7 +1383,7 @@ export function CustomProfilePage() {
                   <button
                     onClick={handleUpgrade}
                     disabled={isSubscriptionLoading}
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-comic text-pop-black bg-pop-green border-2 border-pop-black shadow-comic-sm hover:translate-y-0.5 hover:shadow-none transition-all disabled:opacity-50"
                   >
                     <Crown className="w-4 h-4" />
                     Subscribe Now
@@ -1337,7 +1392,7 @@ export function CustomProfilePage() {
                   <button
                     onClick={handleStartTrial}
                     disabled={isSubscriptionLoading}
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-comic text-pop-black bg-pop-green border-2 border-pop-black shadow-comic-sm hover:translate-y-0.5 hover:shadow-none transition-all disabled:opacity-50"
                   >
                     <Zap className="w-4 h-4" />
                     Start Free Trial
@@ -1345,7 +1400,7 @@ export function CustomProfilePage() {
                 ) : (
                   <Link
                     href="/pricing"
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors"
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-comic text-white bg-pop-blue border-2 border-pop-black shadow-comic-sm hover:translate-y-0.5 hover:shadow-none transition-all"
                   >
                     <Crown className="w-4 h-4" />
                     Upgrade
@@ -1359,22 +1414,35 @@ export function CustomProfilePage() {
                   <h3 className="text-sm font-medium text-gray-700 mb-3">Monthly Usage</h3>
                   <div className="flex items-center gap-4">
                     <div className="flex-1">
-                      <div className="flex justify-between text-sm mb-1">
-                        <span className="text-gray-600">Scans used</span>
-                        <span className="font-medium text-gray-900">{scansUsed} / 10</span>
-                      </div>
-                      <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full rounded-full transition-all ${
-                            scansUsed >= 10
-                              ? "bg-red-500"
-                              : scansUsed >= 7
-                                ? "bg-amber-500"
-                                : "bg-green-500"
-                          }`}
-                          style={{ width: `${Math.min(100, (scansUsed / 10) * 100)}%` }}
-                        />
-                      </div>
+                      {(() => {
+                        const totalAvailable = 10 + (purchasedScans || 0);
+                        const progressPercent = Math.min(100, (scansUsed / totalAvailable) * 100);
+                        return (
+                          <>
+                            <div className="flex justify-between text-sm mb-1">
+                              <span className="text-gray-600">Scans used</span>
+                              <span className="font-medium text-gray-900">{scansUsed} / {totalAvailable}</span>
+                            </div>
+                            <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full transition-all ${
+                                  scansUsed >= totalAvailable
+                                    ? "bg-red-500"
+                                    : scansUsed >= totalAvailable * 0.7
+                                      ? "bg-amber-500"
+                                      : "bg-green-500"
+                                }`}
+                                style={{ width: `${progressPercent}%` }}
+                              />
+                            </div>
+                            {purchasedScans > 0 && (
+                              <p className="text-xs text-gray-500 mt-1">
+                                Includes {purchasedScans} bonus scans from scan pack
+                              </p>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
                   {monthResetDate && (

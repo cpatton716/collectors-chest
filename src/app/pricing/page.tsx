@@ -140,9 +140,9 @@ export default function PricingPage() {
           </div>
 
           {/* Premium Tier */}
-          <div className="bg-pop-blue border-4 border-pop-black p-8 shadow-[6px_6px_0px_#000] relative overflow-hidden text-pop-white">
-            <div className="absolute bottom-0 right-0 w-24 h-24 dots-red opacity-20 pointer-events-none" />
-            <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
+          <div className="bg-pop-blue border-4 border-pop-black p-8 shadow-[6px_6px_0px_#000] relative text-pop-white">
+            <div className="absolute bottom-0 right-0 w-24 h-24 dots-red opacity-20 pointer-events-none overflow-hidden" />
+            <div className="absolute -top-4 left-1/2 transform -translate-x-1/2 z-10">
               <span className="bg-pop-yellow text-pop-black text-xs font-comic px-4 py-1 border-2 border-pop-black shadow-[2px_2px_0px_#000]">
                 MOST POPULAR!
               </span>

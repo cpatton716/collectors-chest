@@ -1320,4 +1320,34 @@ If you encounter bugs or unexpected behavior:
 | 1 | Links to sold listings | Scan a comic in Key Hunt, tap "Check eBay Listings" | Opens eBay filtered to SOLD/completed listings for that comic | Pending |
 | 2 | Search terms accurate | Check the eBay URL parameters | Title, issue number, and relevant details included in search | Pending |
 
-*Last Updated: March 18, 2026*
+### Stripe Checkout Flow (Mar 25, 2026)
+
+**Location:** Profile → Billing Tab / Pricing Page
+
+| # | Test | Steps | Expected | Status |
+|---|------|-------|----------|--------|
+| 1 | Purchase scan pack via pricing page | Navigate to pricing page → Click "Buy Scan Pack" → Complete Stripe checkout | Redirected to billing tab with success banner confirming purchase | Pending |
+| 2 | Scan count increases after purchase | Purchase one scan pack → Check scan counter | Scan count reflects new balance (e.g., 0/20 after one pack) | Pending |
+| 3 | Upgrade to Premium checkout | Click "Upgrade to Premium" → Verify Stripe checkout | Stripe checkout opens with correct premium subscription details | Pending |
+| 4 | Complete premium subscription | Complete premium subscription via Stripe | Billing tab shows "Premium" status with "Manage Plan" button | Pending |
+
+### Choose Your Plan Page (Mar 25, 2026)
+
+**Location:** /choose-plan (after sign-up)
+
+| # | Test | Steps | Expected | Status |
+|---|------|-------|----------|--------|
+| 1 | Redirect after sign-up | Create a new account via sign-up flow | Redirected to /choose-plan page | Pending |
+| 2 | Start free trial | On /choose-plan, click "Start 7-Day Free Trial" | Trial starts and user redirected to collection page | Pending |
+| 3 | Continue with free tier | On /choose-plan, click "Continue with Free" | User redirected to collection page with free tier active | Pending |
+| 4 | Premium user redirect | As a premium user, navigate to /choose-plan | Automatically redirected to collection page (cannot re-choose) | Pending |
+
+### Publisher Clickable on Stats (Mar 25, 2026)
+
+**Location:** Profile → Stats Tab → Publishers Section
+
+| # | Test | Steps | Expected | Status |
+|---|------|-------|----------|--------|
+| 1 | Click publisher filters collection | On Stats page, click a publisher name | Navigates to collection page filtered by that publisher | Pending |
+
+*Last Updated: March 25, 2026*

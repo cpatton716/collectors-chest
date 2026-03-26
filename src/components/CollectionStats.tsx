@@ -270,7 +270,10 @@ export function CollectionStats({ collection, onComicClick }: CollectionStatsPro
             <div className="space-y-4">
               {topPublishers.map((pub, index) => (
                 <div key={pub.publisher} className="space-y-2">
-                  <div className="flex items-center justify-between">
+                  <div
+                    className={`flex items-center justify-between rounded-lg px-2 py-1 transition-colors ${pub.count > 0 ? 'cursor-pointer hover:bg-gray-50' : ''}`}
+                    onClick={pub.count > 0 ? () => router.push(`/collection?publisher=${encodeURIComponent(pub.publisher)}`) : undefined}
+                  >
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium text-gray-500 w-5">{index + 1}.</span>
                       <span className="font-medium text-gray-900">{pub.publisher}</span>

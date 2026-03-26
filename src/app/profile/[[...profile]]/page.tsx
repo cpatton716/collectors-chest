@@ -1,10 +1,21 @@
 "use client";
 
+import dynamic from "next/dynamic";
+
 import { useUser } from "@clerk/nextjs";
 
 import { Loader2 } from "lucide-react";
 
-import { CustomProfilePage } from "@/components/CustomProfilePage";
+const CustomProfilePage = dynamic(
+  () => import("@/components/CustomProfilePage").then((mod) => mod.CustomProfilePage),
+  { ssr: false, loading: () => (
+    <div className="max-w-2xl mx-auto py-8 px-4">
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+      </div>
+    </div>
+  )}
+);
 
 export default function ProfilePage() {
   const { isLoaded, isSignedIn } = useUser();
