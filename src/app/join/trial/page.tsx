@@ -39,21 +39,30 @@ export default function JoinTrialPage() {
           </div>
 
           <ul className="text-left space-y-3 mb-6">
-            {[
-              "Unlimited comic cover scans",
-              "Real-time eBay pricing",
-              "Collection stats & insights",
-              "Key Issue hunting tools",
-              "CSV export your collection",
-              "Buy, sell & auction comics",
-            ].map((benefit) => (
-              <li key={benefit} className="flex items-start gap-2">
-                <span className="text-pop-red font-bold text-lg mt-0.5">
-                  POW!
-                </span>
-                <span className="text-pop-black font-medium">{benefit}</span>
-              </li>
-            ))}
+            <li className="flex items-start gap-2">
+              <span className="text-pop-red font-bold text-lg mt-0.5">POW!</span>
+              <span className="text-pop-black font-medium">Unlimited comic cover scans</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-pop-red font-bold text-lg mt-0.5">BAM!</span>
+              <span className="text-pop-black font-medium">Real-time eBay pricing</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-pop-red font-bold text-lg mt-0.5">ZAP!</span>
+              <span className="text-pop-black font-medium">Collection stats & insights</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-pop-red font-bold text-lg mt-0.5">BOOM!</span>
+              <span className="text-pop-black font-medium">Key Issue hunting tools</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-pop-red font-bold text-lg mt-0.5">WHAM!</span>
+              <span className="text-pop-black font-medium">CSV export your collection</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-pop-red font-bold text-lg mt-0.5">KAPOW!</span>
+              <span className="text-pop-black font-medium">Buy, sell & auction comics</span>
+            </li>
           </ul>
 
           <PromoTrialCTA />
@@ -63,12 +72,12 @@ export default function JoinTrialPage() {
           </p>
         </div>
 
-        <p className="mt-6 text-pop-black font-medium">
-          Already have an account?{" "}
-          <Link href="/sign-in?redirect_url=/choose-plan" className="underline font-bold hover:text-pop-red active:text-pop-red py-3 px-4 inline-block">
+        <div className="mt-6 bg-pop-white border-2 border-pop-black shadow-comic-sm px-6 py-3 text-center">
+          <span className="text-pop-black font-medium">Already have an account? </span>
+          <Link href="/sign-in?redirect_url=/choose-plan" className="font-comic font-bold text-pop-red hover:underline active:underline py-1 px-2 inline-block">
             Sign in
           </Link>
-        </p>
+        </div>
       </div>
     </div>
   );
