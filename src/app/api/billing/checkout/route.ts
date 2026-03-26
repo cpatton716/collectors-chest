@@ -57,9 +57,10 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { priceType, withTrial = false } = body as {
+    const { priceType, withTrial = false, promoTrial = false } = body as {
       priceType: PriceType;
       withTrial?: boolean;
+      promoTrial?: boolean;
     };
 
     if (!priceType || !["monthly", "annual", "scan_pack"].includes(priceType)) {
@@ -69,10 +70,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const priceId = PRICES[priceType];
+    const effectivePriceType = promoTrial ? "monthly" : priceType;
+
+    // Promo trial takes precedence — ignore withTrial if promoTrial is set
+    const effectiveWithTrial = promoTrial ? false : withTrial;
+
+    const priceId = PRICES[effectivePriceType];
     if (!priceId) {
       return NextResponse.json(
-        { error: `Price ID not configured for ${priceType}` },
+        { error: `Price ID not configured for ${effectivePriceType}` },
         { status: 503 }
       );
     }
@@ -94,10 +100,17 @@ export async function POST(request: NextRequest) {
 
     // Check if user has already used trial
     const trialUsed = await hasUsedTrial(profile.id);
-    const canUseTrial = withTrial && !trialUsed && priceType !== "scan_pack";
+
+    // Determine trial period
+    let trialDays: number | undefined;
+    if (promoTrial && !trialUsed) {
+      trialDays = 30;
+    } else if (effectiveWithTrial && !trialUsed && effectivePriceType !== "scan_pack") {
+      trialDays = 7;
+    }
 
     // Check if already premium
-    if (priceType !== "scan_pack") {
+    if (effectivePriceType !== "scan_pack") {
       const status = await getSubscriptionStatus(profile.id);
       if (status?.tier === "premium") {
         return NextResponse.json(
@@ -108,11 +121,18 @@ export async function POST(request: NextRequest) {
     }
 
     // Create checkout session
-    const isSubscription = priceType !== "scan_pack";
+    const isSubscription = effectivePriceType !== "scan_pack";
+
+    const successUrl = promoTrial
+      ? `${process.env.NEXT_PUBLIC_APP_URL}/collection?welcome=promo`
+      : `${process.env.NEXT_PUBLIC_APP_URL}/profile?billing=success&type=${effectivePriceType}`;
+
+    const cancelUrl = promoTrial
+      ? `${process.env.NEXT_PUBLIC_APP_URL}/choose-plan?billing=cancelled`
+      : `${process.env.NEXT_PUBLIC_APP_URL}/pricing?billing=cancelled`;
 
     const sessionConfig: Stripe.Checkout.SessionCreateParams = {
       customer: stripeCustomerId,
-      payment_method_types: ["card"],
       line_items: [
         {
           price: priceId,
@@ -120,26 +140,28 @@ export async function POST(request: NextRequest) {
         },
       ],
       mode: isSubscription ? "subscription" : "payment",
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/profile?billing=success&type=${priceType}`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/pricing?billing=cancelled`,
+      success_url: successUrl,
+      cancel_url: cancelUrl,
       metadata: {
         profileId: profile.id,
-        priceType,
+        priceType: effectivePriceType,
+        ...(promoTrial ? { promoTrial: "true" } : {}),
       },
+      ...(trialDays
+        ? {
+            subscription_data: {
+              trial_period_days: trialDays,
+              metadata: {
+                profileId: profile.id,
+                ...(promoTrial ? { promoTrial: "true" } : {}),
+              },
+            },
+          }
+        : {}),
     };
 
-    // Add trial period for subscriptions if eligible
-    if (isSubscription && canUseTrial) {
-      sessionConfig.subscription_data = {
-        trial_period_days: 7,
-        metadata: {
-          profileId: profile.id,
-        },
-      };
-    }
-
     // For scan packs, add metadata to identify it in webhook
-    if (priceType === "scan_pack") {
+    if (effectivePriceType === "scan_pack") {
       sessionConfig.metadata!.isScanPack = "true";
     }
 
