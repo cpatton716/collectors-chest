@@ -39,28 +39,28 @@ export default function JoinTrialPage() {
           </div>
 
           <ul className="text-left space-y-3 mb-6">
-            <li className="flex items-start gap-2">
-              <span className="text-pop-red font-bold text-lg mt-0.5">POW!</span>
+            <li className="flex items-baseline gap-2">
+              <span className="text-pop-red font-bold text-lg">POW!</span>
               <span className="text-pop-black font-medium">Unlimited comic cover scans</span>
             </li>
-            <li className="flex items-start gap-2">
-              <span className="text-pop-red font-bold text-lg mt-0.5">BAM!</span>
+            <li className="flex items-baseline gap-2">
+              <span className="text-pop-red font-bold text-lg">BAM!</span>
               <span className="text-pop-black font-medium">Real-time eBay pricing</span>
             </li>
-            <li className="flex items-start gap-2">
-              <span className="text-pop-red font-bold text-lg mt-0.5">ZAP!</span>
+            <li className="flex items-baseline gap-2">
+              <span className="text-pop-red font-bold text-lg">ZAP!</span>
               <span className="text-pop-black font-medium">Collection stats & insights</span>
             </li>
-            <li className="flex items-start gap-2">
-              <span className="text-pop-red font-bold text-lg mt-0.5">BOOM!</span>
+            <li className="flex items-baseline gap-2">
+              <span className="text-pop-red font-bold text-lg">BOOM!</span>
               <span className="text-pop-black font-medium">Key Issue hunting tools</span>
             </li>
-            <li className="flex items-start gap-2">
-              <span className="text-pop-red font-bold text-lg mt-0.5">WHAM!</span>
+            <li className="flex items-baseline gap-2">
+              <span className="text-pop-red font-bold text-lg">WHAM!</span>
               <span className="text-pop-black font-medium">CSV export your collection</span>
             </li>
-            <li className="flex items-start gap-2">
-              <span className="text-pop-red font-bold text-lg mt-0.5">KAPOW!</span>
+            <li className="flex items-baseline gap-2">
+              <span className="text-pop-red font-bold text-lg">KAPOW!</span>
               <span className="text-pop-black font-medium">Buy, sell & auction comics</span>
             </li>
           </ul>
