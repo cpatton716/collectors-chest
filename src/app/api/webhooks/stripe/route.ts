@@ -9,7 +9,6 @@ import {
   addPurchasedScans,
   downgradeToFree,
   getProfileByStripeCustomerId,
-  startTrial,
   updateSubscriptionStatus,
   upgradeToPremium,
 } from "@/lib/subscription";
@@ -254,13 +253,19 @@ async function handleSubscriptionCreated(subscription: Stripe.Subscription) {
     Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60; // Default to 30 days
   const currentPeriodEnd = new Date(periodEnd * 1000);
 
-  // Check if this is a trial
-  if (subscription.status === "trialing") {
-    await startTrial(profile.id);
+  const isTrialing = subscription.status === "trialing";
+
+  // Record trial dates directly from Stripe (bypass startTrial guard)
+  if (isTrialing && subscription.trial_end) {
+    const trialEnd = new Date(subscription.trial_end * 1000);
+    await supabaseAdmin.from("profiles").update({
+      trial_started_at: new Date().toISOString(),
+      trial_ends_at: trialEnd.toISOString(),
+    }).eq("id", profile.id);
   }
 
   // Upgrade to premium
-  await upgradeToPremium(profile.id, subscription.id, currentPeriodEnd);
+  await upgradeToPremium(profile.id, subscription.id, currentPeriodEnd, isTrialing);
 }
 
 async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
@@ -317,6 +322,8 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
 // ============================================
 
 async function handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
+  if (invoice.amount_paid === 0) return; // Skip $0 trial invoices. Note: also skips 100% discount coupon invoices — refine if coupons are ever added.
+
   // Only process subscription invoices
   const subscriptionId = (invoice as unknown as { subscription?: string | null }).subscription;
   if (!subscriptionId) return;

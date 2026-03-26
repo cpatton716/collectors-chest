@@ -540,18 +540,24 @@ export async function getProfileByStripeCustomerId(
 export async function upgradeToPremium(
   profileId: string,
   stripeSubscriptionId: string,
-  currentPeriodEnd: Date
+  currentPeriodEnd: Date,
+  isTrialing: boolean = false
 ): Promise<void> {
+  const updates: Record<string, unknown> = {
+    subscription_tier: "premium",
+    subscription_status: isTrialing ? "trialing" : "active",
+    stripe_subscription_id: stripeSubscriptionId,
+    subscription_current_period_end: currentPeriodEnd.toISOString(),
+  };
+
+  // Only clear trial_ends_at if not trialing (they converted to paid)
+  if (!isTrialing) {
+    updates.trial_ends_at = null;
+  }
+
   await supabaseAdmin
     .from("profiles")
-    .update({
-      subscription_tier: "premium",
-      subscription_status: "active",
-      stripe_subscription_id: stripeSubscriptionId,
-      subscription_current_period_end: currentPeriodEnd.toISOString(),
-      // Clear trial if active (they converted)
-      trial_ends_at: null,
-    })
+    .update(updates)
     .eq("id", profileId);
 }
 
@@ -566,6 +572,7 @@ export async function downgradeToFree(profileId: string): Promise<void> {
       subscription_status: "active",
       stripe_subscription_id: null,
       subscription_current_period_end: null,
+      trial_ends_at: null,
     })
     .eq("id", profileId);
 }
