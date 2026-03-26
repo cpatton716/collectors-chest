@@ -1350,4 +1350,40 @@ If you encounter bugs or unexpected behavior:
 |---|------|-------|----------|--------|
 | 1 | Click publisher filters collection | On Stats page, click a publisher name | Navigates to collection page filtered by that publisher | Pending |
 
+---
+
+## Promo Trial Link (/join/trial)
+
+### Landing Page
+
+| Test | Steps | Expected | Status |
+|------|-------|----------|--------|
+| Page loads for unauthenticated user | Visit /join/trial in incognito | See landing page with Convention Special, benefits, CTA | |
+| Signed-in user redirects | Visit /join/trial while logged in | Redirect to /choose-plan | |
+| CTA shows loading state | Tap "Start Your Free Trial" | Button shows "Loading..." then navigates to /sign-up | |
+| Sign-in link works | Tap "Sign in" link | Navigate to /sign-in with redirect to /choose-plan | |
+| Ben-day dots visible | Check background on mobile and desktop | Dot pattern visible on both | |
+| Promo flag expires | Visit /join/trial, wait 7+ days, visit /choose-plan | Normal plan selection shown (no auto-checkout) | |
+
+### Promo Checkout Flow
+
+| Test | Steps | Expected | Status |
+|------|-------|----------|--------|
+| Full flow (new user) | /join/trial → sign up → choose-plan → Stripe → collection | Auto-checkout, 30-day trial, lands on /collection?welcome=promo | |
+| Stripe shows trial info | Complete checkout with test card | Stripe page shows "30-day free trial" and "$4.99/month after" | |
+| Card declined retry | Enter failing test card, then retry | Stripe shows inline error, user can retry | |
+| Back from Stripe | Hit back on Stripe checkout | Returns to /choose-plan with normal plan selection (no loop) | |
+| One trial per user | Complete promo trial, cancel, scan QR again | No trial offered, charged immediately | |
+| Existing 7-day trial user | User who used 7-day trial scans QR | No promo trial, sees normal choose-plan page | |
+| Existing premium user | Premium user scans QR | Redirects to /collection | |
+
+### Webhook & Subscription
+
+| Test | Steps | Expected | Status |
+|------|-------|----------|--------|
+| Trial dates recorded | Complete promo checkout, check Supabase | trial_started_at and trial_ends_at set correctly | |
+| Trial converts to paid | Wait for trial to end (or use Stripe test clock) | Status changes from trialing to active, $4.99 charged | |
+| Cancel during trial | Cancel subscription in Stripe portal | Downgraded to free, trial_ends_at cleared | |
+| Google/Apple Pay available | Open Stripe checkout on mobile | Wallet payment options shown | |
+
 *Last Updated: March 25, 2026*

@@ -6,9 +6,9 @@ This log tracks session-by-session progress on Collectors Chest.
 
 ## Changes Since Last Deploy
 
-**Last Deploy:** March 19, 2026 (Session 23 — eBay Browse API migration)
-**Sessions Since Last Deploy:** 2
-**Deploy Readiness:** Needs Migration First + Netlify Env Vars
+**Last Deploy:** March 26, 2026 (Session 26 — 30-day promo trial link)
+**Sessions Since Last Deploy:** 3
+**Deploy Readiness:** Deployed (March 26, 2026)
 
 ### Changes Since Last Deploy:
 - Cover image validation pipeline — full implementation (11 commits, 38 new tests, 15 files)
@@ -24,8 +24,44 @@ This log tracks session-by-session progress on Collectors Chest.
 - Pricing page "Most Popular" badge overflow fix
 - Display Preferences spacing fix
 - Gemini API cost evaluation completed
-- DB migration still required: run 20260320_cover_validation.sql BEFORE deploy
-- New Netlify env vars required: 7 Stripe variables + NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL
+- 30-day promo trial link (/join/trial) — QR code landing page for conventions, auto-checkout with Stripe, server-rendered
+- Webhook improvements — direct trial date write from Stripe, $0 invoice guard, downgrade clears trial_ends_at
+- Google Pay / Apple Pay enabled on Stripe checkout
+- Checkout route uses getOrCreateProfile for new sign-ups
+- Ben-day dots visibility improved for desktop
+- DB migration run: 20260320_cover_validation.sql
+- Netlify env vars configured, deployed to production
+
+---
+
+## Mar 26, 2026 - Session 26: 30-Day Promo Trial Link for Conventions
+
+### Summary
+- Built /join/trial landing page for QR code convention sign-ups with 30-day free Premium trial
+- Server-rendered page with Lichtenstein pop-art design, comic sound effect bullets (POW!, BAM!, ZAP!, BOOM!, WHAM!, KAPOW!)
+- Stripe checkout auto-starts from choose-plan page with 30-day trial on monthly plan ($4.99/mo after)
+- Webhook writes trial dates directly from Stripe data (bypasses startTrial guard)
+- $0 trial invoice guard prevents status overwrite
+- downgradeToFree() now clears trial_ends_at
+- Google Pay / Apple Pay enabled (removed payment_method_types restriction)
+- Fixed profile creation race condition for new promo sign-ups
+- Plan went through 5 rounds of deep-dive reviews (general, convention UX, Stripe audit)
+- Deployed to production, DB migration run
+
+### Key Files Created/Modified
+- 3 new: join/trial/page.tsx, PromoTrialActivator.tsx, PromoTrialCTA.tsx
+- 2 new: promoTrial.ts + tests, choosePlanHelpers tests
+- 8 modified: checkout route, webhook, subscription.ts, choose-plan page, useSubscription, billing status, choosePlanHelpers
+
+### Issues Encountered
+- Profile not found on new sign-ups (checkout used getProfileByClerkId instead of getOrCreateProfile — fixed)
+- Stripe success redirect used localhost URL on mobile (NEXT_PUBLIC_APP_URL env var issue — fixed in Netlify)
+- Ben-day dots too subtle on desktop (increased opacity and dot size)
+
+### Where We Left Off
+- Promo trial feature complete and deployed
+- QR code URL ready: https://collectors-chest.com/join/trial
+- Stripe Connect seller payouts still untested (deferred to future session)
 
 ---
 

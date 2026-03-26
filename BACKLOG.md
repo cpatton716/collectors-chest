@@ -359,6 +359,42 @@ Add `validated` boolean to `CoverPipelineResult` to distinguish between "no cove
 
 ---
 
+### Per-Event Promo Tracking
+**Priority:** Medium
+**Status:** Pending
+**Added:** Mar 26, 2026
+
+Add `?ref=heroescon` (or similar) query param support to `/join/trial` so convention-specific QR codes can be tracked separately in analytics. Log the ref param to PostHog on page load and associate it with the resulting signup.
+
+---
+
+### Per-Event Promo Codes
+**Priority:** Medium
+**Status:** Pending
+**Added:** Mar 26, 2026
+
+Build a `/join/[code]` dynamic route backed by a DB table of promo configs. Each code can define trial length, price, messaging, and expiry date. Enables distinct QR codes per convention without code changes.
+
+---
+
+### Welcome Toast for Promo Users
+**Priority:** Medium
+**Status:** Pending
+**Added:** Mar 26, 2026
+
+On `/collection?welcome=promo`, show a dismissible toast or banner: "Your 30-day trial is active!" to confirm the promo checkout succeeded and orient new users.
+
+---
+
+### Trial Expiration Reminder Email
+**Priority:** Medium
+**Status:** Pending
+**Added:** Mar 26, 2026
+
+Send an automated email a few days before the 30-day promo trial ends reminding users their trial is expiring and prompting them to keep their subscription active. Use Resend + a Supabase-triggered or cron-based job.
+
+---
+
 ### Auto-Harvest Cover Images from Graded Book Scans
 **Priority:** High
 **Status:** Pending

@@ -2,7 +2,7 @@
 
 > **Comprehensive map of pages, features, and service dependencies**
 
-*Last Updated: March 25, 2026 (Added Stripe integration details, /choose-plan route)*
+*Last Updated: March 26, 2026 (Full codebase audit — Gemini replaces OpenAI as fallback, cover validation pipeline, missing routes/libs/env vars added)*
 
 ---
 
@@ -13,7 +13,7 @@
 | 🔐 | **Clerk** | Authentication |
 | 🗄️ | **Supabase** | Database (PostgreSQL) |
 | 🤖 | **Anthropic/Claude** | AI analysis (primary) |
-| 🤖² | **OpenAI/GPT-4o** | AI analysis (fallback) |
+| 🤖² | **Google/Gemini** | AI analysis (primary for vision) |
 | 💰 | **Stripe** | Payments |
 | 📧 | **Resend** | Email |
 | 🔴 | **Upstash Redis** | Cache/Rate limiting |
@@ -41,11 +41,12 @@
 
 | Feature | Services | Notes |
 |---------|----------|-------|
-| AI Cover Recognition | 🤖 🤖² 🔴 | Multi-provider: Anthropic primary, OpenAI fallback |
+| AI Cover Recognition | 🤖 🤖² 🔴 | Multi-provider: Gemini primary, Anthropic fallback |
 | Barcode Scanning | 🤖 🗄️ | Barcode catalog lookup, AI fallback |
 | Price Estimation | 🏷️ 🗄️ 🔴 | eBay API → Supabase cache → Redis |
 | Fallback Status | — | "Taking longer than usual" message when fallback triggers |
 | CGC/CBCS Cert Lookup | Web scrape | Verifies graded comic certification |
+| Cover Validation | 🤖² 🗄️ | Gemini-powered cover image validation pipeline |
 | Key Info Lookup | 🗄️ | 402 curated key comics database |
 | Suggest Key Info | 🗄️ 🔐 | Community submissions for key facts |
 | Scan Limits | 💾 🗄️ | Guest 5, Free 10/mo, Pro unlimited |
@@ -181,12 +182,13 @@ Manage comic trades with three tabs:
 
 ---
 
-### Notification Settings (`/settings/notifications`)
+### Settings (`/settings/notifications`, `/settings/preferences`)
 
 | Feature | Services | Notes |
 |---------|----------|-------|
 | Push Notifications Toggle | 🗄️ 🔐 | Enable/disable browser push |
 | Email Notifications Toggle | 🗄️ 🔐 | Enable/disable email alerts |
+| Display Preferences | 🗄️ 🔐 | Show/hide financial data (show_financials toggle) |
 | Auto-save | — | Changes saved immediately on toggle |
 
 ---
@@ -237,6 +239,14 @@ Manage comic trades with three tabs:
 
 ---
 
+### About Page (`/about`)
+
+| Feature | Services | Notes |
+|---------|----------|-------|
+| About Page | — | Static informational page about the platform |
+
+---
+
 ### Legal Pages (`/privacy`, `/terms`, `/cookies`, `/acceptable-use`)
 
 | Feature | Services | Notes |
@@ -269,6 +279,34 @@ Manage comic trades with three tabs:
 | Start Free Trial | 🗄️ 🔐 | 7-day free trial activation |
 | Scan Pack Purchase | 💰 🔐 | $1.99 for 10 additional scans |
 | Current Subscription Status | 🗄️ 🔐 | Shows active plan, trial status, scan usage |
+| Promo Auto-Checkout | 💰 💾 | Detects `promoTrial` localStorage flag on mount, auto-initiates Stripe checkout with 30-day trial on monthly plan |
+
+**Promo trial notes:**
+- On mount, useEffect checks for valid `promoTrial` flag in localStorage; if present and user has no active subscription, auto-redirects to checkout
+- Guards against infinite loop when returning from cancelled Stripe session (`billing=cancelled` query param suppresses re-trigger)
+- Shows dedicated loading and error states during promo checkout initiation
+
+---
+
+### Promo Trial Landing (`/join/trial`)
+
+Server-rendered landing page for convention QR code sign-ups. Three files:
+
+| File | Type | Purpose |
+|------|------|---------|
+| `src/app/join/trial/page.tsx` | Server component | Renders the landing page |
+| `src/app/join/trial/PromoTrialActivator.tsx` | Client component | Sets `promoTrial` flag in localStorage; redirects signed-in users directly to `/choose-plan` |
+| `src/app/join/trial/PromoTrialCTA.tsx` | Client component | CTA button with loading state that triggers sign-up flow |
+
+**Promo trial user flow:**
+```
+QR Code (convention) → /join/trial
+  → PromoTrialActivator sets localStorage flag (7-day expiry)
+  → Signed-in user? → /choose-plan (auto-checkout triggers)
+  → Guest? → /sign-up (Clerk) → /choose-plan (auto-checkout triggers)
+    → Stripe checkout (30-day trial, monthly plan)
+    → /collection?welcome=promo
+```
 
 ---
 
@@ -339,13 +377,33 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
 
 ---
 
+## Middleware (`src/middleware.ts`)
+
+Clerk middleware protects specific routes requiring authentication:
+
+| Protected Route Pattern | Notes |
+|------------------------|-------|
+| `/admin(.*)` | All admin pages |
+| `/api/admin(.*)` | All admin API routes |
+| `/api/billing(.*)` | All billing API routes |
+| `/api/watchlist(.*)` | Watchlist management |
+| `/api/notifications(.*)` | Notification management |
+| `/api/sharing(.*)` | Collection sharing |
+| `/api/key-hunt(.*)` | Hunt list management |
+| `/api/auctions/:id/bid(.*)` | Placing bids |
+| `/api/auctions/:id/buy-now(.*)` | Buy Now purchases |
+
+All other routes are public (unauthenticated access allowed). Individual API routes may perform their own auth checks internally.
+
+---
+
 ## API Routes
 
 ### AI & Recognition
 
 | Route | Method | Purpose | Services |
 |-------|--------|---------|----------|
-| `/api/analyze` | POST | Cover image analysis (multi-provider with fallback) | 🤖 🤖² 🗄️ 🔴 🏷️ |
+| `/api/analyze` | POST | Cover image analysis (multi-provider with fallback) + cover validation | 🤖 🤖² 🗄️ 🔴 🏷️ |
 | `/api/quick-lookup` | POST | Fast barcode + pricing | 🗄️ 🤖 |
 | `/api/comic-lookup` | POST | Title/issue lookup | 🤖 🗄️ 🔴 |
 | `/api/con-mode-lookup` | POST | Key Hunt pricing | 🏷️ 🤖 🗄️ |
@@ -403,6 +461,7 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
 | `/api/users/[userId]/block` | POST/DELETE | Block/unblock user | 🗄️ 🔐 |
 | `/api/users/blocked` | GET | List blocked users | 🗄️ 🔐 |
 | `/api/settings/notifications` | GET/PATCH | Notification preferences | 🗄️ 🔐 |
+| `/api/settings/preferences` | GET/PATCH | Display preferences (show_financials) | 🗄️ 🔐 |
 
 ### Sellers & Sharing
 
@@ -421,6 +480,11 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
 | `/api/billing/status` | GET | Subscription status | 🗄️ 🔐 |
 | `/api/billing/start-trial` | POST | Start free trial | 🗄️ 🔐 |
 | `/api/billing/reset-trial` | POST | Reset trial period | 🗄️ 🔐 |
+
+**`/api/billing/checkout` — promo trial behavior:**
+- Accepts optional `promoTrial: true` param; when present, forces monthly price, adds `subscription_data.trial_period_days: 30`
+- Dynamic `success_url` (`/collection?welcome=promo`) and `cancel_url` (`/choose-plan?billing=cancelled`) when promo is active
+- Google Pay and Apple Pay enabled via `payment_method_types` when promo is active
 
 ### Stripe Connect
 
@@ -515,6 +579,7 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
 | `/api/admin/publishers` | GET | List publishers | 🗄️ |
 | `/api/admin/message-reports` | GET | List message reports (paginated) | 🗄️ |
 | `/api/admin/message-reports/[reportId]` | PATCH | Update report status | 🗄️ |
+| `/api/admin/health-check` | GET | Production health check (used by CI/CD smoke test) | 🗄️ |
 
 ### User & Profile
 
@@ -541,6 +606,11 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
 |-------|---------|---------|----------|
 | `/api/webhooks/clerk` | User deleted | Cascade delete user data | 🔐 🗄️ |
 | `/api/webhooks/stripe` | Payment events | Auction payments, subscriptions | 💰 🗄️ |
+
+**Stripe webhook — subscription handling notes:**
+- `customer.subscription.updated` / `customer.subscription.created`: writes `trial_start` and `trial_end` directly from `subscription.trial_start` / `subscription.trial_end` (bypasses `startTrial()` helper so promo trials aren't double-applied)
+- `invoice.payment_succeeded`: $0 invoice guard — if `invoice.amount_paid === 0` and the subscription status is `trialing`, skips `upgradeToPremium()` to prevent overwriting the trialing status with active
+- `upgradeToPremium()` accepts an optional `isTrialing` param; when true, sets `subscription_status: 'trialing'` instead of `'active'`
 
 ---
 
@@ -591,7 +661,7 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
     ┌────┴────────────────┐
     │ 3 independent calls │
     │ each can fall back: │
-    │ Anthropic → OpenAI  │
+    │ Gemini → Anthropic  │
     └────┬────────────────┘
          │
     ┌────┴────┐
@@ -705,9 +775,10 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
 | `src/components/creatorCredits/` | Creator Credits UI (CreatorBadge, FeedbackList, FeedbackModal, LeaveFeedbackButton, SellerResponseForm) |
 | `src/components/CoverReviewQueue.tsx` | Admin cover image contribution review |
 | `src/components/follows/` | Follow system UI (FollowButton, FollowerCount, FollowListModal) |
-| `src/components/collection/` | Bulk actions UI (SelectionToolbar, SelectionCheckbox, BulkDeleteModal, UndoToast) |
+| `src/components/collection/` | Bulk actions UI (SelectionToolbar, SelectionCheckbox, SelectionHeader, BulkDeleteModal, BulkListPickerModal, UndoToast) |
 | `src/components/trading/` | Trading UI (TradeCard, TradeProposalModal, TradeableComicCard) |
-| `src/components/auction/` | Auction/listing UI (AuctionCard, ListingCard, BidForm, CreateAuctionModal, etc.) |
+| `src/components/auction/` | Auction/listing UI (AuctionCard, AuctionCountdown, AuctionDetailModal, BidForm, BidHistory, CreateAuctionModal, CreateListingModal, ListingCard, ListingDetailModal, ListInShopModal, MakeOfferModal, OfferResponseModal, PaymentButton, PremiumSellerUpsell, SellerBadge, WatchlistButton) |
+| `src/components/messaging/` | Messaging UI (ConversationList, MessageThread, MessageBubble, MessageButton, MessageComposer, BlockUserModal, ReportMessageModal) |
 | `src/components/admin/` | Admin UI (ReportCard) |
 | `src/components/icons/` | Custom icons (ChestIcon) |
 
@@ -734,14 +805,43 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
 | `src/lib/contentFilter.ts` | Message content filtering (phone/email detection) |
 | `src/lib/adminAuth.ts` | Admin authentication helpers |
 | `src/lib/db.ts` | Core database helper functions |
+| `src/lib/promoTrial.ts` | localStorage helpers for promo trial flag — `setPromoTrialFlag()`, `getPromoTrialFlag()`, `clearPromoTrialFlag()`; timestamp-based 7-day expiration |
 | `src/lib/alertBadgeHelpers.ts` | Admin alert badge helpers |
 | `src/lib/aiProvider.ts` | Fallback orchestrator: getProviders(), classifyError(), getRemainingBudget(), executeWithFallback() |
 | `src/lib/providers/types.ts` | Provider interface + shared types (AIProvider, CallResult, ScanResponseMeta) |
-| `src/lib/providers/anthropic.ts` | AnthropicProvider class — extracts 3 prompts + SDK calls from analyze route |
-| `src/lib/providers/openai.ts` | OpenAIProvider class — GPT-4o fallback implementation |
-| `src/lib/models.ts` | AI model constants incl. OPENAI_PRIMARY, OPENAI_LIGHTWEIGHT, VISION_PROVIDER_ORDER |
+| `src/lib/providers/gemini.ts` | GeminiProvider class — primary vision provider (Gemini 2.0 Flash) |
+| `src/lib/providers/anthropic.ts` | AnthropicProvider class — fallback provider (Claude) |
+| `src/lib/models.ts` | AI model constants incl. GEMINI_PRIMARY, MODEL_PRIMARY, MODEL_LIGHTWEIGHT, VISION_PROVIDER_ORDER |
 | `src/lib/analyticsServer.ts` | Server-side analytics helpers (provider-aware cost estimation via PROVIDER_COSTS lookup) |
+| `src/lib/coverValidation.ts` | Gemini-powered cover image validation pipeline |
+| `src/lib/metronVerify.ts` | Metron API verification for comic metadata |
+| `src/lib/choosePlanHelpers.ts` | Choose plan page helpers |
+| `src/lib/imageOptimization.ts` | Client-side image compression utilities |
+| `src/lib/scanAnalyticsHelpers.ts` | Scan analytics tracking helpers |
+| `src/lib/normalizeTitle.ts` | Comic title normalization utilities |
+| `src/lib/keyComicsDatabase.ts` | Key comics database management |
+| `src/lib/keyInfoHelpers.ts` | Key info display and formatting helpers |
+| `src/lib/offlineCache.ts` | Offline caching utilities for Key Hunt |
+| `src/lib/emailValidation.ts` | Email validation helpers |
+| `src/lib/hotBooksData.ts` | Hot books data seeding and management |
+| `src/lib/comicFacts.ts` | Random comic facts for UI display |
+| `src/lib/certLookup.ts` | CGC/CBCS certificate lookup logic |
+| `src/lib/ebayBrowse.ts` | eBay Browse API integration |
+| `src/lib/gradePrice.ts` | Grade-based price calculation logic |
+| `src/lib/csvExport.ts` | CSV export generation |
+| `src/lib/csvHelpers.ts` | CSV parsing and import helpers |
+| `src/lib/email.ts` | Email sending via Resend |
+| `src/lib/rateLimit.ts` | Upstash Redis rate limiting helpers |
+| `src/lib/storage.ts` | Supabase storage helpers |
+| `src/lib/supabase.ts` | Supabase client initialization |
+| `src/lib/usernameValidation.ts` | Username format and uniqueness validation |
+| `src/lib/statsCalculator.ts` | Collection statistics calculation |
 | `src/types/creatorCredits.ts` | Creator Credits type definitions (transaction feedback, badge tiers, contribution types) |
+| `src/types/comic.ts` | Core comic type definitions |
+| `src/types/auction.ts` | Auction and listing type definitions |
+| `src/types/messaging.ts` | Messaging type definitions |
+| `src/types/trade.ts` | Trade type definitions |
+| `src/types/follow.ts` | Follow system type definitions |
 
 ---
 
@@ -788,6 +888,7 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
 | `admin_barcode_reviews` | Barcode catalog moderation queue |
 | `cover_images` | Community-submitted cover images |
 | `scan_analytics` | Scan tracking with `provider`, `fallback_used`, `fallback_reason` columns |
+| `cover_validation` | Cover image validation results from Gemini pipeline |
 
 ### Trading Tables Detail
 
@@ -813,6 +914,10 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
 **comics table additions**
 - `for_trade` (boolean) - Available for trade
 - `acquired_via` (text) - How comic was obtained (scan/import/purchase/trade)
+- `cover_validated` (boolean) - Whether cover image passed validation pipeline
+
+**profiles table additions**
+- `show_financials` (boolean) - User preference to show/hide financial data in collection
 
 ---
 
@@ -829,7 +934,7 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
 
 ### AI
 - `ANTHROPIC_API_KEY`
-- `OPENAI_API_KEY` (fallback provider for scan resilience)
+- `GEMINI_API_KEY` (primary vision provider for scan resilience)
 
 ### Payments
 - `STRIPE_SECRET_KEY`
@@ -851,6 +956,13 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
 - `COMIC_VINE_API_KEY` (legacy - used in barcode fallback)
 - `EBAY_APP_ID`
 - `EBAY_CERT_ID`
+- `METRON_USERNAME`
+- `METRON_PASSWORD`
+
+### Stripe Price IDs
+- `STRIPE_PRICE_PREMIUM_MONTHLY`
+- `STRIPE_PRICE_PREMIUM_ANNUAL`
+- `STRIPE_PRICE_SCAN_PACK`
 
 ### Hosting
 - `NETLIFY_API_TOKEN`
@@ -865,8 +977,8 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
 | Service | Tier | Cost | Limit |
 |---------|------|------|-------|
 | Netlify | Personal | $9/mo | 1000 build min |
-| Anthropic | Pay-per-use | ~$0.015/scan | Prepaid credits (primary AI) |
-| OpenAI | Pay-per-use | Varies | Fallback AI provider |
+| Google Gemini | Pay-per-use | ~$0.001/scan | Primary vision AI (Gemini 2.0 Flash) |
+| Anthropic | Pay-per-use | ~$0.015/scan | Prepaid credits (fallback AI) |
 | Stripe | Standard | 2.9% + $0.30 | Per transaction |
 | Supabase | Free (Pro planned) | $0 ($25/mo) | 500MB (8GB Pro) |
 | Clerk | Free | $0 | 10K MAU |
@@ -876,12 +988,13 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
 | Sentry | Free | $0 | 5K errors/mo |
 | eBay API | Free | $0 | Rate limited |
 | Comic Vine | Free | $0 | Barcode fallback in analyze, quick-lookup, con-mode-lookup |
+| Metron | Free | $0 | Comic metadata verification |
 
 ---
 
 ## Scan Resilience / Multi-Provider Fallback
 
-The `/api/analyze` route uses a provider abstraction layer so that each of the 3 AI calls (image analysis, verification, price estimation) can independently fall back from Anthropic to OpenAI when the primary provider fails.
+The `/api/analyze` route uses a provider abstraction layer so that each of the 3 AI calls (image analysis, verification, price estimation) can independently fall back from Gemini to Anthropic when the primary provider fails.
 
 ### Architecture
 
@@ -895,8 +1008,8 @@ The `/api/analyze` route uses a provider abstraction layer so that each of the 3
 ┌────────────────────────────┐
 │  src/lib/providers/        │
 │  ├── types.ts (AIProvider) │  Provider Interface
-│  ├── anthropic.ts          │  Primary (Claude)
-│  └── openai.ts             │  Fallback (GPT-4o)
+│  ├── gemini.ts             │  Primary (Gemini 2.0 Flash)
+│  └── anthropic.ts          │  Fallback (Claude)
 └────────────────────────────┘
 ```
 
@@ -904,7 +1017,7 @@ The `/api/analyze` route uses a provider abstraction layer so that each of the 3
 
 | Behavior | Detail |
 |----------|--------|
-| Provider order | Anthropic first, OpenAI fallback (defined in `VISION_PROVIDER_ORDER`) |
+| Provider order | Gemini first, Anthropic fallback (defined in `VISION_PROVIDER_ORDER`) |
 | Error classification | `classifyError()` determines retry-on-fallback vs immediate failure |
 | Dynamic budget | `getRemainingBudget()` ensures all 3 calls fit within Netlify's 26s limit |
 | Per-call fallback | Each of the 3 AI calls can independently fall back without affecting the others |
@@ -915,9 +1028,9 @@ The `/api/analyze` route uses a provider abstraction layer so that each of the 3
 
 | Test File | Tests |
 |-----------|-------|
-| `src/lib/providers/__tests__/anthropic.test.ts` | 18 tests |
-| `src/lib/providers/__tests__/openai.test.ts` | 9 tests |
-| `src/lib/__tests__/aiProvider.test.ts` | 25 tests |
+| `src/lib/providers/__tests__/anthropic.test.ts` | Anthropic provider tests |
+| `src/lib/providers/__tests__/gemini.test.ts` | Gemini provider tests |
+| `src/lib/__tests__/aiProvider.test.ts` | Provider orchestrator tests |
 
 ### Migration
 

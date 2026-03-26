@@ -2,7 +2,7 @@
 
 > **This document is the guiding light for development priorities. It takes precedence over BACKLOG.md.**
 
-*Last Updated: March 25, 2026*
+*Last Updated: March 26, 2026*
 
 ---
 
@@ -87,6 +87,11 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 - ✅ **Gemini API costs evaluated** — Free tier sufficient for current volume, ~$200/mo at 50K scans
 - ✅ **Seller Payments loading fix** — Fallback to default state instead of infinite loading
 - ✅ **Pricing page "Most Popular" badge fix** — No longer clipped by overflow
+- ✅ **30-day promo trial link** — /join/trial QR code landing page for conventions, Stripe checkout with 30-day trial, server-rendered (Mar 26, 2026)
+- ✅ **Webhook trial improvements** — Direct trial date write from Stripe, $0 invoice guard, downgrade clears trial_ends_at
+- ✅ **Google Pay / Apple Pay** — Enabled on Stripe checkout (removed payment_method_types restriction)
+- ✅ **Profile creation fix** — Checkout route uses getOrCreateProfile for new sign-ups
+- ✅ **DB migration deployed** — 20260320_cover_validation.sql run in production (Mar 26, 2026)
 
 ---
 
@@ -104,7 +109,7 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 | Terms of Service page | ✅ Done | LLC placeholders replaced with Twisted Jester LLC info (Mar 13, 2026) |
 | Acceptable Use Policy page | ✅ Done | LLC placeholders replaced with Twisted Jester LLC info (Mar 13, 2026) |
 | Cookie & Tracking Policy page | ✅ Done | LLC placeholders replaced with Twisted Jester LLC info (Mar 13, 2026) |
-| Premium subscription billing | ⏳ Code complete | Waiting on Stripe account setup |
+| Premium subscription billing | ✅ Done | Stripe products configured, checkout working, 30-day promo trial deployed (Mar 26, 2026) |
 | Stripe Connect for seller payouts | ⏳ Code complete | Enable Connect in Stripe dashboard, configure Express accounts |
 | Age gate (18+) for marketplace | ✅ Done | Age verification modal with Redis cache (Mar 11, 2026) |
 | Re-enable Clerk bot protection | ✅ Done | Re-enabled Jan 13, 2026 |
@@ -116,6 +121,7 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 | Connect waitlist to Resend | ✅ Done | API route created, connected to Resend Contacts |
 | Test payment flows end-to-end | ❌ Untested | Auction bids, Buy Now, subscription billing |
 | Test Stripe Connect seller flow | ❌ Untested | Seller onboarding, sandbox purchase, verify fee split, test payout to seller bank |
+| Generate QR code for /join/trial | ⚠️ Needed | URL ready, need to print on business cards |
 | Database backup strategy | ⚠️ Planned | **Upgrade to Supabase Pro ($25/mo) before opening registration** - daily backups + 7-day retention |
 | Rate limit on registered user scans | ✅ Done | Free: 10/month, Premium: unlimited |
 | Replace dead eBay Finding API | ✅ Done — Browse API deployed Mar 19, 2026 | Browse API integration plan written + reviewed. Deployed Mar 19, 2026. 32 files affected |
