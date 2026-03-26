@@ -2,7 +2,7 @@
 
 > **Comprehensive map of pages, features, and service dependencies**
 
-*Last Updated: March 9, 2026 (Added self-healing model pipeline)*
+*Last Updated: March 25, 2026 (Added Stripe integration details, /choose-plan route)*
 
 ---
 
@@ -258,6 +258,17 @@ Manage comic trades with three tabs:
 | Tier Comparison | — | Free vs Pro feature matrix |
 | Upgrade Flow | 💰 🔐 | Stripe checkout integration |
 | Current Plan Display | 🗄️ 🔐 | Shows user's subscription status |
+
+---
+
+### Choose Plan (`/choose-plan`)
+
+| Feature | Services | Notes |
+|---------|----------|-------|
+| Plan Selection | 💰 🔐 | Monthly ($4.99/mo) or Annual ($49.99/yr) |
+| Start Free Trial | 🗄️ 🔐 | 7-day free trial activation |
+| Scan Pack Purchase | 💰 🔐 | $1.99 for 10 additional scans |
+| Current Subscription Status | 🗄️ 🔐 | Shows active plan, trial status, scan usage |
 
 ---
 
@@ -1019,6 +1030,48 @@ Email alerts sent via Resend for every outcome:
 | `RESEND_API_KEY` | Send email alerts |
 | `ADMIN_EMAIL` | Alert recipient |
 | `CRON_SECRET` | Authenticate smoke test against health-check endpoint |
+
+---
+
+## Stripe Integration (Payments & Subscriptions)
+
+Stripe powers all payment flows: premium subscriptions, scan pack purchases, free trials, and marketplace seller payouts via Stripe Connect.
+
+### API Routes
+
+| Route | Method | Purpose |
+|-------|--------|---------|
+| `POST /api/billing/checkout` | POST | Creates Stripe checkout session (subscription or scan pack) |
+| `POST /api/billing/start-trial` | POST | Starts 7-day free trial |
+| `GET /api/billing/status` | GET | Returns subscription tier, scan usage, trial status |
+| `POST /api/webhooks/stripe` | POST | Handles Stripe webhook events (checkout.session.completed, subscription lifecycle, invoice events) |
+| `POST /api/connect/create-account` | POST | Creates Stripe Connect Express account for sellers |
+| `GET /api/connect/status` | GET | Gets seller payment status |
+| `POST /api/connect/dashboard` | POST | Opens Stripe Express dashboard |
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `src/hooks/useSubscription.ts` | Client-side subscription state, checkout/trial actions |
+| `src/lib/subscription.ts` | Server-side subscription logic, scan limits, trial management |
+| `src/app/api/webhooks/stripe/route.ts` | Webhook handler for payment events |
+| `src/app/api/billing/checkout/route.ts` | Checkout session creation |
+
+### Products
+
+| Product | Price | Type |
+|---------|-------|------|
+| Premium Monthly | $4.99/mo | Recurring subscription |
+| Premium Annual | $49.99/yr | Recurring subscription |
+| Scan Pack | $1.99 for 10 scans | One-time purchase |
+
+### Features
+
+- **Subscription management** — Monthly and annual premium plans with Stripe-hosted checkout
+- **Scan pack purchases** — One-time scan bundles for free-tier users
+- **7-day free trials** — Trial activation with automatic expiration tracking
+- **Stripe Connect** — Express accounts for marketplace seller payouts
 
 ---
 
