@@ -5,7 +5,7 @@ import { auth } from "@clerk/nextjs/server";
 import Stripe from "stripe";
 
 import { isUserSuspended } from "@/lib/adminAuth";
-import { getProfileByClerkId } from "@/lib/db";
+import { getOrCreateProfile } from "@/lib/db";
 import { getSubscriptionStatus, hasUsedTrial, setStripeCustomerId } from "@/lib/subscription";
 
 // Initialize Stripe
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const profile = await getProfileByClerkId(userId);
+    const profile = await getOrCreateProfile(userId);
     if (!profile) {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
