@@ -8,11 +8,11 @@ export default function JoinTrialPage() {
       <PromoTrialActivator />
 
       <div
-        className="absolute inset-0 opacity-10"
+        className="absolute inset-0 opacity-20"
         style={{
           backgroundImage:
-            "radial-gradient(circle, #000 1px, transparent 1px)",
-          backgroundSize: "20px 20px",
+            "radial-gradient(circle, #000 1.5px, transparent 1.5px)",
+          backgroundSize: "16px 16px",
         }}
       />
 
