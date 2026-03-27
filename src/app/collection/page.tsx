@@ -145,6 +145,15 @@ function CollectionPageContent() {
     if (sortParam) setSortBy(sortParam);
   }, [searchParams]);
 
+  // Welcome toast for promo trial users
+  useEffect(() => {
+    if (searchParams.get("welcome") === "promo") {
+      showToast("Welcome! Your 30-day Premium trial is active. Start scanning!", "success");
+      // Clean up the URL param
+      router.replace("/collection");
+    }
+  }, [searchParams, showToast, router]);
+
   // Fetch show_financials preference
   useEffect(() => {
     async function fetchPreferences() {
