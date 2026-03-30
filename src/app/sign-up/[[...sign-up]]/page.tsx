@@ -12,7 +12,7 @@ export default function SignUpPage() {
         <div className="w-full lg:w-[380px] shrink-0">
           {/* Header */}
           <div className="flex items-center gap-3 mb-4">
-            <ChestIcon size={48} />
+            <ChestIcon size={72} />
             <h1 className="font-comic text-2xl text-pop-black tracking-wide">
               COLLECTORS CHEST
             </h1>

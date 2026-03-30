@@ -2,7 +2,7 @@
 
 > **This document is the guiding light for development priorities. It takes precedence over BACKLOG.md.**
 
-*Last Updated: March 26, 2026*
+*Last Updated: March 30, 2026*
 
 ---
 
@@ -92,6 +92,7 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 - ✅ **Google Pay / Apple Pay** — Enabled on Stripe checkout (removed payment_method_types restriction)
 - ✅ **Profile creation fix** — Checkout route uses getOrCreateProfile for new sign-ups
 - ✅ **DB migration deployed** — 20260320_cover_validation.sql run in production (Mar 26, 2026)
+- ✅ **Logo/branding overhaul** — New Collectors Chest emblem PNG across all favicon, PWA icons, maskable icons, and ChestIcon component. Navbar icon (56px), sign-up icon (72px), white background removed. Mobile navbar text nowrap fix. (Mar 30, 2026)
 
 ---
 
@@ -474,7 +475,7 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 12. ~~**Real-time messaging fix**~~ ✅ (Supabase Broadcast migration — 7 files, instant messages without refresh)
 13. ~~**Notification display fix**~~ ✅ (supabaseAdmin for all read functions, RLS bypass)
 14. ~~**Search optimization**~~ ✅ (3 features: fuzzy matching with 34 abbreviations, batch CSV imports, popularity-based suggestions)
-15. ~~**Site icon replacement**~~ ✅ (New blue comic-style chest design across all icon files)
+15. ~~**Site icon replacement**~~ ✅ (New blue comic-style chest design across all icon files; updated to Collectors Chest emblem PNG Mar 30, 2026)
 16. ~~**FAQ update**~~ ✅ (Ask the Professor expanded to 20 questions, font fix)
 17. ~~**Cover image search system**~~ ✅ (Community DB + Open Library + manual URL paste) (Feb 25-26, 2026)
 18. ~~**Comic Vine removal from import-lookup**~~ ✅ (Feb 25, 2026)
@@ -520,13 +521,15 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 58. ~~**CSV base64 export fix**~~ ✅ (Mar 19, 2026)
 59. ~~**Manual entry scroll fix**~~ ✅ (Mar 19, 2026)
 60. ~~**eBay Developer account verified**~~ ✅ (Mar 19, 2026)
+61. ~~**Logo/branding overhaul (PNG)**~~ ✅ (Mar 30, 2026) — New Collectors Chest emblem across all icons and ChestIcon component
 
 ### Recommended Next Steps
-1. **Implement cover image validation pipeline** — Design spec complete, implementation plan needed. Fixes wrong cover images across the app.
-2. **Re-price existing collection** — After Browse API deploy, existing comics show no price. Need mechanism to refresh prices on demand or via batch.
-3. **Session 21 feedback re-test** — 3 items still broken, 8 need retest from production mobile testing
-4. **Validate Gemini as primary provider in production**
-5. **Stripe account setup + payment testing**
+1. **Await SVG logo from partner** — Partner to provide SVG version of the Collectors Chest emblem. Once received, swap PNG for SVG in ChestIcon component for better scaling and smaller bundle size.
+2. **Implement cover image validation pipeline** — Design spec complete, implementation plan needed. Fixes wrong cover images across the app.
+3. **Re-price existing collection** — After Browse API deploy, existing comics show no price. Need mechanism to refresh prices on demand or via batch.
+4. **Session 21 feedback re-test** — 3 items still broken, 8 need retest from production mobile testing
+5. **Validate Gemini as primary provider in production**
+6. **Stripe account setup + payment testing**
 
 ### 🔴 Before Opening Registration (See Section 0)
 

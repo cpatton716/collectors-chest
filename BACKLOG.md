@@ -395,6 +395,15 @@ Send an automated email a few days before the 30-day promo trial ends reminding 
 
 ---
 
+### Replace PNG Logo with SVG Version
+**Priority:** Medium
+**Status:** Pending
+**Added:** Mar 27, 2026
+
+ChestIcon component currently uses a PNG (`/icons/icon-512x512.png`) via an `<img>` tag. Once the SVG version of the new Collectors Chest emblem is available (user will provide from Illustrator), convert ChestIcon.tsx back to inline SVG for sharper rendering at all sizes. Also replace `public/favicon.png` with an SVG favicon.
+
+---
+
 ### Auto-Harvest Cover Images from Graded Book Scans
 **Priority:** High
 **Status:** Pending

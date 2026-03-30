@@ -1,3 +1,5 @@
+/* eslint-disable @next/next/no-img-element */
+
 interface ChestIconProps {
   className?: string;
   size?: number;
@@ -5,39 +7,12 @@ interface ChestIconProps {
 
 export function ChestIcon({ className = "", size = 32 }: ChestIconProps) {
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 128 128"
+    <img
+      src="/icons/icon-512x512.png"
+      alt="Collectors Chest"
       width={size}
-      height={size}
+      height={Math.round(size * (490 / 512))}
       className={className}
-    >
-      {/* Chest body */}
-      <rect x="14" y="54" width="100" height="58" rx="5" fill="#3388FF" stroke="#1a1a1a" strokeWidth="6" />
-
-      {/* Chest lid */}
-      <path d="M14 58 Q14 30 64 25 Q114 30 114 58" fill="#2266DD" stroke="#1a1a1a" strokeWidth="6" />
-
-      {/* Lid-body divider */}
-      <line x1="14" y1="58" x2="114" y2="58" stroke="#1a1a1a" strokeWidth="5" />
-
-      {/* Metal band */}
-      <rect x="14" y="74" width="100" height="9" fill="#1a1a1a" />
-
-      {/* Lock plate */}
-      <rect x="47" y="62" width="34" height="30" rx="4" fill="#FFD700" stroke="#1a1a1a" strokeWidth="4" />
-
-      {/* Keyhole */}
-      <circle cx="64" cy="73" r="5" fill="#1a1a1a" />
-      <rect x="61" y="76" width="6" height="10" rx="1.5" fill="#1a1a1a" />
-
-      {/* Sparkle star */}
-      <polygon
-        points="105,18 108.5,27 117,23 110.5,29.5 119,34 110.5,33 108.5,41 106.5,33 98,34 104,29.5 99,23 106.5,27"
-        fill="#FF3333"
-        stroke="#1a1a1a"
-        strokeWidth="1.5"
-      />
-    </svg>
+    />
   );
 }

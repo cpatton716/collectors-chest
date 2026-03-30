@@ -7,7 +7,7 @@ This log tracks session-by-session progress on Collectors Chest.
 ## Changes Since Last Deploy
 
 **Last Deploy:** March 26, 2026 (Session 26 — 30-day promo trial link)
-**Sessions Since Last Deploy:** 3
+**Sessions Since Last Deploy:** 4
 **Deploy Readiness:** Deployed (March 26, 2026)
 
 ### Changes Since Last Deploy:
@@ -31,6 +31,38 @@ This log tracks session-by-session progress on Collectors Chest.
 - Ben-day dots visibility improved for desktop
 - DB migration run: 20260320_cover_validation.sql
 - Netlify env vars configured, deployed to production
+- New site logo/emblem across all icon touchpoints
+- Navbar text nowrap fix for mobile
+
+---
+
+## Mar 30, 2026 - Session 28: Site Logo/Branding Update — New Collectors Chest Emblem
+
+### Summary
+- Updated site logo/branding with new Collectors Chest emblem
+- Replaced old blue treasure chest SVG icons with new pop-art style emblem PNG across all icon touchpoints
+
+### Key Files Created/Modified
+- `src/components/icons/ChestIcon.tsx` — Replaced inline SVG with img tag pointing to new PNG
+- `src/components/Navigation.tsx` — Updated icon size to 56, added whitespace-nowrap for mobile
+- `src/app/sign-up/[[...sign-up]]/page.tsx` — Updated icon size to 72
+- `src/app/layout.tsx` — Changed favicon from SVG to PNG
+- `public/icons/` — Replaced all PWA icons (192, 512, maskable variants)
+- `public/favicon.png` — New 32px favicon
+- `BACKLOG.md` — Added SVG logo replacement item
+
+### Files Removed
+- `public/favicon.svg`, `public/icons/*.svg` — Old SVG icon variants
+- `new icons/` — Old icon files
+
+### Issues Encountered
+- Original PNG had no transparency (white background baked in) — used Python Pillow to remove white background
+- sips (macOS) can't generate .ico files — used PNG favicon instead
+- Dev server lock file issues required manual cleanup
+
+### Where We Left Off
+- New emblem deployed across all icon touchpoints
+- Old SVG icons removed from repo
 
 ---
 

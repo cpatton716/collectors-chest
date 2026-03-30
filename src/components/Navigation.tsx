@@ -282,8 +282,8 @@ export function Navigation() {
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
             <Link href="/" className="flex items-center space-x-2 group" style={{ WebkitTapHighlightColor: "transparent" }}>
-              <ChestIcon size={36} />
-              <span className="font-comic text-2xl text-pop-black tracking-wide md:group-hover:text-pop-red transition-colors">
+              <ChestIcon size={56} />
+              <span className="font-comic text-xl md:text-2xl text-pop-black tracking-wide md:group-hover:text-pop-red transition-colors whitespace-nowrap">
                 COLLECTORS CHEST
               </span>
             </Link>
