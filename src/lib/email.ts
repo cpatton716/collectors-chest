@@ -54,6 +54,10 @@ interface NewListingEmailData {
   coverImageUrl?: string;
 }
 
+interface WelcomeEmailData {
+  collectionUrl: string;
+}
+
 function formatPrice(amount: number): string {
   return `$${amount.toFixed(2)}`;
 }
@@ -220,6 +224,74 @@ function newListingFromFollowedTemplate(data: NewListingEmailData): EmailTemplat
   };
 }
 
+function welcomeTemplate(data: WelcomeEmailData): EmailTemplate {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://collectors-chest.com";
+
+  return {
+    subject: "Welcome to Collectors Chest!",
+    html: `
+      <div style="max-width: 600px; margin: 0 auto; font-family: 'Segoe UI', Arial, sans-serif; background: #ffffff;">
+        <!-- Header -->
+        <div style="background: #0066FF; padding: 40px 24px 36px; text-align: center; position: relative; overflow: hidden;">
+          <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-image: radial-gradient(circle, rgba(255,255,255,0.15) 1.5px, transparent 1.5px); background-size: 12px 12px; pointer-events: none;"></div>
+          <div style="position: relative; z-index: 1;">
+            <div style="display: inline-block; background: #FFF200; color: #000; font-weight: 900; font-size: 14px; padding: 6px 16px; border: 3px solid #000; border-radius: 4px; transform: rotate(-2deg); margin-bottom: 12px; letter-spacing: 1px;">COLLECTORS CHEST</div>
+          </div>
+          <div style="position: relative; z-index: 1; margin: 16px auto; display: inline-block;">
+            <div style="position: relative; display: inline-block; background: #00CC66; color: #000; font-weight: 900; font-size: 28px; padding: 14px 36px; border: 4px solid #000; border-radius: 20px; transform: rotate(-3deg); box-shadow: 4px 4px 0 #000;">
+              POW!
+              <div style="position: absolute; bottom: -16px; left: 28px; width: 0; height: 0; border-left: 14px solid transparent; border-right: 6px solid transparent; border-top: 18px solid #000; transform: rotate(10deg);"></div>
+              <div style="position: absolute; bottom: -11px; left: 30px; width: 0; height: 0; border-left: 11px solid transparent; border-right: 4px solid transparent; border-top: 15px solid #00CC66; transform: rotate(10deg);"></div>
+            </div>
+          </div>
+          <h1 style="position: relative; z-index: 1; color: #FFF200; font-size: 26px; font-weight: 900; margin: 24px 0 4px; text-shadow: 2px 2px 0 #000; letter-spacing: 1px;">WELCOME TO THE CHEST!</h1>
+          <p style="position: relative; z-index: 1; color: #ffffff; font-size: 15px; margin: 0; opacity: 0.9;">Your collection journey starts now.</p>
+        </div>
+        <!-- Body -->
+        <div style="padding: 32px 24px;">
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 24px;">Hey there, Collector! You're officially part of the crew. Here's what you can do with Collectors Chest:</p>
+          <!-- Feature: Scan -->
+          <div style="display: flex; align-items: flex-start; margin-bottom: 16px;">
+            <div style="flex-shrink: 0; width: 36px; height: 36px; background: #ED1C24; border: 2.5px solid #000; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 14px;"><span style="font-size: 18px;">📸</span></div>
+            <div><div style="font-weight: 700; font-size: 15px; color: #000; margin-bottom: 2px;">Scan Any Cover</div><div style="font-size: 14px; color: #666; line-height: 1.4;">Snap a photo and our AI identifies your comic instantly.</div></div>
+          </div>
+          <!-- Feature: Track -->
+          <div style="display: flex; align-items: flex-start; margin-bottom: 16px;">
+            <div style="flex-shrink: 0; width: 36px; height: 36px; background: #0066FF; border: 2.5px solid #000; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 14px;"><span style="font-size: 18px;">📊</span></div>
+            <div><div style="font-weight: 700; font-size: 15px; color: #000; margin-bottom: 2px;">Track Your Value</div><div style="font-size: 14px; color: #666; line-height: 1.4;">See real eBay pricing for every book in your collection.</div></div>
+          </div>
+          <!-- Feature: Key Issues -->
+          <div style="display: flex; align-items: flex-start; margin-bottom: 16px;">
+            <div style="flex-shrink: 0; width: 36px; height: 36px; background: #FFF200; border: 2.5px solid #000; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 14px;"><span style="font-size: 18px;">🔑</span></div>
+            <div><div style="font-weight: 700; font-size: 15px; color: #000; margin-bottom: 2px;">Discover Key Issues</div><div style="font-size: 14px; color: #666; line-height: 1.4;">Find out if your books are first appearances, rare variants, or hidden gems.</div></div>
+          </div>
+          <!-- Feature: Organize -->
+          <div style="display: flex; align-items: flex-start; margin-bottom: 0;">
+            <div style="flex-shrink: 0; width: 36px; height: 36px; background: #00CC66; border: 2.5px solid #000; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 14px;"><span style="font-size: 18px;">📦</span></div>
+            <div><div style="font-weight: 700; font-size: 15px; color: #000; margin-bottom: 2px;">Organize Everything</div><div style="font-size: 14px; color: #666; line-height: 1.4;">Custom lists, CSV import, stats, and more — your collection, your way.</div></div>
+          </div>
+          <!-- Scan allowance -->
+          <div style="background: #FFF8E7; border: 3px solid #000; border-radius: 8px; padding: 16px 20px; margin: 24px 0 28px; text-align: center;">
+            <div style="font-weight: 900; font-size: 18px; color: #000; margin-bottom: 4px;">🎯 You get <span style="color: #ED1C24;">10 FREE scans</span> every month!</div>
+            <div style="font-size: 13px; color: #666;">Start scanning your collection today.</div>
+          </div>
+          <!-- CTA -->
+          <div style="text-align: center; margin: 0 0 32px;">
+            <a href="${data.collectionUrl}" style="display: inline-block; background: #0066FF; color: #ffffff; font-weight: 900; font-size: 18px; padding: 16px 48px; border: 3px solid #000; border-radius: 8px; text-decoration: none; text-transform: uppercase; letter-spacing: 1px; box-shadow: 4px 4px 0 #000;">START SCANNING →</a>
+          </div>
+          <p style="text-align: center; font-size: 14px; color: #999; font-style: italic; margin: 0;">Scan comics. Track value. Collect smarter.</p>
+        </div>
+        <!-- Footer -->
+        <div style="background: #f5f5f5; border-top: 2px solid #e5e5e5; padding: 24px 24px 28px; text-align: center;">
+          <p style="font-size: 12px; color: #999; margin: 0 0 8px; line-height: 1.5;">Twisted Jester LLC · collectors-chest.com</p>
+          <p style="font-size: 11px; color: #bbb; margin: 0; line-height: 1.5;"><a href="${appUrl}/privacy" style="color: #999; text-decoration: underline;">Privacy Policy</a> · <a href="${appUrl}/terms" style="color: #999; text-decoration: underline;">Terms of Service</a></p>
+        </div>
+      </div>
+    `,
+    text: `Welcome to Collectors Chest!\n\nHey there, Collector! You're officially part of the crew.\n\nHere's what you can do:\n\n📸 Scan Any Cover — Snap a photo and our AI identifies your comic instantly.\n📊 Track Your Value — See real eBay pricing for every book in your collection.\n🔑 Discover Key Issues — Find out if your books are first appearances, rare variants, or hidden gems.\n📦 Organize Everything — Custom lists, CSV import, stats, and more.\n\n🎯 You get 10 free scans every month!\n\nStart scanning: ${data.collectionUrl}\n\nScan comics. Track value. Collect smarter.\n\nTwisted Jester LLC · collectors-chest.com`,
+  };
+}
+
 // ============================================================================
 // SEND EMAIL FUNCTION
 // ============================================================================
@@ -234,7 +306,8 @@ export type NotificationEmailType =
   | "listing_expired"
   | "message_received"
   | "feedback_reminder"
-  | "new_listing_from_followed";
+  | "new_listing_from_followed"
+  | "welcome";
 
 interface SendNotificationEmailParams {
   to: string;
@@ -244,7 +317,8 @@ interface SendNotificationEmailParams {
     | ListingEmailData
     | MessageEmailData
     | FeedbackEmailData
-    | NewListingEmailData;
+    | NewListingEmailData
+    | WelcomeEmailData;
 }
 
 export async function sendNotificationEmail({
@@ -290,6 +364,9 @@ export async function sendNotificationEmail({
     case "new_listing_from_followed":
       template = newListingFromFollowedTemplate(data as NewListingEmailData);
       break;
+    case "welcome":
+      template = welcomeTemplate(data as WelcomeEmailData);
+      break;
     default:
       return { success: false, error: `Unknown email type: ${type}` };
   }
@@ -315,4 +392,4 @@ export async function sendNotificationEmail({
   }
 }
 
-export type { FeedbackEmailData, NewListingEmailData };
+export type { FeedbackEmailData, NewListingEmailData, WelcomeEmailData };
