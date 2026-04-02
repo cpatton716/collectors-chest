@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 
 import { Webhook } from "svix";
 
+import { sendNotificationEmail } from "@/lib/email";
 import { supabase } from "@/lib/supabase";
 
 // Clerk webhook types
@@ -11,6 +12,10 @@ interface ClerkWebhookEvent {
   data: {
     id: string;
     deleted?: boolean;
+    email_addresses?: Array<{ email_address: string; id: string }>;
+    primary_email_address_id?: string;
+    first_name?: string | null;
+    last_name?: string | null;
   };
 }
 
@@ -49,6 +54,31 @@ export async function POST(req: Request) {
   } catch (err) {
     console.error("Webhook verification failed:", err);
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
+  }
+
+  // Handle the user.created event — send welcome email
+  if (event.type === "user.created") {
+    const { email_addresses, primary_email_address_id } = event.data;
+
+    // Find the primary email address
+    const primaryEmail = email_addresses?.find(
+      (e) => e.id === primary_email_address_id
+    )?.email_address;
+
+    if (primaryEmail) {
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://collectors-chest.com";
+
+      // Fire and forget — don't block webhook response
+      sendNotificationEmail({
+        to: primaryEmail,
+        type: "welcome",
+        data: { collectionUrl: `${appUrl}/collection` },
+      }).catch((err) => {
+        console.error("[Webhook] Failed to send welcome email:", err);
+      });
+    }
+
+    return NextResponse.json({ received: true });
   }
 
   // Handle the user.deleted event
