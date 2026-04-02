@@ -258,3 +258,16 @@ This document tracks testing sessions with platform and account context.
 - **Account Type:** Free, Premium
 - **Device(s):** Android, Mac Chrome
 - **Focus:** TBD
+
+## April 1, 2026 - Session Start
+- **Platform:** Both (Mobile + Web)
+- **Account Type:** Free, Premium
+- **Device(s):** Android, Mac Chrome
+- **Focus:** To be filled as session progresses
+
+## April 2, 2026 - Session Start
+- **Platform:** Both (Mobile + Web)
+- **Account Type:** TBD
+- **Device(s):** TBD
+- **Sounds:** No
+- **Focus:** To be filled as session progresses
