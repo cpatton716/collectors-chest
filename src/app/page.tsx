@@ -194,9 +194,10 @@ export default function Home() {
           <h1
             className="font-comic text-5xl md:text-7xl text-pop-yellow tracking-wide"
             style={{
-              WebkitTextStroke: "3px black",
-              paintOrder: "stroke fill",
-              textShadow: "4px 4px 0px #000",
+              textShadow:
+                "-3px -3px 0 #000, 3px -3px 0 #000, -3px 3px 0 #000, 3px 3px 0 #000, " +
+                "-3px 0 0 #000, 3px 0 0 #000, 0 -3px 0 #000, 0 3px 0 #000, " +
+                "5px 5px 0 #000",
             }}
           >
             {isLoaded && isSignedIn ? "YOUR CHEST!" : "COLLECTORS CHEST!"}

@@ -8,10 +8,10 @@ interface ChestIconProps {
 export function ChestIcon({ className = "", size = 32 }: ChestIconProps) {
   return (
     <img
-      src="/icons/icon-512x512.png"
+      src="/icons/emblem.png"
       alt="Collectors Chest"
       width={size}
-      height={Math.round(size * (490 / 512))}
+      height={Math.round(size * (840 / 878))}
       className={className}
     />
   );
