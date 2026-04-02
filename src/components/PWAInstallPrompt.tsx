@@ -232,7 +232,7 @@ export function PWAInstallPrompt() {
               <li className="flex items-start gap-2">
                 <span className="font-semibold text-primary-600">1.</span>
                 <span>
-                  Tap the <Share className="w-4 h-4 inline text-primary-600" /> Share button below
+                  Tap the <Share className="w-4 h-4 inline text-primary-600" /> Share button in Safari&apos;s bottom toolbar
                 </span>
               </li>
               <li className="flex items-start gap-2">
