@@ -1,5 +1,5 @@
 import { auth } from "@clerk/nextjs/server";
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase";
 
 export async function POST(request: Request) {
   const { userId } = await auth();
@@ -12,15 +12,16 @@ export async function POST(request: Request) {
     return Response.json({ error: "Publisher name required" }, { status: 400 });
   }
 
-  const { error } = await supabase.from("key_info_submissions").insert({
+  const { error } = await supabaseAdmin.from("key_info_submissions").insert({
     user_id: userId,
     title: "PUBLISHER_SUGGESTION",
     issue_number: "",
-    suggested_key_info: `Publisher suggestion: ${publisherName.trim()}`,
+    suggested_key_info: [`Publisher suggestion: ${publisherName.trim()}`],
     status: "pending",
   });
 
   if (error) {
+    console.error("Publisher suggestion insert failed:", error);
     return Response.json({ error: "Failed to submit" }, { status: 500 });
   }
 

@@ -165,6 +165,7 @@ export const PUBLISHERS = [
   "Dynamite Entertainment",
   "Valiant Comics",
   "Archie Comics",
+  "Vertigo",
   "Other",
 ];
 
@@ -192,6 +193,9 @@ export const PUBLISHER_ALIASES: Record<string, string> = {
   "valiant comics": "Valiant Comics",
   archie: "Archie Comics",
   "archie comics": "Archie Comics",
+  vertigo: "Vertigo",
+  "vertigo comics": "Vertigo",
+  "dc vertigo": "Vertigo",
   other: "Other",
 };
 

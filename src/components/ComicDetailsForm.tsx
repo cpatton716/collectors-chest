@@ -681,8 +681,14 @@ export function ComicDetailsForm({
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ publisherName: comic.publisher }),
                       });
-                      if (res.ok) setPublisherSuggested(true);
-                    } catch {}
+                      if (res.ok) {
+                        setPublisherSuggested(true);
+                      } else {
+                        alert("Failed to submit suggestion. Please try again.");
+                      }
+                    } catch {
+                      alert("Failed to submit suggestion. Please try again.");
+                    }
                   }}
                   className="text-xs text-primary-600 hover:text-primary-700 underline"
                 >
