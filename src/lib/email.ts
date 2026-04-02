@@ -251,25 +251,25 @@ function welcomeTemplate(data: WelcomeEmailData): EmailTemplate {
         <div style="padding: 32px 24px;">
           <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 24px;">Hey there, Collector! You're officially part of the crew. Here's what you can do with Collectors Chest:</p>
           <!-- Feature: Scan -->
-          <div style="display: flex; align-items: flex-start; margin-bottom: 16px;">
-            <div style="flex-shrink: 0; width: 36px; height: 36px; background: #ED1C24; border: 2.5px solid #000; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 14px;"><span style="font-size: 18px;">📸</span></div>
-            <div><div style="font-weight: 700; font-size: 15px; color: #000; margin-bottom: 2px;">Scan Any Cover</div><div style="font-size: 14px; color: #666; line-height: 1.4;">Snap a photo and our AI identifies your comic instantly.</div></div>
-          </div>
+          <table cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 16px;"><tr>
+            <td style="width: 36px; height: 36px; background: #ED1C24; border: 2.5px solid #000; border-radius: 50%; text-align: center; vertical-align: middle; padding-right: 14px;"><span style="font-size: 18px;">📸</span></td>
+            <td style="vertical-align: top; padding-left: 14px;"><div style="font-weight: 700; font-size: 15px; color: #000; margin-bottom: 2px;">Scan Any Cover</div><div style="font-size: 14px; color: #666; line-height: 1.4;">Snap a photo and our AI identifies your comic instantly.</div></td>
+          </tr></table>
           <!-- Feature: Track -->
-          <div style="display: flex; align-items: flex-start; margin-bottom: 16px;">
-            <div style="flex-shrink: 0; width: 36px; height: 36px; background: #0066FF; border: 2.5px solid #000; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 14px;"><span style="font-size: 18px;">📊</span></div>
-            <div><div style="font-weight: 700; font-size: 15px; color: #000; margin-bottom: 2px;">Track Your Value</div><div style="font-size: 14px; color: #666; line-height: 1.4;">See real eBay pricing for every book in your collection.</div></div>
-          </div>
+          <table cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 16px;"><tr>
+            <td style="width: 36px; height: 36px; background: #0066FF; border: 2.5px solid #000; border-radius: 50%; text-align: center; vertical-align: middle; padding-right: 14px;"><span style="font-size: 18px;">📊</span></td>
+            <td style="vertical-align: top; padding-left: 14px;"><div style="font-weight: 700; font-size: 15px; color: #000; margin-bottom: 2px;">Track Your Value</div><div style="font-size: 14px; color: #666; line-height: 1.4;">See real eBay pricing for every book in your collection.</div></td>
+          </tr></table>
           <!-- Feature: Key Issues -->
-          <div style="display: flex; align-items: flex-start; margin-bottom: 16px;">
-            <div style="flex-shrink: 0; width: 36px; height: 36px; background: #FFF200; border: 2.5px solid #000; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 14px;"><span style="font-size: 18px;">🔑</span></div>
-            <div><div style="font-weight: 700; font-size: 15px; color: #000; margin-bottom: 2px;">Discover Key Issues</div><div style="font-size: 14px; color: #666; line-height: 1.4;">Find out if your books are first appearances, rare variants, or hidden gems.</div></div>
-          </div>
+          <table cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 16px;"><tr>
+            <td style="width: 36px; height: 36px; background: #FFF200; border: 2.5px solid #000; border-radius: 50%; text-align: center; vertical-align: middle; padding-right: 14px;"><span style="font-size: 18px;">🔑</span></td>
+            <td style="vertical-align: top; padding-left: 14px;"><div style="font-weight: 700; font-size: 15px; color: #000; margin-bottom: 2px;">Discover Key Issues</div><div style="font-size: 14px; color: #666; line-height: 1.4;">Find out if your books are first appearances, rare variants, or hidden gems.</div></td>
+          </tr></table>
           <!-- Feature: Organize -->
-          <div style="display: flex; align-items: flex-start; margin-bottom: 0;">
-            <div style="flex-shrink: 0; width: 36px; height: 36px; background: #00CC66; border: 2.5px solid #000; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 14px;"><span style="font-size: 18px;">📦</span></div>
-            <div><div style="font-weight: 700; font-size: 15px; color: #000; margin-bottom: 2px;">Organize Everything</div><div style="font-size: 14px; color: #666; line-height: 1.4;">Custom lists, CSV import, stats, and more — your collection, your way.</div></div>
-          </div>
+          <table cellpadding="0" cellspacing="0" border="0"><tr>
+            <td style="width: 36px; height: 36px; background: #00CC66; border: 2.5px solid #000; border-radius: 50%; text-align: center; vertical-align: middle; padding-right: 14px;"><span style="font-size: 18px;">📦</span></td>
+            <td style="vertical-align: top; padding-left: 14px;"><div style="font-weight: 700; font-size: 15px; color: #000; margin-bottom: 2px;">Organize Everything</div><div style="font-size: 14px; color: #666; line-height: 1.4;">Custom lists, CSV import, stats, and more — your collection, your way.</div></td>
+          </tr></table>
           <!-- Scan allowance -->
           <div style="background: #FFF8E7; border: 3px solid #000; border-radius: 8px; padding: 16px 20px; margin: 24px 0 28px; text-align: center;">
             <div style="font-weight: 900; font-size: 18px; color: #000; margin-bottom: 4px;">🎯 You get <span style="color: #ED1C24;">10 FREE scans</span> every month!</div>
