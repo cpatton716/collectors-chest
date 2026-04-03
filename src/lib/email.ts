@@ -335,6 +335,54 @@ function welcomeTemplate(data: WelcomeEmailData): EmailTemplate {
   };
 }
 
+function trialExpiringTemplate(data: TrialExpiringEmailData): EmailTemplate {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://collectors-chest.com";
+  const choosePlanUrl = `${appUrl}/choose-plan`;
+
+  return {
+    subject: "Your Collectors Chest trial ends in 3 days",
+    html: `
+      <div style="max-width: 600px; margin: 0 auto; font-family: 'Segoe UI', Arial, sans-serif; background: #ffffff;">
+        ${emailHeader(EMAIL_SOUND_EFFECTS.trial_expiring)}
+        <!-- Title -->
+        <div style="background: #0066FF; padding: 0 24px 28px; text-align: center;">
+          <h1 style="position: relative; z-index: 1; color: #FFF200; font-size: 24px; font-weight: 900; margin: 0 0 4px; text-shadow: 2px 2px 0 #000; letter-spacing: 1px;">YOUR TRIAL ENDS SOON!</h1>
+          <p style="position: relative; z-index: 1; color: #ffffff; font-size: 15px; margin: 0; opacity: 0.9;">Premium access expires on ${data.trialEndsAt}</p>
+        </div>
+        <!-- Body -->
+        <div style="padding: 32px 24px;">
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 24px;">Hey Collector! Your 30-day free trial ends on <strong>${data.trialEndsAt}</strong>. Don't lose access to the premium features you've been using.</p>
+          <!-- What you'll lose box -->
+          <div style="background: #FFF8E7; border: 3px solid #000; border-radius: 8px; padding: 16px 20px; margin: 0 0 24px;">
+            <div style="font-weight: 900; font-size: 16px; color: #000; margin-bottom: 12px;">What you'll lose when your trial ends:</div>
+            <table cellpadding="0" cellspacing="0" border="0" style="width: 100%;">
+              <tr><td style="padding: 4px 0; font-size: 14px; color: #333;">❌ Unlimited scans</td></tr>
+              <tr><td style="padding: 4px 0; font-size: 14px; color: #333;">❌ Key Hunt — find valuable issues in your collection</td></tr>
+              <tr><td style="padding: 4px 0; font-size: 14px; color: #333;">❌ CSV export</td></tr>
+              <tr><td style="padding: 4px 0; font-size: 14px; color: #333;">❌ Advanced collection stats &amp; insights</td></tr>
+              <tr><td style="padding: 4px 0; font-size: 14px; color: #333;">❌ Priority scan queue</td></tr>
+            </table>
+          </div>
+          <!-- Pricing -->
+          <div style="text-align: center; margin: 0 0 8px;">
+            <div style="font-weight: 900; font-size: 20px; color: #000;">$4.99/month — less than a single comic</div>
+          </div>
+          <div style="text-align: center; margin: 0 0 28px;">
+            <div style="font-size: 14px; color: #00CC66; font-weight: 700;">Save 17% with the annual plan</div>
+          </div>
+          <!-- CTA -->
+          <div style="text-align: center; margin: 0 0 32px;">
+            <a href="${choosePlanUrl}" style="display: inline-block; background: #0066FF; color: #ffffff; font-weight: 900; font-size: 18px; padding: 16px 48px; border: 3px solid #000; border-radius: 8px; text-decoration: none; text-transform: uppercase; letter-spacing: 1px; box-shadow: 4px 4px 0 #000;">STAY PREMIUM →</a>
+          </div>
+          <p style="color: #6b7280; font-size: 13px; text-align: center; margin: 0;">After your trial ends you'll drop to 10 free scans/month. Upgrade anytime to restore full access.</p>
+        </div>
+        ${emailFooter()}
+      </div>
+    `,
+    text: `Your Collectors Chest trial ends in 3 days\n\nYour premium trial expires on ${data.trialEndsAt}.\n\nWhat you'll lose:\n- Unlimited scans\n- Key Hunt\n- CSV export\n- Advanced collection stats & insights\n- Priority scan queue\n\n$4.99/month — less than a single comic\nSave 17% with the annual plan\n\nSTAY PREMIUM: ${choosePlanUrl}\n\nScan comics. Track value. Collect smarter.\n\nTwisted Jester LLC · collectors-chest.com`,
+  };
+}
+
 // ============================================================================
 // SEND EMAIL FUNCTION
 // ============================================================================
@@ -413,7 +461,7 @@ export async function sendNotificationEmail({
       template = welcomeTemplate(data as WelcomeEmailData);
       break;
     case "trial_expiring":
-      template = { subject: "", html: "", text: "" };
+      template = trialExpiringTemplate(data as TrialExpiringEmailData);
       break;
     default:
       return { success: false, error: `Unknown email type: ${type}` };
