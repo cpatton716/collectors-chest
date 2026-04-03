@@ -2140,6 +2140,27 @@ export async function expireListings(): Promise<{
 
         if (!existingNotif) {
           await createNotification(listing.seller_id, "listing_expiring", listing.id);
+          // Send listing expiring email to seller (fire and forget)
+          (async () => {
+            const [sellerProfile, comicData] = await Promise.all([
+              getProfileForEmail(listing.seller_id),
+              getListingComicData(listing.id),
+            ]);
+            if (sellerProfile?.email && comicData) {
+              sendNotificationEmail({
+                to: sellerProfile.email,
+                type: "listing_expiring",
+                data: {
+                  sellerName: sellerProfile.displayName,
+                  comicTitle: comicData.comicTitle,
+                  issueNumber: comicData.issueNumber,
+                  price: comicData.price,
+                  expiresIn: "within 24 hours",
+                  listingUrl: `${process.env.NEXT_PUBLIC_APP_URL || "https://collectors-chest.com"}/shop/${listing.id}`,
+                },
+              }).catch((err) => console.error("[Email] listing_expiring failed:", err));
+            }
+          })();
           expiringCount++;
         }
       } catch (err) {
@@ -2183,6 +2204,26 @@ export async function expireListings(): Promise<{
   for (const listing of expiredListings) {
     try {
       await createNotification(listing.seller_id, "listing_expired", listing.id);
+      // Send listing expired email to seller (fire and forget)
+      (async () => {
+        const [sellerProfile, comicData] = await Promise.all([
+          getProfileForEmail(listing.seller_id),
+          getListingComicData(listing.id),
+        ]);
+        if (sellerProfile?.email && comicData) {
+          sendNotificationEmail({
+            to: sellerProfile.email,
+            type: "listing_expired",
+            data: {
+              sellerName: sellerProfile.displayName,
+              comicTitle: comicData.comicTitle,
+              issueNumber: comicData.issueNumber,
+              price: comicData.price,
+              listingUrl: `${process.env.NEXT_PUBLIC_APP_URL || "https://collectors-chest.com"}/shop/${listing.id}`,
+            },
+          }).catch((err) => console.error("[Email] listing_expired failed:", err));
+        }
+      })();
     } catch (err) {
       errors.push(`Failed to create notification for listing ${listing.id}: ${err}`);
     }
