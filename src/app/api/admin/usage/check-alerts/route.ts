@@ -13,7 +13,7 @@ import { calculateFallbackRate, AlertMetric } from "./fallbackRate";
 // Protected by a secret key in the request
 
 const CRON_SECRET = process.env.CRON_SECRET;
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "chris@collectors-chest.com";
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "admin@collectors-chest.com";
 
 // Service limits
 const LIMITS = {

@@ -2,7 +2,7 @@
 
 > **This document is the guiding light for development priorities. It takes precedence over BACKLOG.md.**
 
-*Last Updated: March 30, 2026*
+*Last Updated: April 2, 2026*
 
 ---
 
@@ -93,6 +93,17 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 - ✅ **Profile creation fix** — Checkout route uses getOrCreateProfile for new sign-ups
 - ✅ **DB migration deployed** — 20260320_cover_validation.sql run in production (Mar 26, 2026)
 - ✅ **Logo/branding overhaul** — New Collectors Chest emblem PNG across all favicon, PWA icons, maskable icons, and ChestIcon component. Navbar icon (56px), sign-up icon (72px), white background removed. Mobile navbar text nowrap fix. (Mar 30, 2026)
+- ✅ **Transparent emblem/icons** — Clean transparent PNG emblem deployed across all icon touchpoints (ChestIcon, favicon, PWA icons, maskable icons). White pixel artifacts cleaned from source image.
+- ✅ **iOS Safari hero text fix** — Replaced WebkitTextStroke with text-shadow stack to eliminate white background artifact on iOS
+- ✅ **Android speech bubble fix** — 1px overlap to close sub-pixel gap on Android Chrome
+- ✅ **Clerk Production instance** — Created production instance, DNS CNAME records added (2/5 verified, 3 email pending SSL), webhooks configured, API keys deployed to Netlify
+- ✅ **Business setup complete** — Step 5 (payment methods) updated for Netlify, Stripe, Anthropic, Upstash
+- ✅ **ADMIN_EMAIL updated** — GitHub secret and code fallbacks changed to admin@collectors-chest.com
+- ✅ **GitHub repo renamed** — collectors-catalog → collectors-chest
+- ✅ **Marketplace test data cleared** — All auction, listing, trade, offer, and feedback tables purged
+- ✅ **Pricing architecture documented** — Full 4-path pricing flow added to ARCHITECTURE.md
+- ✅ **Cover image harvesting spec** — Rev 3 spec approved after 3 review rounds (25 findings addressed). Implementation plan written.
+- ✅ **Backlog reconciled** — Full audit, 26 open items verified against codebase
 
 ---
 

@@ -69,7 +69,7 @@ Implemented Lichtenstein pop-art design theme with distinct visual identity.
 
 ### Set Up the Business
 **Priority:** Critical
-**Status:** In Progress
+**Status:** ✅ Complete (Apr 2, 2026)
 
 Complete business formation and financial infrastructure before public launch.
 
@@ -87,7 +87,7 @@ Complete business formation and financial infrastructure before public launch.
 | 2 | ✅ **Get EIN** | 10 min (instant) | IRS.gov - free, requires LLC first |
 | 3 | ✅ **Open Business Bank Account** | 1-2 hours | Requires LLC docs + EIN, get business debit card |
 | 4 | ✅ **Set Up Stripe** | 30 min | Use business name, EIN, bank account |
-| 5 | **Update Payment Methods** | 30 min | Switch all services to company card |
+| 5 | ✅ **Update Payment Methods** | 30 min | Netlify, Stripe, Anthropic, Upstash updated (Apr 2, 2026) |
 
 **Step 4 - Stripe Configuration Details:**
 
@@ -334,10 +334,12 @@ Evaluated Gemini vs Anthropic costs for cover recognition at scale.
 
 ### Re-price Existing Collection Comics
 **Priority:** Medium
-**Status:** Pending
+**Status:** ✅ Complete (Apr 2, 2026)
 **Added:** Mar 19, 2026
 
 After Browse API migration, existing comics show no price until re-looked up. Need an on-demand or batch refresh mechanism to reprice books already in users' collections without requiring manual re-scans.
+
+**Note:** Stale prices were from dead Finding API tied to Development Clerk instance (test data only). New scans use eBay Browse API correctly. No action needed.
 
 ---
 
@@ -361,46 +363,56 @@ Add `validated` boolean to `CoverPipelineResult` to distinguish between "no cove
 
 ### Per-Event Promo Tracking
 **Priority:** Medium
-**Status:** Pending
+**Status:** ✅ Closed (Apr 2, 2026)
 **Added:** Mar 26, 2026
 
 Add `?ref=heroescon` (or similar) query param support to `/join/trial` so convention-specific QR codes can be tracked separately in analytics. Log the ref param to PostHog on page load and associate it with the resulting signup.
+
+> Not needed. Using a single QR code and /join/trial link across all conventions. No plans for per-event tracking at this time.
 
 ---
 
 ### Per-Event Promo Codes
 **Priority:** Medium
-**Status:** Pending
+**Status:** ✅ Closed (Apr 2, 2026)
 **Added:** Mar 26, 2026
 
 Build a `/join/[code]` dynamic route backed by a DB table of promo configs. Each code can define trial length, price, messaging, and expiry date. Enables distinct QR codes per convention without code changes.
+
+> Not needed. Single static QR code for all events. Dynamic promo codes would require a QR code generation service. Revisit only if running different offers at different events.
 
 ---
 
 ### Welcome Toast for Promo Users
 **Priority:** Medium
-**Status:** Pending
+**Status:** ✅ Complete (Mar 30, 2026)
 **Added:** Mar 26, 2026
 
 On `/collection?welcome=promo`, show a dismissible toast or banner: "Your 30-day trial is active!" to confirm the promo checkout succeeded and orient new users.
+
+> Implemented in commit 7946a72. Toast displays on /collection?welcome=promo after promo trial checkout.
 
 ---
 
 ### Trial Expiration Reminder Email
 **Priority:** Medium
-**Status:** Pending
+**Status:** ✅ Complete (Apr 1, 2026)
 **Added:** Mar 26, 2026
 
 Send an automated email a few days before the 30-day promo trial ends reminding users their trial is expiring and prompting them to keep their subscription active. Use Resend + a Supabase-triggered or cron-based job.
+
+> Implemented with pop-art branded email template (TICK TOCK! sound effect), Netlify scheduled function (daily 9 AM Eastern), idempotency guard, and DB migration for trial_reminder_sent_at.
 
 ---
 
 ### Replace PNG Logo with SVG Version
 **Priority:** Medium
-**Status:** Pending
+**Status:** ✅ Complete (Apr 2, 2026)
 **Added:** Mar 27, 2026
 
 ChestIcon component currently uses a PNG (`/icons/icon-512x512.png`) via an `<img>` tag. Once the SVG version of the new Collectors Chest emblem is available (user will provide from Illustrator), convert ChestIcon.tsx back to inline SVG for sharper rendering at all sizes. Also replace `public/favicon.png` with an SVG favicon.
+
+> Clean transparent PNG emblem deployed across all icon touchpoints (ChestIcon, favicon, PWA icons, maskable icons). White pixel artifacts cleaned. iOS Safari text-stroke fix applied.
 
 ---
 
@@ -410,6 +422,7 @@ ChestIcon component currently uses a PNG (`/icons/icon-512x512.png`) via an `<im
 **Added:** Feb 26, 2026
 
 Design doc exists at `docs/plans/2026-02-25-cover-image-harvesting-design.md`, needs implementation. When users scan graded (slabbed) books, the cover image visible through the slab case can be cropped and submitted to the community cover database automatically.
+**Implementation Plan:** `docs/superpowers/plans/2026-04-02-cover-image-harvesting.md` — ready for execution, first pickup next session.
 
 ---
 
@@ -818,18 +831,14 @@ Code implementation is complete (8 commits, 370 tests passing). Deployment and a
 
 ---
 
-### Set up EasyCron for health-check route
+### Set up Scheduled Functions for Cron Jobs
 **Priority:** Medium
 **Status:** Pending (Mar 3, 2026)
 **Related:** Finish Scan Resilience: Multi-Provider Fallback
 
-Configure a scheduled job via EasyCron to call `/api/admin/health-check` on an hourly basis. The request must include the `CRON_SECRET` as an auth header so the route accepts it. This keeps the Tier 2 model health probe running automatically without relying on Netlify's built-in cron (which requires Pro plan).
+Configure scheduled jobs for recurring cron tasks.
 
-**Steps:**
-1. Log in to EasyCron
-2. Create new cron job: `GET https://collectors-chest.com/api/admin/health-check` — every hour
-3. Add header: `Authorization: Bearer <CRON_SECRET value>`
-4. Verify first run succeeds and email alert fires on simulated failure
+> Already using Netlify Scheduled Functions (not EasyCron). check-usage-alerts and send-trial-reminders are configured. Remaining: determine if other cron routes (process-auctions, reset-scans, moderate-messages, send-feedback-reminders) need Netlify scheduled function wrappers.
 
 ---
 
@@ -1253,7 +1262,7 @@ Extend the platform beyond comic books to support other collectible categories, 
 
 ### Update Email Formatting
 **Priority:** Low
-**Status:** Pending
+**Status:** ✅ Complete (Apr 1, 2026)
 
 Customize the email templates sent by Clerk for authentication flows (welcome, verification, password reset, etc.) to match the Collectors Chest branding.
 
@@ -1261,6 +1270,8 @@ Customize the email templates sent by Clerk for authentication flows (welcome, v
 - Access Clerk Dashboard email templates
 - Customize branding (logo, colors, fonts)
 - Update copy/messaging to match app voice
+
+> All 12 email templates updated with shared pop-art header (COLLECTORS CHEST badge, unique comic sound effects per email type) and footer (tagline, legal links). CTA buttons standardized to blue #0066FF. Email-safe table layouts.
 - Test email delivery and rendering across clients
 
 ---
@@ -1399,10 +1410,12 @@ Add a FAQ entry to the Professor's knowledge base covering photo best practices 
 
 ### Update ADMIN_EMAIL GitHub Secret
 **Priority:** Low
-**Status:** Pending
+**Status:** ✅ Complete (Apr 2, 2026)
 **Added:** Mar 9, 2026
 
 Update ADMIN_EMAIL GitHub secret from personal Gmail to company email (collectors-chest.com) once company email is set up.
+
+**Note:** GitHub secret updated to admin@collectors-chest.com. Code fallbacks in health-check and check-alerts routes also updated. Repo renamed from collectors-catalog to collectors-chest.
 
 ---
 
@@ -1418,25 +1431,109 @@ Publisher names/counts on the Stats page should be clickable links that navigate
 
 ### Investigate Empty Public Collection for @jsnaponte
 **Priority:** Medium
-**Status:** Pending
+**Status:** ✅ Complete (Apr 2, 2026)
 **Added:** Mar 11, 2026
 **Source:** User Report (Session 19)
 
 User @jsnaponte reports their public collection page appears empty despite having comics in their collection. Investigate whether this is a data issue, privacy setting, or rendering bug.
 
+> Tested via production. Issue resolved.
+
 ---
 
 ### Launch Tracker Review
-**Priority:** Medium
+**Priority:** High (Pre-Launch)
 **Status:** Pending
 **Added:** Mar 11, 2026
 **Source:** Partner Meeting (Session 19)
+**Target:** Week of April 20, 2026 (partner meeting April 22). Supabase Pro upgrade due by April 23.
 
 Conduct a comprehensive review of launch readiness. Assess feature completeness, UX polish, performance, and outstanding bugs to determine a launch timeline.
 
 ---
 
+### Evaluate Clerk Billing as Stripe Alternative
+**Priority:** Low
+**Status:** Pending
+**Added:** April 2, 2026
+
+Clerk offers subscription/billing services. Investigate whether Clerk Billing could replace or simplify the current Stripe integration for subscription management. Note: Stripe is still likely needed for marketplace payments (seller payouts via Connect), but Clerk might handle the subscription tier management more simply.
+
+**Questions to Research:**
+- What does Clerk Billing offer vs Stripe subscriptions?
+- Can it handle trial periods, plan upgrades/downgrades?
+- Would it reduce integration complexity?
+- Does it still require Stripe underneath?
+
+---
+
+### Switch Clerk to Production Instance
+**Priority:** High (Pre-Launch)
+**Status:** In Progress (DNS propagating)
+**Added:** April 2, 2026
+
+Clerk is currently running in Development mode. Before public launch, need to create a Production instance in the Clerk dashboard. This provides production API keys, removes dev branding, and enables real email delivery.
+
+**Steps:**
+1. ✅ Create Production instance in Clerk dashboard
+2. ✅ Update branding/logos in Production instance
+3. ✅ Add DNS CNAME records (2/5 verified, 3 email records pending SSL)
+4. ✅ Configure webhook in Production instance
+5. ✅ Update API keys in Netlify env vars + `.env.local` for local testing
+6. Test welcome email after SSL propagates for clerk.collectors-chest.com
+
+**Note:** Site authentication is broken on production until SSL certificate provisions (expected 30-60 min from Apr 2, 2026 15:00 UTC)
+
+---
+
+### Upgrade Clerk SDK to v7 + Enable Client Trust Status
+**Priority:** Low
+**Status:** Pending
+**Added:** April 2, 2026
+
+Clerk has a pending "Client Trust Status" update that adds `needs_client_trust` sign-in status for second-factor challenges on new devices. Requires `@clerk/nextjs` v7.0.0+ (currently on v6.36.6). This is a major version bump — defer until after launch.
+
+**Warning:** The update notes say custom flows need code changes to handle the new `needs_client_trust` status attribute instead of `client_trust_state`. Review breaking changes before upgrading.
+
+---
+
 ## Completed
+
+### Welcome Email
+**Priority:** Medium
+**Status:** ✅ Complete (Apr 1, 2026)
+**Added:** Apr 1, 2026
+
+Welcome email sent via Resend when new users sign up (Clerk user.created webhook). Pop-art branded with POW! sound effect, feature highlights, 10 free scans callout, and START SCANNING CTA. Gmail/Outlook-safe table layouts.
+
+---
+
+### Wire Offer & Listing Email Notifications
+**Priority:** Medium
+**Status:** ✅ Complete (Apr 1, 2026)
+**Added:** Apr 1, 2026
+
+Wired 9 existing email templates to actually send: 7 offer notifications (received, accepted, rejected, countered, expired, counter-accepted, counter-rejected) and 2 listing expiration notifications (expiring, expired). Fire-and-forget pattern with getProfileForEmail/getListingComicData helpers. All transactional — always send regardless of notification preferences.
+
+---
+
+### Suggest Publisher Bug Fix + Vertigo Publisher
+**Priority:** High
+**Status:** ✅ Complete (Apr 1, 2026)
+**Added:** Apr 1, 2026
+
+Fixed Suggest Publisher button (was silently failing — wrong Supabase client, wrong data type for array column, no error feedback). Added Vertigo as a publisher option with aliases (vertigo, vertigo comics, dc vertigo).
+
+---
+
+### PWA Icon Separation + Apple Touch Icon
+**Priority:** Medium
+**Status:** ✅ Complete (Apr 1, 2026)
+**Added:** Apr 1, 2026
+
+Created separate icon files per context to prevent one change breaking another platform. Dedicated apple-touch-icon (180x180, white bg) for iOS, transparent maskable icons for Android home screen, blue-bg splash icon for Android splash screen. Fixed iOS Safari install instructions.
+
+---
 
 ### Cover Image Validation Pipeline
 **Priority:** Medium

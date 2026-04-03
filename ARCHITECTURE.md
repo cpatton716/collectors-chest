@@ -1188,6 +1188,76 @@ Stripe powers all payment flows: premium subscriptions, scan pack purchases, fre
 
 ---
 
+## Pricing Architecture
+
+### Overview
+
+Market pricing is powered exclusively by the **eBay Browse API** (`src/lib/ebayBrowse.ts`). Prices are based on active Buy It Now listings, filtered for outliers, with grade-aware estimates generated from a 9.4 NM baseline.
+
+### Pricing by Entry Path
+
+| Path | Route | eBay Called? | Price Stored? |
+|------|-------|:---:|:---:|
+| CSV Import | `/api/import-lookup` | No | No |
+| Manual Entry | `/api/comic-lookup` | No | No |
+| Cover Scan | `/api/analyze` | Yes | Yes |
+| Key Hunt | `/api/con-mode-lookup` | Yes | Yes |
+
+**CSV Import & Manual Entry** are metadata-only — they enrich publisher, writer, artist, key info via AI but do not fetch market pricing. The assumption is users know their own prices for these paths.
+
+**Cover Scan & Key Hunt** fetch live eBay pricing as part of their flow.
+
+### How eBay Pricing Works
+
+1. `searchActiveListings()` queries eBay Browse API for up to 30 active Buy It Now listings
+2. Search query built from: title + issue number + grade (if slabbed) + grading company
+3. Category targeting: eBay category 259104 (comic books) with fallback chain
+4. `filterOutliersAndCalculateMedian()` removes prices below 20% or above 300% of median
+5. Requires minimum 3 listings after filtering (returns null otherwise)
+6. `generateGradeEstimates()` applies multipliers from the 9.4 NM baseline (e.g., 9.8 = 2.5x, 6.0 = 0.35x)
+
+### Price Data Structure
+
+```typescript
+priceData: {
+  estimatedValue: number | null;      // Median price at detected grade
+  recentSales: Array<{                // Sample of active listings
+    price: number;
+    date: string;
+    source: "ebay";
+  }>;
+  mostRecentSaleDate: string | null;
+  gradeEstimates: Array<{             // Prices across grade scale
+    grade: number;                     // 9.4, 9.6, 9.8, etc.
+    label: string;                     // "Near Mint", "Near Mint+"
+    rawValue: number;                  // Price for raw comic
+    slabbedValue: number;              // Price for slabbed comic
+  }>;
+  baseGrade: number;                   // 9.4 for raw estimates
+  priceSource: "ebay";
+}
+```
+
+### Caching Strategy
+
+| Layer | TTL | Purpose |
+|-------|-----|---------|
+| **Redis** (eBay price) | 12 hours | Per-query cache keyed by title+issue+grade+slab status |
+| **Redis** (no results) | 1 hour | "No data" marker so retries happen sooner |
+| **Supabase** (`comic_metadata`) | Indefinite | Shared cache across users; only serves if `priceSource === "ebay"` |
+| **Supabase** (`comics.price_data`) | Indefinite | Per-user snapshot at scan time; stale until re-scanned |
+| **Redis** (AI analysis) | 30 days | Image hash → cached AI result (pricing still fetched fresh) |
+
+### Key Files
+
+- `src/lib/ebayBrowse.ts` — eBay Browse API client, search, price calculation
+- `src/app/api/analyze/route.ts` — Cover scan route (pricing at lines ~694-765)
+- `src/app/api/con-mode-lookup/route.ts` — Key Hunt route (pricing at lines ~118-143)
+- `src/app/api/comic-lookup/route.ts` — Manual entry lookup (no pricing)
+- `src/app/api/import-lookup/route.ts` — CSV import lookup (no pricing)
+
+---
+
 ## Mobile/PWA Features
 
 | Feature | Implementation |

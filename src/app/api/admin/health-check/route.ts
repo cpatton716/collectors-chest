@@ -6,7 +6,7 @@ import { probeProvider, buildHealthAlerts } from "./probeProviders";
 import type { ProbeResult } from "./probeProviders";
 
 const ADMIN_EMAIL =
-  process.env.ADMIN_EMAIL || "chris@collectors-chest.com";
+  process.env.ADMIN_EMAIL || "admin@collectors-chest.com";
 
 export async function GET(request: NextRequest) {
   // Verify cron secret

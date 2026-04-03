@@ -7,7 +7,7 @@ This log tracks session-by-session progress on Collectors Chest.
 ## Changes Since Last Deploy
 
 **Last Deploy:** March 26, 2026 (Session 26 — 30-day promo trial link)
-**Sessions Since Last Deploy:** 4
+**Sessions Since Last Deploy:** 5
 **Deploy Readiness:** Deployed (March 26, 2026)
 
 ### Changes Since Last Deploy:
@@ -33,6 +33,56 @@ This log tracks session-by-session progress on Collectors Chest.
 - Netlify env vars configured, deployed to production
 - New site logo/emblem across all icon touchpoints
 - Navbar text nowrap fix for mobile
+- Transparent emblem/icons across all touchpoints
+- iOS Safari hero text fix
+- Android speech bubble gap fix
+- Clerk Production instance configured (DNS propagating)
+- ADMIN_EMAIL code fallbacks updated
+- Pricing architecture documented
+
+---
+
+## Apr 2, 2026 - Session 29: Icons, Clerk Production, Cover Harvest Spec
+
+### Summary
+- Replaced site emblem with clean transparent PNG across all icon touchpoints (favicon, PWA, maskable, ChestIcon)
+- Fixed iOS Safari hero text white background (WebkitTextStroke → text-shadow)
+- Fixed Android speech bubble sub-pixel gap
+- Switched Clerk to Production instance — DNS CNAME records added, webhooks configured, API keys deployed
+- Completed business setup Step 5 (payment methods on business card)
+- Updated ADMIN_EMAIL GitHub secret + code fallbacks to admin@collectors-chest.com
+- Renamed GitHub repo from collectors-catalog to collectors-chest
+- Cleared all marketplace test data (auctions, listings, trades, offers, feedback)
+- Documented full pricing architecture (4 entry paths) in ARCHITECTURE.md
+- Wrote and triple-reviewed cover image harvesting spec (Rev 3, 25 findings addressed)
+- Wrote implementation plan for cover harvesting (10 tasks, ~2.5hr estimated)
+- Full backlog reconciliation — verified 26 open items against codebase
+- Supabase project renamed to Collectors Chest
+
+### Key Files Created/Modified
+- `src/app/page.tsx` — iOS text-shadow fix for hero heading
+- `src/app/globals.css` — Android speech bubble 1px overlap fix
+- `src/components/icons/ChestIcon.tsx` — Switched to transparent emblem.png
+- `src/app/layout.tsx` — Favicon updated
+- `src/app/api/admin/health-check/route.ts` — Admin email fallback updated
+- `src/app/api/admin/usage/check-alerts/route.ts` — Admin email fallback updated
+- `public/icons/` — All PWA icons regenerated from clean transparent source
+- `public/favicon.png` — Regenerated from clean source
+- `ARCHITECTURE.md` — Pricing architecture section added
+- `BACKLOG.md` — Major reconciliation, 8 items closed, 3 new items added
+- `docs/superpowers/specs/2026-04-02-cover-image-harvesting-design.md` — Rev 3 spec
+- `docs/superpowers/plans/2026-04-02-cover-image-harvesting.md` — Implementation plan
+
+### Issues Encountered
+- SVG from Illustrator was ~1MB with white background artifacts; used sharp to clean and regenerate PNGs
+- iOS Safari renders WebkitTextStroke differently, causing white fill behind text — fixed with text-shadow stack
+- Clerk Production SSL certificate not yet provisioned — auth broken on production until DNS fully propagates
+- Supabase service role key mismatch prevented running SQL cleanup from CLI — used SQL Editor instead
+
+### Where We Left Off
+- Clerk Production DNS: 2/5 verified, 3 email DKIM records pending (can take 24-48h)
+- Welcome email test blocked until Clerk SSL provisions
+- Cover image harvesting: spec approved, implementation plan ready, first pickup next session
 
 ---
 
