@@ -159,13 +159,21 @@ function offerReceivedTemplate(data: OfferEmailData): EmailTemplate {
   return {
     subject: `New offer on ${data.comicTitle} #${data.issueNumber}`,
     html: `
-      <h2>You've received a new offer!</h2>
-      <p><strong>${data.buyerName}</strong> has offered <strong>${formatPrice(data.amount)}</strong> for your listing:</p>
-      <p style="font-size: 18px; font-weight: bold;">${data.comicTitle} #${data.issueNumber}</p>
-      <p>You have 48 hours to respond to this offer.</p>
-      <p><a href="${data.listingUrl}" style="display: inline-block; padding: 12px 24px; background-color: #16a34a; color: white; text-decoration: none; border-radius: 8px;">View Offer</a></p>
+      <div style="max-width: 600px; margin: 0 auto; font-family: 'Segoe UI', Arial, sans-serif; background: #ffffff;">
+        ${emailHeader(EMAIL_SOUND_EFFECTS.offer_received)}
+        <div style="padding: 32px 24px;">
+          <h2 style="font-size: 22px; font-weight: 900; color: #000; margin: 0 0 16px;">You've Received a New Offer!</h2>
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;"><strong>${data.buyerName}</strong> has offered <strong>${formatPrice(data.amount)}</strong> for your listing:</p>
+          <p style="font-size: 18px; font-weight: bold; color: #000; margin: 0 0 12px;">${data.comicTitle} #${data.issueNumber}</p>
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 24px;">You have 48 hours to respond to this offer.</p>
+          <div style="text-align: center; margin: 24px 0;">
+            <a href="${data.listingUrl}" style="display: inline-block; background: #0066FF; color: #ffffff; font-weight: 900; padding: 14px 36px; border: 3px solid #000; border-radius: 8px; text-decoration: none; text-transform: uppercase; letter-spacing: 1px; box-shadow: 4px 4px 0 #000;">VIEW OFFER →</a>
+          </div>
+        </div>
+        ${emailFooter()}
+      </div>
     `,
-    text: `You've received a new offer!\n\n${data.buyerName} has offered ${formatPrice(data.amount)} for ${data.comicTitle} #${data.issueNumber}.\n\nYou have 48 hours to respond.\n\nView offer: ${data.listingUrl}`,
+    text: `You've received a new offer!\n\n${data.buyerName} has offered ${formatPrice(data.amount)} for ${data.comicTitle} #${data.issueNumber}.\n\nYou have 48 hours to respond.\n\nView offer: ${data.listingUrl}\n\nScan comics. Track value. Collect smarter.\nTwisted Jester LLC · collectors-chest.com`,
   };
 }
 
@@ -173,13 +181,21 @@ function offerAcceptedTemplate(data: OfferEmailData): EmailTemplate {
   return {
     subject: `Your offer on ${data.comicTitle} #${data.issueNumber} was accepted!`,
     html: `
-      <h2>Great news! Your offer was accepted!</h2>
-      <p><strong>${data.sellerName}</strong> has accepted your offer of <strong>${formatPrice(data.amount)}</strong> for:</p>
-      <p style="font-size: 18px; font-weight: bold;">${data.comicTitle} #${data.issueNumber}</p>
-      <p>Please complete your payment within 48 hours to secure this purchase.</p>
-      <p><a href="${data.listingUrl}" style="display: inline-block; padding: 12px 24px; background-color: #16a34a; color: white; text-decoration: none; border-radius: 8px;">Complete Payment</a></p>
+      <div style="max-width: 600px; margin: 0 auto; font-family: 'Segoe UI', Arial, sans-serif; background: #ffffff;">
+        ${emailHeader(EMAIL_SOUND_EFFECTS.offer_accepted)}
+        <div style="padding: 32px 24px;">
+          <h2 style="font-size: 22px; font-weight: 900; color: #000; margin: 0 0 16px;">Great News! Your Offer Was Accepted!</h2>
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;"><strong>${data.sellerName}</strong> has accepted your offer of <strong>${formatPrice(data.amount)}</strong> for:</p>
+          <p style="font-size: 18px; font-weight: bold; color: #000; margin: 0 0 12px;">${data.comicTitle} #${data.issueNumber}</p>
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 24px;">Please complete your payment within 48 hours to secure this purchase.</p>
+          <div style="text-align: center; margin: 24px 0;">
+            <a href="${data.listingUrl}" style="display: inline-block; background: #0066FF; color: #ffffff; font-weight: 900; padding: 14px 36px; border: 3px solid #000; border-radius: 8px; text-decoration: none; text-transform: uppercase; letter-spacing: 1px; box-shadow: 4px 4px 0 #000;">COMPLETE PAYMENT →</a>
+          </div>
+        </div>
+        ${emailFooter()}
+      </div>
     `,
-    text: `Great news! Your offer was accepted!\n\n${data.sellerName} accepted your offer of ${formatPrice(data.amount)} for ${data.comicTitle} #${data.issueNumber}.\n\nComplete payment: ${data.listingUrl}`,
+    text: `Great news! Your offer was accepted!\n\n${data.sellerName} accepted your offer of ${formatPrice(data.amount)} for ${data.comicTitle} #${data.issueNumber}.\n\nComplete payment: ${data.listingUrl}\n\nScan comics. Track value. Collect smarter.\nTwisted Jester LLC · collectors-chest.com`,
   };
 }
 
@@ -187,13 +203,21 @@ function offerRejectedTemplate(data: OfferEmailData): EmailTemplate {
   return {
     subject: `Update on your offer for ${data.comicTitle} #${data.issueNumber}`,
     html: `
-      <h2>Your offer was declined</h2>
-      <p>Unfortunately, <strong>${data.sellerName}</strong> has declined your offer of <strong>${formatPrice(data.amount)}</strong> for:</p>
-      <p style="font-size: 18px; font-weight: bold;">${data.comicTitle} #${data.issueNumber}</p>
-      <p>You can submit a new offer or browse other listings in the shop.</p>
-      <p><a href="${data.listingUrl}" style="display: inline-block; padding: 12px 24px; background-color: #2563eb; color: white; text-decoration: none; border-radius: 8px;">View Listing</a></p>
+      <div style="max-width: 600px; margin: 0 auto; font-family: 'Segoe UI', Arial, sans-serif; background: #ffffff;">
+        ${emailHeader(EMAIL_SOUND_EFFECTS.offer_rejected)}
+        <div style="padding: 32px 24px;">
+          <h2 style="font-size: 22px; font-weight: 900; color: #000; margin: 0 0 16px;">Your Offer Was Declined</h2>
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;">Unfortunately, <strong>${data.sellerName}</strong> has declined your offer of <strong>${formatPrice(data.amount)}</strong> for:</p>
+          <p style="font-size: 18px; font-weight: bold; color: #000; margin: 0 0 12px;">${data.comicTitle} #${data.issueNumber}</p>
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 24px;">You can submit a new offer or browse other listings in the shop.</p>
+          <div style="text-align: center; margin: 24px 0;">
+            <a href="${data.listingUrl}" style="display: inline-block; background: #0066FF; color: #ffffff; font-weight: 900; padding: 14px 36px; border: 3px solid #000; border-radius: 8px; text-decoration: none; text-transform: uppercase; letter-spacing: 1px; box-shadow: 4px 4px 0 #000;">VIEW LISTING →</a>
+          </div>
+        </div>
+        ${emailFooter()}
+      </div>
     `,
-    text: `Your offer was declined.\n\n${data.sellerName} declined your offer of ${formatPrice(data.amount)} for ${data.comicTitle} #${data.issueNumber}.\n\nView listing: ${data.listingUrl}`,
+    text: `Your offer was declined.\n\n${data.sellerName} declined your offer of ${formatPrice(data.amount)} for ${data.comicTitle} #${data.issueNumber}.\n\nView listing: ${data.listingUrl}\n\nScan comics. Track value. Collect smarter.\nTwisted Jester LLC · collectors-chest.com`,
   };
 }
 
@@ -201,15 +225,23 @@ function offerCounteredTemplate(data: OfferEmailData): EmailTemplate {
   return {
     subject: `Counter-offer on ${data.comicTitle} #${data.issueNumber}`,
     html: `
-      <h2>You've received a counter-offer!</h2>
-      <p><strong>${data.sellerName}</strong> has countered your offer on:</p>
-      <p style="font-size: 18px; font-weight: bold;">${data.comicTitle} #${data.issueNumber}</p>
-      <p>Your offer: ${formatPrice(data.amount)}</p>
-      <p><strong>Counter-offer: ${formatPrice(data.counterAmount || 0)}</strong></p>
-      <p>You have 48 hours to respond to this counter-offer.</p>
-      <p><a href="${data.listingUrl}" style="display: inline-block; padding: 12px 24px; background-color: #2563eb; color: white; text-decoration: none; border-radius: 8px;">Respond to Offer</a></p>
+      <div style="max-width: 600px; margin: 0 auto; font-family: 'Segoe UI', Arial, sans-serif; background: #ffffff;">
+        ${emailHeader(EMAIL_SOUND_EFFECTS.offer_countered)}
+        <div style="padding: 32px 24px;">
+          <h2 style="font-size: 22px; font-weight: 900; color: #000; margin: 0 0 16px;">You've Received a Counter-Offer!</h2>
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;"><strong>${data.sellerName}</strong> has countered your offer on:</p>
+          <p style="font-size: 18px; font-weight: bold; color: #000; margin: 0 0 12px;">${data.comicTitle} #${data.issueNumber}</p>
+          <p style="font-size: 16px; color: #333; margin: 0 0 8px;">Your offer: ${formatPrice(data.amount)}</p>
+          <p style="font-size: 16px; font-weight: bold; color: #000; margin: 0 0 12px;">Counter-offer: ${formatPrice(data.counterAmount || 0)}</p>
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 24px;">You have 48 hours to respond to this counter-offer.</p>
+          <div style="text-align: center; margin: 24px 0;">
+            <a href="${data.listingUrl}" style="display: inline-block; background: #0066FF; color: #ffffff; font-weight: 900; padding: 14px 36px; border: 3px solid #000; border-radius: 8px; text-decoration: none; text-transform: uppercase; letter-spacing: 1px; box-shadow: 4px 4px 0 #000;">RESPOND TO OFFER →</a>
+          </div>
+        </div>
+        ${emailFooter()}
+      </div>
     `,
-    text: `You've received a counter-offer!\n\n${data.sellerName} countered your offer on ${data.comicTitle} #${data.issueNumber}.\n\nYour offer: ${formatPrice(data.amount)}\nCounter-offer: ${formatPrice(data.counterAmount || 0)}\n\nRespond: ${data.listingUrl}`,
+    text: `You've received a counter-offer!\n\n${data.sellerName} countered your offer on ${data.comicTitle} #${data.issueNumber}.\n\nYour offer: ${formatPrice(data.amount)}\nCounter-offer: ${formatPrice(data.counterAmount || 0)}\n\nRespond: ${data.listingUrl}\n\nScan comics. Track value. Collect smarter.\nTwisted Jester LLC · collectors-chest.com`,
   };
 }
 
@@ -217,13 +249,21 @@ function offerExpiredTemplate(data: OfferEmailData): EmailTemplate {
   return {
     subject: `Your offer on ${data.comicTitle} #${data.issueNumber} has expired`,
     html: `
-      <h2>Offer Expired</h2>
-      <p>Your offer of <strong>${formatPrice(data.amount)}</strong> for the following item has expired:</p>
-      <p style="font-size: 18px; font-weight: bold;">${data.comicTitle} #${data.issueNumber}</p>
-      <p>The seller did not respond within 48 hours. You can submit a new offer if the listing is still active.</p>
-      <p><a href="${data.listingUrl}" style="display: inline-block; padding: 12px 24px; background-color: #6b7280; color: white; text-decoration: none; border-radius: 8px;">View Listing</a></p>
+      <div style="max-width: 600px; margin: 0 auto; font-family: 'Segoe UI', Arial, sans-serif; background: #ffffff;">
+        ${emailHeader(EMAIL_SOUND_EFFECTS.offer_expired)}
+        <div style="padding: 32px 24px;">
+          <h2 style="font-size: 22px; font-weight: 900; color: #000; margin: 0 0 16px;">Offer Expired</h2>
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;">Your offer of <strong>${formatPrice(data.amount)}</strong> for the following item has expired:</p>
+          <p style="font-size: 18px; font-weight: bold; color: #000; margin: 0 0 12px;">${data.comicTitle} #${data.issueNumber}</p>
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 24px;">The seller did not respond within 48 hours. You can submit a new offer if the listing is still active.</p>
+          <div style="text-align: center; margin: 24px 0;">
+            <a href="${data.listingUrl}" style="display: inline-block; background: #6b7280; color: #ffffff; font-weight: 900; padding: 14px 36px; border: 3px solid #000; border-radius: 8px; text-decoration: none; text-transform: uppercase; letter-spacing: 1px; box-shadow: 4px 4px 0 #000;">VIEW LISTING →</a>
+          </div>
+        </div>
+        ${emailFooter()}
+      </div>
     `,
-    text: `Your offer has expired.\n\nYour offer of ${formatPrice(data.amount)} for ${data.comicTitle} #${data.issueNumber} expired.\n\nView listing: ${data.listingUrl}`,
+    text: `Your offer has expired.\n\nYour offer of ${formatPrice(data.amount)} for ${data.comicTitle} #${data.issueNumber} expired.\n\nView listing: ${data.listingUrl}\n\nScan comics. Track value. Collect smarter.\nTwisted Jester LLC · collectors-chest.com`,
   };
 }
 
@@ -231,14 +271,22 @@ function listingExpiringTemplate(data: ListingEmailData): EmailTemplate {
   return {
     subject: `Your listing for ${data.comicTitle} #${data.issueNumber} expires soon`,
     html: `
-      <h2>Listing Expiring Soon</h2>
-      <p>Your listing will expire ${data.expiresIn || "within 24 hours"}:</p>
-      <p style="font-size: 18px; font-weight: bold;">${data.comicTitle} #${data.issueNumber}</p>
-      <p>Price: ${formatPrice(data.price)}</p>
-      <p>If you'd like to keep this listing active, you can relist it before it expires.</p>
-      <p><a href="${data.listingUrl}" style="display: inline-block; padding: 12px 24px; background-color: #f59e0b; color: white; text-decoration: none; border-radius: 8px;">View Listing</a></p>
+      <div style="max-width: 600px; margin: 0 auto; font-family: 'Segoe UI', Arial, sans-serif; background: #ffffff;">
+        ${emailHeader(EMAIL_SOUND_EFFECTS.listing_expiring)}
+        <div style="padding: 32px 24px;">
+          <h2 style="font-size: 22px; font-weight: 900; color: #000; margin: 0 0 16px;">Listing Expiring Soon</h2>
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;">Your listing will expire ${data.expiresIn || "within 24 hours"}:</p>
+          <p style="font-size: 18px; font-weight: bold; color: #000; margin: 0 0 8px;">${data.comicTitle} #${data.issueNumber}</p>
+          <p style="font-size: 16px; color: #333; margin: 0 0 12px;">Price: ${formatPrice(data.price)}</p>
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 24px;">If you'd like to keep this listing active, you can relist it before it expires.</p>
+          <div style="text-align: center; margin: 24px 0;">
+            <a href="${data.listingUrl}" style="display: inline-block; background: #0066FF; color: #ffffff; font-weight: 900; padding: 14px 36px; border: 3px solid #000; border-radius: 8px; text-decoration: none; text-transform: uppercase; letter-spacing: 1px; box-shadow: 4px 4px 0 #000;">VIEW LISTING →</a>
+          </div>
+        </div>
+        ${emailFooter()}
+      </div>
     `,
-    text: `Your listing is expiring soon!\n\n${data.comicTitle} #${data.issueNumber} (${formatPrice(data.price)}) will expire ${data.expiresIn || "within 24 hours"}.\n\nView listing: ${data.listingUrl}`,
+    text: `Your listing is expiring soon!\n\n${data.comicTitle} #${data.issueNumber} (${formatPrice(data.price)}) will expire ${data.expiresIn || "within 24 hours"}.\n\nView listing: ${data.listingUrl}\n\nScan comics. Track value. Collect smarter.\nTwisted Jester LLC · collectors-chest.com`,
   };
 }
 
@@ -246,14 +294,22 @@ function listingExpiredTemplate(data: ListingEmailData): EmailTemplate {
   return {
     subject: `Your listing for ${data.comicTitle} #${data.issueNumber} has expired`,
     html: `
-      <h2>Listing Expired</h2>
-      <p>Your listing has expired and is no longer visible in the shop:</p>
-      <p style="font-size: 18px; font-weight: bold;">${data.comicTitle} #${data.issueNumber}</p>
-      <p>Price: ${formatPrice(data.price)}</p>
-      <p>You can relist this item from your collection if you'd like to sell it.</p>
-      <p><a href="${process.env.NEXT_PUBLIC_APP_URL}/collection" style="display: inline-block; padding: 12px 24px; background-color: #6b7280; color: white; text-decoration: none; border-radius: 8px;">View Collection</a></p>
+      <div style="max-width: 600px; margin: 0 auto; font-family: 'Segoe UI', Arial, sans-serif; background: #ffffff;">
+        ${emailHeader(EMAIL_SOUND_EFFECTS.listing_expired)}
+        <div style="padding: 32px 24px;">
+          <h2 style="font-size: 22px; font-weight: 900; color: #000; margin: 0 0 16px;">Listing Expired</h2>
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;">Your listing has expired and is no longer visible in the shop:</p>
+          <p style="font-size: 18px; font-weight: bold; color: #000; margin: 0 0 8px;">${data.comicTitle} #${data.issueNumber}</p>
+          <p style="font-size: 16px; color: #333; margin: 0 0 12px;">Price: ${formatPrice(data.price)}</p>
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 24px;">You can relist this item from your collection if you'd like to sell it.</p>
+          <div style="text-align: center; margin: 24px 0;">
+            <a href="${process.env.NEXT_PUBLIC_APP_URL}/collection" style="display: inline-block; background: #6b7280; color: #ffffff; font-weight: 900; padding: 14px 36px; border: 3px solid #000; border-radius: 8px; text-decoration: none; text-transform: uppercase; letter-spacing: 1px; box-shadow: 4px 4px 0 #000;">VIEW COLLECTION →</a>
+          </div>
+        </div>
+        ${emailFooter()}
+      </div>
     `,
-    text: `Your listing has expired.\n\n${data.comicTitle} #${data.issueNumber} (${formatPrice(data.price)}) is no longer visible.\n\nView collection: ${process.env.NEXT_PUBLIC_APP_URL}/collection`,
+    text: `Your listing has expired.\n\n${data.comicTitle} #${data.issueNumber} (${formatPrice(data.price)}) is no longer visible.\n\nView collection: ${process.env.NEXT_PUBLIC_APP_URL}/collection\n\nScan comics. Track value. Collect smarter.\nTwisted Jester LLC · collectors-chest.com`,
   };
 }
 
@@ -261,14 +317,22 @@ function messageReceivedTemplate(data: MessageEmailData): EmailTemplate {
   return {
     subject: `New message from ${data.senderName}`,
     html: `
-      <h2>You have a new message</h2>
-      <p><strong>${data.senderName}</strong> sent you a message:</p>
-      <blockquote style="border-left: 4px solid #e5e7eb; padding-left: 16px; margin: 16px 0; color: #4b5563;">
-        ${data.messagePreview}
-      </blockquote>
-      <p><a href="${data.messagesUrl}" style="display: inline-block; padding: 12px 24px; background-color: #6366f1; color: white; text-decoration: none; border-radius: 8px;">View Message</a></p>
+      <div style="max-width: 600px; margin: 0 auto; font-family: 'Segoe UI', Arial, sans-serif; background: #ffffff;">
+        ${emailHeader(EMAIL_SOUND_EFFECTS.message_received)}
+        <div style="padding: 32px 24px;">
+          <h2 style="font-size: 22px; font-weight: 900; color: #000; margin: 0 0 16px;">You Have a New Message</h2>
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;"><strong>${data.senderName}</strong> sent you a message:</p>
+          <blockquote style="border-left: 4px solid #0066FF; padding-left: 16px; margin: 16px 0; color: #4b5563; font-size: 15px; line-height: 1.6;">
+            ${data.messagePreview}
+          </blockquote>
+          <div style="text-align: center; margin: 24px 0;">
+            <a href="${data.messagesUrl}" style="display: inline-block; background: #0066FF; color: #ffffff; font-weight: 900; padding: 14px 36px; border: 3px solid #000; border-radius: 8px; text-decoration: none; text-transform: uppercase; letter-spacing: 1px; box-shadow: 4px 4px 0 #000;">VIEW MESSAGE →</a>
+          </div>
+        </div>
+        ${emailFooter()}
+      </div>
     `,
-    text: `New message from ${data.senderName}\n\n"${data.messagePreview}"\n\nView message: ${data.messagesUrl}`,
+    text: `New message from ${data.senderName}\n\n"${data.messagePreview}"\n\nView message: ${data.messagesUrl}\n\nScan comics. Track value. Collect smarter.\nTwisted Jester LLC · collectors-chest.com`,
   };
 }
 
@@ -297,27 +361,35 @@ function feedbackReminderTemplate(data: FeedbackEmailData): EmailTemplate {
         ${emailFooter()}
       </div>
     `,
-    text: `Hi ${data.recipientName},\n\nYour ${transactionLabel} of ${data.comicTitle} #${data.issueNumber} with ${data.otherPartyName} was completed.\n\nYour feedback helps build trust in our community.\n\nLeave feedback: ${data.feedbackUrl}`,
+    text: `Hi ${data.recipientName},\n\nYour ${transactionLabel} of ${data.comicTitle} #${data.issueNumber} with ${data.otherPartyName} was completed.\n\nYour feedback helps build trust in our community.\n\nLeave feedback: ${data.feedbackUrl}\n\nScan comics. Track value. Collect smarter.\nTwisted Jester LLC · collectors-chest.com`,
   };
 }
 
 function newListingFromFollowedTemplate(data: NewListingEmailData): EmailTemplate {
   const coverImageHtml = data.coverImageUrl
-    ? `<img src="${data.coverImageUrl}" alt="${data.comicTitle}" style="max-width: 150px; border-radius: 8px; margin: 16px 0;" />`
+    ? `<img src="${data.coverImageUrl}" alt="${data.comicTitle}" style="max-width: 150px; border-radius: 8px; margin: 16px 0; border: 2px solid #000;" />`
     : "";
 
   return {
     subject: `New listing from @${data.sellerUsername} on Collectors Chest`,
     html: `
-      <h2>New Listing Alert!</h2>
-      <p><strong>${data.sellerName}</strong> just listed a new comic:</p>
-      ${coverImageHtml}
-      <p style="font-size: 18px; font-weight: bold;">${data.comicTitle}</p>
-      <p style="font-size: 16px; color: #16a34a; font-weight: bold;">${formatPrice(data.price)}</p>
-      <p><a href="${data.listingUrl}" style="display: inline-block; padding: 12px 24px; background-color: #16a34a; color: white; text-decoration: none; border-radius: 8px;">View Listing</a></p>
-      <p style="color: #6b7280; font-size: 14px;">You're receiving this because you follow @${data.sellerUsername}.</p>
+      <div style="max-width: 600px; margin: 0 auto; font-family: 'Segoe UI', Arial, sans-serif; background: #ffffff;">
+        ${emailHeader(EMAIL_SOUND_EFFECTS.new_listing_from_followed)}
+        <div style="padding: 32px 24px;">
+          <h2 style="font-size: 22px; font-weight: 900; color: #000; margin: 0 0 16px;">New Listing Alert!</h2>
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;"><strong>${data.sellerName}</strong> just listed a new comic:</p>
+          ${coverImageHtml}
+          <p style="font-size: 18px; font-weight: bold; color: #000; margin: 0 0 8px;">${data.comicTitle}</p>
+          <p style="font-size: 16px; color: #00CC66; font-weight: bold; margin: 0 0 24px;">${formatPrice(data.price)}</p>
+          <div style="text-align: center; margin: 24px 0;">
+            <a href="${data.listingUrl}" style="display: inline-block; background: #0066FF; color: #ffffff; font-weight: 900; padding: 14px 36px; border: 3px solid #000; border-radius: 8px; text-decoration: none; text-transform: uppercase; letter-spacing: 1px; box-shadow: 4px 4px 0 #000;">VIEW LISTING →</a>
+          </div>
+          <p style="color: #6b7280; font-size: 14px; text-align: center; margin: 0;">You're receiving this because you follow @${data.sellerUsername}.</p>
+        </div>
+        ${emailFooter()}
+      </div>
     `,
-    text: `New Listing Alert!\n\n${data.sellerName} just listed a new comic:\n\n${data.comicTitle}\n${formatPrice(data.price)}\n\nView listing: ${data.listingUrl}\n\nYou're receiving this because you follow @${data.sellerUsername}.`,
+    text: `New Listing Alert!\n\n${data.sellerName} just listed a new comic:\n\n${data.comicTitle}\n${formatPrice(data.price)}\n\nView listing: ${data.listingUrl}\n\nYou're receiving this because you follow @${data.sellerUsername}.\n\nScan comics. Track value. Collect smarter.\nTwisted Jester LLC · collectors-chest.com`,
   };
 }
 
