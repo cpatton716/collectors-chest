@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import { supabaseAdmin } from "@/lib/supabase";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -112,6 +113,42 @@ export function emailFooter(): string {
       <p style="font-size: 11px; color: #bbb; margin: 0; line-height: 1.5;"><a href="${appUrl}/privacy" style="color: #999; text-decoration: underline;">Privacy Policy</a> · <a href="${appUrl}/terms" style="color: #999; text-decoration: underline;">Terms of Service</a></p>
     </div>
   `;
+}
+
+// ============================================================================
+// DATA HELPERS FOR EMAIL WIRING
+// ============================================================================
+
+export async function getProfileForEmail(
+  userId: string
+): Promise<{ email: string | null; displayName: string } | null> {
+  const { data } = await supabaseAdmin
+    .from("profiles")
+    .select("email, display_name, username")
+    .eq("id", userId)
+    .single();
+  if (!data) return null;
+  return {
+    email: data.email ?? null,
+    displayName: data.display_name || data.username || "Collector",
+  };
+}
+
+export async function getListingComicData(
+  listingId: string
+): Promise<{ comicTitle: string; issueNumber: string; price: number } | null> {
+  const { data } = await supabaseAdmin
+    .from("auctions")
+    .select("starting_price, comics!inner(title, issue_number)")
+    .eq("id", listingId)
+    .single();
+  if (!data) return null;
+  const comic = (data as any).comics;
+  return {
+    comicTitle: comic?.title || "Unknown",
+    issueNumber: comic?.issue_number || "",
+    price: data.starting_price || 0,
+  };
 }
 
 // ============================================================================
