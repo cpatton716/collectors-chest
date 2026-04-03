@@ -58,8 +58,60 @@ interface WelcomeEmailData {
   collectionUrl: string;
 }
 
+interface TrialExpiringEmailData {
+  trialEndsAt: string;
+}
+
 function formatPrice(amount: number): string {
   return `$${amount.toFixed(2)}`;
+}
+
+// ============================================================================
+// EMAIL SHARED HELPERS
+// ============================================================================
+
+export const EMAIL_SOUND_EFFECTS: Record<NotificationEmailType, string> = {
+  welcome: "POW!",
+  trial_expiring: "TICK TOCK!",
+  offer_received: "KA-CHING!",
+  offer_accepted: "WHAM!",
+  offer_rejected: "HEY!",
+  offer_countered: "ZAP!",
+  offer_expired: "POOF!",
+  listing_expiring: "HEADS UP!",
+  listing_expired: "TIME'S UP!",
+  message_received: "BAM!",
+  feedback_reminder: "PSST!",
+  new_listing_from_followed: "HOT!",
+};
+
+export function emailHeader(soundEffect: string): string {
+  return `
+    <div style="background: #0066FF; padding: 40px 24px 36px; text-align: center; position: relative; overflow: hidden;">
+      <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-image: radial-gradient(circle, rgba(255,255,255,0.15) 1.5px, transparent 1.5px); background-size: 12px 12px; pointer-events: none;"></div>
+      <div style="position: relative; z-index: 1;">
+        <div style="display: inline-block; background: #FFF200; color: #000; font-weight: 900; font-size: 14px; padding: 6px 16px; border: 3px solid #000; border-radius: 4px; transform: rotate(-2deg); margin-bottom: 12px; letter-spacing: 1px;">COLLECTORS CHEST</div>
+      </div>
+      <div style="position: relative; z-index: 1; margin: 16px auto; display: inline-block;">
+        <div style="position: relative; display: inline-block; background: #00CC66; color: #000; font-weight: 900; font-size: 28px; padding: 14px 36px; border: 4px solid #000; border-radius: 20px; transform: rotate(-3deg); box-shadow: 4px 4px 0 #000;">
+          ${soundEffect}
+          <div style="position: absolute; bottom: -16px; left: 28px; width: 0; height: 0; border-left: 14px solid transparent; border-right: 6px solid transparent; border-top: 18px solid #000; transform: rotate(10deg);"></div>
+          <div style="position: absolute; bottom: -11px; left: 30px; width: 0; height: 0; border-left: 11px solid transparent; border-right: 4px solid transparent; border-top: 15px solid #00CC66; transform: rotate(10deg);"></div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+export function emailFooter(): string {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://collectors-chest.com";
+  return `
+    <div style="background: #f5f5f5; border-top: 2px solid #e5e5e5; padding: 24px 24px 28px; text-align: center;">
+      <p style="font-size: 13px; color: #666; font-style: italic; margin: 0 0 8px;">Scan comics. Track value. Collect smarter.</p>
+      <p style="font-size: 12px; color: #999; margin: 0 0 8px; line-height: 1.5;">Twisted Jester LLC · collectors-chest.com</p>
+      <p style="font-size: 11px; color: #bbb; margin: 0; line-height: 1.5;"><a href="${appUrl}/privacy" style="color: #999; text-decoration: underline;">Privacy Policy</a> · <a href="${appUrl}/terms" style="color: #999; text-decoration: underline;">Terms of Service</a></p>
+    </div>
+  `;
 }
 
 // ============================================================================
@@ -193,12 +245,20 @@ function feedbackReminderTemplate(data: FeedbackEmailData): EmailTemplate {
   return {
     subject: `How was your ${transactionLabel}? Leave feedback for ${data.otherPartyName}`,
     html: `
-      <h2>Share Your Experience</h2>
-      <p>Hi ${data.recipientName},</p>
-      <p>Your ${transactionLabel} of <strong>${data.comicTitle} #${data.issueNumber}</strong> with <strong>${data.otherPartyName}</strong> was completed.</p>
-      <p>Your feedback helps build trust in our community. It only takes a moment!</p>
-      <p><a href="${data.feedbackUrl}" style="display: inline-block; padding: 12px 24px; background-color: #16a34a; color: white; text-decoration: none; border-radius: 8px;">Leave Feedback</a></p>
-      <p style="color: #6b7280; font-size: 14px;">If you've already left feedback, you can ignore this email.</p>
+      <div style="max-width: 600px; margin: 0 auto; font-family: 'Segoe UI', Arial, sans-serif; background: #ffffff;">
+        ${emailHeader(EMAIL_SOUND_EFFECTS.feedback_reminder)}
+        <div style="padding: 32px 24px;">
+          <h2 style="font-size: 22px; font-weight: 900; color: #000; margin: 0 0 16px;">Share Your Experience</h2>
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;">Hi ${data.recipientName},</p>
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;">Your ${transactionLabel} of <strong>${data.comicTitle} #${data.issueNumber}</strong> with <strong>${data.otherPartyName}</strong> was completed.</p>
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 24px;">Your feedback helps build trust in our community. It only takes a moment!</p>
+          <div style="text-align: center; margin: 0 0 24px;">
+            <a href="${data.feedbackUrl}" style="display: inline-block; background: #0066FF; color: #ffffff; font-weight: 900; font-size: 16px; padding: 14px 40px; border: 3px solid #000; border-radius: 8px; text-decoration: none; text-transform: uppercase; letter-spacing: 1px; box-shadow: 4px 4px 0 #000;">Leave Feedback</a>
+          </div>
+          <p style="color: #6b7280; font-size: 14px; text-align: center; margin: 0;">If you've already left feedback, you can ignore this email.</p>
+        </div>
+        ${emailFooter()}
+      </div>
     `,
     text: `Hi ${data.recipientName},\n\nYour ${transactionLabel} of ${data.comicTitle} #${data.issueNumber} with ${data.otherPartyName} was completed.\n\nYour feedback helps build trust in our community.\n\nLeave feedback: ${data.feedbackUrl}`,
   };
@@ -225,26 +285,14 @@ function newListingFromFollowedTemplate(data: NewListingEmailData): EmailTemplat
 }
 
 function welcomeTemplate(data: WelcomeEmailData): EmailTemplate {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://collectors-chest.com";
-
   return {
     subject: "Welcome to Collectors Chest!",
     html: `
       <div style="max-width: 600px; margin: 0 auto; font-family: 'Segoe UI', Arial, sans-serif; background: #ffffff;">
-        <!-- Header -->
-        <div style="background: #0066FF; padding: 40px 24px 36px; text-align: center; position: relative; overflow: hidden;">
-          <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-image: radial-gradient(circle, rgba(255,255,255,0.15) 1.5px, transparent 1.5px); background-size: 12px 12px; pointer-events: none;"></div>
-          <div style="position: relative; z-index: 1;">
-            <div style="display: inline-block; background: #FFF200; color: #000; font-weight: 900; font-size: 14px; padding: 6px 16px; border: 3px solid #000; border-radius: 4px; transform: rotate(-2deg); margin-bottom: 12px; letter-spacing: 1px;">COLLECTORS CHEST</div>
-          </div>
-          <div style="position: relative; z-index: 1; margin: 16px auto; display: inline-block;">
-            <div style="position: relative; display: inline-block; background: #00CC66; color: #000; font-weight: 900; font-size: 28px; padding: 14px 36px; border: 4px solid #000; border-radius: 20px; transform: rotate(-3deg); box-shadow: 4px 4px 0 #000;">
-              POW!
-              <div style="position: absolute; bottom: -16px; left: 28px; width: 0; height: 0; border-left: 14px solid transparent; border-right: 6px solid transparent; border-top: 18px solid #000; transform: rotate(10deg);"></div>
-              <div style="position: absolute; bottom: -11px; left: 30px; width: 0; height: 0; border-left: 11px solid transparent; border-right: 4px solid transparent; border-top: 15px solid #00CC66; transform: rotate(10deg);"></div>
-            </div>
-          </div>
-          <h1 style="position: relative; z-index: 1; color: #FFF200; font-size: 26px; font-weight: 900; margin: 24px 0 4px; text-shadow: 2px 2px 0 #000; letter-spacing: 1px;">WELCOME TO THE CHEST!</h1>
+        ${emailHeader(EMAIL_SOUND_EFFECTS.welcome)}
+        <!-- Welcome title -->
+        <div style="background: #0066FF; padding: 0 24px 28px; text-align: center;">
+          <h1 style="position: relative; z-index: 1; color: #FFF200; font-size: 26px; font-weight: 900; margin: 0 0 4px; text-shadow: 2px 2px 0 #000; letter-spacing: 1px;">WELCOME TO THE CHEST!</h1>
           <p style="position: relative; z-index: 1; color: #ffffff; font-size: 15px; margin: 0; opacity: 0.9;">Your collection journey starts now.</p>
         </div>
         <!-- Body -->
@@ -279,13 +327,8 @@ function welcomeTemplate(data: WelcomeEmailData): EmailTemplate {
           <div style="text-align: center; margin: 0 0 32px;">
             <a href="${data.collectionUrl}" style="display: inline-block; background: #0066FF; color: #ffffff; font-weight: 900; font-size: 18px; padding: 16px 48px; border: 3px solid #000; border-radius: 8px; text-decoration: none; text-transform: uppercase; letter-spacing: 1px; box-shadow: 4px 4px 0 #000;">START SCANNING →</a>
           </div>
-          <p style="text-align: center; font-size: 14px; color: #999; font-style: italic; margin: 0;">Scan comics. Track value. Collect smarter.</p>
         </div>
-        <!-- Footer -->
-        <div style="background: #f5f5f5; border-top: 2px solid #e5e5e5; padding: 24px 24px 28px; text-align: center;">
-          <p style="font-size: 12px; color: #999; margin: 0 0 8px; line-height: 1.5;">Twisted Jester LLC · collectors-chest.com</p>
-          <p style="font-size: 11px; color: #bbb; margin: 0; line-height: 1.5;"><a href="${appUrl}/privacy" style="color: #999; text-decoration: underline;">Privacy Policy</a> · <a href="${appUrl}/terms" style="color: #999; text-decoration: underline;">Terms of Service</a></p>
-        </div>
+        ${emailFooter()}
       </div>
     `,
     text: `Welcome to Collectors Chest!\n\nHey there, Collector! You're officially part of the crew.\n\nHere's what you can do:\n\n📸 Scan Any Cover — Snap a photo and our AI identifies your comic instantly.\n📊 Track Your Value — See real eBay pricing for every book in your collection.\n🔑 Discover Key Issues — Find out if your books are first appearances, rare variants, or hidden gems.\n📦 Organize Everything — Custom lists, CSV import, stats, and more.\n\n🎯 You get 10 free scans every month!\n\nStart scanning: ${data.collectionUrl}\n\nScan comics. Track value. Collect smarter.\n\nTwisted Jester LLC · collectors-chest.com`,
@@ -307,7 +350,8 @@ export type NotificationEmailType =
   | "message_received"
   | "feedback_reminder"
   | "new_listing_from_followed"
-  | "welcome";
+  | "welcome"
+  | "trial_expiring";
 
 interface SendNotificationEmailParams {
   to: string;
@@ -318,7 +362,8 @@ interface SendNotificationEmailParams {
     | MessageEmailData
     | FeedbackEmailData
     | NewListingEmailData
-    | WelcomeEmailData;
+    | WelcomeEmailData
+    | TrialExpiringEmailData;
 }
 
 export async function sendNotificationEmail({
@@ -367,6 +412,9 @@ export async function sendNotificationEmail({
     case "welcome":
       template = welcomeTemplate(data as WelcomeEmailData);
       break;
+    case "trial_expiring":
+      template = { subject: "", html: "", text: "" };
+      break;
     default:
       return { success: false, error: `Unknown email type: ${type}` };
   }
@@ -392,4 +440,4 @@ export async function sendNotificationEmail({
   }
 }
 
-export type { FeedbackEmailData, NewListingEmailData, WelcomeEmailData };
+export type { FeedbackEmailData, NewListingEmailData, WelcomeEmailData, TrialExpiringEmailData };
