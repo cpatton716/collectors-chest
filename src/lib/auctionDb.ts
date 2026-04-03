@@ -26,7 +26,7 @@ import {
 } from "@/types/auction";
 import { CollectionItem, ConditionLabel, PriceData } from "@/types/comic";
 
-import { sendNotificationEmail } from "./email";
+import { sendNotificationEmail, getProfileForEmail, getListingComicData } from "./email";
 import { createFeedbackReminders } from "./creatorCreditsDb";
 import { getAllFollowerIds } from "./followDb";
 import { filterCustomKeyInfoForPublic } from "./keyInfoHelpers";
@@ -1048,6 +1048,29 @@ export async function createOffer(
   // Notify seller
   await createNotification(listing.seller_id, "offer_received", input.listingId, data.id);
 
+  // Send offer_received email (fire and forget)
+  (async () => {
+    const [recipientProfile, otherProfile, comicData] = await Promise.all([
+      getProfileForEmail(listing.seller_id),
+      getProfileForEmail(buyerId),
+      getListingComicData(input.listingId),
+    ]);
+    if (recipientProfile?.email && comicData) {
+      sendNotificationEmail({
+        to: recipientProfile.email,
+        type: "offer_received",
+        data: {
+          buyerName: otherProfile?.displayName ?? "A buyer",
+          sellerName: recipientProfile.displayName ?? "Seller",
+          comicTitle: comicData.comicTitle,
+          issueNumber: comicData.issueNumber,
+          amount: input.amount,
+          listingUrl: `${process.env.NEXT_PUBLIC_APP_URL || "https://collectors-chest.com"}/shop/${input.listingId}`,
+        },
+      }).catch((err) => console.error("[Email] offer_received failed:", err));
+    }
+  })();
+
   return { success: true, offer: transformOffer(data) };
 }
 
@@ -1102,6 +1125,29 @@ export async function respondToOffer(
     // Notify buyer
     await createNotification(offer.buyer_id, "offer_accepted", offer.listing_id, input.offerId);
 
+    // Send offer_accepted email (fire and forget)
+    (async () => {
+      const [recipientProfile, otherProfile, comicData] = await Promise.all([
+        getProfileForEmail(offer.buyer_id),
+        getProfileForEmail(sellerId),
+        getListingComicData(offer.listing_id),
+      ]);
+      if (recipientProfile?.email && comicData) {
+        sendNotificationEmail({
+          to: recipientProfile.email,
+          type: "offer_accepted",
+          data: {
+            buyerName: recipientProfile.displayName ?? "Buyer",
+            sellerName: otherProfile?.displayName ?? "Seller",
+            comicTitle: comicData.comicTitle,
+            issueNumber: comicData.issueNumber,
+            amount: offer.amount,
+            listingUrl: `${process.env.NEXT_PUBLIC_APP_URL || "https://collectors-chest.com"}/shop/${offer.listing_id}`,
+          },
+        }).catch((err) => console.error("[Email] offer_accepted failed:", err));
+      }
+    })();
+
     // Create feedback reminders for both parties (offer acceptance is a "sale")
     await createFeedbackReminders("sale", offer.listing_id, offer.buyer_id, sellerId);
 
@@ -1116,6 +1162,29 @@ export async function respondToOffer(
 
     // Notify buyer
     await createNotification(offer.buyer_id, "offer_rejected", offer.listing_id, input.offerId);
+
+    // Send offer_rejected email (fire and forget)
+    (async () => {
+      const [recipientProfile, otherProfile, comicData] = await Promise.all([
+        getProfileForEmail(offer.buyer_id),
+        getProfileForEmail(sellerId),
+        getListingComicData(offer.listing_id),
+      ]);
+      if (recipientProfile?.email && comicData) {
+        sendNotificationEmail({
+          to: recipientProfile.email,
+          type: "offer_rejected",
+          data: {
+            buyerName: recipientProfile.displayName ?? "Buyer",
+            sellerName: otherProfile?.displayName ?? "Seller",
+            comicTitle: comicData.comicTitle,
+            issueNumber: comicData.issueNumber,
+            amount: offer.amount,
+            listingUrl: `${process.env.NEXT_PUBLIC_APP_URL || "https://collectors-chest.com"}/shop/${offer.listing_id}`,
+          },
+        }).catch((err) => console.error("[Email] offer_rejected failed:", err));
+      }
+    })();
 
     return { success: true };
   }
@@ -1152,6 +1221,30 @@ export async function respondToOffer(
 
     // Notify buyer
     await createNotification(offer.buyer_id, "offer_countered", offer.listing_id, input.offerId);
+
+    // Send offer_countered email (fire and forget)
+    (async () => {
+      const [recipientProfile, otherProfile, comicData] = await Promise.all([
+        getProfileForEmail(offer.buyer_id),
+        getProfileForEmail(sellerId),
+        getListingComicData(offer.listing_id),
+      ]);
+      if (recipientProfile?.email && comicData) {
+        sendNotificationEmail({
+          to: recipientProfile.email,
+          type: "offer_countered",
+          data: {
+            buyerName: recipientProfile.displayName ?? "Buyer",
+            sellerName: otherProfile?.displayName ?? "Seller",
+            comicTitle: comicData.comicTitle,
+            issueNumber: comicData.issueNumber,
+            amount: offer.amount,
+            counterAmount: input.counterAmount,
+            listingUrl: `${process.env.NEXT_PUBLIC_APP_URL || "https://collectors-chest.com"}/shop/${offer.listing_id}`,
+          },
+        }).catch((err) => console.error("[Email] offer_countered failed:", err));
+      }
+    })();
 
     return { success: true, offer: transformOffer(updatedOffer) };
   }
@@ -1207,6 +1300,29 @@ export async function respondToCounterOffer(
     // Notify seller
     await createNotification(offer.seller_id, "offer_accepted", offer.listing_id, offerId);
 
+    // Send offer_accepted email to seller (fire and forget)
+    (async () => {
+      const [recipientProfile, otherProfile, comicData] = await Promise.all([
+        getProfileForEmail(offer.seller_id),
+        getProfileForEmail(buyerId),
+        getListingComicData(offer.listing_id),
+      ]);
+      if (recipientProfile?.email && comicData) {
+        sendNotificationEmail({
+          to: recipientProfile.email,
+          type: "offer_accepted",
+          data: {
+            buyerName: otherProfile?.displayName ?? "Buyer",
+            sellerName: recipientProfile.displayName ?? "Seller",
+            comicTitle: comicData.comicTitle,
+            issueNumber: comicData.issueNumber,
+            amount: offer.counter_amount ?? offer.amount,
+            listingUrl: `${process.env.NEXT_PUBLIC_APP_URL || "https://collectors-chest.com"}/shop/${offer.listing_id}`,
+          },
+        }).catch((err) => console.error("[Email] offer_accepted (counter) failed:", err));
+      }
+    })();
+
     // Create feedback reminders for both parties (counter-offer acceptance is a "sale")
     await createFeedbackReminders("sale", offer.listing_id, buyerId, offer.seller_id);
 
@@ -1221,6 +1337,29 @@ export async function respondToCounterOffer(
 
     // Notify seller
     await createNotification(offer.seller_id, "offer_rejected", offer.listing_id, offerId);
+
+    // Send offer_rejected email to seller (fire and forget)
+    (async () => {
+      const [recipientProfile, otherProfile, comicData] = await Promise.all([
+        getProfileForEmail(offer.seller_id),
+        getProfileForEmail(buyerId),
+        getListingComicData(offer.listing_id),
+      ]);
+      if (recipientProfile?.email && comicData) {
+        sendNotificationEmail({
+          to: recipientProfile.email,
+          type: "offer_rejected",
+          data: {
+            buyerName: otherProfile?.displayName ?? "Buyer",
+            sellerName: recipientProfile.displayName ?? "Seller",
+            comicTitle: comicData.comicTitle,
+            issueNumber: comicData.issueNumber,
+            amount: offer.counter_amount ?? offer.amount,
+            listingUrl: `${process.env.NEXT_PUBLIC_APP_URL || "https://collectors-chest.com"}/shop/${offer.listing_id}`,
+          },
+        }).catch((err) => console.error("[Email] offer_rejected (counter) failed:", err));
+      }
+    })();
 
     return { success: true };
   }
@@ -1934,6 +2073,29 @@ export async function expireOffers(): Promise<{ expired: number; errors: string[
     try {
       // Notify buyer their offer expired
       await createNotification(offer.buyer_id, "offer_expired", offer.listing_id, offer.id);
+
+      // Send offer_expired email (fire and forget)
+      (async () => {
+        const [recipientProfile, otherProfile, comicData] = await Promise.all([
+          getProfileForEmail(offer.buyer_id),
+          getProfileForEmail(offer.seller_id),
+          getListingComicData(offer.listing_id),
+        ]);
+        if (recipientProfile?.email && comicData) {
+          sendNotificationEmail({
+            to: recipientProfile.email,
+            type: "offer_expired",
+            data: {
+              buyerName: recipientProfile.displayName ?? "Buyer",
+              sellerName: otherProfile?.displayName ?? "Seller",
+              comicTitle: comicData.comicTitle,
+              issueNumber: comicData.issueNumber,
+              amount: offer.amount,
+              listingUrl: `${process.env.NEXT_PUBLIC_APP_URL || "https://collectors-chest.com"}/shop/${offer.listing_id}`,
+            },
+          }).catch((err) => console.error("[Email] offer_expired failed:", err));
+        }
+      })();
     } catch (err) {
       errors.push(`Failed to create notification for offer ${offer.id}: ${err}`);
     }
