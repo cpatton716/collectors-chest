@@ -119,7 +119,7 @@ export function GradePricingBreakdown({
           {/* Legend */}
           <div className="pt-2 mt-2 border-t border-gray-200">
             <p className="text-xs text-gray-500">
-              <strong>Raw</strong> = ungraded copy &bull; <strong>Slabbed</strong> = CGC/CBCS graded
+              <strong>Raw</strong> = ungraded copy &bull; <strong>Slabbed</strong> = professionally graded
             </p>
           </div>
         </div>

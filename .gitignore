@@ -41,3 +41,6 @@ netlify-env-vars-to-add.txt
 # Test images and mockups
 Test Books/
 design-mockup-red-black.html
+
+# clerk configuration (can include secrets)
+/.clerk/
