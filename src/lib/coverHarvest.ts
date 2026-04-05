@@ -1,3 +1,7 @@
+import sharp from "sharp";
+import { supabaseAdmin } from "./supabase";
+import { submitCoverImage, getCommunityCovers } from "./coverImageDb";
+
 export const SYSTEM_HARVEST_PROFILE_ID = "00000000-0000-0000-0000-000000000001";
 
 export interface CropCoordinates {
@@ -102,4 +106,119 @@ export function shouldHarvest(params: {
     return { eligible: false, reason: "no crop coordinates" };
   }
   return { eligible: true };
+}
+
+export interface HarvestParams {
+  base64Image: string;
+  title: string;
+  issueNumber: string;
+  variant: string | null;
+  coverCropCoordinates: CropCoordinates;
+  profileId: string | null;
+  isSlabbed: boolean;
+  coverHarvestable?: boolean;
+}
+
+export async function harvestCoverFromScan(params: HarvestParams): Promise<boolean> {
+  const {
+    base64Image, title, issueNumber, variant,
+    coverCropCoordinates, profileId, isSlabbed, coverHarvestable,
+  } = params;
+
+  // 1. Eligibility check
+  const eligibility = shouldHarvest({
+    isSlabbed,
+    coverHarvestable,
+    coverCropCoordinates,
+    isAuthenticated: !!profileId,
+  });
+  if (!eligibility.eligible) {
+    console.log(`[harvest] skipped: ${eligibility.reason}`);
+    return false;
+  }
+
+  // 2. Check if cover already exists
+  const normalizedVariant = variant ? variant.toLowerCase().trim() : "";
+  const existingCover = await getCommunityCovers(title, issueNumber, normalizedVariant);
+  if (existingCover) {
+    console.log("[harvest] skipped: cover exists");
+    return false;
+  }
+
+  // 3. Decode image and get dimensions
+  const imageBuffer = Buffer.from(base64Image, "base64");
+  const metadata = await sharp(imageBuffer).metadata();
+  const imageWidth = metadata.width || 0;
+  const imageHeight = metadata.height || 0;
+
+  // 4. Validate coordinates
+  const coordValidation = validateCropCoordinates(coverCropCoordinates, imageWidth, imageHeight);
+  if (!coordValidation.valid) {
+    console.log(`[harvest] skipped: bad coordinates — ${coordValidation.reason}`);
+    return false;
+  }
+
+  // 5. Apply 4% inset padding
+  const insetCoords = applyInsetPadding(coverCropCoordinates);
+
+  // 6. Validate dimensions after inset
+  if (!meetsMinimumDimensions(insetCoords.width, insetCoords.height)) {
+    console.log("[harvest] skipped: too small after inset");
+    return false;
+  }
+
+  // 7. Validate aspect ratio
+  if (!isValidAspectRatio(insetCoords.width, insetCoords.height)) {
+    console.log("[harvest] skipped: bad aspect ratio");
+    return false;
+  }
+
+  // 8. Crop the image
+  const croppedBuffer = await sharp(imageBuffer)
+    .extract({ left: insetCoords.x, top: insetCoords.y, width: insetCoords.width, height: insetCoords.height })
+    .toBuffer();
+
+  // 9. Validate color variance (reject solid-color garbage crops)
+  const stats = await sharp(croppedBuffer).stats();
+  const allLowVariance = stats.channels.every((ch) => ch.stdev < 10);
+  if (allLowVariance) {
+    console.log("[harvest] skipped: low color variance");
+    return false;
+  }
+
+  // 10. Convert to WebP
+  const webpBuffer = await sharp(croppedBuffer).webp({ quality: 85 }).toBuffer();
+
+  // 11. Upload to Supabase Storage
+  const safeTitle = title.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-");
+  const safeIssue = issueNumber.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-");
+  const variantPath = normalizedVariant ? normalizedVariant.replace(/[^a-z0-9]+/g, "-") : "_default";
+  const uuid = crypto.randomUUID();
+  const storagePath = `${safeTitle}/${safeIssue}/${variantPath}/${uuid}.webp`;
+
+  const { error: uploadError } = await supabaseAdmin.storage
+    .from("cover-images")
+    .upload(storagePath, webpBuffer, { contentType: "image/webp", upsert: false });
+
+  if (uploadError) {
+    console.error("[harvest] storage upload failed:", uploadError.message);
+    return false;
+  }
+
+  // 12. Get public URL
+  const { data: urlData } = supabaseAdmin.storage.from("cover-images").getPublicUrl(storagePath);
+
+  // 13. Submit to community cover database
+  await submitCoverImage({
+    title,
+    issueNumber,
+    imageUrl: urlData.publicUrl,
+    submittedBy: SYSTEM_HARVEST_PROFILE_ID,
+    sourceQuery: "scan-harvest",
+    autoApprove: true,
+    variant: normalizedVariant,
+  });
+
+  console.log(`[harvest] success: ${title} #${issueNumber}${normalizedVariant ? ` (${normalizedVariant})` : ""}`);
+  return true;
 }

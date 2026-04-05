@@ -1,3 +1,11 @@
+// Mock heavy imports to prevent ESM/transitive-dep failures in Jest
+jest.mock("sharp", () => jest.fn());
+jest.mock("../supabase", () => ({ supabaseAdmin: { storage: { from: jest.fn() } } }));
+jest.mock("../coverImageDb", () => ({
+  getCommunityCovers: jest.fn(),
+  submitCoverImage: jest.fn(),
+}));
+
 import {
   validateCropCoordinates,
   applyInsetPadding,
