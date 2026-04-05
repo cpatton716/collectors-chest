@@ -23,8 +23,8 @@ ON cover_images (title_normalized, issue_number, COALESCE(variant, ''))
 WHERE status = 'approved';
 
 -- 5. System harvest profile (sentinel row for automated operations)
-INSERT INTO profiles (id, display_name, created_at)
-VALUES ('00000000-0000-0000-0000-000000000001', 'System Harvest', NOW())
+INSERT INTO profiles (id, clerk_user_id, display_name, created_at)
+VALUES ('00000000-0000-0000-0000-000000000001', 'system_harvest', 'System Harvest', NOW())
 ON CONFLICT (id) DO NOTHING;
 
 -- 6. Add cover_harvested tracking to scan_analytics
