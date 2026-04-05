@@ -6,6 +6,8 @@ import Anthropic from "@anthropic-ai/sdk";
 
 import { MODEL_PRIMARY } from "@/lib/models";
 
+import type { GradingCompany } from "@/types/comic";
+
 import type {
   AICallType,
   AIProvider,
@@ -117,6 +119,46 @@ Important:
 For GRADED/SLABBED books only, also include:
 - "coverHarvestable": true/false — Is the cover artwork clearly visible through the slab? Return true ONLY when: the cover is sharp, well-lit, minimal glare/reflections on plastic, accurate colors, and the full cover is visible (not cut off). If ANY of these conditions fail, return false.
 - "coverCropCoordinates": {"x": number, "y": number, "width": number, "height": number} — Pixel coordinates of ONLY the comic cover artwork inside the slab. EXCLUDE the grading label (top), certification number, plastic case borders, and any reflections. The coordinates are relative to the image you received. Only include this field when coverHarvestable is true.`;
+
+export const SLAB_DETECTION_PROMPT = `You are examining a photo of a comic book. Determine ONLY whether this is a professionally graded (slabbed) comic in a hard plastic case.
+
+If it IS slabbed, read the certification number from the grading label. The cert number is typically 7-10 digits, often near a barcode on the label.
+
+Return ONLY this JSON object, no other text:
+{
+  "isSlabbed": true or false,
+  "gradingCompany": "CGC" or "CBCS" or "PGX" or null if not slabbed,
+  "certificationNumber": "the certification number as a string" or null if not visible or not slabbed
+}`;
+
+export const SLAB_DETAIL_EXTRACTION_PROMPT = `You are examining a photo of a professionally graded (slabbed) comic book. The comic's identity has already been determined. Your job is to extract additional details from the COVER ARTWORK visible through the slab case.
+
+TASKS:
+1. UPC BARCODE: Look for the comic's UPC barcode on the cover artwork (NOT the cert label barcode). It's typically in the bottom-left or bottom-right of the cover art. Read ALL digits (12-17 digits). Report confidence based on clarity.
+2. COVER HARVEST: Is the cover artwork clearly visible through the slab? If yes, provide pixel coordinates of ONLY the cover artwork (exclude grading label, cert number, plastic borders, reflections). Provide coordinates as pixel values relative to the input image dimensions.
+3. CREATORS: Identify the writer, cover artist, and interior artist if visible on the cover or readable from the image.
+
+Return ONLY this JSON object, no other text:
+{
+  "barcode": {"raw": "all digits as string", "confidence": "high" | "medium" | "low"} or null if no barcode visible,
+  "coverHarvestable": true or false,
+  "coverCropCoordinates": {"x": number, "y": number, "width": number, "height": number} or null if not harvestable,
+  "writer": "writer name" or null,
+  "coverArtist": "cover artist name" or null,
+  "interiorArtist": "interior artist name" or null
+}`;
+
+export const SLAB_COVER_HARVEST_ONLY_PROMPT = `You are examining a photo of a professionally graded (slabbed) comic book. Your ONLY job is to determine if the cover artwork is suitable for harvesting and provide crop coordinates. Provide coordinates as pixel values relative to the input image dimensions.
+
+Return ONLY this JSON object, no other text:
+{
+  "barcode": null,
+  "coverHarvestable": true or false,
+  "coverCropCoordinates": {"x": number, "y": number, "width": number, "height": number} or null if not harvestable,
+  "writer": null,
+  "coverArtist": null,
+  "interiorArtist": null
+}`;
 
 export function buildVerificationPrompt(req: VerificationRequest): string {
   return `You are a comic book expert. Complete this comic's information.
@@ -243,20 +285,96 @@ export class AnthropicProvider implements AIProvider {
     return this.parseJsonResponse(textBlock.text) as VerificationResult;
   }
 
-  // ── Slab Detection & Detail Extraction (stubs — implemented in Task 2) ──
+  // ── Call 3: Slab Detection ──
 
   async detectSlab(
-    _req: ImageAnalysisRequest,
-    _opts?: CallOptions
+    req: ImageAnalysisRequest,
+    opts?: CallOptions
   ): Promise<SlabDetectionResult> {
-    throw new Error("detectSlab not yet implemented in AnthropicProvider");
+    const response = await this.client.messages.create(
+      {
+        model: MODEL_PRIMARY,
+        max_tokens: 128,
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "image",
+                source: {
+                  type: "base64",
+                  media_type: req.mediaType,
+                  data: req.base64Data,
+                },
+              },
+              {
+                type: "text",
+                text: SLAB_DETECTION_PROMPT,
+              },
+            ],
+          },
+        ],
+      },
+      { signal: opts?.signal }
+    );
+
+    const textBlock = response.content.find((b) => b.type === "text");
+    if (!textBlock || textBlock.type !== "text") {
+      throw new Error("Slab detection call returned no text content.");
+    }
+
+    const parsed = this.parseJsonResponse(textBlock.text) as SlabDetectionResult;
+    if (parsed.gradingCompany !== null) {
+      parsed.gradingCompany = parsed.gradingCompany as GradingCompany;
+    }
+    return parsed;
   }
 
+  // ── Call 4: Slab Detail Extraction ──
+
   async extractSlabDetails(
-    _req: ImageAnalysisRequest,
-    _opts?: CallOptions & { skipCreators?: boolean; skipBarcode?: boolean }
+    req: ImageAnalysisRequest,
+    opts?: CallOptions & { skipCreators?: boolean; skipBarcode?: boolean }
   ): Promise<SlabDetailExtractionResult> {
-    throw new Error("extractSlabDetails not yet implemented in AnthropicProvider");
+    const useHarvestOnly = opts?.skipCreators && opts?.skipBarcode;
+    const prompt = useHarvestOnly
+      ? SLAB_COVER_HARVEST_ONLY_PROMPT
+      : SLAB_DETAIL_EXTRACTION_PROMPT;
+    const maxTokens = useHarvestOnly ? 128 : 384;
+
+    const response = await this.client.messages.create(
+      {
+        model: MODEL_PRIMARY,
+        max_tokens: maxTokens,
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "image",
+                source: {
+                  type: "base64",
+                  media_type: req.mediaType,
+                  data: req.base64Data,
+                },
+              },
+              {
+                type: "text",
+                text: prompt,
+              },
+            ],
+          },
+        ],
+      },
+      { signal: opts?.signal }
+    );
+
+    const textBlock = response.content.find((b) => b.type === "text");
+    if (!textBlock || textBlock.type !== "text") {
+      throw new Error("Slab detail extraction call returned no text content.");
+    }
+
+    return this.parseJsonResponse(textBlock.text) as SlabDetailExtractionResult;
   }
 
   // ── Cost Estimation ──
@@ -268,9 +386,9 @@ export class AnthropicProvider implements AIProvider {
       case "verification":
         return 0.6;
       case "slabDetection":
-        return 0.3;
+        return 0.2;
       case "slabDetailExtraction":
-        return 0.8;
+        return 0.5;
     }
   }
 }
