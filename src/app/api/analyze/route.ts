@@ -21,6 +21,8 @@ import { runCoverPipeline } from "@/lib/coverValidation";
 import { lookupKeyInfo } from "@/lib/keyComicsDatabase";
 import { verifyWithMetron, MetronVerifyResult } from "@/lib/metronVerify";
 import { estimateScanCostCents, trackScanServer, recordScanAnalytics } from "@/lib/analyticsServer";
+import { harvestCoverFromScan } from "@/lib/coverHarvest";
+import { supabaseAdmin } from "@/lib/supabase";
 import { checkRateLimit, getRateLimitIdentifier, rateLimiters } from "@/lib/rateLimit";
 import {
   GUEST_SCAN_LIMIT,
@@ -71,6 +73,9 @@ interface ComicDetails {
   coverSource?: string | null; // Where the cover came from (metron, community, ebay, etc.)
   coverValidated?: boolean; // Whether the cover has been validated
   metronId?: string | null; // Metron database ID for cross-reference
+  // Cover harvesting fields (internal — stripped before sending to client)
+  coverHarvestable?: boolean;
+  coverCropCoordinates?: { x: number; y: number; width: number; height: number };
 }
 
 /**
@@ -314,6 +319,8 @@ export async function POST(request: NextRequest) {
         keyInfo: [],
         barcode: imageResult.barcode || null,
         barcodeNumber: imageResult.barcodeNumber || null,
+        coverHarvestable: imageResult.coverHarvestable,
+        coverCropCoordinates: imageResult.coverCropCoordinates,
       };
 
       // Debug: log AI identification results
@@ -358,6 +365,8 @@ export async function POST(request: NextRequest) {
                 keyInfo: [],
                 barcode: fallbackResult.barcode || null,
                 barcodeNumber: fallbackResult.barcodeNumber || null,
+                coverHarvestable: fallbackResult.coverHarvestable,
+                coverCropCoordinates: fallbackResult.coverCropCoordinates,
               };
               p1 = fallbackProvider.name;
               cerebro_assisted = true;
@@ -901,6 +910,43 @@ export async function POST(request: NextRequest) {
           : null,
       },
     };
+
+    // Cover image harvesting from graded book scans
+    // Runs pre-response with 2s timeout — see spec for rationale
+    if (comicDetails.isSlabbed && comicDetails.coverHarvestable) {
+      const harvestPromise = harvestCoverFromScan({
+        base64Image: base64Data,
+        title: comicDetails.title || "",
+        issueNumber: comicDetails.issueNumber || "",
+        variant: comicDetails.variant || null,
+        coverCropCoordinates: comicDetails.coverCropCoordinates!,
+        profileId: profileId || null,
+        isSlabbed: comicDetails.isSlabbed,
+        coverHarvestable: comicDetails.coverHarvestable,
+      }).catch((err) => {
+        console.error("[harvest] failed:", err.message);
+        return false;
+      });
+
+      const timeoutPromise = new Promise<boolean>((resolve) =>
+        setTimeout(() => resolve(false), 2000)
+      );
+
+      const harvested = await Promise.race([harvestPromise, timeoutPromise]);
+
+      if (harvested) {
+        void supabaseAdmin
+          .from("scan_analytics")
+          .update({ cover_harvested: true })
+          .eq("profile_id", profileId)
+          .order("created_at", { ascending: false })
+          .limit(1);
+      }
+    }
+
+    // Remove internal harvest fields from client response
+    delete comicDetails.coverHarvestable;
+    delete comicDetails.coverCropCoordinates;
 
     return NextResponse.json({ ...comicDetails, cerebro_assisted, _meta });
   } catch (error) {
