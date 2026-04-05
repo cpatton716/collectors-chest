@@ -170,7 +170,7 @@ export function PublicComicModal({ item, onClose }: PublicComicModalProps) {
                   <div>
                     <h3 className="text-sm font-semibold text-gray-900 mb-1 flex items-center gap-2">
                       <TrendingUp className="w-4 h-4 text-green-600" />
-                      Listed Value
+                      Avg List Price
                     </h3>
                     <div className="flex items-baseline gap-1">
                       <DollarSign className="w-5 h-5 text-green-600" />

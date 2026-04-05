@@ -218,9 +218,9 @@ export function KeyHuntPriceResult({
             <p className="text-sm text-gray-500 mb-1">
               {hasRawSlabbedData
                 ? showSlabbed
-                  ? "Listed Value (Slabbed)"
-                  : "Listed Value (Raw)"
-                : "Listed Value"}
+                  ? "Avg List Price (Slabbed)"
+                  : "Avg List Price (Raw)"
+                : "Avg List Price"}
             </p>
             <p className="text-4xl font-bold text-gray-900">{formatPrice(displayPrice)}</p>
             {fromCache && <p className="text-xs text-amber-600 mt-1">Price from cached lookup</p>}
