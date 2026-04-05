@@ -82,6 +82,12 @@ export function estimateScanCostCents(params: {
 
 // --- Scan Analytics (Supabase) ---
 
+export type ScanPath =
+  | "cert-first-cached"
+  | "cert-first-full"
+  | "cert-first-fallback"
+  | "full-pipeline";
+
 export interface ScanAnalyticsRecord {
   profile_id: string | null;
   scan_method: string;
@@ -97,6 +103,8 @@ export interface ScanAnalyticsRecord {
   fallback_used?: boolean;
   fallback_reason?: string | null;
   cover_harvested?: boolean;
+  scan_path?: ScanPath;
+  barcode_extracted?: boolean;
 }
 
 export async function recordScanAnalytics(
@@ -118,6 +126,8 @@ export async function recordScanAnalytics(
       fallback_used: record.fallback_used || false,
       fallback_reason: record.fallback_reason || null,
       cover_harvested: record.cover_harvested ?? false,
+      scan_path: record.scan_path || "full-pipeline",
+      barcode_extracted: record.barcode_extracted ?? false,
     });
   } catch (err) {
     console.error("Failed to record scan analytics:", err);
