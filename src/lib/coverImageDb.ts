@@ -29,13 +29,15 @@ export interface CoverImage {
  */
 export async function getCommunityCovers(
   title: string,
-  issueNumber: string
+  issueNumber: string,
+  variant?: string
 ): Promise<string | null> {
   const { data, error } = await supabaseAdmin
     .from("cover_images")
     .select("image_url")
     .eq("title_normalized", normalizeTitle(title))
     .eq("issue_number", normalizeIssueNumber(issueNumber))
+    .eq("variant", variant ? variant.toLowerCase().trim() : "")
     .eq("status", "approved")
     .order("approved_at", { ascending: false })
     .limit(1)
@@ -57,6 +59,7 @@ export async function submitCoverImage(params: {
   submittedBy: string;
   sourceQuery: string;
   autoApprove: boolean;
+  variant?: string;
 }): Promise<{ id: string; status: string }> {
   const status = params.autoApprove ? "approved" : "pending";
   const now = new Date().toISOString();
@@ -72,11 +75,22 @@ export async function submitCoverImage(params: {
       source_query: params.sourceQuery,
       approved_by: params.autoApprove ? params.submittedBy : null,
       approved_at: params.autoApprove ? now : null,
+      variant: params.variant ? params.variant.toLowerCase().trim() : "",
     })
     .select("id, status")
     .single();
 
   if (error) throw new Error(`Failed to submit cover: ${error.message}`);
+
+  if (params.autoApprove && data) {
+    // Sync to comic_metadata so the cover is immediately findable
+    await saveComicMetadata({
+      title: params.title,
+      issueNumber: params.issueNumber,
+      coverImageUrl: params.imageUrl,
+    }).catch((err) => console.error("[coverImageDb] metadata sync failed:", err.message));
+  }
+
   return data;
 }
 
