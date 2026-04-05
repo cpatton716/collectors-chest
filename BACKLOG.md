@@ -418,11 +418,13 @@ ChestIcon component currently uses a PNG (`/icons/icon-512x512.png`) via an `<im
 
 ### Auto-Harvest Cover Images from Graded Book Scans
 **Priority:** High
-**Status:** Pending
+**Status:** Code Complete — awaiting manual integration test
 **Added:** Feb 26, 2026
 
-Design doc exists at `docs/plans/2026-02-25-cover-image-harvesting-design.md`, needs implementation. When users scan graded (slabbed) books, the cover image visible through the slab case can be cropped and submitted to the community cover database automatically.
-**Implementation Plan:** `docs/superpowers/plans/2026-04-02-cover-image-harvesting.md` — ready for execution, first pickup next session.
+Implementation complete (9 code tasks done, 532 tests passing). All cover harvesting logic, image processing, validation, and database integration in place. Ready for manual integration testing with slabbed comic scans to verify end-to-end workflow.
+
+**Design doc:** `docs/plans/2026-02-25-cover-image-harvesting-design.md`
+**Implementation Plan:** `docs/superpowers/plans/2026-04-02-cover-image-harvesting.md`
 
 ---
 
@@ -1469,7 +1471,7 @@ Clerk offers subscription/billing services. Investigate whether Clerk Billing co
 
 ### Switch Clerk to Production Instance
 **Priority:** High (Pre-Launch)
-**Status:** In Progress (DNS propagating)
+**Status:** Blocked (awaiting Clerk support — ticket submitted Apr 5, 2026)
 **Added:** April 2, 2026
 
 Clerk is currently running in Development mode. Before public launch, need to create a Production instance in the Clerk dashboard. This provides production API keys, removes dev branding, and enables real email delivery.
@@ -1477,12 +1479,13 @@ Clerk is currently running in Development mode. Before public launch, need to cr
 **Steps:**
 1. ✅ Create Production instance in Clerk dashboard
 2. ✅ Update branding/logos in Production instance
-3. ✅ Add DNS CNAME records (2/5 verified, 3 email records pending SSL)
+3. ✅ Add DNS CNAME records (5/5 verified)
 4. ✅ Configure webhook in Production instance
 5. ✅ Update API keys in Netlify env vars + `.env.local` for local testing
 6. Test welcome email after SSL propagates for clerk.collectors-chest.com
+7. Awaiting Clerk support response (Discord #support post submitted Apr 5, next business day)
 
-**Note:** Site authentication is broken on production until SSL certificate provisions (expected 30-60 min from Apr 2, 2026 15:00 UTC)
+**Note:** All 5 DNS CNAME records verified via dig. SSL certificates not provisioned on Clerk's side — TLS handshake failure on clerk.collectors-chest.com and accounts.collectors-chest.com. Production auth is non-functional (Sign In button invisible, no authentication possible). Support ticket filed in Clerk Discord #support forum on Apr 5, 2026 — Clerk closed for weekend, response expected Monday Apr 7.
 
 ---
 

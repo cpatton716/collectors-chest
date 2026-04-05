@@ -7,10 +7,12 @@ This log tracks session-by-session progress on Collectors Chest.
 ## Changes Since Last Deploy
 
 **Last Deploy:** March 26, 2026 (Session 26 — 30-day promo trial link)
-**Sessions Since Last Deploy:** 5
-**Deploy Readiness:** Deployed (March 26, 2026)
+**Sessions Since Last Deploy:** 6
+**Deploy Readiness:** Needs Testing
 
 ### Changes Since Last Deploy:
+- Cover image harvesting from graded scans — code complete (9 tasks, 10 commits, 25+ new tests, awaiting manual integration test)
+- Clerk Production DNS support ticket filed (SSL not provisioning, awaiting Clerk response Mon Apr 7)
 - Cover image validation pipeline — full implementation (11 commits, 38 new tests, 15 files)
 - Stripe payment integration — products, webhooks, checkout flow, scan pack purchases
 - Post-signup Choose Your Plan page with 7-day trial CTA
@@ -39,6 +41,42 @@ This log tracks session-by-session progress on Collectors Chest.
 - Clerk Production instance configured (DNS propagating)
 - ADMIN_EMAIL code fallbacks updated
 - Pricing architecture documented
+
+---
+
+## Apr 5, 2026 - Session 30: Cover Image Harvesting, Clerk Production Support
+
+### Summary
+- Implemented cover image harvesting from graded/slabbed comic scans (9 tasks, 10 commits)
+- Auto-crops cover artwork from slab photos, uploads to Supabase Storage as WebP, submits to community cover DB
+- Pipeline: eligibility check → duplicate check → sharp crop → color variance check → upload → DB submit
+- 25+ new tests, 532 total passing
+- DB migration run: variant column, unique index, sentinel profile, cover_harvested analytics
+- Supabase Storage bucket created (cover-images, public, 500KB limit, image/webp)
+- Clerk Production instance DNS verified but SSL not provisioning — support ticket filed in Clerk Discord
+- Production auth currently broken (no Sign In button) — awaiting Clerk response Monday Apr 7
+
+### Key Files Created/Modified
+- `src/lib/coverHarvest.ts` — New: validation logic + harvest orchestrator
+- `src/lib/__tests__/coverHarvest.test.ts` — New: 25 tests for harvest logic
+- `src/lib/providers/types.ts` — Added coverHarvestable, coverCropCoordinates fields
+- `src/lib/providers/anthropic.ts` — AI prompt expanded for harvest fields, max_tokens 1536
+- `src/lib/providers/gemini.ts` — maxOutputTokens 1536
+- `src/lib/coverImageDb.ts` — Variant support added
+- `src/lib/analyticsServer.ts` — cover_harvested field added
+- `src/app/api/analyze/route.ts` — Harvest integration with 2s timeout
+- `supabase/migrations/20260405_cover_harvest_support.sql` — Schema changes
+- `package.json` — sharp dependency added
+
+### Issues Encountered
+- Clerk Production SSL certificates not provisioning despite all 5 DNS CNAME records resolving correctly (3 days and counting)
+- Supabase profiles table has NOT NULL on clerk_user_id — migration sentinel profile insert needed clerk_user_id field added
+- Clerk Discord support requires onboarding verification before accessing #support channel
+
+### Where We Left Off
+- Cover harvesting code complete — needs manual integration test with slabbed comic scan
+- Clerk support ticket open — response expected Monday Apr 7
+- Sign Up Free CTA needed on guest homepage (identified during Clerk investigation)
 
 ---
 

@@ -536,7 +536,7 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 
 ### Recommended Next Steps
 1. **Await SVG logo from partner** — Partner to provide SVG version of the Collectors Chest emblem. Once received, swap PNG for SVG in ChestIcon component for better scaling and smaller bundle size.
-2. **Implement cover image validation pipeline** — Design spec complete, implementation plan needed. Fixes wrong cover images across the app.
+2. **Cover image harvesting integration testing** — Code complete (9 tasks, 532 tests). Awaiting manual integration test with slabbed comic to verify end-to-end pipeline.
 3. **Re-price existing collection** — After Browse API deploy, existing comics show no price. Need mechanism to refresh prices on demand or via batch.
 4. **Session 21 feedback re-test** — 3 items still broken, 8 need retest from production mobile testing
 5. **Validate Gemini as primary provider in production**
@@ -697,10 +697,10 @@ Items addressed:
    - Review private beta checklist and assess readiness to open registration
    - LLC done, age gate done, legal pages done — remaining blockers: Stripe, backups
 
-6. **Implement auto-harvest cover images from graded book scans** (design doc exists)
+6. **Implement auto-harvest cover images from graded book scans** ✅ CODE COMPLETE (Mar 26, 2026)
    - Design doc: `docs/plans/2026-02-25-cover-image-harvesting-design.md`
-   - Harvest cover images from graded book scans during AI analysis
-   - Feeds into community cover DB (primary cover source)
+   - Implementation complete: 9 tasks, 532 tests passing
+   - Awaiting manual integration test with slabbed comic before marking fully done
 
 7. **Fill in About page content** (Medium Priority)
    - Write "Our Story" section with founding narrative

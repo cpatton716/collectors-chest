@@ -2,7 +2,7 @@
 
 > **Comprehensive map of pages, features, and service dependencies**
 
-*Last Updated: March 26, 2026 (Full codebase audit — Gemini replaces OpenAI as fallback, cover validation pipeline, missing routes/libs/env vars added)*
+*Last Updated: April 5, 2026 (Cover harvest feature — sharp dependency, cover-images Storage bucket, variant column, coverHarvestable prompt fields, cover_harvested analytics, coverHarvest.ts orchestrator)*
 
 ---
 
@@ -47,6 +47,7 @@
 | Fallback Status | — | "Taking longer than usual" message when fallback triggers |
 | CGC/CBCS Cert Lookup | Web scrape | Verifies graded comic certification |
 | Cover Validation | 🤖² 🗄️ | Gemini-powered cover image validation pipeline |
+| Cover Harvest | 🤖 🗄️ | Auto-harvest cover image from scan result; crop, store in Supabase Storage (`cover-images` bucket), insert into `cover_images` with variant support |
 | Key Info Lookup | 🗄️ | 402 curated key comics database |
 | Suggest Key Info | 🗄️ 🔐 | Community submissions for key facts |
 | Scan Limits | 💾 🗄️ | Guest 5, Free 10/mo, Pro unlimited |
@@ -688,6 +689,13 @@ All other routes are public (unauthenticated access allowed). Individual API rou
                │
                v
        ┌───────────────┐
+       │ Cover Harvest │  coverHarvestable? → crop with sharp
+       │ (async, no-op │  → upload to cover-images bucket
+       │  on dup/fail) │  → insert cover_images row w/ variant
+       └───────┬───────┘
+               │
+               v
+       ┌───────────────┐
        │ Return to     │
        │ User          │
        └───────────────┘
@@ -793,7 +801,8 @@ All other routes are public (unauthenticated access allowed). Individual API rou
 | `src/lib/messagingDb.ts` | Messaging DB helpers including `broadcastNewMessage()` via Supabase Broadcast |
 | `src/lib/cache.ts` | Redis cache helpers including `popularTitles` prefix with 1-hour TTL |
 | `src/lib/creatorCreditsDb.ts` | Creator Credits DB helpers (transaction feedback + contribution badge tiers) |
-| `src/lib/coverImageDb.ts` | Community cover image DB helpers (`getCommunityCovers`) |
+| `src/lib/coverImageDb.ts` | Community cover image DB helpers (`getCommunityCovers`); variant support added for harvest dedup (unique index on title+issue+publisher+variant) |
+| `src/lib/coverHarvest.ts` | Cover harvest orchestrator — validates result eligibility, crops with `sharp`, uploads to Supabase Storage, inserts `cover_images` row with `variant` field; no-op on duplicates |
 | `src/lib/followDb.ts` | Follow system DB helpers (follow/unfollow, counts) |
 | `src/lib/tradingDb.ts` | Trading system DB helpers (trades, matches) |
 | `src/lib/auctionDb.ts` | Auction/listing DB helpers |
@@ -808,11 +817,11 @@ All other routes are public (unauthenticated access allowed). Individual API rou
 | `src/lib/promoTrial.ts` | localStorage helpers for promo trial flag — `setPromoTrialFlag()`, `getPromoTrialFlag()`, `clearPromoTrialFlag()`; timestamp-based 7-day expiration |
 | `src/lib/alertBadgeHelpers.ts` | Admin alert badge helpers |
 | `src/lib/aiProvider.ts` | Fallback orchestrator: getProviders(), classifyError(), getRemainingBudget(), executeWithFallback() |
-| `src/lib/providers/types.ts` | Provider interface + shared types (AIProvider, CallResult, ScanResponseMeta) |
-| `src/lib/providers/gemini.ts` | GeminiProvider class — primary vision provider (Gemini 2.0 Flash) |
-| `src/lib/providers/anthropic.ts` | AnthropicProvider class — fallback provider (Claude) |
+| `src/lib/providers/types.ts` | Provider interface + shared types (AIProvider, CallResult, ScanResponseMeta); added `coverHarvestable` flag and `coverCropCoordinates` to result shape |
+| `src/lib/providers/gemini.ts` | GeminiProvider class — primary vision provider (Gemini 2.0 Flash); `maxOutputTokens` increased for harvest prompt |
+| `src/lib/providers/anthropic.ts` | AnthropicProvider class — fallback provider (Claude); AI prompt expanded to return `coverHarvestable` + `coverCropCoordinates` |
 | `src/lib/models.ts` | AI model constants incl. GEMINI_PRIMARY, MODEL_PRIMARY, MODEL_LIGHTWEIGHT, VISION_PROVIDER_ORDER |
-| `src/lib/analyticsServer.ts` | Server-side analytics helpers (provider-aware cost estimation via PROVIDER_COSTS lookup) |
+| `src/lib/analyticsServer.ts` | Server-side analytics helpers (provider-aware cost estimation via PROVIDER_COSTS lookup); added `cover_harvested` boolean field to scan analytics |
 | `src/lib/coverValidation.ts` | Gemini-powered cover image validation pipeline |
 | `src/lib/metronVerify.ts` | Metron API verification for comic metadata |
 | `src/lib/choosePlanHelpers.ts` | Choose plan page helpers |
@@ -886,8 +895,8 @@ All other routes are public (unauthenticated access allowed). Individual API rou
 | `app_cache` | General-purpose application cache |
 | `barcode_catalog` | Community-submitted barcode-to-comic mappings |
 | `admin_barcode_reviews` | Barcode catalog moderation queue |
-| `cover_images` | Community-submitted cover images |
-| `scan_analytics` | Scan tracking with `provider`, `fallback_used`, `fallback_reason` columns |
+| `cover_images` | Community-submitted cover images; `variant` column added (text, nullable) with unique index on title+issue+publisher+variant for harvest dedup; sentinel profile for harvest-contributed rows |
+| `scan_analytics` | Scan tracking with `provider`, `fallback_used`, `fallback_reason`, `cover_harvested` (boolean) columns |
 | `cover_validation` | Cover image validation results from Gemini pipeline |
 
 ### Trading Tables Detail
@@ -916,8 +925,32 @@ All other routes are public (unauthenticated access allowed). Individual API rou
 - `acquired_via` (text) - How comic was obtained (scan/import/purchase/trade)
 - `cover_validated` (boolean) - Whether cover image passed validation pipeline
 
+**cover_images table additions**
+- `variant` (text, nullable) - Cover variant label (e.g., "1:25 variant"); unique index on `(title, issue_number, publisher, variant)` for harvest dedup
+- Sentinel profile (`cover_harvest_bot`) used as `submitted_by` for auto-harvested rows
+
+**scan_analytics table additions**
+- `cover_harvested` (boolean) - Whether a cover image was auto-harvested from this scan
+
 **profiles table additions**
 - `show_financials` (boolean) - User preference to show/hide financial data in collection
+
+---
+
+## Supabase Storage Buckets
+
+| Bucket | Purpose | Access |
+|--------|---------|--------|
+| `cover-images` | Auto-harvested cover images from scan results (uploaded by `coverHarvest.ts`) | Public read, service-role write |
+| `message-images` | User-uploaded message attachments | Authenticated |
+
+---
+
+## Key npm Dependencies (Non-obvious)
+
+| Package | Purpose |
+|---------|---------|
+| `sharp` | Server-side image cropping and format conversion for cover harvest; used in `coverHarvest.ts` to crop to AI-returned coordinates before Supabase Storage upload |
 
 ---
 
@@ -1031,10 +1064,12 @@ The `/api/analyze` route uses a provider abstraction layer so that each of the 3
 | `src/lib/providers/__tests__/anthropic.test.ts` | Anthropic provider tests |
 | `src/lib/providers/__tests__/gemini.test.ts` | Gemini provider tests |
 | `src/lib/__tests__/aiProvider.test.ts` | Provider orchestrator tests |
+| `src/lib/__tests__/coverHarvest.test.ts` | Cover harvest validation + orchestrator tests |
 
 ### Migration
 
 - `supabase/migrations/20260301_scan_analytics_provider.sql` — adds `provider`, `fallback_used`, `fallback_reason` columns to `scan_analytics`
+- `supabase/migrations/20260326_cover_harvest.sql` — adds `variant` column + unique index to `cover_images`; adds `cover_harvested` to `scan_analytics`; creates sentinel profile for harvest bot
 
 ---
 

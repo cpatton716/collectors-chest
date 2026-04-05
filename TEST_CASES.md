@@ -782,6 +782,25 @@ A guide for testing the main and secondary features of the application.
 
 ---
 
+## Cover Image Harvesting — Slabbed Scans
+
+**Location:** Home → Scan a Book (with graded/slabbed comics)
+
+**Overview:** Auto-harvest cover artwork from graded/slabbed comic scans. When AI determines cover is harvestable (clear, well-lit, minimal glare), system auto-crops, uploads to Supabase Storage, and submits to community database.
+
+| # | Test Case | Steps | Expected Result | Status |
+|---|-----------|-------|-----------------|--------|
+| 1 | Successful harvest (slabbed CGC) | Scan a CGC-graded comic with clear, well-lit cover visible | Check server logs for `[harvest] success` message → Verify image in Supabase Storage `cover-images` bucket → Verify row in `cover_images` table with `source_query = 'scan-harvest'` | Pending |
+| 2 | Skip duplicate harvest | Scan the same slabbed comic again | Server logs show `[harvest] skipped: cover exists` → No duplicate entry in Supabase Storage or `cover_images` table | Pending |
+| 3 | No harvest for raw comics | Scan a raw (non-slabbed) comic | No `[harvest]` log messages → No new entries in `cover_images` table or Storage → Comic imports normally | Pending |
+| 4 | Glare/reflection prevents harvest | Scan a slabbed comic with heavy glare or reflection on slab | AI returns `coverHarvestable: false` → No harvest attempt → No entries created in logs/DB/Storage | Pending |
+| 5 | Partial success (CBCS variant) | Scan a CBCS-graded comic with clear cover | Same behavior as #1 (success, storage, DB entry) | Pending |
+| 6 | Poor lighting prevents harvest | Scan a slabbed comic with dim lighting or shadows on cover | AI returns `coverHarvestable: false` → No harvest attempt | Pending |
+| 7 | Harvest with variant cover | Scan a slabbed variant cover edition | AI determines harvestable variant → Image harvested and stored → DB entry with correct variant metadata | Pending |
+| 8 | Database integrity check | After 5+ successful harvests | Verify all rows have: `id`, `source_query = 'scan-harvest'`, `created_at`, valid image URL in Storage | Pending |
+
+---
+
 ## Mobile Responsiveness
 
 | Test Case | Steps | Expected Result |
