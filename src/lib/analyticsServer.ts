@@ -96,6 +96,7 @@ export interface ScanAnalyticsRecord {
   provider?: string;
   fallback_used?: boolean;
   fallback_reason?: string | null;
+  cover_harvested?: boolean;
 }
 
 export async function recordScanAnalytics(
@@ -116,6 +117,7 @@ export async function recordScanAnalytics(
       provider: record.provider || "anthropic",
       fallback_used: record.fallback_used || false,
       fallback_reason: record.fallback_reason || null,
+      cover_harvested: record.cover_harvested ?? false,
     });
   } catch (err) {
     console.error("Failed to record scan analytics:", err);
