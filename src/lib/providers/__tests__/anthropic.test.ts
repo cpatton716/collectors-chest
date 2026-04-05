@@ -138,7 +138,7 @@ describe("AnthropicProvider", () => {
       // Verify SDK was called with correct shape
       const [body, requestOpts] = client.messages.create.mock.calls[0];
       expect(body.model).toBe("claude-sonnet-4-20250514");
-      expect(body.max_tokens).toBe(1024);
+      expect(body.max_tokens).toBe(1536);
       expect(body.messages[0].content[0]).toMatchObject({
         type: "image",
         source: { type: "base64", media_type: "image/jpeg", data: "abc123" },

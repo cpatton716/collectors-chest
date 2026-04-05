@@ -67,13 +67,24 @@ export class GeminiProvider implements AIProvider {
     req: ImageAnalysisRequest,
     opts?: CallOptions
   ): Promise<ImageAnalysisResult> {
-    const model = this.genAI.getGenerativeModel({ model: GEMINI_PRIMARY });
+    const model = this.genAI.getGenerativeModel(
+      { model: GEMINI_PRIMARY },
+      { apiVersion: "v1beta" }
+    );
 
     const result = await this.withTimeout(
-      model.generateContent([
-        { inlineData: { mimeType: req.mediaType, data: req.base64Data } },
-        { text: IMAGE_ANALYSIS_PROMPT },
-      ]),
+      model.generateContent({
+        contents: [
+          {
+            role: "user",
+            parts: [
+              { inlineData: { mimeType: req.mediaType, data: req.base64Data } },
+              { text: IMAGE_ANALYSIS_PROMPT },
+            ],
+          },
+        ],
+        generationConfig: { maxOutputTokens: 1536 },
+      }),
       opts?.signal
     );
 

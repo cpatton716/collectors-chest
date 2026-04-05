@@ -85,10 +85,18 @@ describe("GeminiProvider", () => {
 
       expect(result.title).toBe("Batman");
       expect(result.publisher).toBe("DC Comics");
-      expect(mockGenerateContent).toHaveBeenCalledWith([
-        { inlineData: { mimeType: "image/jpeg", data: "base64data" } },
-        { text: "mock image prompt" },
-      ]);
+      expect(mockGenerateContent).toHaveBeenCalledWith({
+        contents: [
+          {
+            role: "user",
+            parts: [
+              { inlineData: { mimeType: "image/jpeg", data: "base64data" } },
+              { text: "mock image prompt" },
+            ],
+          },
+        ],
+        generationConfig: { maxOutputTokens: 1536 },
+      });
     });
 
     it("throws when response has no content", async () => {

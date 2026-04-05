@@ -96,7 +96,9 @@ Return your findings as a JSON object with this exact structure:
   "barcode": {
     "raw": "all barcode digits as a single string (12-17 digits)",
     "confidence": "high" | "medium" | "low"
-  } or null if no barcode visible
+  } or null if no barcode visible,
+  "coverHarvestable": true or false — for GRADED/SLABBED books only: is the cover artwork clearly visible through the slab? Omit this field entirely for unslabbed books.,
+  "coverCropCoordinates": {"x": number, "y": number, "width": number, "height": number} — pixel coordinates of ONLY the comic cover artwork inside the slab, excluding the grading label, certification number, plastic borders, and reflections. Only include when coverHarvestable is true.
 }
 
 Important:
@@ -108,7 +110,11 @@ Important:
 - The CGC/CBCS label typically shows: grade, title, issue, date, and signature info
 - **VARIANT DETECTION**: Look carefully for ANY variant indicators on the cover — text, logos, special finishes, or cover art that differs from the standard edition. Variant information is critical for accurate pricing. When in doubt, describe what you see (e.g., "possible variant - different cover art from standard")
 - **BARCODE PRIORITY**: If you can see a UPC barcode, read EVERY digit carefully - this enables faster database lookup
-- **BARCODE CONFIDENCE**: Report "high" only if you can clearly read all digits; "medium" if some digits are unclear; "low" if barcode is partially obscured`;
+- **BARCODE CONFIDENCE**: Report "high" only if you can clearly read all digits; "medium" if some digits are unclear; "low" if barcode is partially obscured
+
+For GRADED/SLABBED books only, also include:
+- "coverHarvestable": true/false — Is the cover artwork clearly visible through the slab? Return true ONLY when: the cover is sharp, well-lit, minimal glare/reflections on plastic, accurate colors, and the full cover is visible (not cut off). If ANY of these conditions fail, return false.
+- "coverCropCoordinates": {"x": number, "y": number, "width": number, "height": number} — Pixel coordinates of ONLY the comic cover artwork inside the slab. EXCLUDE the grading label (top), certification number, plastic case borders, and any reflections. The coordinates are relative to the image you received. Only include this field when coverHarvestable is true.`;
 
 export function buildVerificationPrompt(req: VerificationRequest): string {
   return `You are a comic book expert. Complete this comic's information.
@@ -173,7 +179,7 @@ export class AnthropicProvider implements AIProvider {
     const response = await this.client.messages.create(
       {
         model: MODEL_PRIMARY,
-        max_tokens: 1024,
+        max_tokens: 1536,
         messages: [
           {
             role: "user",
