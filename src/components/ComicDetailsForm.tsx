@@ -1310,13 +1310,15 @@ export function ComicDetailsForm({
             <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4">
               <div className="flex items-start justify-between">
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-900 mb-1 flex items-center gap-2">
-                    <TrendingUp className="w-4 h-4 text-green-600" />
-                    Listed Value
+                  <h3 className="text-sm font-semibold text-gray-900 mb-1">
+                    <div className="flex items-center gap-2">
+                      <TrendingUp className="w-4 h-4 text-green-600" />
+                      Avg List Price
+                    </div>
                     {selectedGrade && comic.priceData?.gradeEstimates && (
-                      <span className="text-xs font-normal text-gray-500">
-                        ({isGraded ? "slabbed" : "raw"} {selectedGrade})
-                      </span>
+                      <div className="text-xs font-normal text-gray-500 ml-6">
+                        {isGraded ? "slabbed" : "raw"} {selectedGrade}
+                      </div>
                     )}
                   </h3>
                   <div className="flex items-baseline gap-1">
