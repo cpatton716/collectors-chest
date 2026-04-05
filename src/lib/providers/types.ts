@@ -56,6 +56,14 @@ export interface ImageAnalysisResult {
     raw: string;
     confidence: "high" | "medium" | "low";
   } | null;
+  // Cover harvesting (populated for slabbed books only)
+  coverHarvestable?: boolean;
+  coverCropCoordinates?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
 }
 
 export interface VerificationResult {
