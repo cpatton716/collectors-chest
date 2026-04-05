@@ -12,6 +12,8 @@ import type {
   CallOptions,
   ImageAnalysisRequest,
   ImageAnalysisResult,
+  SlabDetectionResult,
+  SlabDetailExtractionResult,
   VerificationRequest,
   VerificationResult,
 } from "./types";
@@ -241,6 +243,22 @@ export class AnthropicProvider implements AIProvider {
     return this.parseJsonResponse(textBlock.text) as VerificationResult;
   }
 
+  // ── Slab Detection & Detail Extraction (stubs — implemented in Task 2) ──
+
+  async detectSlab(
+    _req: ImageAnalysisRequest,
+    _opts?: CallOptions
+  ): Promise<SlabDetectionResult> {
+    throw new Error("detectSlab not yet implemented in AnthropicProvider");
+  }
+
+  async extractSlabDetails(
+    _req: ImageAnalysisRequest,
+    _opts?: CallOptions & { skipCreators?: boolean; skipBarcode?: boolean }
+  ): Promise<SlabDetailExtractionResult> {
+    throw new Error("extractSlabDetails not yet implemented in AnthropicProvider");
+  }
+
   // ── Cost Estimation ──
 
   estimateCostCents(callType: AICallType): number {
@@ -249,6 +267,10 @@ export class AnthropicProvider implements AIProvider {
         return 1.5;
       case "verification":
         return 0.6;
+      case "slabDetection":
+        return 0.3;
+      case "slabDetailExtraction":
+        return 0.8;
     }
   }
 }

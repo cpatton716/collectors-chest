@@ -76,6 +76,31 @@ export interface VerificationResult {
   keyInfo: string[];
 }
 
+/** Cheap slab detection -- determines if image is a graded comic */
+export interface SlabDetectionResult {
+  isSlabbed: boolean;
+  gradingCompany: GradingCompany | null;
+  certificationNumber: string | null;
+}
+
+/** Focused extraction for slabbed comics -- barcode, cover harvest, creators */
+export interface SlabDetailExtractionResult {
+  barcode: {
+    raw: string | null;
+    confidence: "high" | "medium" | "low";
+  };
+  coverHarvestable: boolean;
+  coverCropCoordinates: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null;
+  writer: string | null;
+  coverArtist: string | null;
+  interiorArtist: string | null;
+}
+
 // ── Error Types ──
 
 export type ErrorReason =
@@ -93,12 +118,24 @@ export const NON_RETRYABLE_ERRORS: ErrorReason[] = ["bad_request", "content_poli
 
 // ── Provider Interface ──
 
-export type AICallType = "imageAnalysis" | "verification";
+export type AICallType =
+  | "imageAnalysis"
+  | "verification"
+  | "slabDetection"
+  | "slabDetailExtraction";
 
 export interface AIProvider {
   readonly name: "anthropic" | "gemini";
   analyzeImage(req: ImageAnalysisRequest, opts?: CallOptions): Promise<ImageAnalysisResult>;
   verifyAndEnrich(req: VerificationRequest, opts?: CallOptions): Promise<VerificationResult>;
+  detectSlab(req: ImageAnalysisRequest, opts?: CallOptions): Promise<SlabDetectionResult>;
+  extractSlabDetails(
+    req: ImageAnalysisRequest,
+    opts?: CallOptions & {
+      skipCreators?: boolean;
+      skipBarcode?: boolean;
+    }
+  ): Promise<SlabDetailExtractionResult>;
   estimateCostCents(callType: AICallType): number;
 }
 
@@ -121,7 +158,14 @@ export interface ScanResponseMeta {
   confidence: "high" | "medium" | "low";
   cerebro_assisted?: boolean;
   callDetails: {
-    imageAnalysis: { provider: string; fallbackUsed: boolean };
+    imageAnalysis: { provider: string; fallbackUsed: boolean } | null;
     verification: { provider: string; fallbackUsed: boolean } | null;
+    slabDetection?: { provider: string; durationMs: number; cost: number };
+    slabDetailExtraction?: {
+      provider: string;
+      durationMs: number;
+      cost: number;
+      coverHarvestOnly?: boolean;
+    };
   };
 }
