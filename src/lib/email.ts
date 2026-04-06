@@ -409,22 +409,22 @@ function welcomeTemplate(data: WelcomeEmailData): EmailTemplate {
           <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 24px;">Hey there, Collector! You're officially part of the crew. Here's what you can do with Collectors Chest:</p>
           <!-- Feature: Scan -->
           <table cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 16px;"><tr>
-            <td style="width: 36px; height: 36px; background: #ED1C24; border: 2.5px solid #000; border-radius: 50%; text-align: center; vertical-align: middle; padding-right: 14px;"><span style="font-size: 18px;">📸</span></td>
+            <td style="width: 36px; height: 36px; background: #ED1C24; border: 2.5px solid #000; border-radius: 50%; text-align: center; vertical-align: middle; line-height: 36px; font-size: 0;"><span style="font-size: 18px; line-height: 1; vertical-align: middle;">📸</span></td>
             <td style="vertical-align: top; padding-left: 14px;"><div style="font-weight: 700; font-size: 15px; color: #000; margin-bottom: 2px;">Scan Any Cover</div><div style="font-size: 14px; color: #666; line-height: 1.4;">Snap a photo and our AI identifies your comic instantly.</div></td>
           </tr></table>
           <!-- Feature: Track -->
           <table cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 16px;"><tr>
-            <td style="width: 36px; height: 36px; background: #0066FF; border: 2.5px solid #000; border-radius: 50%; text-align: center; vertical-align: middle; padding-right: 14px;"><span style="font-size: 18px;">📊</span></td>
+            <td style="width: 36px; height: 36px; background: #0066FF; border: 2.5px solid #000; border-radius: 50%; text-align: center; vertical-align: middle; line-height: 36px; font-size: 0;"><span style="font-size: 18px; line-height: 1; vertical-align: middle;">📊</span></td>
             <td style="vertical-align: top; padding-left: 14px;"><div style="font-weight: 700; font-size: 15px; color: #000; margin-bottom: 2px;">Track Your Value</div><div style="font-size: 14px; color: #666; line-height: 1.4;">See real eBay pricing for every book in your collection.</div></td>
           </tr></table>
           <!-- Feature: Key Issues -->
           <table cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 16px;"><tr>
-            <td style="width: 36px; height: 36px; background: #FFF200; border: 2.5px solid #000; border-radius: 50%; text-align: center; vertical-align: middle; padding-right: 14px;"><span style="font-size: 18px;">🔑</span></td>
+            <td style="width: 36px; height: 36px; background: #FFF200; border: 2.5px solid #000; border-radius: 50%; text-align: center; vertical-align: middle; line-height: 36px; font-size: 0;"><span style="font-size: 18px; line-height: 1; vertical-align: middle;">🔑</span></td>
             <td style="vertical-align: top; padding-left: 14px;"><div style="font-weight: 700; font-size: 15px; color: #000; margin-bottom: 2px;">Discover Key Issues</div><div style="font-size: 14px; color: #666; line-height: 1.4;">Find out if your books are first appearances, rare variants, or hidden gems.</div></td>
           </tr></table>
           <!-- Feature: Organize -->
           <table cellpadding="0" cellspacing="0" border="0"><tr>
-            <td style="width: 36px; height: 36px; background: #00CC66; border: 2.5px solid #000; border-radius: 50%; text-align: center; vertical-align: middle; padding-right: 14px;"><span style="font-size: 18px;">📦</span></td>
+            <td style="width: 36px; height: 36px; background: #00CC66; border: 2.5px solid #000; border-radius: 50%; text-align: center; vertical-align: middle; line-height: 36px; font-size: 0;"><span style="font-size: 18px; line-height: 1; vertical-align: middle;">📦</span></td>
             <td style="vertical-align: top; padding-left: 14px;"><div style="font-weight: 700; font-size: 15px; color: #000; margin-bottom: 2px;">Organize Everything</div><div style="font-size: 14px; color: #666; line-height: 1.4;">Custom lists, CSV import, stats, and more — your collection, your way.</div></td>
           </tr></table>
           <!-- Scan allowance -->

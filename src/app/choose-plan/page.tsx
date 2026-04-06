@@ -199,7 +199,7 @@ export default function ChoosePlanPage() {
             {loading === "trial" ? "Starting..." : "START 7-DAY FREE TRIAL"}
           </button>
           <p className="text-xs text-blue-100 text-center mt-2">
-            No credit card required. Cancel anytime.
+            Cancel anytime. No charge until trial ends.
           </p>
         </div>
 
@@ -236,11 +236,11 @@ export default function ChoosePlanPage() {
           >
             {loading === "free" ? "Loading..." : "CONTINUE WITH FREE"}
           </button>
-          <div className="mt-4 p-3 bg-blue-50 border-2 border-blue-200 text-center">
-            <p className="text-sm font-comic text-pop-black">
-              Need more scans? Buy a 10-pack for just $1.99!
-            </p>
-          </div>
+          <button
+            className="w-full mt-4 py-3 font-comic text-pop-black bg-pop-green border-2 border-pop-black shadow-comic-sm hover:translate-y-0.5 hover:shadow-none transition-all"
+          >
+            NEED MORE SCANS? BUY A 10-PACK FOR JUST $1.99!
+          </button>
         </div>
 
         {/* Footer note */}

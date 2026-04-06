@@ -622,42 +622,42 @@ export default function KeyHuntPage() {
           </div>
 
           {/* How to Use */}
-          <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-100 mb-12">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">How to Use Key Hunt</h2>
+          <div className="bg-pop-white border-4 border-pop-black shadow-[6px_6px_0px_#000] p-8 mb-12">
+            <h2 className="font-comic text-2xl text-pop-black mb-6 text-center">HOW TO USE KEY HUNT</h2>
             <div className="grid md:grid-cols-4 gap-6">
               <div className="text-center">
-                <div className="w-10 h-10 bg-amber-500 text-white rounded-full flex items-center justify-center mx-auto mb-3 font-bold">
-                  1
+                <div className="w-12 h-12 bg-pop-red border-3 border-pop-black shadow-comic-sm flex items-center justify-center mx-auto mb-3">
+                  <span className="font-comic text-pop-white text-lg">1</span>
                 </div>
-                <p className="text-gray-700">Open Key Hunt on your phone</p>
+                <p className="font-body text-pop-black/80">Open Key Hunt on your phone</p>
               </div>
               <div className="text-center">
-                <div className="w-10 h-10 bg-amber-500 text-white rounded-full flex items-center justify-center mx-auto mb-3 font-bold">
-                  2
+                <div className="w-12 h-12 bg-pop-blue border-3 border-pop-black shadow-comic-sm flex items-center justify-center mx-auto mb-3">
+                  <span className="font-comic text-pop-white text-lg">2</span>
                 </div>
-                <p className="text-gray-700">Scan a cover or enter manually</p>
+                <p className="font-body text-pop-black/80">Scan a cover or enter manually</p>
               </div>
               <div className="text-center">
-                <div className="w-10 h-10 bg-amber-500 text-white rounded-full flex items-center justify-center mx-auto mb-3 font-bold">
-                  3
+                <div className="w-12 h-12 bg-pop-green border-3 border-pop-black shadow-comic-sm flex items-center justify-center mx-auto mb-3">
+                  <span className="font-comic text-pop-white text-lg">3</span>
                 </div>
-                <p className="text-gray-700">Select the condition grade</p>
+                <p className="font-body text-pop-black/80">Select the condition grade</p>
               </div>
               <div className="text-center">
-                <div className="w-10 h-10 bg-amber-500 text-white rounded-full flex items-center justify-center mx-auto mb-3 font-bold">
-                  4
+                <div className="w-12 h-12 bg-pop-yellow border-3 border-pop-black shadow-comic-sm flex items-center justify-center mx-auto mb-3">
+                  <span className="font-comic text-pop-black text-lg">4</span>
                 </div>
-                <p className="text-gray-700">Get instant price data</p>
+                <p className="font-body text-pop-black/80">Get instant price data</p>
               </div>
             </div>
           </div>
 
           {/* CTA */}
           <div className="text-center">
-            <p className="text-gray-600 mb-4">
+            <p className="font-body text-pop-black/70 mb-4">
               Access Key Hunt from your mobile device to start hunting!
             </p>
-            <div className="inline-flex items-center gap-2 text-sm text-gray-500">
+            <div className="inline-flex items-center gap-2 font-comic text-sm text-pop-black/60">
               <Smartphone className="w-4 h-4" />
               <span>Available on iOS and Android browsers</span>
             </div>
