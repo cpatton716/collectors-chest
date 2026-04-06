@@ -81,6 +81,7 @@ export interface SlabDetectionResult {
   isSlabbed: boolean;
   gradingCompany: GradingCompany | null;
   certificationNumber: string | null;
+  labelColor: "blue" | "yellow" | "purple" | "green" | "red" | null;
 }
 
 /** Focused extraction for slabbed comics -- barcode, cover harvest, creators */

@@ -357,6 +357,19 @@ export async function POST(request: NextRequest) {
               keyInfo: [],
             };
 
+            // Phase 2.1: Label color → notes mapping
+            const labelColor = slabResult.labelColor;
+            if (labelColor) {
+              if (labelColor === "purple") {
+                (comicDetails as unknown as Record<string, unknown>).notes = "Restored (Purple Label)";
+              } else if (labelColor === "green") {
+                (comicDetails as unknown as Record<string, unknown>).notes = "Qualified (Green Label)";
+              } else if (labelColor === "red") {
+                (comicDetails as unknown as Record<string, unknown>).notes = "Conserved (Red Label)";
+              }
+              // Blue label and yellow non-CGC: no notes added
+            }
+
             // Phase 2.5: Parse art comments for creator info
             if (certResult.data.artComments) {
               const artParsed = parseArtComments(certResult.data.artComments);

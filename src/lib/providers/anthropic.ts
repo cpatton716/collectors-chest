@@ -124,13 +124,16 @@ For GRADED/SLABBED books only, also include:
 
 export const SLAB_DETECTION_PROMPT = `You are examining a photo of a comic book. Determine ONLY whether this is a professionally graded (slabbed) comic in a hard plastic case.
 
-If it IS slabbed, read the certification number from the grading label. The cert number is typically 7-10 digits, often near a barcode on the label.
+If it IS slabbed:
+1. Read the certification number from the grading label. The cert number is typically 7-10 digits, often near a barcode on the label.
+2. Identify the label color. Common colors: blue (standard/universal), yellow (signature series), purple (restored), green (qualified), red (conserved/modern).
 
 Return ONLY this JSON object, no other text:
 {
   "isSlabbed": true or false,
   "gradingCompany": "CGC" or "CBCS" or "PGX" or null if not slabbed,
-  "certificationNumber": "the certification number as a string" or null if not visible or not slabbed
+  "certificationNumber": "the certification number as a string" or null if not visible or not slabbed,
+  "labelColor": "blue" or "yellow" or "purple" or "green" or "red" or null if not slabbed or not identifiable
 }`;
 
 export const SLAB_DETAIL_EXTRACTION_PROMPT = `You are examining a photo of a professionally graded (slabbed) comic book. The comic's identity has already been determined. Your job is to extract additional details from the COVER ARTWORK visible through the slab case.
