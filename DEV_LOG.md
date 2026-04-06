@@ -6,50 +6,12 @@ This log tracks session-by-session progress on Collectors Chest.
 
 ## Changes Since Last Deploy
 
-**Last Deploy:** March 26, 2026 (Session 26 — 30-day promo trial link)
-**Sessions Since Last Deploy:** 7
-**Deploy Readiness:** Needs Testing
+**Last Deploy:** 2026-04-05 (Session 31 — cert-first pipeline, eBay pricing improvements, slab label color, UI fixes, cover harvesting)
+**Sessions Since Last Deploy:** 0
+**Deploy Readiness:** Deployed 2026-04-05
 
 ### Changes Since Last Deploy:
-- Cert-first scan pipeline for slabbed comics — designed, implemented, merged (10 tasks, 8 commits on feature branch)
-- Slab label color detection (purple/green/red → notes)
-- Major eBay pricing improvements: year in search, listing filter (signed/SS, newsstand, wrong-series, wrong-grade), Q1 pricing, grade multiplier double-application fix, strip leading "The" from titles
-- Renamed "Listed Value" → "Avg List Price" across all components
-- Default collection sort changed to date added (most recent first)
-- Auto-scroll to analysis section after image upload on scan page
-- Fixed clerk_id → clerk_user_id in 5 API routes (preferences, notifications, connect status/dashboard/create-account)
-- Fixed corrupted Supabase service_role key
-- Switched Clerk from Production to Development instance for local testing
-- Cover image harvesting from graded scans — code complete (9 tasks, 10 commits, 25+ new tests, awaiting manual integration test)
-- Clerk Production DNS support ticket filed (SSL not provisioning, awaiting Clerk response Mon Apr 7)
-- Cover image validation pipeline — full implementation (11 commits, 38 new tests, 15 files)
-- Stripe payment integration — products, webhooks, checkout flow, scan pack purchases
-- Post-signup Choose Your Plan page with 7-day trial CTA
-- Billing tab fixes — redirect after purchase, scan count display with purchased scans
-- Profile page hydration fix (dynamic import)
-- Seller Payments loading fix (fallback to default state)
-- Pop-art button styling across Profile/Security/Billing tabs
-- Publisher clickable links on Stats page → filtered collection
-- Sign-up page restored from waitlist to Clerk registration
-- Waitlist/private beta copy removed from SignUpPromptModal and GuestLimitBanner
-- Pricing page "Most Popular" badge overflow fix
-- Display Preferences spacing fix
-- Gemini API cost evaluation completed
-- 30-day promo trial link (/join/trial) — QR code landing page for conventions, auto-checkout with Stripe, server-rendered
-- Webhook improvements — direct trial date write from Stripe, $0 invoice guard, downgrade clears trial_ends_at
-- Google Pay / Apple Pay enabled on Stripe checkout
-- Checkout route uses getOrCreateProfile for new sign-ups
-- Ben-day dots visibility improved for desktop
-- DB migration run: 20260320_cover_validation.sql
-- Netlify env vars configured, deployed to production
-- New site logo/emblem across all icon touchpoints
-- Navbar text nowrap fix for mobile
-- Transparent emblem/icons across all touchpoints
-- iOS Safari hero text fix
-- Android speech bubble gap fix
-- Clerk Production instance configured (DNS propagating)
-- ADMIN_EMAIL code fallbacks updated
-- Pricing architecture documented
+_(none yet — deploy just completed)_
 
 ---
 
