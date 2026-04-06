@@ -97,7 +97,7 @@ export function emailHeader(soundEffect: string): string {
         <div style="display: inline-block; background: #00CC66; color: #000; font-weight: 900; font-size: 28px; padding: 8px 80px; border: 4px solid #000; border-radius: 50%; transform: rotate(-3deg); box-shadow: 4px 4px 0 #000;">
           ${soundEffect}
         </div>
-        <div style="width: 0; height: 0; margin-left: 55px; margin-top: -12px; border-left: 12px solid transparent; border-right: 5px solid transparent; border-top: 20px solid #000;"></div>
+        <div style="width: 0; height: 0; margin-left: 55px; margin-top: -18px; border-left: 16px solid transparent; border-right: 7px solid transparent; border-top: 28px solid #000;"></div>
       </div>
     </div>
   `;
