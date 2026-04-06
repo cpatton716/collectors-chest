@@ -271,3 +271,9 @@ This document tracks testing sessions with platform and account context.
 - **Device(s):** TBD
 - **Sounds:** No
 - **Focus:** To be filled as session progresses
+
+## Apr 5, 2026 - Session Start
+- **Platform:** Mobile (Android)
+- **Account Type:** Free, Premium
+- **Device(s):** Android
+- **Focus:** TBD

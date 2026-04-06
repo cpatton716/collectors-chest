@@ -416,6 +416,21 @@ ChestIcon component currently uses a PNG (`/icons/icon-512x512.png`) via an `<im
 
 ---
 
+### Optimize Scan Pipeline for Slabbed Comics (Cert-First)
+**Priority:** High
+**Status:** Pending
+**Added:** Apr 5, 2026
+
+Restructure the scan pipeline for graded/slabbed comics to reduce AI costs and improve speed:
+
+1. **Quick detect**: Determine if the image is a slabbed comic (cheap/fast check)
+2. **Cert lookup first**: Read cert number from the slab label → scrape CGC/CBCS for title, issue, grade, publisher, year, variant
+3. **Focused AI call**: Instead of full comic identification, use a cheaper AI call to extract only the UPC barcode from the cover art visible through the slab
+
+Benefits: Eliminates the expensive full-identification AI call for slabbed books since the label provides most metadata. The AI is only needed for barcode extraction. Should cut scan cost ~50% for slabbed comics.
+
+---
+
 ### Auto-Harvest Cover Images from Graded Book Scans
 **Priority:** High
 **Status:** Code Complete — awaiting manual integration test
@@ -2102,6 +2117,24 @@ Build a batch re-validation endpoint for CSV-imported comics with missing covers
 **Added:** Mar 20, 2026
 
 Implement a 30-day cycle periodic HEAD check for cached eBay image URLs to detect dead links early. Prevents showing broken images to users and triggers re-harvesting if needed.
+
+---
+
+### Durable eBay Price Cache in Supabase
+**Priority:** Medium
+**Status:** Pending
+**Added:** Apr 5, 2026
+
+Store eBay pricing results in Supabase with a timestamp. Before hitting the eBay API, check if a price exists that's less than 7 days old. Reduces eBay API calls, speeds up scans for popular books, and lowers costs. Requires new table (title, issue, grade, slabbed, price data, fetched_at), lookup logic in the scan pipeline, and a staleness threshold (suggested 7 days).
+
+---
+
+### User-Configurable Default Collection Sort
+**Priority:** Low
+**Status:** Pending
+**Added:** Apr 5, 2026
+
+Let users choose their preferred default sort method for the collection page (date added, title, issue, grade, value). Save preference in user settings. Currently defaults to date added (most recent first).
 
 ---
 

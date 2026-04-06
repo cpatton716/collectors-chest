@@ -22,7 +22,7 @@ export async function GET() {
     const { data: profile } = await supabaseAdmin
       .from("profiles")
       .select("id, subscription_tier, stripe_connect_account_id, stripe_connect_onboarding_complete, completed_sales_count")
-      .eq("clerk_id", userId)
+      .eq("clerk_user_id", userId)
       .single();
 
     if (!profile) {

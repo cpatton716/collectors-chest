@@ -533,14 +533,27 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 59. ~~**Manual entry scroll fix**~~ ✅ (Mar 19, 2026)
 60. ~~**eBay Developer account verified**~~ ✅ (Mar 19, 2026)
 61. ~~**Logo/branding overhaul (PNG)**~~ ✅ (Mar 30, 2026) — New Collectors Chest emblem across all icons and ChestIcon component
+62. ~~**SVG logo + icon update**~~ ✅ (Apr 5, 2026) — SVG version of emblem received from partner, swapped into ChestIcon and all icon touchpoints
 
 ### Recommended Next Steps
-1. **Await SVG logo from partner** — Partner to provide SVG version of the Collectors Chest emblem. Once received, swap PNG for SVG in ChestIcon component for better scaling and smaller bundle size.
-2. **Cover image harvesting integration testing** — Code complete (9 tasks, 532 tests). Awaiting manual integration test with slabbed comic to verify end-to-end pipeline.
-3. **Re-price existing collection** — After Browse API deploy, existing comics show no price. Need mechanism to refresh prices on demand or via batch.
-4. **Session 21 feedback re-test** — 3 items still broken, 8 need retest from production mobile testing
-5. **Validate Gemini as primary provider in production**
-6. **Stripe account setup + payment testing**
+
+> **See `BACKLOG.md` for the full prioritized list.** The pending items below are derived from BACKLOG.md at session start.
+
+**High Priority (Pending):**
+1. **Auto-Harvest Cover Images** — Code complete, awaiting manual integration test
+2. **Switch Clerk to Production Instance** — Blocked (awaiting Clerk support, ticket Apr 5)
+3. **Launch Tracker Review** — Pre-launch checklist
+
+**Medium Priority (Pending):**
+4. **Cover Validation: Test Coverage for Error Paths**
+5. **Cover Validation: Distinguish "No Cover" from "Unavailable"**
+6. **Flip Claude/Gemini Provider Order**
+7. **About Page Copy**
+8. **Expand Curated Key Info DB**
+9. **Set up Scheduled Functions for Cron Jobs**
+10. **Add "Professor" Persona Throughout Site**
+11. **Error Reporting System with Creator Credits**
+12. **Missing Metadata Contributions with Creator Credits**
 
 ### 🔴 Before Opening Registration (See Section 0)
 

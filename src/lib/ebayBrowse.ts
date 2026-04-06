@@ -115,17 +115,22 @@ export function buildSearchKeywords(params: {
   isSlabbed?: boolean;
   gradingCompany?: string;
   grade?: string;
+  year?: string;
 }): string {
-  const { title, issueNumber, isSlabbed, gradingCompany, grade } = params;
+  const { title, issueNumber, isSlabbed, gradingCompany, grade, year } = params;
 
-  // Strip apostrophes, colons, semicolons
-  let cleaned = title.replace(/[':;]/g, "");
+  // Strip apostrophes, colons, semicolons and leading "The "
+  let cleaned = title.replace(/[':;]/g, "").replace(/^the\s+/i, "");
 
   const parts = [cleaned.trim()];
 
   if (issueNumber) {
     // Strip # prefix
     parts.push(issueNumber.replace(/^#/, ""));
+  }
+
+  if (year) {
+    parts.push(year);
   }
 
   if (isSlabbed) {
@@ -141,6 +146,59 @@ export function buildSearchKeywords(params: {
   }
 
   return parts.join(" ");
+}
+
+// ─── Filter irrelevant listings ──────────────────────────────────
+// Removes signed/SS copies, newsstand variants, and wrong-title matches
+const SIGNED_PATTERNS = /\b(signed|signature series|autograph)\b|[\s(]ss[\s)]/i;
+const NEWSSTAND_PATTERNS = /\b(newsstand)\b/i;
+
+// Prefixes that turn a title into a different series
+// e.g., "Amazing Spider-Man" is NOT "Spider-Man"
+const SERIES_PREFIXES = /\b(web\s+of|amazing|spectacular|superior|ultimate|sensational)\b/i;
+
+export function filterIrrelevantListings(
+  listings: BrowseListingItem[],
+  searchTitle: string,
+  grade?: string,
+  isSlabbed?: boolean
+): BrowseListingItem[] {
+  // Normalize: "The Spider-Man" → "spiderman"
+  const normalizedSearch = searchTitle.toLowerCase().replace(/^the\s+/i, "").replace(/[-\s]/g, "");
+
+  // Build grade filter regex if slabbed — only keep listings matching this exact grade
+  let gradeRegex: RegExp | null = null;
+  if (isSlabbed && grade) {
+    const g = grade.replace(".", "\\.");
+    // Match the grade as a standalone number, e.g., "9.4" but not "9.48" or "19.4"
+    gradeRegex = new RegExp(`\\b${g}\\b`);
+  }
+
+  return listings.filter((listing) => {
+    const lt = listing.title;
+
+    // Exclude signed/signature series copies
+    if (SIGNED_PATTERNS.test(lt)) return false;
+
+    // Exclude newsstand variants — different pricing tier
+    if (NEWSSTAND_PATTERNS.test(lt)) return false;
+
+    // Must contain the search title (hyphen/space normalized)
+    const normalizedListing = lt.toLowerCase().replace(/[-\s]/g, "");
+    if (!normalizedListing.includes(normalizedSearch)) return false;
+
+    // Reject if the listing is a DIFFERENT series that contains the search title
+    if (SERIES_PREFIXES.test(lt)) {
+      const searchIdx = lt.toLowerCase().replace(/[-\s]/g, "").indexOf(normalizedSearch);
+      const beforeMatch = lt.substring(0, searchIdx + searchTitle.length);
+      if (SERIES_PREFIXES.test(beforeMatch)) return false;
+    }
+
+    // For slabbed comics, only keep listings that mention the exact grade
+    if (gradeRegex && !gradeRegex.test(lt)) return false;
+
+    return true;
+  });
 }
 
 // ─── Outlier filtering and median calculation ─────────────────────
@@ -198,12 +256,10 @@ export function filterOutliersAndCalculateMedian(prices: number[]): {
     };
   }
 
-  // Recalculate median on filtered set
-  const fMid = Math.floor(filtered.length / 2);
-  const medianPrice =
-    filtered.length % 2 === 0
-      ? (filtered[fMid - 1] + filtered[fMid]) / 2
-      : filtered[fMid];
+  // Use lower quartile (Q1) — better approximates actual sale prices
+  // since active listing ask prices consistently overshoot sold prices
+  const q1Index = Math.floor(filtered.length / 4);
+  const medianPrice = filtered[q1Index];
 
   return {
     medianPrice: Math.round(medianPrice * 100) / 100,
@@ -246,21 +302,22 @@ export function convertBrowseToPriceData(
 ): PriceData | null {
   if (result.medianPrice === null) return null;
 
-  // Treat median as 9.4 NM baseline
-  const gradeEstimates = generateGradeEstimates(result.medianPrice);
-  let estimatedValue = result.medianPrice;
-
+  // The eBay search includes grade in the query, so the median IS the
+  // grade-specific price. Derive the 9.4 NM base by dividing out the
+  // multiplier for the searched grade, then generate all grade estimates.
+  let basePrice = result.medianPrice;
   if (requestedGrade) {
     const gradeNum = parseFloat(requestedGrade);
-    const match = gradeEstimates.find((e) => e.grade === gradeNum);
-    if (match) {
-      estimatedValue = isSlabbed ? match.slabbedValue : match.rawValue;
+    const gradeInfo = GRADE_MULTIPLIERS.find((g) => g.grade === gradeNum);
+    if (gradeInfo) {
+      const multiplier = isSlabbed ? gradeInfo.slabMultiplier : gradeInfo.rawMultiplier;
+      basePrice = result.medianPrice / multiplier;
     }
-  } else if (isSlabbed) {
-    // Default to 9.4 slabbed
-    const nm = gradeEstimates.find((e) => e.grade === 9.4);
-    if (nm) estimatedValue = nm.slabbedValue;
   }
+  const gradeEstimates = generateGradeEstimates(basePrice);
+
+  // The estimated value is the median directly — no additional multiplier needed
+  const estimatedValue = result.medianPrice;
 
   return {
     estimatedValue,
@@ -301,7 +358,8 @@ export async function searchActiveListings(
   issueNumber?: string,
   grade?: string,
   isSlabbed?: boolean,
-  gradingCompany?: string
+  gradingCompany?: string,
+  year?: string
 ): Promise<BrowsePriceResult | null> {
   if (!isBrowseApiConfigured()) {
     console.error("[ebay-browse] API not configured — missing env vars");
@@ -320,6 +378,7 @@ export async function searchActiveListings(
     isSlabbed,
     gradingCompany,
     grade,
+    year,
   });
 
   const baseUrl = getBaseUrl();
@@ -360,7 +419,11 @@ export async function searchActiveListings(
         continue;
       }
 
-      const prices = listings.map((l) => l.price);
+      // Filter out signed/SS copies, wrong-title matches, and wrong grades
+      const filteredListings = filterIrrelevantListings(listings, title, grade, isSlabbed);
+      console.log(`[ebay-browse] ${listings.length} results for "${keywords}", ${filteredListings.length} after filtering:`);
+      filteredListings.forEach((l, i) => console.log(`  ${i+1}. $${l.price.toFixed(2)} — ${l.title}`));
+      const prices = filteredListings.map((l) => l.price);
       const stats = filterOutliersAndCalculateMedian(prices);
 
       return {

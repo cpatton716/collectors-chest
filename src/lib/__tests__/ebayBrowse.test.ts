@@ -105,6 +105,26 @@ describe("buildSearchKeywords", () => {
     const fn = getBuildSearchKeywords();
     expect(fn({ title: "Saga" })).toBe("Saga");
   });
+
+  it("includes year for series disambiguation", () => {
+    const fn = getBuildSearchKeywords();
+    expect(fn({ title: "Spider-Man", issueNumber: "13", year: "1990" })).toBe(
+      "Spider-Man 13 1990"
+    );
+  });
+
+  it("places year after issue but before slabbed info", () => {
+    const fn = getBuildSearchKeywords();
+    const result = fn({
+      title: "Spider-Man",
+      issueNumber: "13",
+      year: "1990",
+      isSlabbed: true,
+      gradingCompany: "CGC",
+      grade: "9.8",
+    });
+    expect(result).toBe("Spider-Man 13 1990 CGC 9.8");
+  });
 });
 
 // ─── filterOutliersAndCalculateMedian ──────────────────────────────

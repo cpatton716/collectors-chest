@@ -38,6 +38,7 @@ interface EbayPriceRequest {
   isSlabbed?: boolean;
   isGraded?: boolean; // Legacy field - maps to isSlabbed
   gradingCompany?: string;
+  year?: string;
 }
 
 interface EbayPriceResponse {
@@ -52,7 +53,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<EbayPrice
   try {
     // Parse request body
     const body = await request.json();
-    const { title, issueNumber, grade, isSlabbed, isGraded, gradingCompany } =
+    const { title, issueNumber, grade, isSlabbed, isGraded, gradingCompany, year } =
       body as EbayPriceRequest;
 
     // Validate required fields
@@ -115,7 +116,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<EbayPrice
     }
 
     // 3. Fetch from eBay Browse API
-    const browseResult = await searchActiveListings(cleanTitle, cleanIssue, numericGrade ? String(numericGrade) : undefined, slabbed, company);
+    const browseResult = await searchActiveListings(cleanTitle, cleanIssue, numericGrade ? String(numericGrade) : undefined, slabbed, company, year || undefined);
     const priceData = browseResult ? convertBrowseToPriceData(browseResult, numericGrade ? String(numericGrade) : undefined, slabbed) : null;
 
     // 4. Cache the result (fire and forget)

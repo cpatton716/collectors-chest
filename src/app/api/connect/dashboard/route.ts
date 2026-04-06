@@ -22,7 +22,7 @@ export async function POST() {
     const { data: profile } = await supabaseAdmin
       .from("profiles")
       .select("stripe_connect_account_id, stripe_connect_onboarding_complete")
-      .eq("clerk_id", userId)
+      .eq("clerk_user_id", userId)
       .single();
 
     if (!profile?.stripe_connect_account_id || !profile.stripe_connect_onboarding_complete) {

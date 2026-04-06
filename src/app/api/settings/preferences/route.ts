@@ -14,7 +14,7 @@ export async function GET() {
     const { data, error } = await supabaseAdmin
       .from("profiles")
       .select("show_financials")
-      .eq("clerk_id", clerkId)
+      .eq("clerk_user_id", clerkId)
       .single();
 
     if (error) {
@@ -49,7 +49,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
     }
 
-    const { error } = await supabaseAdmin.from("profiles").update(updates).eq("clerk_id", clerkId);
+    const { error } = await supabaseAdmin.from("profiles").update(updates).eq("clerk_user_id", clerkId);
 
     if (error) {
       console.error("Update preferences error:", error);

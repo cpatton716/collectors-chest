@@ -122,6 +122,8 @@ export async function POST(request: NextRequest) {
           normalizedIssue,
           String(selectedGrade),
           false, // raw comics by default for con mode
+          undefined, // gradingCompany
+          seriesYears?.split("-")[0] || undefined, // start year for disambiguation
         );
 
         if (browseResult) {

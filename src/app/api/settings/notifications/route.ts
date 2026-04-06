@@ -14,7 +14,7 @@ export async function GET() {
     const { data, error } = await supabaseAdmin
       .from("profiles")
       .select("msg_push_enabled, msg_email_enabled")
-      .eq("clerk_id", clerkId)
+      .eq("clerk_user_id", clerkId)
       .single();
 
     if (error) {
@@ -53,7 +53,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
     }
 
-    const { error } = await supabaseAdmin.from("profiles").update(updates).eq("clerk_id", clerkId);
+    const { error } = await supabaseAdmin.from("profiles").update(updates).eq("clerk_user_id", clerkId);
 
     if (error) {
       console.error("Update notification settings error:", error);

@@ -58,7 +58,9 @@ VARIANT DETECTION - Carefully check for ANY variant indicators:
 - Check if the cover art differs from the standard/Cover A (different artist style, wraparound, etc.)
 - If multiple variant indicators apply, combine them (e.g., "Cover B Virgin Variant", "1:25 Foil Variant")
 
-UPC BARCODE DETECTION - Look for any UPC barcode visible on the cover:
+UPC BARCODE DETECTION - Look for the comic's UPC barcode on the COVER:
+- For SLABBED/GRADED comics: There are TWO barcodes — the cert label barcode (on the grading label) and the comic's UPC barcode (on the cover artwork visible through the slab). Extract BOTH. The UPC is typically in the bottom-left or bottom-right area of the cover art inside the slab. It may be partially obscured by the slab frame but is often still readable.
+- For RAW comics: The UPC barcode is typically on the front cover, bottom-left area.
 - Read ALL digits carefully (typically 12 digits for UPC-A, plus optional 5-digit add-on = 17 total)
 - The main UPC is 12 digits; if there's a smaller 5-digit add-on code to the right, include those too
 - Report your confidence level based on image clarity:
