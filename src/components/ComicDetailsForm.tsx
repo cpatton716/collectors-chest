@@ -1315,11 +1315,6 @@ export function ComicDetailsForm({
                       <TrendingUp className="w-4 h-4 text-green-600" />
                       Avg List Price
                     </div>
-                    {selectedGrade && comic.priceData?.gradeEstimates && (
-                      <div className="text-xs font-normal text-gray-500 ml-6">
-                        {isGraded ? "slabbed" : "raw"} {selectedGrade}
-                      </div>
-                    )}
                   </h3>
                   <div className="flex items-baseline gap-1">
                     <DollarSign className="w-5 h-5 text-green-600" />
