@@ -34,12 +34,22 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Check if username is already taken
-    const { data: existing, error } = await supabaseAdmin
+    // Check if username is already taken (exclude current user's own profile)
+    const { userId } = await auth();
+    let excludeProfileId: string | null = null;
+    if (userId) {
+      const profile = await getProfileByClerkId(userId);
+      if (profile) excludeProfileId = profile.id;
+    }
+
+    let query = supabaseAdmin
       .from("profiles")
       .select("id")
-      .eq("username", normalized)
-      .maybeSingle();
+      .eq("username", normalized);
+    if (excludeProfileId) {
+      query = query.neq("id", excludeProfileId);
+    }
+    const { data: existing, error } = await query.maybeSingle();
 
     if (error) {
       console.error("Error checking username:", error);
