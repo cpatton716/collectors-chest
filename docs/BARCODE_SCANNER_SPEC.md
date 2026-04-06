@@ -285,8 +285,11 @@ When barcode scanning returns wrong results, users:
 Instead of relying on broken external databases, we'll build our own:
 
 1. **AI reads barcodes during cover scans**
-   - Claude already analyzes cover images
-   - Add barcode detection to the AI prompt
+   - Claude/Gemini already analyze cover images
+   - Barcode detection is included in the AI prompt (implemented)
+   - For **slabbed/graded comics**: The prompt explicitly instructs the AI to distinguish between two barcodes — the cert label barcode (on the grading label) and the comic's UPC barcode (on the cover artwork visible through the slab). The UPC is typically in the bottom-left or bottom-right area of the cover art inside the slab and may be partially obscured by the slab frame.
+   - For **raw comics**: Standard UPC detection on the front cover
+   - Confidence scoring: "high" (clear, fully readable), "medium" (partially visible), "low" (obscured/damaged)
    - Extract all UPC components
 
 2. **Catalog barcodes after verified saves**

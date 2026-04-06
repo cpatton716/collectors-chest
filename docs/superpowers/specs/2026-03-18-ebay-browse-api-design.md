@@ -1,7 +1,7 @@
 # eBay Browse API Integration — Design Spec
 
 **Date:** 2026-03-18
-**Status:** Approved
+**Status:** Approved (Rev 2 — updated April 5, 2026 with implementation details)
 **Author:** Claude + Chris Patton
 
 ## Problem
@@ -17,7 +17,7 @@ Replace the dead Finding API with the eBay Browse API to show real pricing from 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | Price label | "Listed Value" | Neutral term — clearly not a sold price, not claiming to be market value |
-| Price calculation | Actual median of active listings | Deliberate change from Finding API code which used mean. True median is more resilient to outlier skew in comic listings |
+| Price calculation | Lower quartile (Q1) of active listings | Deliberate change from Finding API code which used mean. Q1 better approximates actual sale prices since active listing ask prices consistently overshoot sold prices. Outlier filtering (>3x median, <0.2x median) applied first, then Q1 index = floor(filtered.length / 4) |
 | AI fallback | None | If no eBay listings found → "No pricing data available". No fabricated prices ever. Key info AI calls (`fetchKeyInfoFromAI()`) are preserved — only price estimation AI is removed |
 | Search strategy | Grade-aware with 12h cache | Separate queries for raw vs slabbed comics, cached aggressively to minimize API calls. Active listings change more frequently than sold data, so 12h TTL balances freshness with API budget |
 | Listing type filter | `FIXED_PRICE` only | Exclude auctions — current bid prices skew median low and don't represent actual market value |
@@ -35,17 +35,26 @@ Replaces `ebayFinding.ts`. Responsibilities:
    - Auto-refresh on expiry
 
 2. **Core function: `searchActiveListings()`**
-   - Signature: `searchActiveListings(title, issueNumber?, grade?, isSlabbed?, gradingCompany?) → BrowsePriceResult | null`
+   - Signature: `searchActiveListings(title, issueNumber?, grade?, isSlabbed?, gradingCompany?, year?) → BrowsePriceResult | null`
    - Endpoint: `GET https://api.ebay.com/buy/browse/v1/item_summary/search`
    - Query params: `q` (search keywords), `category_ids` (259104 for comics), `filter` (price currency USD, `buyingOptions:{FIXED_PRICE}` — excludes auctions whose current bid prices skew median low), `limit` (30)
    - **Category ID fallback:** 259104 (Collectible Comics) may need verification against Browse API taxonomy. If 259104 returns 0 results, retry with broader category 63 (Comic Books). If that also returns 0, retry without category filter as a last resort.
+   - **Search keyword construction:** `title + issueNumber + [gradingCompany + grade if slabbed] + [year if provided]`. Year is appended to help disambiguate comics with common titles (e.g., "Batman #1 2016" vs "Batman #1 1940").
    - For slabbed: includes grading company + grade in search keywords
    - For raw: searches title + issue only
 
-3. **Outlier filtering & minimum threshold**
+3. **Irrelevant listing filtering (pre-price)**
+   - `filterIrrelevantListings()` removes listings before price calculation:
+     - **Signed/SS copies** — excluded via regex (`signed`, `signature series`, `autograph`, `ss`)
+     - **Newsstand variants** — different pricing tier, excluded
+     - **Wrong-title matches** — listing must contain the normalized search title; rejects different series with shared substrings (e.g., "Web of Spider-Man" filtered when searching "Spider-Man") using series prefix detection
+     - **Grade filtering for slabbed** — when `isSlabbed` and `grade` are provided, only keep listings mentioning the exact grade as a standalone number (e.g., `\b9\.4\b`)
+
+4. **Outlier filtering & minimum threshold**
    - Remove prices > 3x median or < 0.2x median
-   - Calculate actual median (not mean — deliberate change from Finding API), high, low from filtered set
-   - **Minimum 3 listings required** to calculate and return a median "Listed Value". Below 3: return `medianPrice: null` with `totalResults` set to actual count so UI can show "X active listings found" with an eBay link
+   - Calculate lower quartile Q1 (not median, not mean) from filtered set: `Q1 index = floor(filtered.length / 4)`. Q1 better approximates actual sale prices since ask prices consistently overshoot sold prices.
+   - High and low from filtered set
+   - **Minimum 3 listings required** to calculate and return a Q1 "Listed Value". Below 3: return `medianPrice: null` with `totalResults` set to actual count so UI can show "X active listings found" with an eBay link
 
 4. **Grade estimate multipliers**
    - Preserve existing grade multiplier table (9.8, 9.4, 8.0, 6.0, 4.0, 2.0)
@@ -206,7 +215,7 @@ One-time cleanup to remove fabricated AI prices from the database:
 
 ### Testing
 
-- Unit tests for keyword building, outlier filtering, grade multiplier calculations
+- Unit tests for keyword building (including year parameter), irrelevant listing filtering (signed, newsstand, wrong-title, grade), outlier filtering, Q1 calculation, grade multiplier calculations
 - Unit tests for OAuth token caching logic
 - Unit tests for response parsing
 - Integration testing: manual verification with known comics (ASM #300, Batman #1, etc.)

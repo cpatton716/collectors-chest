@@ -2,7 +2,7 @@
 
 > **Comprehensive map of pages, features, and service dependencies**
 
-*Last Updated: April 5, 2026 (Cover harvest feature — sharp dependency, cover-images Storage bucket, variant column, coverHarvestable prompt fields, cover_harvested analytics, coverHarvest.ts orchestrator)*
+*Last Updated: April 5, 2026 — Session 31 (Cert-first scan pipeline — slab detection/extraction AI calls, certHelpers.ts, eBay pricing improvements, cert-first analytics migration, slab label color detection)*
 
 ---
 
@@ -46,6 +46,8 @@
 | Price Estimation | 🏷️ 🗄️ 🔴 | eBay API → Supabase cache → Redis |
 | Fallback Status | — | "Taking longer than usual" message when fallback triggers |
 | CGC/CBCS Cert Lookup | Web scrape | Verifies graded comic certification |
+| Cert-First Scan Pipeline | 🤖 🤖² 🗄️ 🔴 🏷️ | Slab detection → slab detail extraction → cert lookup → eBay pricing (Phases 1-5.5) |
+| Slab Label Color Detection | 🤖 | AI detects CGC/CBCS label color (blue, yellow, green, etc.) from slab photo |
 | Cover Validation | 🤖² 🗄️ | Gemini-powered cover image validation pipeline |
 | Cover Harvest | 🤖 🗄️ | Auto-harvest cover image from scan result; crop, store in Supabase Storage (`cover-images` bucket), insert into `cover_images` with variant support |
 | Key Info Lookup | 🗄️ | 402 curated key comics database |
@@ -637,7 +639,7 @@ All other routes are public (unauthenticated access allowed). Individual API rou
 
 ## Data Flow Diagrams
 
-### Cover Scan Flow
+### Cover Scan Flow (Standard Path)
 
 ```
 ┌──────────────────┐
@@ -699,6 +701,57 @@ All other routes are public (unauthenticated access allowed). Individual API rou
        │ Return to     │
        │ User          │
        └───────────────┘
+```
+
+### Cert-First Scan Flow (Slabbed Comics)
+
+```
+┌──────────────────┐
+│  User uploads    │
+│  slab photo      │
+└────────┬─────────┘
+         │
+         v
+┌──────────────────────────┐
+│  Phase 1: Slab Detection │  executeSlabDetection()
+│  "Is this a slabbed      │  Gemini → Anthropic fallback
+│   comic?"                │
+└────────┬─────────────────┘
+         │
+    ┌────┴────┐
+    │ yes     │ no → Standard scan path
+    v         └──────────────────────>
+┌──────────────────────────┐
+│  Phase 2: Slab Detail    │  executeSlabDetailExtraction()
+│  Extraction              │  Reads cert #, grade, company,
+│                          │  label color, title, issue, etc.
+└────────┬─────────────────┘
+         │
+         v
+┌──────────────────────────┐
+│  Phase 3: Cert Lookup    │  CGC/CBCS/PGX web scrape
+│  (if cert # found)       │  mergeKeyComments() combines
+│                          │  AI + cert provider data
+└────────┬─────────────────┘
+         │
+         v
+┌──────────────────────────┐
+│  Phase 4: eBay Pricing   │  Year disambiguation,
+│  (grade-specific search) │  filterIrrelevantListings(),
+│                          │  Q1 conservative pricing
+└────────┬─────────────────┘
+         │
+         v
+┌──────────────────────────┐
+│  Phase 5: Cache + Cover  │  Cache result in metadata
+│  Harvest + Response      │  Harvest cover if eligible
+└────────┬─────────────────┘
+         │
+         v
+┌──────────────────────────┐
+│  Phase 5.5: Analytics    │  scan_path: 'cert-first'
+│                          │  barcode_extracted, etc.
+└──────────────────────────┘
 ```
 
 ### Auction Purchase Flow
@@ -810,18 +863,19 @@ All other routes are public (unauthenticated access allowed). Individual API rou
 | `src/lib/stripeConnect.ts` | Stripe Connect account helpers |
 | `src/lib/ageVerification.ts` | Age verification helpers |
 | `src/lib/bulkActions.ts` | Bulk collection action helpers |
-| `src/lib/metadataCache.ts` | Comic metadata caching helpers |
+| `src/lib/certHelpers.ts` | Cert/slab helpers — `normalizeGradingCompany()`, `parseKeyComments()`, `mergeKeyComments()`, `parseArtComments()` |
+| `src/lib/metadataCache.ts` | Comic metadata caching helpers; `hasCompleteSlabData()` checks if cached metadata has full slab details |
 | `src/lib/contentFilter.ts` | Message content filtering (phone/email detection) |
 | `src/lib/adminAuth.ts` | Admin authentication helpers |
 | `src/lib/db.ts` | Core database helper functions |
 | `src/lib/promoTrial.ts` | localStorage helpers for promo trial flag — `setPromoTrialFlag()`, `getPromoTrialFlag()`, `clearPromoTrialFlag()`; timestamp-based 7-day expiration |
 | `src/lib/alertBadgeHelpers.ts` | Admin alert badge helpers |
-| `src/lib/aiProvider.ts` | Fallback orchestrator: getProviders(), classifyError(), getRemainingBudget(), executeWithFallback() |
-| `src/lib/providers/types.ts` | Provider interface + shared types (AIProvider, CallResult, ScanResponseMeta); added `coverHarvestable` flag and `coverCropCoordinates` to result shape |
-| `src/lib/providers/gemini.ts` | GeminiProvider class — primary vision provider (Gemini 2.0 Flash); `maxOutputTokens` increased for harvest prompt |
-| `src/lib/providers/anthropic.ts` | AnthropicProvider class — fallback provider (Claude); AI prompt expanded to return `coverHarvestable` + `coverCropCoordinates` |
+| `src/lib/aiProvider.ts` | Fallback orchestrator: getProviders(), classifyError(), getRemainingBudget(), executeWithFallback(), executeSlabDetection(), executeSlabDetailExtraction() |
+| `src/lib/providers/types.ts` | Provider interface + shared types (AIProvider, CallResult, ScanResponseMeta, SlabDetectionResult, SlabDetailExtractionResult); AICallType includes `slabDetection`/`slabDetailExtraction`; `coverHarvestable` flag and `coverCropCoordinates` in result shape |
+| `src/lib/providers/gemini.ts` | GeminiProvider class — primary vision provider (Gemini 2.0 Flash); `detectSlab()`, `extractSlabDetails()` methods; `maxOutputTokens` increased for harvest prompt |
+| `src/lib/providers/anthropic.ts` | AnthropicProvider class — fallback provider (Claude); `detectSlab()`, `extractSlabDetails()` methods; new prompts: SLAB_DETECTION_PROMPT, SLAB_DETAIL_EXTRACTION_PROMPT, SLAB_COVER_HARVEST_ONLY_PROMPT; AI prompt includes `coverHarvestable` + `coverCropCoordinates` |
 | `src/lib/models.ts` | AI model constants incl. GEMINI_PRIMARY, MODEL_PRIMARY, MODEL_LIGHTWEIGHT, VISION_PROVIDER_ORDER |
-| `src/lib/analyticsServer.ts` | Server-side analytics helpers (provider-aware cost estimation via PROVIDER_COSTS lookup); added `cover_harvested` boolean field to scan analytics |
+| `src/lib/analyticsServer.ts` | Server-side analytics helpers (provider-aware cost estimation via PROVIDER_COSTS lookup); ScanPath type, `scan_path` and `barcode_extracted` fields; `cover_harvested` boolean field |
 | `src/lib/coverValidation.ts` | Gemini-powered cover image validation pipeline |
 | `src/lib/metronVerify.ts` | Metron API verification for comic metadata |
 | `src/lib/choosePlanHelpers.ts` | Choose plan page helpers |
@@ -835,7 +889,7 @@ All other routes are public (unauthenticated access allowed). Individual API rou
 | `src/lib/hotBooksData.ts` | Hot books data seeding and management |
 | `src/lib/comicFacts.ts` | Random comic facts for UI display |
 | `src/lib/certLookup.ts` | CGC/CBCS certificate lookup logic |
-| `src/lib/ebayBrowse.ts` | eBay Browse API integration |
+| `src/lib/ebayBrowse.ts` | eBay Browse API integration; `filterIrrelevantListings()` removes non-comic listings; `buildSearchKeywords()` accepts year param for disambiguation; `filterOutliersAndCalculateMedian()` uses Q1 for conservative pricing; grade filtering for slabbed results |
 | `src/lib/gradePrice.ts` | Grade-based price calculation logic |
 | `src/lib/csvExport.ts` | CSV export generation |
 | `src/lib/csvHelpers.ts` | CSV parsing and import helpers |
@@ -931,6 +985,8 @@ All other routes are public (unauthenticated access allowed). Individual API rou
 
 **scan_analytics table additions**
 - `cover_harvested` (boolean) - Whether a cover image was auto-harvested from this scan
+- `scan_path` (text) - Scan pipeline path taken (e.g., `cert-first`, `standard`)
+- `barcode_extracted` (boolean) - Whether a barcode was extracted from the scan image
 
 **profiles table additions**
 - `show_financials` (boolean) - User preference to show/hide financial data in collection

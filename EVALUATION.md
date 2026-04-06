@@ -2,7 +2,7 @@
 
 > **This document is the guiding light for development priorities. It takes precedence over BACKLOG.md.**
 
-*Last Updated: April 2, 2026*
+*Last Updated: April 5, 2026*
 
 ---
 
@@ -534,26 +534,50 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 60. ~~**eBay Developer account verified**~~ ✅ (Mar 19, 2026)
 61. ~~**Logo/branding overhaul (PNG)**~~ ✅ (Mar 30, 2026) — New Collectors Chest emblem across all icons and ChestIcon component
 62. ~~**SVG logo + icon update**~~ ✅ (Apr 5, 2026) — SVG version of emblem received from partner, swapped into ChestIcon and all icon touchpoints
+63. ~~**Cert-first scan pipeline for slabbed comics**~~ ✅ (Apr 5, 2026) — 10 tasks, 8 commits, deep dive review (60 issues resolved), merged to main. CGC lookups blocked by Cloudflare 403.
+64. ~~**eBay pricing overhaul**~~ ✅ (Apr 5, 2026) — Year in search, listing filter, Q1 pricing, grade multiplier fix, strip "The"
+65. ~~**"Listed Value" → "Avg List Price" rename**~~ ✅ (Apr 5, 2026) — All components updated
+66. ~~**Default collection sort: date added**~~ ✅ (Apr 5, 2026)
+67. ~~**Auto-scroll to analysis after upload**~~ ✅ (Apr 5, 2026)
+68. ~~**Slab label color detection**~~ ✅ (Apr 5, 2026) — Purple/green/red → notes
+69. ~~**clerk_id → clerk_user_id fix (5 routes)**~~ ✅ (Apr 5, 2026)
+70. ~~**Corrupted Supabase service_role key fix**~~ ✅ (Apr 5, 2026)
 
 ### Recommended Next Steps
 
 > **See `BACKLOG.md` for the full prioritized list.** The pending items below are derived from BACKLOG.md at session start.
 
 **High Priority (Pending):**
-1. **Auto-Harvest Cover Images** — Code complete, awaiting manual integration test
-2. **Switch Clerk to Production Instance** — Blocked (awaiting Clerk support, ticket Apr 5)
-3. **Launch Tracker Review** — Pre-launch checklist
+1. **Fix CGC Cert Lookup Cloudflare 403 Errors** — Blocking cert-first pipeline from working end-to-end
+2. **Optimize Scan Pipeline for Slabbed Comics (Cert-First)** — Pipeline code complete, blocked by CGC 403
+3. **Auto-Harvest Cover Images** — Code complete, awaiting manual integration test
+4. **Switch Clerk to Production Instance** — Blocked (awaiting Clerk support, ticket Apr 5)
+5. **Launch Tracker Review** — Pre-launch checklist, target week of April 20
 
 **Medium Priority (Pending):**
-4. **Cover Validation: Test Coverage for Error Paths**
-5. **Cover Validation: Distinguish "No Cover" from "Unavailable"**
-6. **Flip Claude/Gemini Provider Order**
-7. **About Page Copy**
-8. **Expand Curated Key Info DB**
-9. **Set up Scheduled Functions for Cron Jobs**
-10. **Add "Professor" Persona Throughout Site**
-11. **Error Reporting System with Creator Credits**
-12. **Missing Metadata Contributions with Creator Credits**
+6. **Durable eBay Price Cache in Supabase** — Reduce API calls, speed up scans for popular books
+7. **Cover Validation: Test Coverage for Error Paths**
+8. **Cover Validation: Distinguish "No Cover" from "Unavailable"**
+9. **Flip Claude/Gemini Provider Order**
+10. **About Page Copy**
+11. **Expand Curated Key Info DB**
+12. **Set up Scheduled Functions for Cron Jobs**
+13. **Add "Professor" Persona Throughout Site**
+14. **Error Reporting System with Creator Credits**
+15. **Missing Metadata Contributions with Creator Credits**
+
+**Low Priority (Pending):**
+16. **User-Configurable Default Collection Sort** — Save preference in user settings
+17. **Customizable Initial Message** — Edit message before sending to seller
+18. **Native App Wrapper** — Hide browser URL bar
+19. **Remove Open Library from Cover Pipeline** — Low accuracy, burns Gemini quota
+20. **Batch Re-Validation for CSV Imports**
+21. **Periodic HEAD Check for Cached eBay URLs**
+22. **IPv6 Private Address Checks in URL Validation**
+23. **Upgrade Clerk SDK to v7** — Defer until after launch
+24. **Clean Up Copy Throughout the Site** — Polish task for post-launch
+25. **Expand to Support All Collectibles** — Long-term vision
+26. **Re-introduce Dedicated Barcode Scanning** — Blocked on barcode DB size
 
 ### 🔴 Before Opening Registration (See Section 0)
 

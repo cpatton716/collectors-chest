@@ -7,10 +7,19 @@ This log tracks session-by-session progress on Collectors Chest.
 ## Changes Since Last Deploy
 
 **Last Deploy:** March 26, 2026 (Session 26 — 30-day promo trial link)
-**Sessions Since Last Deploy:** 6
+**Sessions Since Last Deploy:** 7
 **Deploy Readiness:** Needs Testing
 
 ### Changes Since Last Deploy:
+- Cert-first scan pipeline for slabbed comics — designed, implemented, merged (10 tasks, 8 commits on feature branch)
+- Slab label color detection (purple/green/red → notes)
+- Major eBay pricing improvements: year in search, listing filter (signed/SS, newsstand, wrong-series, wrong-grade), Q1 pricing, grade multiplier double-application fix, strip leading "The" from titles
+- Renamed "Listed Value" → "Avg List Price" across all components
+- Default collection sort changed to date added (most recent first)
+- Auto-scroll to analysis section after image upload on scan page
+- Fixed clerk_id → clerk_user_id in 5 API routes (preferences, notifications, connect status/dashboard/create-account)
+- Fixed corrupted Supabase service_role key
+- Switched Clerk from Production to Development instance for local testing
 - Cover image harvesting from graded scans — code complete (9 tasks, 10 commits, 25+ new tests, awaiting manual integration test)
 - Clerk Production DNS support ticket filed (SSL not provisioning, awaiting Clerk response Mon Apr 7)
 - Cover image validation pipeline — full implementation (11 commits, 38 new tests, 15 files)
@@ -41,6 +50,46 @@ This log tracks session-by-session progress on Collectors Chest.
 - Clerk Production instance configured (DNS propagating)
 - ADMIN_EMAIL code fallbacks updated
 - Pricing architecture documented
+
+---
+
+## Apr 5, 2026 - Session 31: Cert-First Pipeline, eBay Pricing Overhaul, Bug Fixes
+
+### Summary
+- Switched Clerk from Production to Development instance for local testing (comment/uncomment approach in .env.local)
+- Fixed corrupted Supabase service_role key that was breaking all server-side queries
+- Fixed clerk_id → clerk_user_id in 5 API routes (preferences, notifications, connect status/dashboard/create-account)
+- Major eBay pricing improvements: year in search query, listing filter (signed/SS, newsstand, wrong-series, wrong-grade), Q1 pricing instead of median, fixed grade multiplier double-application, strip leading "The" from titles
+- Renamed "Listed Value" → "Avg List Price" across all components
+- Default collection sort changed to date added (most recent first)
+- Auto-scroll to analysis section after image upload on scan page
+- Designed and implemented cert-first scan pipeline for slabbed comics (10 tasks, 8 commits on feature branch, merged to main)
+- Added slab label color detection (purple/green/red → notes)
+- Updated close-up-shop skill with TECHNICAL_FEATURES.md and spec document review steps
+- Deep dive review process formalized: 6 rounds across spec + plan, 60 total issues found and resolved
+- Added backlog items: durable eBay price cache, cert-first pipeline optimization, CGC Cloudflare 403 fix, user-configurable default sort
+- CGC cert lookups all failing due to Cloudflare bot protection (HTTP 403) — added to backlog
+
+### Key Files Created/Modified
+- `src/app/api/analyze/route.ts` — eBay pricing fixes, cert-first pipeline integration
+- `src/lib/ebayBrowse.ts` — Year in search, listing filter, Q1 pricing, grade multiplier fix, strip "The"
+- `src/lib/providers/anthropic.ts` — Cert-first prompt updates
+- `src/lib/providers/gemini.ts` — Cert-first prompt updates
+- `src/lib/providers/types.ts` — Slab label color fields
+- `src/lib/certHelpers.ts` — New: cert-first lookup helpers
+- `src/lib/aiProvider.ts` — Provider routing for cert-first
+- `src/lib/metadataCache.ts` — Cache support for cert lookups
+- `src/lib/analyticsServer.ts` — Cert-first analytics fields
+
+### Issues Encountered
+- Supabase service_role key was corrupted in .env.local — all server-side queries silently failing
+- clerk_id vs clerk_user_id mismatch in 5 API routes caused auth failures
+- CGC cert lookups blocked by Cloudflare bot protection (HTTP 403) — cert-first pipeline falls back to full AI scan
+
+### Where We Left Off
+- Cert-first pipeline code complete and merged — CGC lookups blocked by Cloudflare (backlog item)
+- eBay pricing significantly improved with filtering and Q1 pricing
+- Clerk Development instance working locally; Production instance still awaiting SSL fix from Clerk support
 
 ---
 

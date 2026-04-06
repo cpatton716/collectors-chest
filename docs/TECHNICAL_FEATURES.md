@@ -7,12 +7,25 @@
 ## 1. AI Cover Recognition & Multi-Provider Fallback
 Camera capture → image compression (400KB target) → Claude Vision (primary) → Gemini (fallback) → structured comic identification. Two independent AI calls: image analysis (12s timeout) + verification/enrichment (8s timeout). Per-call fallback logic, non-retryable error detection, cost tracking ($0.02-0.03/scan Anthropic, $0.004-0.006 Gemini).
 
-**Key files:** `src/lib/aiProvider.ts`, `src/lib/providers/anthropic.ts`, `src/lib/providers/gemini.ts`, `src/app/api/analyze/route.ts`
+**Session 31 additions — Slab detection AI calls:**
+- `detectSlab()` — Quick binary classification: is this a slabbed comic? Returns `SlabDetectionResult` with confidence score
+- `extractSlabDetails()` — Detailed extraction from slab label: cert number, grade, grading company, label color, title, issue, variant, key comments, art comments, barcode. Returns `SlabDetailExtractionResult`
+- New prompts: `SLAB_DETECTION_PROMPT`, `SLAB_DETAIL_EXTRACTION_PROMPT`, `SLAB_COVER_HARVEST_ONLY_PROMPT`
+- New AICallType values: `slabDetection`, `slabDetailExtraction`
+- Updated barcode detection prompt for slabbed comics (reads barcode through slab case)
+
+**Key files:** `src/lib/aiProvider.ts`, `src/lib/providers/anthropic.ts`, `src/lib/providers/gemini.ts`, `src/lib/providers/types.ts`, `src/app/api/analyze/route.ts`
 
 ---
 
 ## 2. Real-Time Pricing Engine (eBay Browse API)
-OAuth token management → keyword search builder → category fallback chain (Comics → Collectibles → All) → outlier filtering (remove top/bottom 10%) → median calculation (min 3 listings) → grade multiplier extrapolation (6 grades from single lookup). Redis cache: 12h for results, 1h for "no data."
+OAuth token management → keyword search builder → category fallback chain (Comics → Collectibles → All) → outlier filtering (remove top/bottom 10%) → Q1 conservative pricing (25th percentile instead of median for more buyer-friendly estimates, min 3 listings) → grade multiplier extrapolation (6 grades from single lookup). Redis cache: 12h for results, 1h for "no data."
+
+**Session 31 improvements:**
+- **Year disambiguation:** `buildSearchKeywords()` accepts optional `year` param to differentiate same-title reboots (e.g., "Amazing Spider-Man #1 1963" vs "Amazing Spider-Man #1 2022")
+- **Irrelevant listing filtering:** `filterIrrelevantListings()` removes non-comic results (lots, sets, posters, reprints, etc.) before price calculation
+- **Q1 pricing:** `filterOutliersAndCalculateMedian()` now uses Q1 (25th percentile) instead of median for more conservative, buyer-friendly estimates
+- **Grade filtering for slabs:** When pricing slabbed comics, search includes grade in keywords and filters results to only matching grade
 
 **Key files:** `src/lib/ebayBrowse.ts`, `src/app/api/ebay-prices/route.ts`, `src/lib/gradePrice.ts`
 
@@ -49,9 +62,13 @@ Three paths: 7-day direct trial (no Stripe, DB-only) → 30-day promo trial (QR 
 ---
 
 ## 7. CGC/CBCS/PGX Certificate Verification
-HTML scraping of grading company websites → structured data extraction (grade, page quality, signatures, label type, grader notes) → 1-year Redis cache. Auto-detection of grading company from cert number format. Feeds into pricing and cover harvesting pipelines.
+HTML scraping of grading company websites → structured data extraction (grade, page quality, signatures, label type, grader notes) → 1-year Redis cache. Auto-detection of grading company from cert number format. Feeds into pricing, cover harvesting, and cert-first scan pipelines.
 
-**Key files:** `src/lib/certLookup.ts`, `src/app/api/cert-lookup/route.ts`
+**Session 31 additions:**
+- `src/lib/certHelpers.ts` — `normalizeGradingCompany()` standardizes company names, `parseKeyComments()` / `mergeKeyComments()` combine AI-detected and cert-provider key comments, `parseArtComments()` extracts art-related notes
+- Cert lookup integrated into cert-first pipeline Phase 3 for automatic verification during slab scans
+
+**Key files:** `src/lib/certLookup.ts`, `src/lib/certHelpers.ts`, `src/app/api/cert-lookup/route.ts`
 
 ---
 
@@ -59,6 +76,21 @@ HTML scraping of grading company websites → structured data extraction (grade,
 AI extracts 12-17 digit UPC → parsed into prefix/item/check/addon components → variant extracted from digits 16-17 → crowd-sourced `barcode_catalog` lookup → low-confidence entries queued for admin review in `admin_barcode_reviews`.
 
 **Key files:** `src/app/api/analyze/route.ts`, `src/lib/db.ts` (barcode catalog functions)
+
+---
+
+## 8b. Cert-First Scan Pipeline (Slabbed Comics)
+Dedicated scan pipeline for slabbed/graded comics that bypasses standard cover recognition. Triggered when slab detection AI call returns positive. Five-phase pipeline:
+
+- **Phase 1 — Slab Detection:** `executeSlabDetection()` with Gemini → Anthropic fallback. Quick binary: is this a slab?
+- **Phase 2 — Slab Detail Extraction:** `executeSlabDetailExtraction()` reads cert number, grade, grading company, label color (blue/yellow/green/etc.), title, issue, variant, key comments, art comments from the slab label photo
+- **Phase 3 — Cert Lookup:** If cert number found, scrapes CGC/CBCS/PGX for verification. `mergeKeyComments()` combines AI-detected comments with cert provider data. `normalizeGradingCompany()` standardizes company names
+- **Phase 4 — eBay Pricing:** Grade-specific search with year disambiguation. `filterIrrelevantListings()` removes non-comic results. Q1 conservative pricing. Grade included in search keywords for slabbed results
+- **Phase 5/5.5 — Cache, Cover Harvest, Analytics:** Results cached in metadata. Cover harvested if eligible. Analytics logged with `scan_path: 'cert-first'` and `barcode_extracted` fields
+
+**Migration:** `supabase/migrations/20260405_cert_first_analytics.sql` — adds `scan_path` and `barcode_extracted` columns to `scan_analytics`
+
+**Key files:** `src/app/api/analyze/route.ts` (Phases 1-5.5), `src/lib/aiProvider.ts`, `src/lib/certHelpers.ts`, `src/lib/providers/anthropic.ts`, `src/lib/providers/gemini.ts`, `src/lib/metadataCache.ts`, `src/lib/analyticsServer.ts`
 
 ---
 

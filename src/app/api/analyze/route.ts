@@ -985,7 +985,6 @@ export async function POST(request: NextRequest) {
               priceDataFound = true;
           } else if (cachedResult === null || (cachedResult !== null && !("noData" in cachedResult) && (cachedResult as PriceData).priceSource !== "ebay")) {
             // Cache miss or stale AI price — fetch from eBay Browse API
-            console.log(`[ebay-search] query: title="${comicDetails.title}" issue="${comicDetails.issueNumber}" year="${comicDetails.releaseYear}" grade="${grade}" slabbed=${isSlabbed} company="${comicDetails.gradingCompany}"`);
             ebayPriceData = await searchActiveListings(
               comicDetails.title,
               comicDetails.issueNumber,

@@ -416,6 +416,24 @@ ChestIcon component currently uses a PNG (`/icons/icon-512x512.png`) via an `<im
 
 ---
 
+### Fix CGC Cert Lookup Cloudflare 403 Errors
+**Priority:** High
+**Status:** Pending
+**Added:** Apr 5, 2026
+
+CGC website (`cgccomics.com/certlookup/`) is blocking cert lookups with Cloudflare bot protection (HTTP 403). The current User-Agent (`"CollectorsChest/1.0"`) is detected as a bot. All cert lookups fail, forcing fallback to the full AI pipeline.
+
+**Root cause:** Cloudflare managed challenge blocks non-browser requests.
+**Fix options:**
+1. Update User-Agent and headers to mimic a real browser (may bypass basic checks)
+2. Use a headless browser (Puppeteer/Playwright) if header changes aren't enough
+3. Explore if CGC has an official API
+4. Add better error logging (currently just says "failed", not "403 Forbidden")
+
+**Impact:** Cert-first pipeline falls back to full AI on every slabbed scan, negating cost savings. Also affects existing cert lookup feature for all users.
+
+---
+
 ### Optimize Scan Pipeline for Slabbed Comics (Cert-First)
 **Priority:** High
 **Status:** Pending

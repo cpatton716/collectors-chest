@@ -132,12 +132,14 @@ describe("filterOutliersAndCalculateMedian", () => {
   const getFn = () =>
     require("../ebayBrowse").filterOutliersAndCalculateMedian;
 
-  it("calculates median for odd number of prices", () => {
-    expect(getFn()([10, 20, 30]).medianPrice).toBe(20);
+  it("calculates Q1 (lower quartile) for odd number of prices", () => {
+    // Q1 index = floor(3/4) = 0 → 10
+    expect(getFn()([10, 20, 30]).medianPrice).toBe(10);
   });
 
-  it("calculates median for even number of prices", () => {
-    expect(getFn()([10, 20, 30, 40]).medianPrice).toBe(25);
+  it("calculates Q1 (lower quartile) for even number of prices", () => {
+    // Q1 index = floor(4/4) = 1 → 20
+    expect(getFn()([10, 20, 30, 40]).medianPrice).toBe(20);
   });
 
   it("removes outliers above 3x median", () => {

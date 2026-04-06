@@ -421,8 +421,6 @@ export async function searchActiveListings(
 
       // Filter out signed/SS copies, wrong-title matches, and wrong grades
       const filteredListings = filterIrrelevantListings(listings, title, grade, isSlabbed);
-      console.log(`[ebay-browse] ${listings.length} results for "${keywords}", ${filteredListings.length} after filtering:`);
-      filteredListings.forEach((l, i) => console.log(`  ${i+1}. $${l.price.toFixed(2)} — ${l.title}`));
       const prices = filteredListings.map((l) => l.price);
       const stats = filterOutliersAndCalculateMedian(prices);
 

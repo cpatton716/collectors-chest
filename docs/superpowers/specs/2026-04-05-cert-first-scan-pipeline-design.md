@@ -1,7 +1,7 @@
 # Cert-First Scan Pipeline for Slabbed Comics
 
 **Date:** April 5, 2026
-**Status:** Design — awaiting approval
+**Status:** Design — updated with implementation details (labelColor detection, CGC Cloudflare blocking)
 
 ---
 
@@ -36,6 +36,7 @@ interface SlabDetectionResult {
   isSlabbed: boolean;
   gradingCompany: GradingCompany | null; // import from @/types/comic
   certificationNumber: string | null;
+  labelColor: "blue" | "yellow" | "purple" | "green" | "red" | null;
 }
 ```
 
@@ -104,7 +105,7 @@ interface ScanResponseMeta {
 Image Upload
   ↓
 Phase 1: Slab Detection (cheap AI, ~0.2¢)
-  → isSlabbed, gradingCompany, certificationNumber
+  → isSlabbed, gradingCompany, certificationNumber, labelColor
   ↓
   [not slabbed or no cert or gradingCompany not recognized?] → Fall back to current full pipeline
   ↓
@@ -163,15 +164,26 @@ No changes. The current full pipeline runs exactly as it does today.
 **New function:** `detectSlab()` in provider layer
 **Returns:** `SlabDetectionResult`
 
-**Prompt:** Minimal — identify only 3 fields from the image. Constrain `gradingCompany` to return one of: `"CGC"`, `"CBCS"`, `"PGX"`, or `"Other"`.
+**Prompt:** Minimal — identify 4 fields from the image. Constrain `gradingCompany` to return one of: `"CGC"`, `"CBCS"`, `"PGX"`, or `"Other"`. Also detect the label color for enrichment.
 
 ```json
 {
   "isSlabbed": true,
   "gradingCompany": "CGC",
-  "certificationNumber": "3809701007"
+  "certificationNumber": "3809701007",
+  "labelColor": "blue"
 }
 ```
+
+**Label color detection:** The `labelColor` field identifies the grading label color, which maps to label types:
+- `"blue"` — Standard/Universal grade
+- `"yellow"` — Signature Series (professionally witnessed signatures)
+- `"purple"` — Restored (comic has been professionally restored)
+- `"green"` — Qualified (grade with a qualifying defect noted)
+- `"red"` — Conserved/Modern (conservation or modern grading)
+- `null` — Not identifiable or not slabbed
+
+This color is used in Phase 2 to enrich the label type when cert lookup provides it, and in the analyze route to infer `restored` or `qualified` status from the color when cert data lacks explicit label type info.
 
 - **Max tokens:** 128
 - **Timeout:** 5s
@@ -208,6 +220,11 @@ function normalizeGradingCompany(raw: string): "CGC" | "CBCS" | "PGX" | null {
 Uses existing `lookupCertification()` from `src/lib/certLookup.ts`. No changes needed.
 
 **Timeout:** 5s. Note: `lookupCertification()` uses Redis cache with 1-year TTL, so cache hits are instant. The 5s timeout covers cold lookups that require a web scrape.
+
+**Known issue — CGC Cloudflare 403 blocking (as of April 2026):** CGC's website (`cgccomics.com`) is currently blocking all server-side cert lookups with Cloudflare 403 responses. This means all CGC cert lookups for uncached certs will fail and trigger the fallback to the full pipeline. Previously cached CGC certs (in Redis with 1-year TTL) continue to work. CBCS and PGX lookups are unaffected. This is a critical dependency risk for the cert-first pipeline since CGC is the most common grading company. Potential mitigations:
+- Monitor for CGC Cloudflare policy changes
+- Consider using a headless browser or proxy for CGC lookups (complexity vs. benefit trade-off)
+- The cert-first pipeline gracefully falls back to the full pipeline, so user experience is not degraded — only cost savings are lost for uncached CGC certs
 
 **Data returned by cert lookup:**
 - title, issueNumber, publisher, releaseYear, grade, variant
@@ -428,6 +445,7 @@ type ScanPath =
 | Barcode not visible through slab | Phase 5 returns `barcode.raw = null`; no barcode cataloged at save time. Future scans still attempt extraction via Phase 5 if creators aren't cached |
 | PGX graded book | Cert lookup supports PGX, same flow |
 | Non-standard slab (e.g., EGS, HALO) | Slab detected but gradingCompany normalization fails → fallback (`scanPath: "cert-first-fallback"`) |
+| CGC Cloudflare 403 blocking (current) | All uncached CGC cert lookups fail → fall back to full pipeline (`scanPath: "cert-first-fallback"`). Cached CGC certs still work. CBCS/PGX unaffected |
 | Gemini rate-limited | Slab detection uses full fallback chain (Gemini → Anthropic); Anthropic used as fallback |
 | artComments contains creator info | Parsed in Phase 2.5; may allow skipping Phase 5 if all creators found |
 | Pipeline exceeds 15s cert-first budget | Skip remaining cert-first phases, proceed to Phase 6 under existing 25s hard deadline via `getRemainingBudget()`; log timeout in analytics |
