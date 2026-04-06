@@ -3,7 +3,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 
 import { isUserSuspended } from "@/lib/adminAuth";
-import { executeWithFallback, getRemainingBudget, getProviders } from "@/lib/aiProvider";
+import { executeWithFallback, executeSlabDetection, executeSlabDetailExtraction, getRemainingBudget, getProviders } from "@/lib/aiProvider";
+import { hasCompleteSlabData } from "@/lib/metadataCache";
+import { normalizeGradingCompany, parseKeyComments, mergeKeyComments, parseArtComments } from "@/lib/certHelpers";
+import type { ScanPath } from "@/lib/analyticsServer";
 import type { ScanResponseMeta } from "@/lib/providers/types";
 import {
   cacheGet,
@@ -124,6 +127,13 @@ export async function POST(request: NextRequest) {
 
   // Tracking variables (declared outside try so catch block can access them)
   const scanStartTime = Date.now();
+  const CERT_FIRST_BUDGET_MS = 15_000;
+  let scanPath: ScanPath = "full-pipeline";
+  let barcodeExtracted = false;
+  let slabDetectionMeta: { provider: string; durationMs: number; cost: number } | undefined;
+  let slabDetailExtractionMeta: { provider: string; durationMs: number; cost: number; coverHarvestOnly?: boolean } | undefined;
+  let certFirstPath = false;
+  let metadataCacheHit = false;
   let aiCallsMade = 0;
   let ebayLookupMade = false;
   let p1: string = "anthropic"; // Primary provider used — default for catch block
@@ -258,7 +268,7 @@ export async function POST(request: NextRequest) {
     }>(imageHash, "aiAnalyze");
 
     // If we have a cached result, use it but still get fresh pricing
-    let comicDetails: ComicDetails;
+    let comicDetails: ComicDetails = null!; // Assigned in cache-hit or else branch below
     let usedCache = false;
 
     const aiProviders = getProviders();
@@ -274,6 +284,234 @@ export async function POST(request: NextRequest) {
     } else {
       // No cache hit - run the AI image analysis
 
+      // ============================================
+      // CERT-FIRST BRANCH: Slab Detection → Cert Lookup → Cache Gate
+      // If the image is a slabbed comic, we can skip the expensive full AI
+      // pipeline and get structured data from the grading company's database.
+      // ============================================
+      // Phase 1: Slab Detection (lightweight ~2-3s AI call)
+      const slabDetStart = Date.now();
+      const slabBudget = Math.min(5_000, CERT_FIRST_BUDGET_MS);
+      try {
+        const {
+          result: slabResult,
+          provider: slabProvider,
+          fallbackUsed: slabFallbackUsed,
+        } = await executeSlabDetection(
+          base64Data,
+          mediaType || "image/jpeg",
+          slabBudget,
+          aiProviders
+        );
+        aiCallsMade++;
+        const slabDetDuration = Date.now() - slabDetStart;
+        slabDetectionMeta = {
+          provider: slabProvider,
+          durationMs: slabDetDuration,
+          cost: slabProvider === "anthropic" ? 0.003 : 0.001,
+        };
+        p1 = slabProvider;
+        if (slabFallbackUsed) {
+          fb1 = true;
+        }
+
+        console.info(
+          `[scan] Slab detection: isSlabbed=${slabResult.isSlabbed} company=${slabResult.gradingCompany} cert=${slabResult.certificationNumber} provider=${slabProvider} duration=${slabDetDuration}ms`
+        );
+
+        // Phase 1.5: Normalize grading company
+        const normalizedCompany = normalizeGradingCompany(slabResult.gradingCompany);
+
+        if (slabResult.isSlabbed && normalizedCompany && slabResult.certificationNumber) {
+          // Phase 2: Cert Lookup (free, ~1-2s network call)
+          const certResult = await lookupCertification(
+            normalizedCompany,
+            slabResult.certificationNumber
+          );
+
+          if (certResult.success && certResult.data) {
+            certFirstPath = true;
+            scanPath = "cert-first-full"; // May upgrade to cert-first-cached below
+
+            // Build comicDetails from cert data
+            comicDetails = {
+              title: certResult.data.title,
+              issueNumber: certResult.data.issueNumber,
+              publisher: certResult.data.publisher,
+              releaseYear: certResult.data.releaseYear,
+              variant: certResult.data.variant,
+              writer: null,
+              coverArtist: null,
+              interiorArtist: null,
+              confidence: "high",
+              isSlabbed: true,
+              gradingCompany: normalizedCompany,
+              grade: certResult.data.grade,
+              certificationNumber: slabResult.certificationNumber,
+              isSignatureSeries: !!certResult.data.signatures,
+              signedBy: certResult.data.signatures || null,
+              labelType: certResult.data.labelType || undefined,
+              pageQuality: certResult.data.pageQuality || undefined,
+              gradeDate: certResult.data.gradeDate || undefined,
+              graderNotes: certResult.data.graderNotes || undefined,
+              keyInfo: [],
+            };
+
+            // Phase 2.5: Parse art comments for creator info
+            if (certResult.data.artComments) {
+              const artParsed = parseArtComments(certResult.data.artComments);
+              if (artParsed.writer) comicDetails.writer = artParsed.writer;
+              if (artParsed.coverArtist) comicDetails.coverArtist = artParsed.coverArtist;
+              if (artParsed.interiorArtist) comicDetails.interiorArtist = artParsed.interiorArtist;
+            }
+
+            // Phase 3: Key Info from cert + database
+            const certKeyEntries = parseKeyComments(certResult.data.keyComments);
+            if (certKeyEntries.length > 0) {
+              comicDetails.keyInfo = certKeyEntries;
+              comicDetails.keyInfoSource = "cgc";
+            }
+            // Merge with database key info
+            if (comicDetails.title && comicDetails.issueNumber) {
+              const dbKeyInfo = lookupKeyInfo(
+                comicDetails.title,
+                comicDetails.issueNumber,
+                comicDetails.releaseYear ? parseInt(String(comicDetails.releaseYear)) : null
+              );
+              if (dbKeyInfo && dbKeyInfo.length > 0) {
+                comicDetails.keyInfo = mergeKeyComments(comicDetails.keyInfo, dbKeyInfo);
+                if (!comicDetails.keyInfoSource) {
+                  comicDetails.keyInfoSource = "database";
+                }
+              }
+            }
+
+            // Phase 4: Two-layer metadata cache (Redis → Supabase)
+            let certMetadataCacheHit = false;
+            if (comicDetails.title && comicDetails.issueNumber) {
+              try {
+                const metaCacheKey = generateComicMetadataCacheKey(
+                  comicDetails.title,
+                  comicDetails.issueNumber
+                );
+                // Layer 1: Redis
+                let cachedMeta = await cacheGet<ComicMetadata>(metaCacheKey, "comicMetadata");
+                // Layer 2: Supabase fallback
+                if (!cachedMeta) {
+                  const dbMeta = await getComicMetadata(comicDetails.title, comicDetails.issueNumber);
+                  if (dbMeta) {
+                    cachedMeta = dbMeta as ComicMetadata;
+                    cacheSet(metaCacheKey, dbMeta, "comicMetadata").catch(() => {});
+                  }
+                }
+                if (cachedMeta) {
+                  certMetadataCacheHit = true;
+                  mergeMetadataIntoDetails(
+                    comicDetails as unknown as Record<string, unknown>,
+                    cachedMeta
+                  );
+                }
+              } catch (cacheErr) {
+                console.error("[cert-first] Metadata cache lookup failed:", cacheErr);
+              }
+            }
+
+            // Phase 5 / 5.5: Cache gate — decide if we need AI detail extraction
+            const slabDataComplete = hasCompleteSlabData(comicDetails);
+            // Propagate to outer scope for analytics
+            metadataCacheHit = certMetadataCacheHit;
+
+            if (slabDataComplete && certMetadataCacheHit) {
+              // Phase 5: Cache hit — skip detail extraction entirely
+              scanPath = "cert-first-cached";
+              console.info("[scan] Cert-first cached path: all data from cert + cache");
+            } else {
+              // Phase 5.5: Need AI for missing creators/barcode/cover harvest
+              const skipCreators = slabDataComplete;
+              const skipBarcode = false; // Always try to extract barcode
+              const detailBudget = getRemainingBudget(scanStartTime);
+
+              if (detailBudget >= 3000) {
+                try {
+                  const detailStart = Date.now();
+                  const {
+                    result: detailResult,
+                    provider: detailProvider,
+                  } = await executeSlabDetailExtraction(
+                    base64Data,
+                    mediaType || "image/jpeg",
+                    { skipCreators, skipBarcode, remainingBudgetMs: detailBudget },
+                    aiProviders
+                  );
+                  aiCallsMade++;
+                  const detailDuration = Date.now() - detailStart;
+                  slabDetailExtractionMeta = {
+                    provider: detailProvider,
+                    durationMs: detailDuration,
+                    cost: detailProvider === "anthropic" ? 0.005 : 0.002,
+                    coverHarvestOnly: skipCreators,
+                  };
+
+                  // Merge detail extraction results
+                  if (!skipCreators) {
+                    if (detailResult.writer && !comicDetails.writer) comicDetails.writer = detailResult.writer;
+                    if (detailResult.coverArtist && !comicDetails.coverArtist) comicDetails.coverArtist = detailResult.coverArtist;
+                    if (detailResult.interiorArtist && !comicDetails.interiorArtist) comicDetails.interiorArtist = detailResult.interiorArtist;
+                  }
+
+                  // Barcode
+                  if (detailResult.barcode?.raw) {
+                    comicDetails.barcode = {
+                      raw: detailResult.barcode.raw,
+                      confidence: detailResult.barcode.confidence,
+                    };
+                    comicDetails.barcodeNumber = detailResult.barcode.raw;
+                    barcodeExtracted = true;
+                  }
+
+                  // Cover harvest data
+                  if (detailResult.coverHarvestable) {
+                    comicDetails.coverHarvestable = true;
+                    comicDetails.coverCropCoordinates = detailResult.coverCropCoordinates || undefined;
+                  }
+
+                  console.info(
+                    `[scan] Slab detail extraction: barcode=${detailResult.barcode?.raw} coverHarvestable=${detailResult.coverHarvestable} provider=${detailProvider} duration=${detailDuration}ms`
+                  );
+                } catch (detailErr) {
+                  console.warn("[scan] Slab detail extraction failed:", detailErr);
+                  // Continue with what we have from cert lookup
+                }
+              } else {
+                console.warn(`[scan] Skipping slab detail extraction: only ${detailBudget}ms remaining`);
+              }
+            }
+
+            // Parse barcode into components if detected
+            if (comicDetails.barcode && comicDetails.barcode.raw) {
+              const parsed = parseBarcode(comicDetails.barcode.raw);
+              if (parsed) {
+                comicDetails.barcode.parsed = parsed;
+              }
+            }
+            // Backward compat: populate barcodeNumber from barcode.raw
+            if (comicDetails.barcode?.raw && !comicDetails.barcodeNumber) {
+              comicDetails.barcodeNumber = comicDetails.barcode.raw;
+            }
+
+            comicDetails.dataSource = "barcode"; // cert-first uses structured data, not AI vision
+          } else {
+            // Cert lookup failed — fall through to full pipeline
+            console.info(`[scan] Cert lookup failed for ${normalizedCompany} #${slabResult.certificationNumber}, falling back to full pipeline`);
+            scanPath = "cert-first-fallback";
+          }
+        }
+      } catch (slabDetErr) {
+        console.warn("[scan] Slab detection failed, falling back to full pipeline:", slabDetErr);
+        // Continue to full pipeline
+      }
+
+      if (!certFirstPath) {
       // Call 1: Image Analysis (REQUIRED)
       const call1Timeout = Math.min(12_000, getRemainingBudget(scanStartTime));
       const call1FallbackTimeout = Math.min(10_000, getRemainingBudget(scanStartTime));
@@ -430,6 +668,7 @@ export async function POST(request: NextRequest) {
         // Fire and forget - don't block the response
         cacheSet(imageHash, cacheData, "aiAnalyze").catch(() => {});
       }
+      } // End of if (!certFirstPath)
     } // End of else block (no cache hit)
 
     // Ensure keyInfo is initialized
@@ -503,7 +742,8 @@ export async function POST(request: NextRequest) {
     }
 
     // If this is a slabbed comic with a certification number, look up from grading company
-    if (comicDetails.isSlabbed && comicDetails.certificationNumber && comicDetails.gradingCompany) {
+    // Skip on cert-first path — already done during the cert-first branch
+    if (!certFirstPath && comicDetails.isSlabbed && comicDetails.certificationNumber && comicDetails.gradingCompany) {
       try {
         const certResult = await lookupCertification(
           comicDetails.gradingCompany,
@@ -595,9 +835,9 @@ export async function POST(request: NextRequest) {
 
     // ============================================
     // Metadata Cache Lookup (dual-layer: Redis → Supabase)
+    // Skip if cert-first path already did its own cache lookup
     // ============================================
-    let metadataCacheHit = false;
-    if (comicDetails.title && comicDetails.issueNumber) {
+    if (!certFirstPath && comicDetails.title && comicDetails.issueNumber) {
       try {
         const metaCacheKey = generateComicMetadataCacheKey(
           comicDetails.title,
@@ -635,8 +875,10 @@ export async function POST(request: NextRequest) {
     const missingBasicInfoAfterCache = !comicDetails.publisher || !comicDetails.releaseYear;
 
     // Only call AI if we STILL need to fill in missing information after cache
+    // Skip on cert-first path — creators were handled by extractSlabDetails
     const needsKeyInfoFromAI = !comicDetails.keyInfo || comicDetails.keyInfo.length === 0;
     const needsAIVerification =
+      !certFirstPath &&
       comicDetails.title &&
       comicDetails.issueNumber &&
       (missingCreatorInfoAfterCache || missingBasicInfoAfterCache || needsKeyInfoFromAI);
@@ -895,6 +1137,8 @@ export async function POST(request: NextRequest) {
       provider: p1,
       fallback_used: fb1 || verificationMeta.fallbackUsed,
       fallback_reason: fr1 || verificationMeta.fallbackReason,
+      scan_path: scanPath,
+      barcode_extracted: barcodeExtracted,
     }).catch((err) => {
       console.error("Scan analytics recording failed:", err);
     });
@@ -906,10 +1150,12 @@ export async function POST(request: NextRequest) {
       confidence: fb1 ? "medium" : ((comicDetails.confidence || "medium") as "high" | "medium" | "low"),
       ...(cerebro_assisted ? { cerebro_assisted: true } : {}),
       callDetails: {
-        imageAnalysis: { provider: p1, fallbackUsed: fb1 },
+        imageAnalysis: certFirstPath ? null : { provider: p1, fallbackUsed: fb1 },
         verification: needsAIVerification
           ? { provider: verificationMeta.provider, fallbackUsed: verificationMeta.fallbackUsed }
           : null,
+        ...(slabDetectionMeta ? { slabDetection: slabDetectionMeta } : {}),
+        ...(slabDetailExtractionMeta ? { slabDetailExtraction: slabDetailExtractionMeta } : {}),
       },
     };
 

@@ -5,7 +5,7 @@
 
 import { AnthropicProvider } from "./providers/anthropic";
 import { GeminiProvider } from "./providers/gemini";
-import type { AIProvider, CallResult, ErrorReason } from "./providers/types";
+import type { AIProvider, CallResult, ErrorReason, SlabDetectionResult, SlabDetailExtractionResult } from "./providers/types";
 import { NON_RETRYABLE_ERRORS } from "./providers/types";
 import { VISION_PROVIDER_ORDER } from "./models";
 
@@ -120,4 +120,60 @@ export async function executeWithFallback<T>(
   }
 
   throw new Error(`All providers exhausted for ${callLabel}`);
+}
+
+export async function executeSlabDetection(
+  base64Data: string,
+  mediaType: string,
+  remainingBudgetMs?: number,
+  providerList?: AIProvider[]
+): Promise<CallResult<SlabDetectionResult>> {
+  const list = providerList || providers;
+  const timeout = remainingBudgetMs
+    ? Math.min(5000, remainingBudgetMs)
+    : 5000;
+  return executeWithFallback(
+    (provider, signal) =>
+      provider.detectSlab(
+        { base64Data, mediaType: mediaType as "image/jpeg" | "image/png" | "image/webp" },
+        { signal }
+      ),
+    timeout,
+    timeout,
+    "slabDetection",
+    list
+  );
+}
+
+export async function executeSlabDetailExtraction(
+  base64Data: string,
+  mediaType: string,
+  options?: {
+    skipCreators?: boolean;
+    skipBarcode?: boolean;
+    remainingBudgetMs?: number;
+  },
+  providerList?: AIProvider[]
+): Promise<CallResult<SlabDetailExtractionResult>> {
+  const list = providerList || providers;
+  const coverHarvestOnly = options?.skipCreators && options?.skipBarcode;
+  const baseTimeout = coverHarvestOnly ? 5000 : 8000;
+  const timeout = options?.remainingBudgetMs
+    ? Math.min(baseTimeout, options.remainingBudgetMs)
+    : baseTimeout;
+  return executeWithFallback(
+    (provider, signal) =>
+      provider.extractSlabDetails(
+        { base64Data, mediaType: mediaType as "image/jpeg" | "image/png" | "image/webp" },
+        {
+          signal,
+          skipCreators: options?.skipCreators,
+          skipBarcode: options?.skipBarcode,
+        }
+      ),
+    timeout,
+    timeout,
+    "slabDetailExtraction",
+    list
+  );
 }

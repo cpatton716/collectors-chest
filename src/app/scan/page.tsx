@@ -115,6 +115,7 @@ export default function ScanPage() {
   const [showEnlargedImage, setShowEnlargedImage] = useState(false);
   const [showSlowMessage, setShowSlowMessage] = useState(false);
   const reviewSectionRef = useRef<HTMLDivElement>(null);
+  const analysisSectionRef = useRef<HTMLDivElement>(null);
 
   // Rotate fun facts every 7 seconds during analyzing state
   useEffect(() => {
@@ -144,6 +145,9 @@ export default function ScanPage() {
     setImagePreview(preview);
     setState("analyzing");
     setError("");
+    setTimeout(() => {
+      analysisSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
 
     try {
       // Get the media type from the file
@@ -481,6 +485,7 @@ export default function ScanPage() {
       {/* Analyzing State */}
       {state === "analyzing" && (
         <div
+          ref={analysisSectionRef}
           className="bg-pop-white border-3 border-pop-black p-8"
           style={{ boxShadow: "4px 4px 0px #000" }}
         >

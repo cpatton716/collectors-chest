@@ -104,3 +104,10 @@ export function buildMetadataSavePayload(
 
   return payload as { title: string; issueNumber: string; [key: string]: unknown };
 }
+
+export function hasCompleteSlabData(
+  metadata: { writer?: string | null; coverArtist?: string | null; interiorArtist?: string | null } | null | undefined
+): boolean {
+  if (!metadata) return false;
+  return Boolean(metadata.writer && metadata.coverArtist && metadata.interiorArtist);
+}

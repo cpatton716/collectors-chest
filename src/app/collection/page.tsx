@@ -95,7 +95,7 @@ function CollectionPageContent() {
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [selectedList, setSelectedList] = useState<string>("collection");
   const [searchQuery, setSearchQuery] = useState("");
-  const [sortBy, setSortBy] = useState<SortOption>("issue");
+  const [sortBy, setSortBy] = useState<SortOption>("date");
   const [selectedItem, setSelectedItem] = useState<CollectionItem | null>(null);
   const [showStarredOnly, setShowStarredOnly] = useState(false);
   const [showForTradeOnly, setShowForTradeOnly] = useState(false);

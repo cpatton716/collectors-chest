@@ -7,13 +7,19 @@ import { GEMINI_PRIMARY } from "@/lib/models";
 import {
   IMAGE_ANALYSIS_PROMPT,
   buildVerificationPrompt,
+  SLAB_DETECTION_PROMPT,
+  SLAB_DETAIL_EXTRACTION_PROMPT,
+  SLAB_COVER_HARVEST_ONLY_PROMPT,
 } from "./anthropic";
+import type { GradingCompany } from "@/types/comic";
 import type {
   AIProvider,
   AICallType,
   CallOptions,
   ImageAnalysisRequest,
   ImageAnalysisResult,
+  SlabDetectionResult,
+  SlabDetailExtractionResult,
   VerificationRequest,
   VerificationResult,
 } from "./types";
@@ -111,6 +117,78 @@ export class GeminiProvider implements AIProvider {
     return this.parseJsonResponse(text) as VerificationResult;
   }
 
+  // ── Slab Detection & Detail Extraction (stubs — implemented in Task 3) ──
+
+  async detectSlab(
+    req: ImageAnalysisRequest,
+    opts?: CallOptions
+  ): Promise<SlabDetectionResult> {
+    const model = this.genAI.getGenerativeModel(
+      { model: GEMINI_PRIMARY },
+      { apiVersion: "v1beta" }
+    );
+
+    const result = await this.withTimeout(
+      model.generateContent({
+        contents: [
+          {
+            role: "user",
+            parts: [
+              { inlineData: { mimeType: req.mediaType, data: req.base64Data } },
+              { text: SLAB_DETECTION_PROMPT },
+            ],
+          },
+        ],
+        generationConfig: { maxOutputTokens: 128 },
+      }),
+      opts?.signal
+    );
+
+    const text = result.response.text();
+    if (!text) throw new Error("No response from Gemini slab detection");
+    const parsed = this.parseJsonResponse(text) as SlabDetectionResult;
+    if (parsed.gradingCompany) {
+      parsed.gradingCompany = parsed.gradingCompany as GradingCompany;
+    }
+    return parsed;
+  }
+
+  async extractSlabDetails(
+    req: ImageAnalysisRequest,
+    opts?: CallOptions & { skipCreators?: boolean; skipBarcode?: boolean }
+  ): Promise<SlabDetailExtractionResult> {
+    const isCoverHarvestOnly = opts?.skipCreators && opts?.skipBarcode;
+    const prompt = isCoverHarvestOnly
+      ? SLAB_COVER_HARVEST_ONLY_PROMPT
+      : SLAB_DETAIL_EXTRACTION_PROMPT;
+    const maxOutputTokens = isCoverHarvestOnly ? 128 : 384;
+
+    const model = this.genAI.getGenerativeModel(
+      { model: GEMINI_PRIMARY },
+      { apiVersion: "v1beta" }
+    );
+
+    const result = await this.withTimeout(
+      model.generateContent({
+        contents: [
+          {
+            role: "user",
+            parts: [
+              { inlineData: { mimeType: req.mediaType, data: req.base64Data } },
+              { text: prompt },
+            ],
+          },
+        ],
+        generationConfig: { maxOutputTokens },
+      }),
+      opts?.signal
+    );
+
+    const text = result.response.text();
+    if (!text) throw new Error("No response from Gemini slab detail extraction");
+    return this.parseJsonResponse(text) as SlabDetailExtractionResult;
+  }
+
   // ── Cost Estimation ──
 
   estimateCostCents(callType: AICallType): number {
@@ -119,6 +197,10 @@ export class GeminiProvider implements AIProvider {
       case "imageAnalysis":
         return 0.3;
       case "verification":
+        return 0.1;
+      case "slabDetection":
+        return 0.05;
+      case "slabDetailExtraction":
         return 0.1;
     }
   }

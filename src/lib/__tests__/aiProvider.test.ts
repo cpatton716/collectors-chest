@@ -23,6 +23,8 @@ function createMockProvider(
     name,
     analyzeImage: jest.fn(),
     verifyAndEnrich: jest.fn(),
+    detectSlab: jest.fn(),
+    extractSlabDetails: jest.fn(),
     estimateCostCents: jest.fn().mockReturnValue(1.5),
   };
 }
