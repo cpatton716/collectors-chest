@@ -94,7 +94,7 @@ export function emailHeader(soundEffect: string): string {
         <div style="display: inline-block; background: #FFF200; color: #000; font-weight: 900; font-size: 14px; padding: 6px 16px; border: 3px solid #000; border-radius: 4px; transform: rotate(-2deg); margin-bottom: 12px; letter-spacing: 1px;">COLLECTORS CHEST</div>
       </div>
       <div style="position: relative; z-index: 1; margin: 16px auto; display: inline-block;">
-        <div style="position: relative; display: inline-block; background: #00CC66; color: #000; font-weight: 900; font-size: 28px; padding: 14px 36px; border: 4px solid #000; border-radius: 20px; transform: rotate(-3deg); box-shadow: 4px 4px 0 #000;">
+        <div style="position: relative; display: inline-block; background: #00CC66; color: #000; font-weight: 900; font-size: 28px; padding: 10px 60px; border: 4px solid #000; border-radius: 30px; transform: rotate(-3deg); box-shadow: 4px 4px 0 #000;">
           ${soundEffect}
           <div style="position: absolute; bottom: -16px; left: 28px; width: 0; height: 0; border-left: 14px solid transparent; border-right: 6px solid transparent; border-top: 18px solid #000; transform: rotate(10deg);"></div>
           <div style="position: absolute; bottom: -11px; left: 30px; width: 0; height: 0; border-left: 11px solid transparent; border-right: 4px solid transparent; border-top: 15px solid #00CC66; transform: rotate(10deg);"></div>
@@ -408,24 +408,24 @@ function welcomeTemplate(data: WelcomeEmailData): EmailTemplate {
         <div style="padding: 32px 24px;">
           <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 24px;">Hey there, Collector! You're officially part of the crew. Here's what you can do with Collectors Chest:</p>
           <!-- Feature: Scan -->
-          <table cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 16px;"><tr>
-            <td style="width: 36px; height: 36px; background: #ED1C24; border: 2.5px solid #000; border-radius: 50%; text-align: center; vertical-align: middle; line-height: 36px; font-size: 0;"><span style="font-size: 18px; line-height: 1; vertical-align: middle;">📸</span></td>
-            <td style="vertical-align: top; padding-left: 14px;"><div style="font-weight: 700; font-size: 15px; color: #000; margin-bottom: 2px;">Scan Any Cover</div><div style="font-size: 14px; color: #666; line-height: 1.4;">Snap a photo and our AI identifies your comic instantly.</div></td>
+          <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom: 16px;"><tr>
+            <td width="50" style="vertical-align: middle;"><table cellpadding="0" cellspacing="0" border="0"><tr><td width="40" height="40" align="center" valign="middle" bgcolor="#ED1C24" style="border-radius: 20px; border: 2px solid #000; font-size: 18px; line-height: 40px; text-align: center;">📸</td></tr></table></td>
+            <td style="vertical-align: top; padding-left: 10px;"><div style="font-weight: 700; font-size: 15px; color: #000; margin-bottom: 2px;">Scan Any Cover</div><div style="font-size: 14px; color: #666; line-height: 1.4;">Snap a photo and our AI identifies your comic instantly.</div></td>
           </tr></table>
           <!-- Feature: Track -->
-          <table cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 16px;"><tr>
-            <td style="width: 36px; height: 36px; background: #0066FF; border: 2.5px solid #000; border-radius: 50%; text-align: center; vertical-align: middle; line-height: 36px; font-size: 0;"><span style="font-size: 18px; line-height: 1; vertical-align: middle;">📊</span></td>
-            <td style="vertical-align: top; padding-left: 14px;"><div style="font-weight: 700; font-size: 15px; color: #000; margin-bottom: 2px;">Track Your Value</div><div style="font-size: 14px; color: #666; line-height: 1.4;">See real eBay pricing for every book in your collection.</div></td>
+          <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom: 16px;"><tr>
+            <td width="50" style="vertical-align: middle;"><table cellpadding="0" cellspacing="0" border="0"><tr><td width="40" height="40" align="center" valign="middle" bgcolor="#0066FF" style="border-radius: 20px; border: 2px solid #000; font-size: 18px; line-height: 40px; text-align: center;">📊</td></tr></table></td>
+            <td style="vertical-align: top; padding-left: 10px;"><div style="font-weight: 700; font-size: 15px; color: #000; margin-bottom: 2px;">Track Your Value</div><div style="font-size: 14px; color: #666; line-height: 1.4;">See real eBay pricing for every book in your collection.</div></td>
           </tr></table>
           <!-- Feature: Key Issues -->
-          <table cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 16px;"><tr>
-            <td style="width: 36px; height: 36px; background: #FFF200; border: 2.5px solid #000; border-radius: 50%; text-align: center; vertical-align: middle; line-height: 36px; font-size: 0;"><span style="font-size: 18px; line-height: 1; vertical-align: middle;">🔑</span></td>
-            <td style="vertical-align: top; padding-left: 14px;"><div style="font-weight: 700; font-size: 15px; color: #000; margin-bottom: 2px;">Discover Key Issues</div><div style="font-size: 14px; color: #666; line-height: 1.4;">Find out if your books are first appearances, rare variants, or hidden gems.</div></td>
+          <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom: 16px;"><tr>
+            <td width="50" style="vertical-align: middle;"><table cellpadding="0" cellspacing="0" border="0"><tr><td width="40" height="40" align="center" valign="middle" bgcolor="#FFF200" style="border-radius: 20px; border: 2px solid #000; font-size: 18px; line-height: 40px; text-align: center;">🔑</td></tr></table></td>
+            <td style="vertical-align: top; padding-left: 10px;"><div style="font-weight: 700; font-size: 15px; color: #000; margin-bottom: 2px;">Discover Key Issues</div><div style="font-size: 14px; color: #666; line-height: 1.4;">Find out if your books are first appearances, rare variants, or hidden gems.</div></td>
           </tr></table>
           <!-- Feature: Organize -->
-          <table cellpadding="0" cellspacing="0" border="0"><tr>
-            <td style="width: 36px; height: 36px; background: #00CC66; border: 2.5px solid #000; border-radius: 50%; text-align: center; vertical-align: middle; line-height: 36px; font-size: 0;"><span style="font-size: 18px; line-height: 1; vertical-align: middle;">📦</span></td>
-            <td style="vertical-align: top; padding-left: 14px;"><div style="font-weight: 700; font-size: 15px; color: #000; margin-bottom: 2px;">Organize Everything</div><div style="font-size: 14px; color: #666; line-height: 1.4;">Custom lists, CSV import, stats, and more — your collection, your way.</div></td>
+          <table cellpadding="0" cellspacing="0" border="0" width="100%"><tr>
+            <td width="50" style="vertical-align: middle;"><table cellpadding="0" cellspacing="0" border="0"><tr><td width="40" height="40" align="center" valign="middle" bgcolor="#00CC66" style="border-radius: 20px; border: 2px solid #000; font-size: 18px; line-height: 40px; text-align: center;">📦</td></tr></table></td>
+            <td style="vertical-align: top; padding-left: 10px;"><div style="font-weight: 700; font-size: 15px; color: #000; margin-bottom: 2px;">Organize Everything</div><div style="font-size: 14px; color: #666; line-height: 1.4;">Custom lists, CSV import, stats, and more — your collection, your way.</div></td>
           </tr></table>
           <!-- Scan allowance -->
           <div style="background: #FFF8E7; border: 3px solid #000; border-radius: 8px; padding: 16px 20px; margin: 24px 0 28px; text-align: center;">
