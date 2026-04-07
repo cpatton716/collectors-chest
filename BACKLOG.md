@@ -1504,21 +1504,43 @@ Clerk offers subscription/billing services. Investigate whether Clerk Billing co
 
 ### Switch Clerk to Production Instance
 **Priority:** High (Pre-Launch)
-**Status:** Blocked (awaiting Clerk support — ticket submitted Apr 5, 2026)
+**Status:** ✅ Complete (Apr 6, 2026)
 **Added:** April 2, 2026
 
-Clerk is currently running in Development mode. Before public launch, need to create a Production instance in the Clerk dashboard. This provides production API keys, removes dev branding, and enables real email delivery.
+Clerk Production instance is fully operational.
 
-**Steps:**
+**Completed Steps:**
 1. ✅ Create Production instance in Clerk dashboard
 2. ✅ Update branding/logos in Production instance
-3. ✅ Add DNS CNAME records (5/5 verified)
+3. ✅ Add DNS CNAME records (5/5 verified — fixed typo in CNAME values Apr 6)
 4. ✅ Configure webhook in Production instance
 5. ✅ Update API keys in Netlify env vars + `.env.local` for local testing
-6. Test welcome email after SSL propagates for clerk.collectors-chest.com
-7. Awaiting Clerk support response (Discord #support post submitted Apr 5, next business day)
+6. ✅ Google OAuth configured with custom credentials (Apple disabled — needs Developer Program)
+7. ✅ Welcome email tested and working across iOS Chrome, Mac Chrome, Mac Safari, Android Gmail
+8. ✅ Production admin user set up (is_admin in Supabase)
+9. ✅ Username transferred from Dev to Production profile
 
-**Note:** All 5 DNS CNAME records verified via dig. SSL certificates not provisioned on Clerk's side — TLS handshake failure on clerk.collectors-chest.com and accounts.collectors-chest.com. Production auth is non-functional (Sign In button invisible, no authentication possible). Support ticket filed in Clerk Discord #support forum on Apr 5, 2026 — Clerk closed for weekend, response expected Monday Apr 7.
+**Note:** Local dev uses Development Clerk keys (swap comments in `.env.local` to switch). Production Clerk keys don't work on localhost without adding localhost to allowed origins.
+
+---
+
+### Enable Stripe Connect in Live Mode
+**Priority:** High (Pre-Launch)
+**Status:** In Progress — blocked on Stripe identity verification
+**Added:** Apr 6, 2026
+
+Stripe Connect is only enabled in test/sandbox mode. Live mode Connect is required for sellers to onboard and receive real payments on the production site. Stripe requires completing the sandbox walkthrough before enabling Live mode, but identity verification is currently failing.
+
+**Where we left off:**
+1. ✅ Selected "Platform" business model in Stripe Connect
+2. ✅ Started sandbox walkthrough
+3. ❌ Identity verification step failing — retry next session
+
+**Next steps:**
+- Complete sandbox identity verification (may need to retry or use different browser)
+- Once sandbox is complete, enable Connect in Live mode
+- Test seller onboarding flow end-to-end on production
+- Verify platform fee collection works in live mode
 
 ---
 
@@ -1530,6 +1552,55 @@ Clerk is currently running in Development mode. Before public launch, need to cr
 Clerk has a pending "Client Trust Status" update that adds `needs_client_trust` sign-in status for second-factor challenges on new devices. Requires `@clerk/nextjs` v7.0.0+ (currently on v6.36.6). This is a major version bump — defer until after launch.
 
 **Warning:** The update notes say custom flows need code changes to handle the new `needs_client_trust` status attribute instead of `client_trust_state`. Review breaking changes before upgrading.
+
+### Signature Detection on Cached Scan Path
+**Priority:** Medium (Pre-Launch)
+**Status:** Pending
+**Added:** Apr 6, 2026
+
+When the metadata cache has a hit for a slabbed comic (creators, publisher, etc.), the cert-first cached path skips AI image analysis entirely. This means per-copy visual details like signatures are never detected — the AI never looks at the actual photo.
+
+**Root cause:** `scanPath = "cert-first-cached"` in `analyze/route.ts` (line ~437-440) skips detail extraction when `slabDataComplete && certMetadataCacheHit`.
+
+**Fix:** Always run a lightweight AI pass for signature/condition detection even when metadata is cached. This could be a focused prompt that only asks about signatures, condition, and other per-copy attributes — not the full comic identification.
+
+**Impact:** Signed books scanned after the first scan show no signature info. Affects all slabbed books with cached metadata.
+
+**Related:** CGC Cloudflare 403 (separate backlog item) — when CGC lookups work, they provide signature data directly from the cert, partially mitigating this issue.
+
+---
+
+### Apple Sign-In & Native App
+**Priority:** Low
+**Status:** Pending
+**Added:** Apr 6, 2026
+
+Re-enable "Sign in with Apple" on the sign-up/sign-in pages. This requires an Apple Developer Program account ($99/yr), which also unlocks building a native iOS app. Since we need the developer account anyway, bundle both efforts together.
+
+**Steps:**
+1. Enroll in Apple Developer Program ($99/yr)
+2. Create an App ID and configure Sign in with Apple
+3. Add Apple OAuth credentials to Clerk Production (replace shared credentials)
+4. Re-enable Apple SSO in Clerk Dashboard
+5. Consider building a native iOS app wrapper (PWA → native) while we have the account
+
+**Blocked on:** Apple Developer Program enrollment
+
+---
+
+### Custom Sign-Up Form (Replace Clerk's Default)
+**Priority:** Medium
+**Status:** Pending
+**Added:** Apr 6, 2026
+
+Replace Clerk's default `<SignUp />` component with a custom form using Clerk's `useSignUp()` hook. This gives full control over field order, styling, and layout — allowing us to match our Lichtenstein design language and control field order (email → username → password). Currently the browser autofills the email into Clerk's username field, and we cannot reorder fields with the default component.
+
+**Implementation Notes:**
+- Use Clerk's `useSignUp()` hook for custom form
+- Control field order: email first, then optional username, then password
+- Match existing pop-art/Lichtenstein design language
+- Keep social login buttons (Google, Apple) at top
+- Maintain email verification flow
 
 ---
 

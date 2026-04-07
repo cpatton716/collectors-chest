@@ -37,14 +37,14 @@ describe("trialExpiringTemplate", () => {
     expect(subject).toBe("Your Collectors Chest trial ends in 3 days");
   });
 
-  it('HTML contains "TICK TOCK!" sound effect', async () => {
+  it("HTML contains logo image in header", async () => {
     await sendNotificationEmail({
       to: "test@example.com",
       type: "trial_expiring",
       data: trialData,
     });
     const html = getMockSend().mock.calls[0][0].html;
-    expect(html).toContain("TICK TOCK!");
+    expect(html).toContain("emblem.png");
   });
 
   it("HTML contains the trial end date", async () => {
@@ -159,24 +159,14 @@ describe("emailHeader / emailFooter helpers", () => {
   describe("welcome email", () => {
     beforeEach(() => getMockSend().mockClear());
 
-    it('contains "POW!" sound effect in header', async () => {
+    it("contains logo image in header", async () => {
       await sendNotificationEmail({
         to: "test@example.com",
         type: "welcome",
         data: { collectionUrl: "https://collectors-chest.com/collection" },
       });
       const html = getMockSend().mock.calls[0][0].html;
-      expect(html).toContain("POW!");
-    });
-
-    it('contains "COLLECTORS CHEST" badge in header', async () => {
-      await sendNotificationEmail({
-        to: "test@example.com",
-        type: "welcome",
-        data: { collectionUrl: "https://collectors-chest.com/collection" },
-      });
-      const html = getMockSend().mock.calls[0][0].html;
-      expect(html).toContain("COLLECTORS CHEST");
+      expect(html).toContain("emblem.png");
     });
 
     it("uses #0066FF blue header background", async () => {
@@ -202,24 +192,14 @@ describe("emailHeader / emailFooter helpers", () => {
 
     beforeEach(() => getMockSend().mockClear());
 
-    it('contains "PSST!" sound effect', async () => {
+    it("contains logo image in header", async () => {
       await sendNotificationEmail({
         to: "test@example.com",
         type: "feedback_reminder",
         data: feedbackData,
       });
       const html = getMockSend().mock.calls[0][0].html;
-      expect(html).toContain("PSST!");
-    });
-
-    it('contains "COLLECTORS CHEST" badge', async () => {
-      await sendNotificationEmail({
-        to: "test@example.com",
-        type: "feedback_reminder",
-        data: feedbackData,
-      });
-      const html = getMockSend().mock.calls[0][0].html;
-      expect(html).toContain("COLLECTORS CHEST");
+      expect(html).toContain("emblem.png");
     });
   });
 

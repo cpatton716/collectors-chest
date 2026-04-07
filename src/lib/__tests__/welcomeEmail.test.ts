@@ -51,7 +51,7 @@ describe("welcomeTemplate", () => {
 
     const html = mockSend.mock.calls[0][0].html;
     expect(html).toContain("WELCOME TO THE CHEST!");
-    expect(html).toContain("POW!");
+    expect(html).toContain("emblem.png");
     expect(html).toContain("Hey there, Collector!");
     expect(html).toContain("Scan Any Cover");
     expect(html).toContain("Track Your Value");

@@ -6,12 +6,71 @@ This log tracks session-by-session progress on Collectors Chest.
 
 ## Changes Since Last Deploy
 
-**Last Deploy:** 2026-04-05 (Session 31 — cert-first pipeline, eBay pricing improvements, slab label color, UI fixes, cover harvesting)
-**Sessions Since Last Deploy:** 0
-**Deploy Readiness:** Deployed 2026-04-05
+**Last Deploy:** 2026-04-05 (Session 31)
+**Sessions Since Last Deploy:** 1
+**Deploy Readiness:** Deployed incrementally during session (15 pushes to main triggered Netlify builds)
 
 ### Changes Since Last Deploy:
-_(none yet — deploy just completed)_
+- Clerk Production instance fully operational (DNS fix, Google OAuth)
+- Welcome email template overhauled (logo image header, emoji icons, yellow title badge)
+- Email preview endpoint for local testing
+- Username availability check fix (exclude own profile)
+- Stripe Connect gate on listing modal
+- Profile page ?tab= query param with auto-scroll
+- UI polish: green scan pack CTA, Key Hunt How to Use section, trial copy fix, forgot password hint
+- Deleted 14 test user accounts from Clerk + Supabase
+- New EMAIL_TEST_CASES.md with 12 notification types
+- 4 new backlog items added
+
+---
+
+## Apr 6, 2026 - Session 32: Clerk Production, Email Templates, Stripe Connect
+
+### Summary
+- Clerk Production instance fully operational — fixed CNAME typo, all 5 DNS records verified
+- Configured Google OAuth with custom credentials for Production (Apple disabled — needs Developer Program)
+- Swapped .env.local between Dev/Prod Clerk keys as needed for local vs production testing
+- Set up admin (is_admin) on Production Supabase profile, transferred username from Dev to Prod
+- Discovered ADMIN_USER_IDS env var is unused — admin is controlled by is_admin column in Supabase profiles table, removed env var from .env.local and Netlify
+- Overhauled welcome email template: replaced CSS speech bubble with logo image, yellow badge for title, nested table approach for emoji icons
+- Created /api/email-preview endpoint for local email template testing without deploys
+- Welcome email tested and verified on iOS Chrome, Mac Chrome, Mac Safari, Android Gmail
+- Added email test cases for all 12 notification types + general quality checks to EMAIL_TEST_CASES.md and TEST_CASES.md
+- Created new EMAIL_TEST_CASES.md document with comprehensive test coverage
+- UI polish: scan pack button (green CTA), Key Hunt How to Use section (Lichtenstein style), trial copy fix, forgot password hint on sign-in page
+- Fixed username availability check to exclude current user's own profile
+- Gated listing modal behind Stripe Connect setup check with friendly onboarding prompt
+- Added ?tab= query param support on profile page with auto-scroll to seller payments
+- Discovered Stripe Connect not enabled in Live mode — blocked on identity verification in sandbox
+- Added 2 new backlog items: Signature Detection on Cached Scan Path (medium, pre-launch), Apple Sign-In & Native App (low), Custom Sign-Up Form (medium), Stripe Connect Live Mode (high, pre-launch)
+- Deleted 14 test user accounts (emailtest) from both Clerk and Supabase
+- Updated email tests to reflect logo header change (speech bubble removal)
+
+### Key Files Created/Modified
+- `src/lib/email.ts` — Logo header, emoji icon rewrite, welcome title badge
+- `src/app/api/email-preview/route.ts` — New: local email template preview
+- `src/app/api/username/route.ts` — Fixed availability check to exclude own profile
+- `src/components/auction/ListInShopModal.tsx` — Stripe Connect gate before listing
+- `src/components/CustomProfilePage.tsx` — ?tab= param, auto-scroll, setup loading state
+- `src/app/choose-plan/page.tsx` — Green scan pack button, trial copy fix
+- `src/app/key-hunt/page.tsx` — Lichtenstein-styled How to Use section
+- `src/app/sign-in/[[...sign-in]]/page.tsx` — Forgot password hint
+- `src/lib/__tests__/emailHelpers.test.ts` — Updated for logo header
+- `src/lib/__tests__/welcomeEmail.test.ts` — Updated for logo header
+- `EMAIL_TEST_CASES.md` — New: comprehensive email notification test cases
+- `BACKLOG.md` — 4 new items added, Clerk Production marked complete
+
+### Issues Encountered
+- Clerk Production CNAME records had swapped values (clk2._domainkey had clkmail's value and vice versa)
+- Email speech bubble CSS rendering inconsistently across Gmail clients — abandoned CSS approach, replaced with logo image
+- Stripe Connect not enabled in Live mode — identity verification failing in sandbox walkthrough
+- Username availability check didn't exclude current user's own profile (false "taken" error)
+
+### Where We Left Off
+- Stripe Connect Live mode setup blocked on identity verification — retry next session
+- Email templates ready, welcome email verified across platforms
+- Clerk Production fully operational
+- All code changes deployed to production via incremental pushes
 
 ---
 

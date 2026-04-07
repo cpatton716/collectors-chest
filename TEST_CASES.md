@@ -158,6 +158,8 @@ A guide for testing the main and secondary features of the application.
 | Login with new password | Sign in with new password | Successfully logged in |
 | Old password rejected | Try to sign in with old password | Authentication fails |
 | Expired reset link | Click reset link after 24+ hours | Error: "Link expired, request a new one" |
+| New device sign-in email | Sign in from a new device or browser | Clerk sends "new device" notification email | Pending |
+| New device email content | Open new device email | Shows device/browser info, location, and timestamp | Pending |
 
 ### 5. Guest vs Registered Experience
 
@@ -1405,4 +1407,182 @@ If you encounter bugs or unexpected behavior:
 | Cancel during trial | Cancel subscription in Stripe portal | Downgraded to free, trial_ends_at cleared | |
 | Google/Apple Pay available | Open Stripe checkout on mobile | Wallet payment options shown | |
 
-*Last Updated: March 25, 2026*
+---
+
+### Email Notifications - Welcome (Apr 6, 2026)
+
+**Location:** Triggered by Clerk webhook on user.created
+
+| Test Case | Steps | Expected Result | Status |
+|-----------|-------|-----------------|--------|
+| Welcome email sent on signup | Sign up with a new account | Email received with subject "Welcome to Collectors Chest!" | Pending |
+| Sound effect displays | Open email | "POW!" speech bubble in header | Pending |
+| Feature list complete | Check email body | 4 features: Scan Any Cover, Track Your Value, Discover Key Issues, Organize Everything | Pending |
+| Free scan callout | Check email body | "You get 10 FREE scans every month!" callout box | Pending |
+| CTA button works | Click "START SCANNING" | Redirects to /collection | Pending |
+| Emoji icons centered | Check feature icons | Emojis centered in colored circles | Pending |
+| Footer content | Scroll to bottom | Tagline, Twisted Jester LLC, Privacy Policy & Terms links | Pending |
+
+### Email Notifications - Trial Expiring (Apr 6, 2026)
+
+**Location:** Cron job /api/cron/send-trial-reminders (3 days before trial ends)
+
+| Test Case | Steps | Expected Result | Status |
+|-----------|-------|-----------------|--------|
+| Trial reminder sent | Have active trial ending within 3 days | Email: "Your Collectors Chest trial ends in 3 days" | Pending |
+| Sound effect | Open email | "TICK TOCK!" speech bubble | Pending |
+| Loss list shown | Check email body | Lists: unlimited scans, Key Hunt, CSV export, advanced stats, priority scan queue | Pending |
+| Pricing info | Check email body | "$4.99/month" and "Save 17% with the annual plan" | Pending |
+| CTA button | Click "STAY PREMIUM" | Redirects to /choose-plan | Pending |
+| Idempotency | Trigger cron twice for same user | Only one email sent | Pending |
+| Stripe-managed excluded | User with stripe_subscription_id | No email sent (only app-managed trials) | Pending |
+
+### Email Notifications - Offer Received (Apr 6, 2026)
+
+**Location:** Triggered when buyer submits offer on fixed-price listing
+
+| Test Case | Steps | Expected Result | Status |
+|-----------|-------|-----------------|--------|
+| Seller notified | Submit offer on a listing | Seller receives: "New offer on [Comic] #[Issue]" | Pending |
+| Sound effect | Open email | "KA-CHING!" speech bubble | Pending |
+| Offer details | Check email body | Shows buyer name, offer amount, comic title/issue | Pending |
+| Response deadline | Check email body | "You have 48 hours to respond to this offer." | Pending |
+| CTA button | Click "VIEW OFFER" | Redirects to /shop/[listingId] | Pending |
+
+### Email Notifications - Offer Accepted (Apr 6, 2026)
+
+**Location:** Triggered when seller accepts offer or buyer accepts counter-offer
+
+| Test Case | Steps | Expected Result | Status |
+|-----------|-------|-----------------|--------|
+| Buyer notified (seller accepts) | As Seller, accept a pending offer | Buyer receives: "Your offer on [Comic] #[Issue] was accepted!" | Pending |
+| Seller notified (buyer accepts counter) | As Buyer, accept a counter-offer | Seller receives acceptance email | Pending |
+| Sound effect | Open email | "WHAM!" speech bubble | Pending |
+| Payment reminder | Check email body | "Please complete your payment within 48 hours" | Pending |
+| CTA button | Click "COMPLETE PAYMENT" | Redirects to /shop/[listingId] | Pending |
+| Correct amount on counter | Accept a counter-offer | Email shows counter amount, not original | Pending |
+
+### Email Notifications - Offer Rejected (Apr 6, 2026)
+
+**Location:** Triggered when seller rejects offer or buyer rejects counter-offer
+
+| Test Case | Steps | Expected Result | Status |
+|-----------|-------|-----------------|--------|
+| Buyer notified (seller rejects) | As Seller, reject a pending offer | Buyer receives: "Update on your offer for [Comic] #[Issue]" | Pending |
+| Seller notified (buyer rejects counter) | As Buyer, reject a counter-offer | Seller receives rejection email | Pending |
+| Sound effect | Open email | "HEY!" speech bubble | Pending |
+| Rejection message | Check email body | "[Name] has declined your offer of [amount]" | Pending |
+| Next steps | Check email body | "You can submit a new offer or browse other listings" | Pending |
+| CTA button | Click "VIEW LISTING" | Redirects to /shop/[listingId] | Pending |
+
+### Email Notifications - Offer Countered (Apr 6, 2026)
+
+**Location:** Triggered when seller counters buyer's offer
+
+| Test Case | Steps | Expected Result | Status |
+|-----------|-------|-----------------|--------|
+| Buyer notified | As Seller, counter an offer | Buyer receives: "Counter-offer on [Comic] #[Issue]" | Pending |
+| Sound effect | Open email | "ZAP!" speech bubble | Pending |
+| Both amounts shown | Check email body | "Your offer: [original]" and "Counter-offer: [counter]" | Pending |
+| Response deadline | Check email body | "You have 48 hours to respond" | Pending |
+| CTA button | Click "RESPOND TO OFFER" | Redirects to /shop/[listingId] | Pending |
+
+### Email Notifications - Offer Expired (Apr 6, 2026)
+
+**Location:** Cron job /api/cron/process-auctions (offers pending 48+ hours)
+
+| Test Case | Steps | Expected Result | Status |
+|-----------|-------|-----------------|--------|
+| Buyer notified | Let offer go 48 hours without response | Buyer receives: "Your offer on [Comic] #[Issue] has expired" | Pending |
+| Sound effect | Open email | "POOF!" speech bubble | Pending |
+| Expiration reason | Check email body | "The seller did not respond within 48 hours" | Pending |
+| Re-offer option | Check email body | "You can submit a new offer if the listing is still active" | Pending |
+| CTA button style | Check CTA button | Gray button (not blue) — "VIEW LISTING" | Pending |
+
+### Email Notifications - Listing Expiring (Apr 6, 2026)
+
+**Location:** Cron job /api/cron/process-auctions (listing expires within 24 hours)
+
+| Test Case | Steps | Expected Result | Status |
+|-----------|-------|-----------------|--------|
+| Seller notified | Have listing expiring within 24 hours | Seller receives: "Your listing for [Comic] #[Issue] expires soon" | Pending |
+| Sound effect | Open email | "HEADS UP!" speech bubble | Pending |
+| Listing details | Check email body | Shows comic title, issue, and price | Pending |
+| Relist suggestion | Check email body | "You can relist it before it expires" | Pending |
+| CTA button | Click "VIEW LISTING" | Redirects to /shop/[listingId] | Pending |
+| No duplicate reminders | Trigger cron twice for same listing | Only one expiring notification sent | Pending |
+
+### Email Notifications - Listing Expired (Apr 6, 2026)
+
+**Location:** Cron job /api/cron/process-auctions (listing past expiration)
+
+| Test Case | Steps | Expected Result | Status |
+|-----------|-------|-----------------|--------|
+| Seller notified | Let a listing expire | Seller receives: "Your listing for [Comic] #[Issue] has expired" | Pending |
+| Sound effect | Open email | "TIME'S UP!" speech bubble | Pending |
+| Expired message | Check email body | "Your listing has expired and is no longer visible in the shop" | Pending |
+| Relist suggestion | Check email body | "You can relist this item from your collection" | Pending |
+| CTA button | Click "VIEW COLLECTION" | Redirects to /collection (gray button) | Pending |
+
+### Email Notifications - Message Received (Apr 6, 2026)
+
+**Location:** Triggered when another user sends you a message
+
+| Test Case | Steps | Expected Result | Status |
+|-----------|-------|-----------------|--------|
+| Recipient notified | As User A, send message to User B | User B receives: "New message from [User A]" | Pending |
+| Sound effect | Open email | "BAM!" speech bubble | Pending |
+| Message preview | Check email body | Blockquote with message text (truncated to 100 chars) | Pending |
+| Image-only message | Send message with only an image | Email preview shows "[Image]" | Pending |
+| CTA button | Click "VIEW MESSAGE" | Redirects to /messages | Pending |
+| Email preference off | Disable email notifications, receive message | No email sent | Pending |
+| Email preference on | Enable email notifications, receive message | Email sent | Pending |
+
+### Email Notifications - Feedback Reminder (Apr 6, 2026)
+
+**Location:** Cron job /api/cron/send-feedback-reminders (14 days after transaction)
+
+| Test Case | Steps | Expected Result | Status |
+|-----------|-------|-----------------|--------|
+| First reminder sent | Complete a sale, wait 14+ days | Both parties receive: "How was your purchase? Leave feedback for [Name]" | Pending |
+| Sound effect | Open email | "PSST!" speech bubble | Pending |
+| Transaction details | Check email body | Shows comic title, issue, other party name, transaction type | Pending |
+| CTA button | Click "Leave Feedback" | Redirects to /feedback?txn=[id]&type=[type] | Pending |
+| Ignore notice | Check email body | "If you've already left feedback, you can ignore this email." | Pending |
+| Final reminder | Wait 21+ days (7+ after first) | Second and final reminder sent | Pending |
+| No reminder after feedback | Leave feedback before reminder | No email sent | Pending |
+| Max 2 reminders | After 2 reminders sent | No additional reminders | Pending |
+
+### Email Notifications - New Listing from Followed User (Apr 6, 2026)
+
+**Location:** Triggered when a user you follow creates a new listing
+
+| Test Case | Steps | Expected Result | Status |
+|-----------|-------|-----------------|--------|
+| Follower notified | Follow User A, User A creates listing | Receive: "New listing from @[username]" | Pending |
+| Sound effect | Open email | "HOT!" speech bubble | Pending |
+| Listing details | Check email body | Shows seller name, comic title, price | Pending |
+| Cover image displayed | Listing has a cover image | Cover image shown in email | Pending |
+| CTA button | Click "VIEW LISTING" | Redirects to /shop/[listingId] | Pending |
+| Follow attribution | Check email footer area | "You're receiving this because you follow @[username]" | Pending |
+| Email preference off | Disable email notifications | No email sent | Pending |
+| Multiple followers notified | 3 users follow seller, seller lists | All 3 receive email | Pending |
+
+### Email Notifications - General Quality (Apr 6, 2026)
+
+**Location:** Applies to all email types
+
+| Test Case | Steps | Expected Result | Status |
+|-----------|-------|-----------------|--------|
+| Sender address correct | Check From field on any email | "Collectors Chest <notifications@collectors-chest.com>" | Pending |
+| Pop-art header | Open any email | Blue header with halftone dots, COLLECTORS CHEST badge, speech bubble | Pending |
+| Speech bubble shape | Check header graphic | Looks like speech bubble with tail, not a square | Pending |
+| Footer tagline | Scroll to bottom | "Scan comics. Track value. Collect smarter." | Pending |
+| Footer company | Check footer | "Twisted Jester LLC · collectors-chest.com" | Pending |
+| Footer links work | Click Privacy Policy and Terms | Both links load correctly | Pending |
+| Mobile rendering | Open email on phone | Layout readable, buttons tappable | Pending |
+| Dark mode | View email in dark mode client | Text readable, images display correctly | Pending |
+| Gmail rendering | View in Gmail | No clipping, styles render properly | Pending |
+| No broken images | Check all emails | No broken image icons | Pending |
+
+*Last Updated: April 6, 2026*

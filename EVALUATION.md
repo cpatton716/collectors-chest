@@ -542,6 +542,7 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 68. ~~**Slab label color detection**~~ ✅ (Apr 5, 2026) — Purple/green/red → notes
 69. ~~**clerk_id → clerk_user_id fix (5 routes)**~~ ✅ (Apr 5, 2026)
 70. ~~**Corrupted Supabase service_role key fix**~~ ✅ (Apr 5, 2026)
+71. ~~**Switch Clerk to Production Instance**~~ ✅ (Apr 6, 2026)
 
 ### Recommended Next Steps
 
@@ -551,33 +552,34 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 1. **Fix CGC Cert Lookup Cloudflare 403 Errors** — Blocking cert-first pipeline from working end-to-end
 2. **Optimize Scan Pipeline for Slabbed Comics (Cert-First)** — Pipeline code complete, blocked by CGC 403
 3. **Auto-Harvest Cover Images** — Code complete, awaiting manual integration test
-4. **Switch Clerk to Production Instance** — Blocked (awaiting Clerk support, ticket Apr 5)
+4. **Enable Stripe Connect in Live Mode** — Blocked on sandbox identity verification
 5. **Launch Tracker Review** — Pre-launch checklist, target week of April 20
 
 **Medium Priority (Pending):**
-6. **Durable eBay Price Cache in Supabase** — Reduce API calls, speed up scans for popular books
-7. **Cover Validation: Test Coverage for Error Paths**
-8. **Cover Validation: Distinguish "No Cover" from "Unavailable"**
-9. **Flip Claude/Gemini Provider Order**
-10. **About Page Copy**
-11. **Expand Curated Key Info DB**
-12. **Set up Scheduled Functions for Cron Jobs**
-13. **Add "Professor" Persona Throughout Site**
-14. **Error Reporting System with Creator Credits**
-15. **Missing Metadata Contributions with Creator Credits**
+6. **Signature Detection on Cached Scan Path** — Pre-launch
+7. **Durable eBay Price Cache in Supabase** — Reduce API calls, speed up scans for popular books
+8. **Cover Validation: Test Coverage for Error Paths**
+9. **Cover Validation: Distinguish "No Cover" from "Unavailable"**
+10. **Flip Claude/Gemini Provider Order**
+11. **About Page Copy**
+12. **Expand Curated Key Info DB**
+13. **Set up Scheduled Functions for Cron Jobs**
+14. **Add "Professor" Persona Throughout Site**
+15. **Error Reporting System with Creator Credits**
+16. **Missing Metadata Contributions with Creator Credits**
 
 **Low Priority (Pending):**
-16. **User-Configurable Default Collection Sort** — Save preference in user settings
-17. **Customizable Initial Message** — Edit message before sending to seller
-18. **Native App Wrapper** — Hide browser URL bar
-19. **Remove Open Library from Cover Pipeline** — Low accuracy, burns Gemini quota
-20. **Batch Re-Validation for CSV Imports**
-21. **Periodic HEAD Check for Cached eBay URLs**
-22. **IPv6 Private Address Checks in URL Validation**
-23. **Upgrade Clerk SDK to v7** — Defer until after launch
-24. **Clean Up Copy Throughout the Site** — Polish task for post-launch
-25. **Expand to Support All Collectibles** — Long-term vision
-26. **Re-introduce Dedicated Barcode Scanning** — Blocked on barcode DB size
+17. **User-Configurable Default Collection Sort** — Save preference in user settings
+18. **Customizable Initial Message** — Edit message before sending to seller
+19. **Native App Wrapper** — Hide browser URL bar
+20. **Remove Open Library from Cover Pipeline** — Low accuracy, burns Gemini quota
+21. **Batch Re-Validation for CSV Imports**
+22. **Periodic HEAD Check for Cached eBay URLs**
+23. **IPv6 Private Address Checks in URL Validation**
+24. **Upgrade Clerk SDK to v7** — Defer until after launch
+25. **Clean Up Copy Throughout the Site** — Polish task for post-launch
+26. **Expand to Support All Collectibles** — Long-term vision
+27. **Re-introduce Dedicated Barcode Scanning** — Blocked on barcode DB size
 
 ### 🔴 Before Opening Registration (See Section 0)
 

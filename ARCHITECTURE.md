@@ -147,7 +147,7 @@ Manage comic trades with three tabs:
 
 | Feature | Services | Notes |
 |---------|----------|-------|
-| Create Auction | 🗄️ 🔐 | From collection comics |
+| Create Auction | 🗄️ 🔐 | From collection comics; ListInShopModal gates on Stripe Connect status |
 | Place Bid | 🗄️ 🔐 🔴 | Rate limited, proxy bidding |
 | Buy It Now | 🗄️ 💰 | Instant purchase option |
 | Payment Processing | 💰 🗄️ | Stripe checkout flow |
@@ -600,6 +600,7 @@ All other routes are public (unauthenticated access allowed). Individual API rou
 |-------|--------|---------|----------|
 | `/api/waitlist` | POST | Email capture | 📧 |
 | `/api/test-email` | GET | Dev email testing | 📧 |
+| `/api/email-preview` | GET | Dev-only email template preview | 📧 |
 
 ---
 
