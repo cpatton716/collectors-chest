@@ -23,6 +23,7 @@ export interface CoverPipelineResult {
     | "metron"
     | "comicvine"
     | null;
+  validated: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -328,13 +329,14 @@ export async function runCoverPipeline(
   const NULL_RESULT: CoverPipelineResult = {
     coverUrl: null,
     coverSource: null,
+    validated: true,
   };
 
   // Step 1: Community covers (authoritative, no Gemini needed)
   try {
     const communityUrl = await getCommunityCovers(title, issueNumber);
     if (communityUrl) {
-      return { coverUrl: communityUrl, coverSource: "community" };
+      return { coverUrl: communityUrl, coverSource: "community", validated: true };
     }
   } catch (err) {
     console.error(`${LOG_PREFIX} Community cover lookup failed`, err);
@@ -414,7 +416,7 @@ export async function runCoverPipeline(
       );
 
       if (verdict === "yes") {
-        return { coverUrl: candidate.url, coverSource: candidate.source };
+        return { coverUrl: candidate.url, coverSource: candidate.source, validated: true };
       }
 
       if (verdict === "no") {

@@ -219,6 +219,7 @@ describe("runCoverPipeline", () => {
     expect(result).toEqual({
       coverUrl: "https://covers.openlibrary.org/community/batman1.jpg",
       coverSource: "community",
+      validated: true,
     });
   });
 
@@ -283,6 +284,7 @@ describe("runCoverPipeline", () => {
     expect(result).toEqual({
       coverUrl: "https://i.ebayimg.com/images/g/abc/s-l1600.jpg",
       coverSource: "ebay",
+      validated: true,
     });
   });
 
@@ -309,6 +311,6 @@ describe("runCoverPipeline", () => {
       ],
     });
 
-    expect(result).toEqual({ coverUrl: null, coverSource: null });
+    expect(result).toEqual({ coverUrl: null, coverSource: null, validated: true });
   });
 });
