@@ -86,18 +86,13 @@ export const EMAIL_SOUND_EFFECTS: Record<NotificationEmailType, string> = {
   new_listing_from_followed: "HOT!",
 };
 
-export function emailHeader(soundEffect: string): string {
+export function emailHeader(_soundEffect: string): string {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://collectors-chest.com";
   return `
-    <div style="background: #0066FF; padding: 40px 24px 36px; text-align: center; position: relative; overflow: hidden;">
+    <div style="background: #0066FF; padding: 32px 24px 28px; text-align: center; position: relative; overflow: hidden;">
       <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-image: radial-gradient(circle, rgba(255,255,255,0.15) 1.5px, transparent 1.5px); background-size: 12px 12px; pointer-events: none;"></div>
       <div style="position: relative; z-index: 1;">
-        <div style="display: inline-block; background: #FFF200; color: #000; font-weight: 900; font-size: 14px; padding: 6px 16px; border: 3px solid #000; border-radius: 4px; transform: rotate(-2deg); margin-bottom: 12px; letter-spacing: 1px;">COLLECTORS CHEST</div>
-      </div>
-      <div style="position: relative; z-index: 1; margin: 16px auto; display: inline-block;">
-        <div style="display: inline-block; background: #00CC66; color: #000; font-weight: 900; font-size: 28px; padding: 8px 80px; border: 4px solid #000; border-radius: 50%; transform: rotate(-3deg); box-shadow: 4px 4px 0 #000;">
-          ${soundEffect}
-        </div>
-        <div style="width: 0; height: 0; margin-left: 55px; margin-top: -28px; border-left: 16px solid transparent; border-right: 7px solid transparent; border-top: 28px solid #000;"></div>
+        <img src="${appUrl}/icons/emblem.png" alt="Collectors Chest" width="180" height="180" style="display: block; margin: 0 auto;" />
       </div>
     </div>
   `;
@@ -399,8 +394,9 @@ function welcomeTemplate(data: WelcomeEmailData): EmailTemplate {
       <div style="max-width: 600px; margin: 0 auto; font-family: 'Segoe UI', Arial, sans-serif; background: #ffffff;">
         ${emailHeader(EMAIL_SOUND_EFFECTS.welcome)}
         <!-- Welcome title -->
-        <div style="background: #0066FF; padding: 0 24px 28px; text-align: center;">
-          <h1 style="position: relative; z-index: 1; color: #FFF200; font-size: 26px; font-weight: 900; margin: 0 0 4px; text-shadow: 2px 2px 0 #000; letter-spacing: 1px;">WELCOME TO THE CHEST!</h1>
+        <div style="background: #0066FF; padding: 0 24px 28px; text-align: center; position: relative;">
+          <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-image: radial-gradient(circle, rgba(255,255,255,0.15) 1.5px, transparent 1.5px); background-size: 12px 12px; pointer-events: none;"></div>
+          <div style="position: relative; z-index: 1; display: inline-block; background: #FFF200; color: #000; font-weight: 900; font-size: 18px; padding: 8px 20px; border: 3px solid #000; border-radius: 4px; margin-bottom: 10px; letter-spacing: 1px;">WELCOME TO THE CHEST!</div>
           <p style="position: relative; z-index: 1; color: #ffffff; font-size: 15px; margin: 0; opacity: 0.9;">Your collection journey starts now.</p>
         </div>
         <!-- Body -->
