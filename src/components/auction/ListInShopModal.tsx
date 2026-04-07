@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 
 import {
   AlertCircle,
@@ -51,10 +52,25 @@ export function ListInShopModal({ comic, isOpen, onClose, onCreated }: ListInSho
   } | null>(null);
   const [checkingLimit, setCheckingLimit] = useState(false);
   const [showAgeGate, setShowAgeGate] = useState(false);
+  const [connectReady, setConnectReady] = useState<boolean | null>(null);
+  const [connectLoading, setConnectLoading] = useState(false);
 
-  // Check listing limit when modal opens
+  // Check Stripe Connect status and listing limit when modal opens
   useEffect(() => {
-    if (isOpen && !features.unlimitedListings) {
+    if (!isOpen) return;
+
+    // Check Stripe Connect status
+    setConnectLoading(true);
+    fetch("/api/connect/status")
+      .then((res) => res.json())
+      .then((data) => {
+        setConnectReady(data.connected && data.onboardingComplete);
+      })
+      .catch(() => setConnectReady(false))
+      .finally(() => setConnectLoading(false));
+
+    // Check listing limit
+    if (!features.unlimitedListings) {
       setCheckingLimit(true);
       fetch("/api/billing/status")
         .then((res) => res.json())
@@ -65,7 +81,7 @@ export function ListInShopModal({ comic, isOpen, onClose, onCreated }: ListInSho
         })
         .catch(console.error)
         .finally(() => setCheckingLimit(false));
-    } else if (isOpen && features.unlimitedListings) {
+    } else {
       setListingLimitInfo({ canCreate: true, currentCount: 0, limit: 999999 });
     }
   }, [isOpen, features.unlimitedListings]);
@@ -229,11 +245,11 @@ export function ListInShopModal({ comic, isOpen, onClose, onCreated }: ListInSho
           setShowAgeGate(true);
           return;
         }
-        setError(
-          data.error === "CONNECT_REQUIRED"
-            ? "Please connect your Stripe account before proceeding."
-            : data.message || data.error || "Failed to create listing"
-        );
+        if (data.error === "CONNECT_REQUIRED") {
+          setError("CONNECT_REQUIRED");
+          return;
+        }
+        setError(data.message || data.error || "Failed to create listing");
       }
     } catch {
       setError("Failed to create listing. Please try again.");
@@ -282,8 +298,41 @@ export function ListInShopModal({ comic, isOpen, onClose, onCreated }: ListInSho
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-4">
+          {/* Stripe Connect Required */}
+          {connectLoading ? (
+            <div className="text-center py-8">
+              <div className="animate-spin w-8 h-8 border-4 border-gray-200 border-t-pop-blue rounded-full mx-auto mb-3" />
+              <p className="text-sm text-gray-500">Checking seller status...</p>
+            </div>
+          ) : connectReady === false ? (
+            <div className="text-center py-6">
+              <div className="w-16 h-16 bg-pop-green/20 border-3 border-pop-black shadow-comic-sm flex items-center justify-center mx-auto mb-4">
+                <DollarSign className="w-8 h-8 text-pop-green" />
+              </div>
+              <h3 className="font-comic text-lg text-pop-black mb-2">SET UP SELLER PAYMENTS</h3>
+              <p className="font-body text-sm text-pop-black/70 mb-2">
+                Before you can list items in the shop, you need to set up your payment account.
+              </p>
+              <p className="font-body text-xs text-pop-black/50 mb-6">
+                This is a one-time setup through Stripe and only takes about a minute.
+              </p>
+              <Link
+                href="/profile?tab=billing"
+                className="btn-pop btn-pop-green py-2 px-6 text-sm font-comic inline-block"
+              >
+                SET UP PAYMENTS
+              </Link>
+              <button
+                onClick={handleClose}
+                className="block w-full mt-3 py-2 text-gray-500 hover:text-gray-700 text-sm"
+              >
+                Maybe later
+              </button>
+            </div>
+          ) : null}
+
           {/* Listing Limit Reached */}
-          {step === 1 && listingLimitInfo && !listingLimitInfo.canCreate && (
+          {connectReady && step === 1 && listingLimitInfo && !listingLimitInfo.canCreate && (
             <div className="text-center py-6">
               <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <ShoppingBag className="w-8 h-8 text-amber-600" />
@@ -320,14 +369,14 @@ export function ListInShopModal({ comic, isOpen, onClose, onCreated }: ListInSho
           )}
 
           {/* Loading listing limit check */}
-          {step === 1 && checkingLimit && (
+          {connectReady && step === 1 && checkingLimit && (
             <div className="flex items-center justify-center py-12">
               <div className="w-8 h-8 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
             </div>
           )}
 
           {/* Step 1: Choose Mode */}
-          {step === 1 && !checkingLimit && listingLimitInfo?.canCreate && (
+          {connectReady && step === 1 && !checkingLimit && listingLimitInfo?.canCreate && (
             <div className="space-y-4">
               <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
                 <div className="w-16 h-20 rounded overflow-hidden flex-shrink-0">
