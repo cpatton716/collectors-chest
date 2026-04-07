@@ -350,6 +350,14 @@ export function CustomProfilePage() {
     }
   }, [searchParams]);
 
+  // Handle ?tab= query param for direct tab navigation
+  useEffect(() => {
+    const tabParam = searchParams.get("tab");
+    if (tabParam === "billing" || tabParam === "security" || tabParam === "profile") {
+      setActiveTab(tabParam);
+    }
+  }, [searchParams]);
+
   // Fetch display preferences on mount (once)
   const [prefsFetched, setPrefsFetched] = useState(false);
   useEffect(() => {
