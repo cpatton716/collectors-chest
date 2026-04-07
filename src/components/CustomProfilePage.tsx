@@ -355,6 +355,12 @@ export function CustomProfilePage() {
     const tabParam = searchParams.get("tab");
     if (tabParam === "billing" || tabParam === "security" || tabParam === "profile") {
       setActiveTab(tabParam);
+      // Auto-scroll to seller payments when coming from listing modal
+      if (tabParam === "billing") {
+        setTimeout(() => {
+          document.getElementById("seller-payments")?.scrollIntoView({ behavior: "smooth", block: "center" });
+        }, 500);
+      }
     }
   }, [searchParams]);
 
@@ -567,7 +573,9 @@ export function CustomProfilePage() {
   };
 
   // Connect handlers
+  const [connectSetupLoading, setConnectSetupLoading] = useState(false);
   const handleSetupConnect = async () => {
+    setConnectSetupLoading(true);
     try {
       const res = await fetch("/api/connect/create-account", { method: "POST" });
       const data = await res.json();
@@ -579,9 +587,13 @@ export function CustomProfilePage() {
         if (statusRes.ok) {
           setConnectStatus(await statusRes.json());
         }
+      } else if (data.error) {
+        console.error("Connect setup error:", data.error);
       }
     } catch (error) {
       console.error("Failed to set up connect:", error);
+    } finally {
+      setConnectSetupLoading(false);
     }
   };
 
@@ -1506,7 +1518,7 @@ export function CustomProfilePage() {
               </div>
 
               {/* Seller Payments */}
-              <div className="bg-pop-white border-3 border-pop-black shadow-[4px_4px_0px_#000] rounded-lg p-4">
+              <div id="seller-payments" className="bg-pop-white border-3 border-pop-black shadow-[4px_4px_0px_#000] rounded-lg p-4">
                 <h3 className="font-comic text-lg mb-3 flex items-center gap-2">
                   <Store className="w-5 h-5" />
                   SELLER PAYMENTS
@@ -1549,9 +1561,10 @@ export function CustomProfilePage() {
                     </p>
                     <button
                       onClick={handleSetupConnect}
-                      className="btn-pop btn-pop-green py-2 px-4 text-sm font-comic"
+                      disabled={connectSetupLoading}
+                      className="btn-pop btn-pop-green py-2 px-4 text-sm font-comic disabled:opacity-50"
                     >
-                      SET UP SELLER PAYMENTS
+                      {connectSetupLoading ? "CONNECTING..." : "SET UP SELLER PAYMENTS"}
                     </button>
                   </div>
                 )}
