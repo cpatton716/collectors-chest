@@ -1075,8 +1075,8 @@ export async function POST(request: NextRequest) {
         if (pipelineResult.coverUrl) {
           comicDetails.coverImageUrl = pipelineResult.coverUrl;
           comicDetails.coverSource = pipelineResult.coverSource;
-          comicDetails.coverValidated = true;
         }
+        comicDetails.coverValidated = pipelineResult.validated;
       } catch (coverErr) {
         console.error("[analyze] Cover pipeline failed:", coverErr);
       }

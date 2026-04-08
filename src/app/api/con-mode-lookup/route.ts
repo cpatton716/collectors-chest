@@ -211,7 +211,7 @@ export async function POST(request: NextRequest) {
           },
           ...(pipelineRan && {
             coverSource: pipelineResult?.coverSource || undefined,
-            coverValidated: pipelineResult?.coverUrl !== null, // true only if pipeline found a valid cover
+            coverValidated: pipelineResult?.validated ?? false,
           }),
         });
 
