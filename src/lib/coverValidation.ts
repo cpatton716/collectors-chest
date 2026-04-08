@@ -367,12 +367,18 @@ export async function runCoverPipeline(
 
   if (candidates.length === 0) return NULL_RESULT;
 
+  // Pre-check: is Gemini available?
+  const geminiApiKey = process.env.GEMINI_API_KEY;
+  const hasGeminiClient = !!options?.geminiClient;
+  let allCandidatesChecked = !!(geminiApiKey || hasGeminiClient);
+
   // Step 3: Validate each candidate with Gemini
   let failures = 0;
 
   for (const candidate of candidates) {
     if (failures >= MAX_FAILURES_PER_REQUEST) {
       console.warn(`${LOG_PREFIX} Max failures reached, stopping pipeline`);
+      allCandidatesChecked = false;
       break;
     }
 
@@ -386,6 +392,7 @@ export async function runCoverPipeline(
     const imageResult = await fetchImage(candidate.url);
     if (!imageResult) {
       failures++;
+      allCandidatesChecked = false;
       continue;
     }
 
@@ -394,13 +401,15 @@ export async function runCoverPipeline(
     if (!mimeType) {
       console.warn(`${LOG_PREFIX} Unsupported image type for ${candidate.url}`);
       failures++;
+      allCandidatesChecked = false;
       continue;
     }
 
     // Check rate-limit cooldown
     if (Date.now() < rateLimitCooldownUntil) {
-      console.warn(`${LOG_PREFIX} Gemini rate-limited, skipping validation`);
-      continue;
+      console.warn(`${LOG_PREFIX} Gemini rate-limited, skipping remaining candidates`);
+      allCandidatesChecked = false;
+      break;
     }
 
     // Gemini validation
@@ -428,8 +437,8 @@ export async function runCoverPipeline(
       continue;
     } catch (err: unknown) {
       failures++;
+      allCandidatesChecked = false;
 
-      // Check for rate limiting
       if (
         err instanceof Error &&
         (err.message?.includes("429") || err.message?.includes("RATE_LIMIT"))
@@ -438,11 +447,12 @@ export async function runCoverPipeline(
         console.warn(
           `${LOG_PREFIX} Gemini rate limited, cooling down for 60s`
         );
+        break; // Rate limit applies to all remaining candidates
       } else {
         console.error(`${LOG_PREFIX} Gemini validation error`, err);
       }
     }
   }
 
-  return NULL_RESULT;
+  return { coverUrl: null, coverSource: null, validated: allCandidatesChecked };
 }
