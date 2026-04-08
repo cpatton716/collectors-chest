@@ -313,4 +313,354 @@ describe("runCoverPipeline", () => {
 
     expect(result).toEqual({ coverUrl: null, coverSource: null, validated: true });
   });
+
+  it("returns validated=false when Gemini API key is missing", async () => {
+    const originalKey = process.env.GEMINI_API_KEY;
+    delete process.env.GEMINI_API_KEY;
+
+    global.fetch = jest.fn().mockImplementation((url: string, opts?: any) => {
+      if (opts?.method === "HEAD") {
+        return Promise.resolve({ ok: false, headers: new Headers() });
+      }
+      return Promise.resolve({ ok: false, headers: new Headers() });
+    });
+
+    const result = await runCoverPipeline("Batman", "1", "2016", "DC", {
+      ebayListings: [
+        { itemId: "1", title: "Batman #1", price: 10, currency: "USD", condition: "New", itemUrl: "https://ebay.com/1", imageUrl: "https://i.ebayimg.com/images/g/abc/s-l1600.jpg" },
+      ],
+    });
+
+    expect(result.coverUrl).toBeNull();
+    expect(result.validated).toBe(false);
+
+    if (originalKey) process.env.GEMINI_API_KEY = originalKey;
+  });
+
+  it("returns validated=true when Gemini rejects all candidates with NO", async () => {
+    const jpegBuffer = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x01, 0x02]);
+
+    global.fetch = jest.fn().mockImplementation((url: string, opts?: any) => {
+      if (opts?.method === "HEAD") {
+        return Promise.resolve({ ok: false, headers: new Headers() });
+      }
+      if (typeof url === "string" && url.includes("ebayimg.com")) {
+        return Promise.resolve({
+          ok: true,
+          headers: new Headers({ "content-type": "image/jpeg", "content-length": "7" }),
+          arrayBuffer: () => Promise.resolve(jpegBuffer.buffer),
+        });
+      }
+      return Promise.resolve({ ok: false, headers: new Headers() });
+    });
+
+    const mockGeminiClient = {
+      getGenerativeModel: jest.fn().mockReturnValue({
+        generateContent: jest.fn().mockResolvedValue({
+          response: { text: () => "NO this is not Batman #1" },
+        }),
+      }),
+    };
+
+    const result = await runCoverPipeline("Batman", "1", "2016", "DC", {
+      ebayListings: [
+        { itemId: "1", title: "Batman #1", price: 10, currency: "USD", condition: "New", itemUrl: "https://ebay.com/1", imageUrl: "https://i.ebayimg.com/images/g/abc/s-l1600.jpg" },
+      ],
+      geminiClient: mockGeminiClient,
+    });
+
+    expect(result.coverUrl).toBeNull();
+    expect(result.validated).toBe(true);
+  });
+
+  it("returns validated=true when Gemini returns ambiguous for all candidates", async () => {
+    const jpegBuffer = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x01, 0x02]);
+
+    global.fetch = jest.fn().mockImplementation((url: string, opts?: any) => {
+      if (opts?.method === "HEAD") {
+        return Promise.resolve({ ok: false, headers: new Headers() });
+      }
+      if (typeof url === "string" && url.includes("ebayimg.com")) {
+        return Promise.resolve({
+          ok: true,
+          headers: new Headers({ "content-type": "image/jpeg", "content-length": "7" }),
+          arrayBuffer: () => Promise.resolve(jpegBuffer.buffer),
+        });
+      }
+      return Promise.resolve({ ok: false, headers: new Headers() });
+    });
+
+    const mockGeminiClient = {
+      getGenerativeModel: jest.fn().mockReturnValue({
+        generateContent: jest.fn().mockResolvedValue({
+          response: { text: () => "AMBIGUOUS cannot determine" },
+        }),
+      }),
+    };
+
+    const result = await runCoverPipeline("Batman", "1", "2016", "DC", {
+      ebayListings: [
+        { itemId: "1", title: "Batman #1", price: 10, currency: "USD", condition: "New", itemUrl: "https://ebay.com/1", imageUrl: "https://i.ebayimg.com/images/g/abc/s-l1600.jpg" },
+      ],
+      geminiClient: mockGeminiClient,
+    });
+
+    expect(result.coverUrl).toBeNull();
+    expect(result.validated).toBe(true);
+  });
+
+  it("continues to next candidate when image fetch fails", async () => {
+    const jpegBuffer = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x01, 0x02]);
+    const openLibraryUrl = "https://covers.openlibrary.org/b/title/Batman-L.jpg";
+
+    global.fetch = jest.fn().mockImplementation((url: string, opts?: any) => {
+      if (opts?.method === "HEAD" && typeof url === "string" && url.includes("openlibrary.org")) {
+        return Promise.resolve({ ok: true, headers: new Headers({ "content-type": "image/jpeg" }) });
+      }
+      if (opts?.method === "HEAD") {
+        return Promise.resolve({ ok: false, headers: new Headers() });
+      }
+      if (typeof url === "string" && url.includes("ebayimg.com")) {
+        return Promise.resolve({ ok: false, headers: new Headers() });
+      }
+      if (typeof url === "string" && url.includes("openlibrary.org")) {
+        return Promise.resolve({
+          ok: true,
+          headers: new Headers({ "content-type": "image/jpeg", "content-length": "7" }),
+          arrayBuffer: () => Promise.resolve(jpegBuffer.buffer),
+        });
+      }
+      return Promise.resolve({ ok: false, headers: new Headers() });
+    });
+
+    const mockGeminiClient = {
+      getGenerativeModel: jest.fn().mockReturnValue({
+        generateContent: jest.fn().mockResolvedValue({
+          response: { text: () => "YES this is Batman #1" },
+        }),
+      }),
+    };
+
+    const result = await runCoverPipeline("Batman", "1", "2016", "DC", {
+      ebayListings: [
+        { itemId: "1", title: "Batman #1", price: 10, currency: "USD", condition: "New", itemUrl: "https://ebay.com/1", imageUrl: "https://i.ebayimg.com/bad-image.jpg" },
+      ],
+      geminiClient: mockGeminiClient,
+    });
+
+    expect(result.coverUrl).toBe(openLibraryUrl);
+    expect(result.coverSource).toBe("openlibrary");
+    expect(result.validated).toBe(true);
+  });
+
+  it("returns validated=false when max failures reached", async () => {
+    const jpegBuffer = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x01, 0x02]);
+
+    global.fetch = jest.fn().mockImplementation((url: string, opts?: any) => {
+      if (opts?.method === "HEAD") {
+        return Promise.resolve({ ok: false, headers: new Headers() });
+      }
+      if (typeof url === "string" && url.includes("ebayimg.com")) {
+        return Promise.resolve({
+          ok: true,
+          headers: new Headers({ "content-type": "image/jpeg", "content-length": "7" }),
+          arrayBuffer: () => Promise.resolve(jpegBuffer.buffer),
+        });
+      }
+      return Promise.resolve({ ok: false, headers: new Headers() });
+    });
+
+    const mockGeminiClient = {
+      getGenerativeModel: jest.fn().mockReturnValue({
+        generateContent: jest.fn().mockRejectedValue(new Error("Gemini server error")),
+      }),
+    };
+
+    const result = await runCoverPipeline("Batman", "1", "2016", "DC", {
+      ebayListings: [
+        { itemId: "1", title: "Batman #1", price: 10, currency: "USD", condition: "New", itemUrl: "https://ebay.com/1", imageUrl: "https://i.ebayimg.com/images/g/1/s-l1600.jpg" },
+        { itemId: "2", title: "Batman #1", price: 10, currency: "USD", condition: "New", itemUrl: "https://ebay.com/2", imageUrl: "https://i.ebayimg.com/images/g/2/s-l1600.jpg" },
+        { itemId: "3", title: "Batman #1", price: 10, currency: "USD", condition: "New", itemUrl: "https://ebay.com/3", imageUrl: "https://i.ebayimg.com/images/g/3/s-l1600.jpg" },
+        { itemId: "4", title: "Batman #1", price: 10, currency: "USD", condition: "New", itemUrl: "https://ebay.com/4", imageUrl: "https://i.ebayimg.com/images/g/4/s-l1600.jpg" },
+      ],
+      geminiClient: mockGeminiClient,
+    });
+
+    expect(result.coverUrl).toBeNull();
+    expect(result.validated).toBe(false);
+  });
+
+  it("skips image that exceeds size limit and continues to next candidate", async () => {
+    const jpegBuffer = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x01, 0x02]);
+    const openLibraryUrl = "https://covers.openlibrary.org/b/title/Batman-L.jpg";
+
+    global.fetch = jest.fn().mockImplementation((url: string, opts?: any) => {
+      if (opts?.method === "HEAD" && typeof url === "string" && url.includes("openlibrary.org")) {
+        return Promise.resolve({ ok: true, headers: new Headers({ "content-type": "image/jpeg" }) });
+      }
+      if (opts?.method === "HEAD") {
+        return Promise.resolve({ ok: false, headers: new Headers() });
+      }
+      if (typeof url === "string" && url.includes("ebayimg.com")) {
+        return Promise.resolve({
+          ok: true,
+          headers: new Headers({ "content-type": "image/jpeg", "content-length": "6000000" }),
+          arrayBuffer: () => Promise.resolve(jpegBuffer.buffer),
+        });
+      }
+      if (typeof url === "string" && url.includes("openlibrary.org")) {
+        return Promise.resolve({
+          ok: true,
+          headers: new Headers({ "content-type": "image/jpeg", "content-length": "7" }),
+          arrayBuffer: () => Promise.resolve(jpegBuffer.buffer),
+        });
+      }
+      return Promise.resolve({ ok: false, headers: new Headers() });
+    });
+
+    const mockGeminiClient = {
+      getGenerativeModel: jest.fn().mockReturnValue({
+        generateContent: jest.fn().mockResolvedValue({
+          response: { text: () => "YES this is Batman #1" },
+        }),
+      }),
+    };
+
+    const result = await runCoverPipeline("Batman", "1", "2016", "DC", {
+      ebayListings: [
+        { itemId: "1", title: "Batman #1", price: 10, currency: "USD", condition: "New", itemUrl: "https://ebay.com/1", imageUrl: "https://i.ebayimg.com/images/g/big/s-l1600.jpg" },
+      ],
+      geminiClient: mockGeminiClient,
+    });
+
+    expect(result.coverUrl).toBe(openLibraryUrl);
+    expect(result.coverSource).toBe("openlibrary");
+    expect(result.validated).toBe(true);
+  });
+
+  it("skips image with invalid MIME type and continues to next candidate", async () => {
+    const badBuffer = Buffer.from([0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+    const jpegBuffer = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x01, 0x02]);
+    const openLibraryUrl = "https://covers.openlibrary.org/b/title/Batman-L.jpg";
+
+    global.fetch = jest.fn().mockImplementation((url: string, opts?: any) => {
+      if (opts?.method === "HEAD" && typeof url === "string" && url.includes("openlibrary.org")) {
+        return Promise.resolve({ ok: true, headers: new Headers({ "content-type": "image/jpeg" }) });
+      }
+      if (opts?.method === "HEAD") {
+        return Promise.resolve({ ok: false, headers: new Headers() });
+      }
+      if (typeof url === "string" && url.includes("ebayimg.com")) {
+        return Promise.resolve({
+          ok: true,
+          headers: new Headers({ "content-type": "application/octet-stream", "content-length": "7" }),
+          arrayBuffer: () => Promise.resolve(badBuffer.buffer),
+        });
+      }
+      if (typeof url === "string" && url.includes("openlibrary.org")) {
+        return Promise.resolve({
+          ok: true,
+          headers: new Headers({ "content-type": "image/jpeg", "content-length": "7" }),
+          arrayBuffer: () => Promise.resolve(jpegBuffer.buffer),
+        });
+      }
+      return Promise.resolve({ ok: false, headers: new Headers() });
+    });
+
+    const mockGeminiClient = {
+      getGenerativeModel: jest.fn().mockReturnValue({
+        generateContent: jest.fn().mockResolvedValue({
+          response: { text: () => "YES this is Batman #1" },
+        }),
+      }),
+    };
+
+    const result = await runCoverPipeline("Batman", "1", "2016", "DC", {
+      ebayListings: [
+        { itemId: "1", title: "Batman #1", price: 10, currency: "USD", condition: "New", itemUrl: "https://ebay.com/1", imageUrl: "https://i.ebayimg.com/images/g/bad/s-l1600.jpg" },
+      ],
+      geminiClient: mockGeminiClient,
+    });
+
+    expect(result.coverUrl).toBe(openLibraryUrl);
+    expect(result.coverSource).toBe("openlibrary");
+    expect(result.validated).toBe(true);
+  });
+
+  it("returns validated=true when no candidates found", async () => {
+    global.fetch = jest.fn().mockImplementation((url: string, opts?: any) => {
+      if (opts?.method === "HEAD") {
+        return Promise.resolve({ ok: false, headers: new Headers() });
+      }
+      return Promise.resolve({ ok: false, headers: new Headers() });
+    });
+
+    const result = await runCoverPipeline("Batman", "1", "2016", "DC");
+
+    expect(result.coverUrl).toBeNull();
+    expect(result.validated).toBe(true);
+  });
+
+  it("continues to candidate gathering when community cover lookup throws", async () => {
+    mockGetCommunityCovers.mockRejectedValue(new Error("DB connection failed"));
+
+    global.fetch = jest.fn().mockImplementation((url: string, opts?: any) => {
+      if (opts?.method === "HEAD") {
+        return Promise.resolve({ ok: false, headers: new Headers() });
+      }
+      return Promise.resolve({ ok: false, headers: new Headers() });
+    });
+
+    const result = await runCoverPipeline("Batman", "1", "2016", "DC");
+
+    expect(result.coverUrl).toBeNull();
+    expect(result.validated).toBe(true);
+  });
+
+  it("returns validated=true for community covers (no Gemini needed)", async () => {
+    mockGetCommunityCovers.mockResolvedValue(
+      "https://covers.openlibrary.org/community/batman1.jpg"
+    );
+
+    const result = await runCoverPipeline("Batman", "1", "2016", "DC");
+
+    expect(result.validated).toBe(true);
+    expect(result.coverUrl).toBe("https://covers.openlibrary.org/community/batman1.jpg");
+    expect(result.coverSource).toBe("community");
+  });
+
+  // This test MUST be last — it sets module-level rateLimitCooldownUntil that persists for 60s
+  it("returns validated=false when Gemini is rate-limited", async () => {
+    const jpegBuffer = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x01, 0x02]);
+
+    global.fetch = jest.fn().mockImplementation((url: string, opts?: any) => {
+      if (opts?.method === "HEAD") {
+        return Promise.resolve({ ok: false, headers: new Headers() });
+      }
+      if (typeof url === "string" && url.includes("ebayimg.com")) {
+        return Promise.resolve({
+          ok: true,
+          headers: new Headers({ "content-type": "image/jpeg", "content-length": "7" }),
+          arrayBuffer: () => Promise.resolve(jpegBuffer.buffer),
+        });
+      }
+      return Promise.resolve({ ok: false, headers: new Headers() });
+    });
+
+    const mockGeminiClient = {
+      getGenerativeModel: jest.fn().mockReturnValue({
+        generateContent: jest.fn().mockRejectedValue(new Error("429 RATE_LIMIT")),
+      }),
+    };
+
+    const result = await runCoverPipeline("Batman", "1", "2016", "DC", {
+      ebayListings: [
+        { itemId: "1", title: "Batman #1", price: 10, currency: "USD", condition: "New", itemUrl: "https://ebay.com/1", imageUrl: "https://i.ebayimg.com/images/g/abc/s-l1600.jpg" },
+      ],
+      geminiClient: mockGeminiClient,
+    });
+
+    expect(result.coverUrl).toBeNull();
+    expect(result.validated).toBe(false);
+  });
 });
