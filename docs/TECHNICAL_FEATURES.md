@@ -43,7 +43,13 @@ Four-source waterfall for finding covers: Community covers → eBay listing imag
 ## 4. Multi-Layer Caching Architecture
 Redis (backend): eBay prices (12h), metadata (7d), AI analysis (30d), barcodes (6mo), certs (1yr). localStorage (frontend): offline lookups (7d, 30 items LRU), scan history, guest collection. Image hash cache prevents re-analyzing identical photos.
 
-**Key files:** `src/lib/cache.ts`, `src/lib/offlineCache.ts`, `src/lib/storage.ts`
+**Two distinct caching strategies for scans:**
+- **Cert-level cache** (`cache:cert:{company}-{certNumber}`, 1yr TTL) — Stores the full cert lookup response. Keyed by cert number, so only helps if the exact same physical book is scanned again (rare in production).
+- **Issue-level cache** (`cache:comic:{title}|{issueNumber}`, 7d TTL + permanent Supabase fallback) — Stores shared metadata: title, publisher, year, creators, keyInfo, coverImageUrl. Keyed by title+issue, so ALL copies of the same comic share this cache. This is where the real cost savings happen — the first scan of any ASM #300 populates this cache, and every subsequent ASM #300 scan (different cert, different user) skips expensive AI calls.
+
+**End-of-route save:** Every successful scan writes issue-level metadata to both Redis (7d) and Supabase `comic_metadata` table (permanent) in parallel. This is the mechanism that connects cert lookups, AI results, and all enrichment to the shared issue-level cache.
+
+**Key files:** `src/lib/cache.ts`, `src/lib/metadataCache.ts`, `src/lib/db.ts`, `src/lib/offlineCache.ts`, `src/lib/storage.ts`
 
 ---
 
@@ -62,7 +68,9 @@ Three paths: 7-day direct trial (no Stripe, DB-only) → 30-day promo trial (QR 
 ---
 
 ## 7. CGC/CBCS/PGX Certificate Verification
-HTML scraping of grading company websites → structured data extraction (grade, page quality, signatures, label type, grader notes) → 1-year Redis cache. Auto-detection of grading company from cert number format. Feeds into pricing, cover harvesting, and cert-first scan pipelines.
+HTML scraping of grading company websites → structured data extraction (grade, page quality, signatures, label type, grader notes) → 1-year Redis cache keyed by cert number. Auto-detection of grading company from cert number format. Feeds into pricing, cover harvesting, and cert-first scan pipelines. Cert data also flows into the issue-level cache (see Feature 4) at end-of-route, so the first cert lookup for any issue benefits all future scans of that same issue.
+
+**Known issue (Apr 2026):** CGC's website is blocking server-side lookups with Cloudflare bot protection (HTTP 403). CBCS and PGX are unaffected. ZenRows API (`mode=auto&wait=5000`) validated as mitigation — pending partner cost review ($49/mo for ~10K lookups). See BACKLOG.md for details.
 
 **Session 31 additions:**
 - `src/lib/certHelpers.ts` — `normalizeGradingCompany()` standardizes company names, `parseKeyComments()` / `mergeKeyComments()` combine AI-detected and cert-provider key comments, `parseArtComments()` extracts art-related notes
@@ -86,7 +94,8 @@ Dedicated scan pipeline for slabbed/graded comics that bypasses standard cover r
 - **Phase 2 — Slab Detail Extraction:** `executeSlabDetailExtraction()` reads cert number, grade, grading company, label color (blue/yellow/green/etc.), title, issue, variant, key comments, art comments from the slab label photo
 - **Phase 3 — Cert Lookup:** If cert number found, scrapes CGC/CBCS/PGX for verification. `mergeKeyComments()` combines AI-detected comments with cert provider data. `normalizeGradingCompany()` standardizes company names
 - **Phase 4 — eBay Pricing:** Grade-specific search with year disambiguation. `filterIrrelevantListings()` removes non-comic results. Q1 conservative pricing. Grade included in search keywords for slabbed results
-- **Phase 5/5.5 — Cache, Cover Harvest, Analytics:** Results cached in metadata. Cover harvested if eligible. Analytics logged with `scan_path: 'cert-first'` and `barcode_extracted` fields
+- **Phase 4.5 — Metadata Cache Gate:** Checks issue-level cache (Redis → Supabase) for creators. If all 3 present (writer, coverArtist, interiorArtist), skips Phase 5 AI call. This is the key cost optimization — after the first scan of any issue, subsequent scans skip the ~0.5¢ AI call
+- **Phase 5/5.5 — Focused AI / Cover Harvest:** Phase 5 extracts creators + barcode via AI (only if cache miss). Phase 5.5 runs cover harvest only (when cache hit). End-of-route save persists all data to issue-level cache for future scans. Analytics logged with `scan_path: 'cert-first'` and `barcode_extracted` fields
 
 **Migration:** `supabase/migrations/20260405_cert_first_analytics.sql` — adds `scan_path` and `barcode_extracted` columns to `scan_analytics`
 

@@ -8,7 +8,7 @@
 
 **Tech Stack:** Resend (email), Clerk webhooks (trigger), svix (signature verification), Jest (tests)
 
-**Spec:** `docs/superpowers/specs/2026-04-01-welcome-email-design.md`
+**Spec:** `docs/engineering-specs/2026-04-01-welcome-email-design.md`
 
 ---
 

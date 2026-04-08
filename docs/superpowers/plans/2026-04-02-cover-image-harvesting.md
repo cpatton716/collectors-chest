@@ -8,7 +8,7 @@
 
 **Tech Stack:** sharp (image processing), Supabase Storage (file hosting), existing coverImageDb functions, existing AI providers (Anthropic/Gemini)
 
-**Spec:** `docs/superpowers/specs/2026-04-02-cover-image-harvesting-design.md` (Rev 3)
+**Spec:** `docs/engineering-specs/2026-04-02-cover-image-harvesting-design.md` (Rev 3)
 
 ---
 

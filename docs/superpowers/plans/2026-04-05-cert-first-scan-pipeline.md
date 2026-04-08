@@ -8,7 +8,7 @@
 
 **Tech Stack:** Gemini 2.0 Flash / Claude Sonnet 4 (provider fallback), CGC/CBCS/PGX web scraping, Redis + Supabase caching, Jest
 
-**Design Spec:** `docs/superpowers/specs/2026-04-05-cert-first-scan-pipeline-design.md`
+**Design Spec:** `docs/engineering-specs/2026-04-05-cert-first-scan-pipeline-design.md`
 
 ---
 

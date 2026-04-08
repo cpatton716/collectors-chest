@@ -6,7 +6,7 @@ Running log of issues found during deep dive reviews, grouped by pattern categor
 
 ## 2026-04-05 — Cert-First Scan Pipeline Design Spec (Round 1)
 
-**Spec:** `docs/superpowers/specs/2026-04-05-cert-first-scan-pipeline-design.md`
+**Spec:** `docs/engineering-specs/2026-04-05-cert-first-scan-pipeline-design.md`
 
 ### Type System (3 issues)
 - **keyComments type mismatch** (Critical): Cert lookup returns `string | null` but spec said "maps to keyInfo array" without defining the transformation. Always verify source and target types match.

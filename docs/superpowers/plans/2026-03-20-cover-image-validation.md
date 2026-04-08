@@ -8,7 +8,7 @@
 
 **Tech Stack:** Next.js API routes, Supabase (Postgres), `@google/generative-ai` SDK (Gemini 2.0 Flash), Upstash Redis, Jest
 
-**Spec:** `docs/superpowers/specs/2026-03-19-cover-image-validation-design.md`
+**Spec:** `docs/engineering-specs/2026-03-19-cover-image-validation-design.md`
 
 ---
 

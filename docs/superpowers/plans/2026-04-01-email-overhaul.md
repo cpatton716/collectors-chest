@@ -8,7 +8,7 @@
 
 **Tech Stack:** Resend (email), Supabase (DB), Clerk (auth), Jest (tests), Next.js API routes (cron)
 
-**Spec:** `docs/superpowers/specs/2026-04-01-email-overhaul-design.md`
+**Spec:** `docs/engineering-specs/2026-04-01-email-overhaul-design.md`
 
 ---
 

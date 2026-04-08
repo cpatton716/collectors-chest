@@ -1,7 +1,7 @@
 # Cert-First Scan Pipeline for Slabbed Comics
 
 **Date:** April 5, 2026
-**Status:** Design — updated with implementation details (labelColor detection, CGC Cloudflare blocking)
+**Status:** Design — updated with caching architecture, data persistence, and CGC Cloudflare mitigation (Apr 7, 2026)
 
 ---
 
@@ -157,6 +157,90 @@ Phase 8: Analytics + Response
 
 No changes. The current full pipeline runs exactly as it does today.
 
+## Data Persistence & Caching Architecture
+
+The pipeline uses three distinct caching layers. Understanding how they interact is critical — the first scan of any issue populates the issue-level cache, and all subsequent scans of the same issue (regardless of cert number) benefit from that cache.
+
+### Layer 1: Cert-Level Cache (Redis)
+- **Key pattern:** `cache:cert:{company}-{certNumber}` (e.g., `cache:cert:cgc-3986843008`)
+- **TTL:** 1 year
+- **Data:** Full cert lookup response — title, issue, grade, publisher, year, variant, labelType, pageQuality, signatures, keyComments, artComments, gradeDate, graderNotes
+- **Written by:** `lookupCertification()` in `src/lib/certLookup.ts` (fire-and-forget after successful web scrape)
+- **Read by:** Phase 2 — checked before making a web scrape request
+- **Purpose:** Avoids re-scraping the same cert from CGC/CBCS/PGX. Since cert data is immutable (a graded book's grade never changes), 1-year TTL is appropriate.
+- **Important:** Cert numbers are unique per physical book. Two copies of ASM #300 have different cert numbers. This cache only helps if the exact same book is scanned again, which is rare in production. The real cost savings come from Layer 2.
+
+### Layer 2: Issue-Level Cache (Redis, 7-day TTL)
+- **Key pattern:** `cache:comic:{normalizedTitle}|{normalizedIssueNumber}` (e.g., `cache:comic:amazing spider-man|300`)
+- **TTL:** 7 days
+- **Data:** title, issueNumber, publisher, releaseYear, writer, coverArtist, interiorArtist, keyInfo, priceData, coverImageUrl
+- **Written by:** End-of-route save in `src/app/api/analyze/route.ts` via `cacheSet()` — runs after EVERY successful scan (cert-first or standard)
+- **Read by:** Phase 4 metadata cache check — checked via `cacheGet()` before the expensive Phase 5 AI call
+- **Purpose:** Shares issue-level metadata across all scans of the same issue. The first person to scan any ASM #300 populates this cache. Every subsequent ASM #300 scan (different cert number, different user) gets an instant cache hit on creators, publisher, year, and key info — skipping the expensive Phase 5 AI call.
+
+### Layer 3: Issue-Level Permanent Store (Supabase `comic_metadata` table)
+- **Key:** Unique constraint on `(title, issue_number)`, both normalized
+- **TTL:** Permanent (no expiry)
+- **Data:** Same fields as Layer 2, plus `lookup_count` analytics
+- **Written by:** End-of-route save via `saveComicMetadata()` — runs in parallel with Layer 2 Redis write
+- **Read by:** Phase 4 metadata cache check — checked via `getComicMetadata()` as fallback when Layer 2 Redis misses (e.g., after 7-day TTL expiry)
+- **Purpose:** Permanent fallback. When a Redis key expires after 7 days, the Supabase row is still there. On cache miss, the data is read from Supabase and backfilled into Redis.
+
+### Two-Layer Lookup Pattern (Phase 4)
+
+```
+Phase 4: Check issue-level cache
+  ↓
+Layer 2: Redis (cache:comic:amazing spider-man|300)
+  → HIT? Use cached metadata, backfill nothing
+  → MISS ↓
+Layer 3: Supabase (comic_metadata WHERE title='amazing spider-man' AND issue_number='300')
+  → HIT? Use DB metadata, backfill Redis (fire-and-forget)
+  → MISS ↓
+No cached metadata available — proceed to Phase 5
+```
+
+### End-of-Route Save (All Scan Paths)
+
+After every successful scan completes — whether cert-first or standard pipeline — the route saves issue-level metadata to both Layer 2 and Layer 3 in parallel:
+
+```
+End of route:
+  ↓
+buildMetadataSavePayload(comicDetails)
+  → Extracts: title, issueNumber, publisher, releaseYear, writer, coverArtist, interiorArtist, keyInfo, coverImageUrl
+  → Returns null if title or issueNumber missing (no save)
+  ↓
+Promise.all([
+  saveComicMetadata(payload),              // Layer 3: Supabase (permanent)
+  cacheSet(key, payload, "comicMetadata"), // Layer 2: Redis (7-day TTL)
+])
+```
+
+This is the mechanism that connects cert lookups to the issue-level cache. When the first ASM #300 is scanned:
+1. Cert lookup returns title, publisher, year, grade (cert-specific)
+2. artComments parsing extracts creators
+3. Phase 5 AI fills any remaining creators
+4. End-of-route save persists ALL of this to `cache:comic:amazing spider-man|300` (Redis) and `comic_metadata` table (Supabase)
+5. The next ASM #300 scan (different cert) hits the issue cache in Phase 4 → creators already present → Phase 5 skipped
+
+### Fill-Only Merge Strategy
+
+When cached metadata is found in Phase 4, it is merged into `comicDetails` using a **fill-only strategy** (`mergeMetadataIntoDetails()` in `src/lib/metadataCache.ts`):
+- Only populates fields that are currently empty/null in `comicDetails`
+- Never overwrites data from the cert lookup or AI
+- Mergeable fields: publisher, releaseYear, writer, coverArtist, interiorArtist
+- keyInfo: only fills if `comicDetails.keyInfo` is empty/falsy
+
+This ensures cert-specific data (grade, signatures, label type) is never overwritten by cached data from a different cert.
+
+### What Cannot Be Cached
+
+These fields are unique per scan and must be extracted fresh every time:
+- **Grade, pageQuality, labelType, signatures** — unique per cert (from Phase 2 cert lookup)
+- **coverHarvestable, coverCropCoordinates** — unique per photo (from Phase 5 or 5.5 AI call)
+- **Barcode** — extracted per photo, cataloged at save time (from Phase 5 AI call)
+
 ---
 
 ## Phase 1: Slab Detection Call
@@ -221,10 +305,17 @@ Uses existing `lookupCertification()` from `src/lib/certLookup.ts`. No changes n
 
 **Timeout:** 5s. Note: `lookupCertification()` uses Redis cache with 1-year TTL, so cache hits are instant. The 5s timeout covers cold lookups that require a web scrape.
 
-**Known issue — CGC Cloudflare 403 blocking (as of April 2026):** CGC's website (`cgccomics.com`) is currently blocking all server-side cert lookups with Cloudflare 403 responses. This means all CGC cert lookups for uncached certs will fail and trigger the fallback to the full pipeline. Previously cached CGC certs (in Redis with 1-year TTL) continue to work. CBCS and PGX lookups are unaffected. This is a critical dependency risk for the cert-first pipeline since CGC is the most common grading company. Potential mitigations:
-- Monitor for CGC Cloudflare policy changes
-- Consider using a headless browser or proxy for CGC lookups (complexity vs. benefit trade-off)
-- The cert-first pipeline gracefully falls back to the full pipeline, so user experience is not degraded — only cost savings are lost for uncached CGC certs
+**Known issue — CGC Cloudflare 403 blocking (as of April 2026):** CGC's website (`cgccomics.com`) is blocking all server-side cert lookups with Cloudflare 403 responses. This means all CGC cert lookups for uncached certs will fail and trigger the fallback to the full pipeline. Previously cached CGC certs (in Redis with 1-year TTL) continue to work. CBCS and PGX lookups are unaffected.
+
+**Validated mitigation (Apr 7, 2026):** ZenRows API with `mode=auto&wait=5000` successfully bypasses Cloudflare and returns full cert page HTML. Tested against cert #3986843008 — returned complete data including grade, title, publisher, and all metadata fields. Implementation is pending partner cost review of ZenRows subscription ($49/mo for 250K credits = ~10,000 cert lookups; 25 credits per request). See BACKLOG.md "Fix CGC Cert Lookup Cloudflare 403 Errors" for full details.
+
+**Services tested and results:**
+- ❌ Direct fetch with browser headers — 403
+- ❌ ScraperAPI (standard + premium) — 500
+- ❌ ZenRows (`js_render=true&antibot=true`) — timeout
+- ✅ ZenRows (`mode=auto&wait=5000`) — 200 with full cert data
+
+**Current fallback behavior:** The cert-first pipeline gracefully falls back to the full pipeline, so user experience is not degraded — only cost savings are lost for uncached CGC certs.
 
 **Data returned by cert lookup:**
 - title, issueNumber, publisher, releaseYear, grade, variant
@@ -255,7 +346,7 @@ function parseKeyComments(raw: string | null): string[] {
 
 **Fallback:** If cert lookup fails (site down, invalid cert, timeout) → fall back to current full pipeline.
 
-**Cache:** Existing 1-year Redis TTL (cert data never changes).
+**Cache:** Layer 1 (cert-level) — existing 1-year Redis TTL keyed by cert number. See "Data Persistence & Caching Architecture" for how cert data also flows into the issue-level cache (Layers 2 & 3) at end-of-route.
 
 ## Phase 2.5: artComments Creator Parsing
 
@@ -317,11 +408,18 @@ Merges curated key facts (first appearances, deaths, origins) with cert keyComme
 
 **Timeout:** 3s. If lookup fails or times out, continue without key info — this is non-fatal. The cert `keyComments` still provide baseline key information.
 
-## Phase 4: Metadata Cache Check
+## Phase 4: Metadata Cache Check (Issue-Level)
 
-Uses existing `getComicMetadata()` from `src/lib/db.ts`. No changes needed.
+Uses the two-layer lookup pattern described in "Data Persistence & Caching Architecture":
+1. Check Redis `cache:comic:{title}|{issue}` (Layer 2, 7-day TTL)
+2. On miss, check Supabase `comic_metadata` table (Layer 3, permanent)
+3. On Supabase hit, backfill Redis (fire-and-forget)
 
-**Gate logic:** Check if cache (or artComments from Phase 2.5) contains:
+Uses `generateComicMetadataCacheKey()` from `src/lib/cache.ts` and `getComicMetadata()` from `src/lib/db.ts`. No changes needed to these functions.
+
+**This is the key optimization for repeat issues.** When a different copy of the same comic is scanned (e.g., a second ASM #300 with a different cert number), this cache check finds the issue-level metadata saved by the first scan's end-of-route save. The cert lookup (Phase 2) still runs to get this specific book's grade, but the expensive Phase 5 AI call can be skipped if creators are already cached.
+
+**Gate logic:** After merging cached metadata into `comicDetails`, check if all three creator fields are present:
 - `writer`
 - `coverArtist`
 - `interiorArtist`
@@ -359,9 +457,9 @@ If ANY creator fields are missing → proceed to Phase 5.
 - **Cost:** ~0.5¢
 
 **After response:**
-- Save creators to metadata cache (Redis + Supabase)
+- Creators extracted here are stored in `comicDetails` and persisted to the issue-level cache (Layers 2 & 3) by the end-of-route save — see "Data Persistence & Caching Architecture"
 - Store `barcode.raw` in the scan response for use at save time (barcode is cataloged when the comic is saved, not during scan)
-- Subsequent scans of same book hit cache → skip this call (except cover harvest fields)
+- Subsequent scans of the same **issue** (any cert number) hit the issue-level cache in Phase 4 → skip this call (except cover harvest fields via Phase 5.5)
 
 ## Phase 5.5: Cover Harvest Fields (Cache Hit Path)
 
@@ -445,7 +543,7 @@ type ScanPath =
 | Barcode not visible through slab | Phase 5 returns `barcode.raw = null`; no barcode cataloged at save time. Future scans still attempt extraction via Phase 5 if creators aren't cached |
 | PGX graded book | Cert lookup supports PGX, same flow |
 | Non-standard slab (e.g., EGS, HALO) | Slab detected but gradingCompany normalization fails → fallback (`scanPath: "cert-first-fallback"`) |
-| CGC Cloudflare 403 blocking (current) | All uncached CGC cert lookups fail → fall back to full pipeline (`scanPath: "cert-first-fallback"`). Cached CGC certs still work. CBCS/PGX unaffected |
+| CGC Cloudflare 403 blocking (current) | All uncached CGC cert lookups fail → fall back to full pipeline (`scanPath: "cert-first-fallback"`). Cached CGC certs still work. CBCS/PGX unaffected. ZenRows API validated as mitigation — pending cost review. |
 | Gemini rate-limited | Slab detection uses full fallback chain (Gemini → Anthropic); Anthropic used as fallback |
 | artComments contains creator info | Parsed in Phase 2.5; may allow skipping Phase 5 if all creators found |
 | Pipeline exceeds 15s cert-first budget | Skip remaining cert-first phases, proceed to Phase 6 under existing 25s hard deadline via `getRemainingBudget()`; log timeout in analytics |

@@ -1,7 +1,7 @@
 # Spec: AI Cover Recognition & Multi-Provider Fallback
 
 > **Feature #1** from [TECHNICAL_FEATURES.md](../TECHNICAL_FEATURES.md)
-> **Last Updated:** 2026-04-05
+> **Last Updated:** 2026-04-07
 > **Status:** Production
 
 ---
@@ -104,7 +104,10 @@ The AI Cover Recognition system is a 13-phase pipeline that identifies comic boo
 
 ↓
 
-**Save metadata to cache + Record analytics + Return response**
+**End-of-Route Save: Persist to issue-level cache + Record analytics + Return response**
+- Saves issue metadata (title, publisher, year, creators, keyInfo) to BOTH Redis and Supabase in parallel
+- This is how cert data (Phase 7), AI data (Phases 3/11), and all enrichment flows into the shared issue cache (Phase 9)
+- Keyed by title+issue, NOT cert number — benefits all future scans of the same issue
 
 ---
 
@@ -246,7 +249,11 @@ Digits 15-16: Variant code (addonVariant) — optional
 
 **Merge rule:** Cert data **overrides** AI data for overlapping fields (grade, title, issue, etc.). This is the only phase where AI results get overwritten, not just filled.
 
-**Cache:** 1-year TTL in Redis (certificates don't change).
+**Cache:** 1-year TTL in Redis keyed by cert number (certificates don't change).
+
+**Known issue (Apr 2026):** CGC's website is blocking server-side lookups with Cloudflare bot protection (HTTP 403). All uncached CGC cert lookups fail and fall back to the full AI pipeline. CBCS and PGX are unaffected. ZenRows API (`mode=auto&wait=5000`) has been validated as a mitigation — pending cost review before implementation.
+
+**How cert data feeds the shared cache:** When a cert lookup succeeds, the issue-level metadata (title, publisher, year, creators, key info) is saved to the shared metadata cache (Phase 9) at the end of the scan. This means the first person to scan any copy of ASM #300 populates the cache, and every subsequent scan of a different ASM #300 (different cert number, different user) benefits from that cached metadata. See Phase 9 and "End-of-Route Save" for details.
 
 ---
 
@@ -260,22 +267,26 @@ Digits 15-16: Variant code (addonVariant) — optional
 
 ---
 
-### Phase 9: Metadata Cache
+### Phase 9: Metadata Cache (Issue-Level)
 
-**Purpose:** Reuse previously identified comic data to skip AI calls on future scans of the same title+issue.
+**Purpose:** Reuse previously identified comic data to skip AI calls on future scans of the same title+issue. This is the key optimization that makes repeat scans cheap — the first scan of any issue populates this cache, and all future scans of the same issue benefit regardless of cert number or user.
 
 **Two-layer cache:**
 
 | Layer | TTL | Lookup |
 |-------|-----|--------|
-| Redis | 7 days | Fast, checked first |
-| Supabase (`comic_metadata` table) | Permanent | Fallback if Redis miss; backfills Redis on hit |
+| Redis | 7 days | Fast, checked first. Key: `cache:comic:{title}|{issueNumber}` |
+| Supabase (`comic_metadata` table) | Permanent | Fallback if Redis miss; backfills Redis on hit. Keyed by unique constraint on `(title, issue_number)` |
 
-**Cache key:** Normalized `title|issueNumber`
+**Cache key:** Normalized `title|issueNumber` (e.g., `amazing spider-man|300`). This means the cache is shared across ALL copies of the same issue — two different CGC-graded ASM #300s (cert #ABC and cert #XYZ) both read from and write to the same cache entry.
 
 **Merge strategy:** Fill-only — never overwrites existing fields. Fills: publisher, releaseYear, writer, coverArtist, interiorArtist, keyInfo, coverImageUrl.
 
 **Shared repository:** `comic_metadata` is global across all users. Every scan enriches the shared cache for future lookups by any user.
+
+**Example flow:**
+1. User A scans a CGC ASM #300 (cert #111) → cert lookup gets grade 9.8 + title/publisher/year/creators → end-of-route save writes to `cache:comic:amazing spider-man|300`
+2. User B scans a different CGC ASM #300 (cert #222) → cert lookup gets grade 6.0 → Phase 9 cache check finds creators/publisher/year already cached → skips AI verification call (saves ~0.5¢)
 
 ---
 

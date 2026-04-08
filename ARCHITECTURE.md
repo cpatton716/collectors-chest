@@ -2,7 +2,7 @@
 
 > **Comprehensive map of pages, features, and service dependencies**
 
-*Last Updated: April 5, 2026 — Session 31 (Cert-first scan pipeline — slab detection/extraction AI calls, certHelpers.ts, eBay pricing improvements, cert-first analytics migration, slab label color detection)*
+*Last Updated: April 7, 2026 — Session 33 (Netlify scheduled functions for all cron jobs, cover validation tests, email templates)*
 
 ---
 
@@ -620,13 +620,16 @@ All other routes are public (unauthenticated access allowed). Individual API rou
 
 ## Cron Jobs & Scheduled Functions
 
-| Route/Function | Schedule | Purpose | Services |
-|----------------|----------|---------|----------|
-| `/api/cron/process-auctions` | Every 5 min | End auctions, expire offers/listings | 🗄️ |
-| `/api/cron/reset-scans` | Monthly | Reset free tier scan counts | 🗄️ |
-| `/api/cron/moderate-messages` | Nightly | AI moderation of flagged messages | 🗄️ 🤖 |
-| `/api/cron/send-feedback-reminders` | Periodic | Remind users to leave transaction feedback | 🗄️ 📧 |
-| `check-usage-alerts` (Netlify) | Daily | Monitor service limits, send alerts | 🗄️ 📧 |
+All cron jobs run as **Netlify Scheduled Functions** (`netlify/functions/`). Each function calls the corresponding `/api/cron/*` route internally.
+
+| Netlify Function | Schedule | API Route | Purpose | Services |
+|------------------|----------|-----------|---------|----------|
+| `process-auctions.ts` | Every 5 min | `/api/cron/process-auctions` | End auctions, expire offers/listings | 🗄️ |
+| `reset-scans.ts` | 1st of month | `/api/cron/reset-scans` | Reset free tier scan counts | 🗄️ |
+| `moderate-messages.ts` | Every hour | `/api/cron/moderate-messages` | AI moderation of flagged messages | 🗄️ 🤖 |
+| `send-feedback-reminders.ts` | Daily 3 PM UTC | `/api/cron/send-feedback-reminders` | Remind users to leave transaction feedback | 🗄️ 📧 |
+| `check-usage-alerts.ts` | Daily | `/api/admin/usage/check-alerts` | Monitor service limits, send alerts | 🗄️ 📧 |
+| `send-trial-reminders.ts` | Daily | — | Send trial expiration reminders | 📧 |
 
 **Automation Logic:**
 - Auctions: Mark as `closed` or `sold` when end time passes
@@ -635,6 +638,7 @@ All other routes are public (unauthenticated access allowed). Individual API rou
 - Scans: Reset monthly counts on 1st of month
 - Alerts: Email admin when approaching service limits
 - Message Moderation: Claude analyzes flagged messages, auto-creates reports with 1-10 priority
+- Feedback Reminders: Nudge buyers/sellers to leave transaction feedback after completed transactions
 
 ---
 

@@ -7,7 +7,7 @@ This log tracks session-by-session progress on Collectors Chest.
 ## Changes Since Last Deploy
 
 **Last Deploy:** 2026-04-05 (Session 31)
-**Sessions Since Last Deploy:** 1
+**Sessions Since Last Deploy:** 2
 **Deploy Readiness:** Deployed incrementally during session (15 pushes to main triggered Netlify builds)
 
 ### Changes Since Last Deploy:
@@ -21,6 +21,71 @@ This log tracks session-by-session progress on Collectors Chest.
 - Deleted 14 test user accounts from Clerk + Supabase
 - New EMAIL_TEST_CASES.md with 12 notification types
 - 4 new backlog items added
+- Stripe Production keys verified in .env.local and Netlify; webhook endpoint confirmed
+- Fixed cover harvest AI prompt (was cropping grade label instead of cover artwork)
+- Added `validated` boolean to cover pipeline + fixed analyze and con-mode-lookup routes
+- 11 new error path tests for cover validation pipeline
+- 4 Netlify Scheduled Function wrappers (process-auctions, reset-scans, moderate-messages, send-feedback-reminders)
+- Major docs reorganization (specs/ → features/, superpowers/specs/ → engineering-specs/)
+- EVALUATION.md slimmed from 649→359 lines; BACKLOG.md stripped to 32 open items
+- Cover validation improvements with caching architecture documentation
+- ZenRows CGC fix validated (deferred pending cost review)
+
+---
+
+## Apr 7, 2026 - Session 33: Stripe Production Setup, CGC Cloudflare Research, Doc Cleanup, Cover Validation
+
+### Summary
+- Stripe Production keys confirmed in .env.local and Netlify; webhook endpoint verified (7 of 8 events configured, `account.updated` blocked until Connect enabled)
+- Stripe Connect Live mode blocked on identity verification — Stripe support investigating stale UI widget
+- CGC Cloudflare 403 fix: tested ScraperAPI (failed) and ZenRows (success with `mode=auto&wait=5000`). Deferred implementation pending partner cost review ($49/mo)
+- ZenRows API key added to .env.local; ScraperAPI key removed (no abandoned keys policy)
+- Fixed cover harvest AI prompt — was cropping grade label instead of cover artwork. Deleted 7+ bad harvested covers from production DB
+- Added `validated` boolean to `CoverPipelineResult` — callers can now distinguish "no cover found" (definitive) from "Gemini unavailable" (transient)
+- Fixed `analyze/route.ts` missing else branch for `coverValidated` and `con-mode-lookup/route.ts` inverted logic
+- Added 11 error path tests for cover validation pipeline (rate limit, missing API key, NO/ambiguous verdicts, fetch failures, MIME, size limits)
+- Created 4 Netlify Scheduled Function wrappers (process-auctions, reset-scans, moderate-messages, send-feedback-reminders)
+- Major documentation overhaul: renamed docs/specs/ → docs/features/, docs/superpowers/specs/ → docs/engineering-specs/
+- Added "Data Persistence & Caching Architecture" section to cert-first pipeline spec — documents 3-layer caching, issue-level vs cert-level keys, end-of-route save mechanism
+- Updated AI Cover Recognition spec and TECHNICAL_FEATURES.md with caching architecture and CGC Cloudflare status
+- Slimmed EVALUATION.md from 649→359 lines (scorecard only, removed changelog)
+- Migrated ~91 completed items out of BACKLOG (32 open items remain)
+- Updated close-up-shop skill: completed items removed from BACKLOG, captured in DEV_LOG
+- Added deep dive review step to brainstorming and writing-plans skills
+- Added memory: auto-edit .env.local with placeholder values
+
+### Key Files Created/Modified
+- `src/lib/coverValidation.ts` — Added `validated` field, `allCandidatesChecked` tracking, rate-limit break fix
+- `src/lib/__tests__/coverValidation.test.ts` — 11 new error path tests (584 total)
+- `src/app/api/analyze/route.ts` — Always set `coverValidated` from pipeline result
+- `src/app/api/con-mode-lookup/route.ts` — Fixed inverted `coverValidated` logic
+- `src/lib/providers/anthropic.ts` — Fixed cover harvest AI prompt (crop cover art, not grade label)
+- `netlify/functions/process-auctions.ts` — New: scheduled every 5 min
+- `netlify/functions/reset-scans.ts` — New: 1st of month
+- `netlify/functions/moderate-messages.ts` — New: every hour
+- `netlify/functions/send-feedback-reminders.ts` — New: daily 3 PM UTC
+- `docs/engineering-specs/2026-04-07-cover-validation-improvements-design.md` — New spec
+- `docs/superpowers/plans/2026-04-07-cover-validation-improvements.md` — New impl plan
+- `docs/engineering-specs/2026-04-05-cert-first-scan-pipeline-design.md` — Added caching architecture section
+- `docs/features/01-ai-cover-recognition.md` — Updated Phase 7, 9, end-of-route
+- `docs/TECHNICAL_FEATURES.md` — Updated sections 4, 7, 8b
+- `EVALUATION.md` — Slimmed to scorecard (359 lines from 649)
+- `BACKLOG.md` — Stripped completed items (32 open remain)
+- `DEV_LOG.md` — Added Historical Completions backfill table
+
+### Issues Encountered
+- ScraperAPI failed against CGC Cloudflare (standard + premium both returned 500)
+- ZenRows `js_render=true&antibot=true` timed out; only `mode=auto&wait=5000` worked
+- Cover harvest was cropping grade label instead of cover art — AI prompt needed explicit "below the grading label" instructions
+- Stripe Connect identity verification stuck in stale UI state — support investigating
+- EVALUATION changelog had 39 items not captured in DEV_LOG — backfilled to historical table
+
+### Where We Left Off
+- Stripe Connect: waiting on Stripe support (up to 24hr response)
+- ZenRows CGC fix: validated, awaiting partner cost review
+- Cover harvest prompt: fixed locally, needs deploy + re-test with fresh slab scan
+- 4 new Netlify scheduled functions: will activate on next deploy
+- Cover validation improvements: implemented and tested, ready for deploy
 
 ---
 
@@ -178,7 +243,7 @@ This log tracks session-by-session progress on Collectors Chest.
 - `public/favicon.png` — Regenerated from clean source
 - `ARCHITECTURE.md` — Pricing architecture section added
 - `BACKLOG.md` — Major reconciliation, 8 items closed, 3 new items added
-- `docs/superpowers/specs/2026-04-02-cover-image-harvesting-design.md` — Rev 3 spec
+- `docs/engineering-specs/2026-04-02-cover-image-harvesting-design.md` — Rev 3 spec
 - `docs/superpowers/plans/2026-04-02-cover-image-harvesting.md` — Implementation plan
 
 ### Issues Encountered
@@ -334,7 +399,7 @@ This log tracks session-by-session progress on Collectors Chest.
 - `src/lib/ebayFinding.ts` (DELETED)
 - 5 API routes updated (analyze, con-mode-lookup, quick-lookup, comic-lookup, import-lookup, ebay-prices, hottest-books)
 - 7 UI components updated
-- `docs/superpowers/specs/2026-03-19-cover-image-validation-design.md` (NEW — cover validation spec)
+- `docs/engineering-specs/2026-03-19-cover-image-validation-design.md` (NEW — cover validation spec)
 
 ### Issues Encountered
 - SQL migration initially targeted wrong column (`price_source` doesn't exist — data is inside `price_data` JSONB)
@@ -368,7 +433,7 @@ This log tracks session-by-session progress on Collectors Chest.
 - Database migration to clear fabricated AI prices
 
 ### Key Files Created
-- `docs/superpowers/specs/2026-03-18-ebay-browse-api-design.md` — Design spec
+- `docs/engineering-specs/2026-03-18-ebay-browse-api-design.md` — Design spec
 - `docs/superpowers/plans/2026-03-18-ebay-browse-api.md` — Implementation plan (13 tasks, 32 files)
 
 ### Issues Encountered
@@ -2677,6 +2742,23 @@ User Registration & Authentication + CCPA Compliance
 - Consider using Clerk webhooks for more events (user.created, user.updated) in future
 
 ---
+
+## Historical Completions (Backfilled from BACKLOG Migration - Apr 7, 2026)
+
+Items completed in earlier sessions that were tracked in BACKLOG but not logged in DEV_LOG session entries.
+
+| Date | Item | Summary |
+|------|------|---------|
+| Jan 26, 2026 | Add Rate Limiting to Quick Lookup API | Added 20 req/min rate limiting to protect Anthropic API costs |
+| Jan 26, 2026 | Add Rate Limiting & Email Verification to Email Capture API | Rate limiting (5 req/min), email verification, MX validation, disposable email blocking, honeypot |
+| Jan 26, 2026 | Test Password Reset Flows | Verified Clerk-powered password reset flow end-to-end |
+| Feb 4, 2026 | Barcode Detection in Cover Image Analysis | Modified Claude prompt to extract UPC barcodes from cover images, stored in crowd-sourced barcode_catalog |
+| Feb 13, 2026 | Fix Verification Email Branding | Verified all email templates use correct "Collectors Chest" branding, no old references remain |
+| Feb 18, 2026 | Color Palette Refinement (Closed) | Decided to keep current Lichtenstein pop-art palette; Red & Black alternative considered but rejected |
+| Apr 2, 2026 | Re-price Existing Collection Comics (Closed) | Stale prices were from dead Finding API tied to Dev Clerk instance (test data only); no action needed |
+| Apr 2, 2026 | Per-Event Promo Tracking (Closed) | Not needed; using single QR code and /join/trial link across all conventions |
+| Apr 2, 2026 | Per-Event Promo Codes (Closed) | Not needed; single static QR code for all events, dynamic promo codes would require QR generation service |
+| Apr 2, 2026 | Investigate Empty Public Collection for @jsnaponte | Tested via production; issue resolved |
 
 ## January 6, 2026
 

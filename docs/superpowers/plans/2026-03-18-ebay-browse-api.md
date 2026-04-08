@@ -8,7 +8,7 @@
 
 **Tech Stack:** eBay Browse API v1 (REST/JSON), OAuth 2.0 client credentials, Redis caching (Upstash), Next.js API routes, TypeScript, Vitest.
 
-**Spec:** `docs/superpowers/specs/2026-03-18-ebay-browse-api-design.md`
+**Spec:** `docs/engineering-specs/2026-03-18-ebay-browse-api-design.md`
 
 ---
 
