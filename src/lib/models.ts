@@ -6,7 +6,7 @@
  */
 
 // Anthropic models (primary provider)
-export const MODEL_PRIMARY = "claude-sonnet-4-20250514";
+export const MODEL_PRIMARY = "claude-sonnet-4-5-20250929";
 export const MODEL_LIGHTWEIGHT = "claude-haiku-4-5-20251001";
 
 // Gemini models (fallback provider)

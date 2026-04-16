@@ -421,7 +421,7 @@ Digits 15-16: Variant code (addonVariant) — optional
 
 | | Gemini Flash (Primary) | Claude Sonnet (Fallback) |
 |---|---|---|
-| Model | `gemini-2.0-flash` | `claude-sonnet-4-20250514` |
+| Model | `gemini-2.0-flash` | `claude-sonnet-4-5-20250929` |
 | Cost per image analysis | 0.3 cents | 1.5 cents |
 | Cost per verification | 0.1 cents | 0.6 cents |
 | Why primary | Cheaper, tested more accurate for comics | Higher general capability |

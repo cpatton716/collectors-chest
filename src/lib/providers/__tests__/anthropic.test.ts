@@ -15,7 +15,7 @@ jest.mock("@anthropic-ai/sdk", () => {
 });
 
 jest.mock("@/lib/models", () => ({
-  MODEL_PRIMARY: "claude-sonnet-4-20250514",
+  MODEL_PRIMARY: "claude-sonnet-4-5-20250929",
 }));
 
 // ── Helpers ──
@@ -137,7 +137,7 @@ describe("AnthropicProvider", () => {
 
       // Verify SDK was called with correct shape
       const [body, requestOpts] = client.messages.create.mock.calls[0];
-      expect(body.model).toBe("claude-sonnet-4-20250514");
+      expect(body.model).toBe("claude-sonnet-4-5-20250929");
       expect(body.max_tokens).toBe(1536);
       expect(body.messages[0].content[0]).toMatchObject({
         type: "image",
