@@ -17,18 +17,34 @@ if (!DEPRECATED_MODEL_ID || !API_KEY) {
   process.exit(2);
 }
 
-// Extract the model family by stripping the 8-digit date suffix.
-// e.g., "claude-sonnet-4-20250514" -> "claude-sonnet-4"
-// e.g., "claude-haiku-4-5-20251001" -> "claude-haiku-4-5"
-function getModelFamily(modelId: string): string {
-  return modelId.replace(/-\d{8}$/, "");
+// Extract the tier (sonnet/opus/haiku) from a model ID. Covers every known
+// Anthropic naming pattern so that minor-version bumps (4.0 → 4.5 → 4.6) and
+// the older "claude-3-haiku" layout still resolve to the same tier.
+//   claude-sonnet-4-20250514   -> sonnet
+//   claude-sonnet-4-5-20250929 -> sonnet
+//   claude-sonnet-4-6          -> sonnet
+//   claude-3-haiku-20240307    -> haiku
+function getModelTier(modelId: string): string | null {
+  const match = modelId.match(/claude-(?:\d+-)?(sonnet|opus|haiku)(?:-|$)/);
+  return match ? match[1] : null;
+}
+
+function hasDateSuffix(modelId: string): boolean {
+  return /-\d{8}$/.test(modelId);
 }
 
 async function discover(): Promise<void> {
   const client = new Anthropic({ apiKey: API_KEY });
-  const family = getModelFamily(DEPRECATED_MODEL_ID!);
+  const tier = getModelTier(DEPRECATED_MODEL_ID!);
 
-  console.error(`Looking for models in family: ${family}`);
+  if (!tier) {
+    console.error(
+      `Could not extract tier from model ID: ${DEPRECATED_MODEL_ID}`
+    );
+    process.exit(1);
+  }
+
+  console.error(`Looking for replacement in tier: ${tier}`);
 
   try {
     // Paginate through all available models
@@ -53,23 +69,37 @@ async function discover(): Promise<void> {
 
     console.error(`Total models fetched: ${allModels.length}`);
 
-    // Filter to same family, sort by created_at descending (newest first)
+    // Look up the current model's created_at so we never downgrade to an older
+    // snapshot in the same tier. If the model is fully gone from the API list,
+    // fall back to accepting any same-tier candidate.
+    const current = allModels.find((m) => m.id === DEPRECATED_MODEL_ID);
+    const currentCreatedAt = current
+      ? new Date(current.created_at).getTime()
+      : 0;
+
+    // Same tier, strictly newer than the deprecated model. Prefer dated
+    // snapshots over undated aliases to match our pinning policy
+    // (see src/lib/models.ts), then sort by created_at descending.
     const candidates = allModels
       .filter((m) => {
-        const candidateFamily = getModelFamily(m.id);
-        return candidateFamily === family && m.id !== DEPRECATED_MODEL_ID;
+        if (m.id === DEPRECATED_MODEL_ID) return false;
+        if (getModelTier(m.id) !== tier) return false;
+        return new Date(m.created_at).getTime() > currentCreatedAt;
       })
       .sort((a, b) => {
-        const dateA = new Date(a.created_at).getTime();
-        const dateB = new Date(b.created_at).getTime();
-        return dateB - dateA;
+        const aDated = hasDateSuffix(a.id) ? 1 : 0;
+        const bDated = hasDateSuffix(b.id) ? 1 : 0;
+        if (aDated !== bDated) return bDated - aDated;
+        return (
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
       });
 
     // Output full candidate list to stderr (captured by workflow for alerts)
     console.error(`CANDIDATES:${JSON.stringify(candidates.map((c) => c.id))}`);
 
     if (candidates.length === 0) {
-      console.error(`No replacement models found in family "${family}"`);
+      console.error(`No replacement models found in tier "${tier}"`);
       console.error(
         `Available models: ${allModels.map((m) => m.id).join(", ")}`
       );
