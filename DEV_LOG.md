@@ -6,11 +6,14 @@ This log tracks session-by-session progress on Collectors Chest.
 
 ## Changes Since Last Deploy
 
-**Last Deploy:** 2026-04-05 (Session 31)
-**Sessions Since Last Deploy:** 2
-**Deploy Readiness:** Deployed incrementally during session (15 pushes to main triggered Netlify builds)
+**Last Deploy:** 2026-04-16 (Session 34)
+**Sessions Since Last Deploy:** 0
+**Deploy Readiness:** All changes deployed incrementally via push-to-main auto-deploy (Netlify)
 
 ### Changes Since Last Deploy:
+- Anthropic `MODEL_PRIMARY` upgraded to Sonnet 4.5 (`claude-sonnet-4-5-20250929`) ahead of Sonnet 4 retirement (June 15, 2026)
+- Fixed latent bug in `.github/scripts/discover-model.ts`: family matching replaced with tier matching (sonnet/opus/haiku) so self-healing pipeline tolerates minor version bumps; added "strictly newer than current" downgrade guard and dated-snapshot preference
+- `npm audit fix` resolved 2 new vulnerabilities (Next.js high-severity DoS, DOMPurify moderate)
 - Clerk Production instance fully operational (DNS fix, Google OAuth)
 - Welcome email template overhauled (logo image header, emoji icons, yellow title badge)
 - Email preview endpoint for local testing
@@ -21,7 +24,7 @@ This log tracks session-by-session progress on Collectors Chest.
 - Deleted 14 test user accounts from Clerk + Supabase
 - New EMAIL_TEST_CASES.md with 12 notification types
 - 4 new backlog items added
-- Stripe Production keys verified in .env.local and Netlify; webhook endpoint confirmed
+- Stripe Production keys verified in .env.local and Netlify; webhook endpoint confirmed (test-mode webhook pointing at prod deleted)
 - Fixed cover harvest AI prompt (was cropping grade label instead of cover artwork)
 - Added `validated` boolean to cover pipeline + fixed analyze and con-mode-lookup routes
 - 11 new error path tests for cover validation pipeline
@@ -30,6 +33,34 @@ This log tracks session-by-session progress on Collectors Chest.
 - EVALUATION.md slimmed from 649→359 lines; BACKLOG.md stripped to 32 open items
 - Cover validation improvements with caching architecture documentation
 - ZenRows CGC fix validated (deferred pending cost review)
+
+---
+
+## Apr 16, 2026 - Session 34: Sonnet 4.5 Upgrade, discover-model Tier-Matching Fix, Stripe Webhook Cleanup
+
+### Summary
+- Received Anthropic email announcing Sonnet 4 retirement (June 15, 2026 9AM PT; degraded availability starting May 14). Proactively upgraded `MODEL_PRIMARY` from `claude-sonnet-4-20250514` to `claude-sonnet-4-5-20250929` (pinned dated snapshot, matches our pinning policy). Verified with live Anthropic vision probe.
+- Discovered latent bug in `.github/scripts/discover-model.ts`: the `getModelFamily` helper stripped only the 8-digit date suffix, so `claude-sonnet-4` and `claude-sonnet-4-5` were treated as different families. The self-healing pipeline would have returned zero candidates when Anthropic introduced a minor version.
+- Fixed: replaced `getModelFamily` with `getModelTier` that extracts `sonnet|opus|haiku` via regex (handles 4.0/4.5/4.6 and legacy `claude-3-haiku`), added "strictly newer than current" guard to prevent downgrade, and added "prefer dated snapshots over undated aliases" sort to match pinning policy.
+- Verified fix against 3 scenarios: Sonnet 4 deprecated → picks 4.5 dated snapshot; Haiku 4.5 current → correctly refuses to downgrade; Sonnet 4.5 deprecated → accepts 4-6 alias as graceful fallback.
+- Stripe webhook deprecation email investigated — identified a test-mode webhook pointing at production URL as the failure source. User deleted it from the Stripe dashboard. Confirmed live-mode webhook is active (0% error rate, 7 of 8 events configured — `account.updated` still pending Connect enablement).
+- Stripe Connect still blocked on identity verification — user working with Stripe support.
+- `npm audit fix` applied during close-up-shop — resolved 2 new vulnerabilities (Next.js high DoS, DOMPurify moderate).
+
+### Key Files Created/Modified
+- `src/lib/models.ts` — `MODEL_PRIMARY` = `claude-sonnet-4-5-20250929`
+- `src/lib/providers/__tests__/anthropic.test.ts` — test fixtures updated for new model ID
+- `docs/features/01-ai-cover-recognition.md` — doc reference updated
+- `.github/scripts/discover-model.ts` — `getModelFamily` → `getModelTier`, strictly-newer downgrade guard, dated-snapshot preference sort
+
+### Issues Encountered
+- None blocking. Minor: the `discover-model.ts` script revealed the family-matching bug only because we ran it manually for the Sonnet upgrade — the self-healing pipeline had not yet triggered on a real deprecation, so the bug was latent.
+
+### Where We Left Off
+- Sonnet 4.5 upgrade deployed via Netlify (auto-deploy on push to main)
+- `discover-model.ts` tier-matching fix deployed
+- Awaiting Stripe Connect identity verification resolution (Stripe support)
+- ZenRows CGC integration still deferred pending partner cost review
 
 ---
 

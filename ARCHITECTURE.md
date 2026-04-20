@@ -1145,7 +1145,7 @@ A GitHub Actions pipeline that monitors `src/lib/models.ts` and auto-updates Ant
 | `.github/workflows/model-health-check.yml` | GitHub Actions workflow (daily schedule + manual trigger) |
 | `.github/scripts/read-models.ts` | Reads `MODEL_PRIMARY` and `MODEL_LIGHTWEIGHT` from `src/lib/models.ts` via regex |
 | `.github/scripts/probe-model.ts` | Sends a minimal vision API call (1x1 PNG) to verify a model is alive; outputs `healthy`, `deprecated`, or `transient` |
-| `.github/scripts/discover-model.ts` | Queries Anthropic's Models API to find the newest model in the same family as the deprecated one |
+| `.github/scripts/discover-model.ts` | Queries Anthropic's Models API to find the newest model in the same tier (sonnet/opus/haiku) as the deprecated one. Handles minor version bumps (4.0 → 4.5 → 4.6) and legacy `claude-3-haiku` naming, prefers dated snapshots over undated aliases to match the pinning policy, and will not downgrade to older snapshots within the tier |
 | `.github/scripts/update-model.ts` | Performs a targeted string replacement in `src/lib/models.ts` (old model ID to new) |
 | `.github/scripts/diff-guard.ts` | Guardrail: verifies only `src/lib/models.ts` changed and at most 2 lines were modified |
 | `.github/scripts/smoke-test.ts` | Post-deploy verification via `/api/admin/health-check` and site liveness check |

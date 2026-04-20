@@ -2,7 +2,7 @@
 
 > Launch readiness scorecard. See `BACKLOG.md` for open work items and `DEV_LOG.md` for session history.
 
-*Last Updated: April 7, 2026*
+*Last Updated: April 16, 2026*
 
 ---
 
@@ -86,6 +86,7 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 | API authentication | ✅ Good | Clerk auth on protected routes |
 | Stripe webhook verification | ✅ Good | Signature validation |
 | Rate limiting | ✅ Added | Upstash rate limiting on AI & bid routes |
+| npm audit (dependencies) | ✅ Clean | 0 vulnerabilities (2 new moderate/high auto-resolved via `npm audit fix` during Apr 16 close-up-shop — Next.js high DoS, DOMPurify moderate) |
 | Input validation | ⚠️ Basic | Auction routes have validation, others minimal |
 | CSRF protection | ⚠️ Implicit | Next.js provides some protection |
 | Middleware protection | ⚠️ Minimal | Few routes marked as protected |
@@ -336,7 +337,7 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 ### Active Risks ⚠️
 | Risk | Severity | Mitigation |
 |------|----------|------------|
-| Single AI provider dependency | 🟢 Low | Self-healing model pipeline auto-updates deprecated models. OpenAI fallback available. |
+| Single AI provider dependency | 🟢 Low | Self-healing model pipeline auto-updates deprecated models (bug-fixed Apr 16 to properly handle minor-version bumps, e.g. 4.0 → 4.5 → 4.6). MODEL_PRIMARY proactively upgraded to Sonnet 4.5 (`claude-sonnet-4-5-20250929`) on Apr 16 to pre-empt the announced June 15, 2026 Sonnet 4 retirement. OpenAI fallback available. |
 | Limited deploys | 🟡 Medium | Strategic batching |
 | Auction fraud potential | 🟡 Medium | Add monitoring |
 
