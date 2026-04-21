@@ -98,6 +98,38 @@ When cert lookups work (CBCS/PGX now, CGC after ZenRows fix), signature data com
 
 ---
 
+### Apple Sign-In & Native iOS/Android Apps
+**Priority:** High (Pre-Launch)
+**Status:** Brainstorming — design in progress (Apr 20, 2026)
+**Added:** Apr 6, 2026
+**Updated:** Apr 20, 2026
+
+Bundled effort: Apple Developer Program enrollment ($99/yr) unlocks both Sign in with Apple and native iOS distribution. Building native apps for iOS + Android is a meaningful acquisition-channel play; break-even math shows native only needs to grow the user base ~4% to offset Apple's 15% Small Business Program cut (see `docs/native-app-iap-analysis.xlsx`). IAP strategy leaning toward Option A (Apple IAP on iOS + Stripe on Android/Web).
+
+**Steps:**
+1. Enroll in Apple Developer Program ($99/yr) + Google Play Developer ($25 one-time)
+2. Create App IDs, configure Sign in with Apple, replace Clerk's shared Apple OAuth credentials
+3. Finalize IAP strategy (Option A vs B vs product-split); review model with partner
+4. Choose wrapper approach (Capacitor recommended — reuses Next.js/PWA codebase) — design doc pending
+5. Implement StoreKit + Play Billing + receipt validation / entitlement sync with Stripe
+6. App Store and Play Store submissions (icons, screenshots, privacy policy, review responses)
+
+**Blocked on:** IAP strategy decision (partner meeting week of Apr 20), Apple Developer Program enrollment.
+
+**Related:** "Native App Wrapper" (consolidated into this item), "Native App: Cover Image Search via Default Browser" (low-priority UX polish for once wrappers ship).
+
+---
+
+### Native App Wrapper
+**Priority:** High (Pre-Launch)
+**Status:** Consolidated into "Apple Sign-In & Native iOS/Android Apps"
+**Added:** Mar 18, 2026
+**Updated:** Apr 20, 2026
+
+Originally a standalone ask to hide the browser URL bar via a PWA or native shell (feedback item #16 — browser URL bar showing on public collection). Now rolled into the full native-apps initiative above, which delivers the same UX improvement plus App Store distribution.
+
+---
+
 ## Pending Enhancements
 
 ### Customizable Initial Message
@@ -387,24 +419,6 @@ Clerk has a pending "Client Trust Status" update that adds `needs_client_trust` 
 
 ---
 
-### Apple Sign-In & Native App
-**Priority:** Low
-**Status:** Pending
-**Added:** Apr 6, 2026
-
-Re-enable "Sign in with Apple" on the sign-up/sign-in pages. This requires an Apple Developer Program account ($99/yr), which also unlocks building a native iOS app. Since we need the developer account anyway, bundle both efforts together.
-
-**Steps:**
-1. Enroll in Apple Developer Program ($99/yr)
-2. Create an App ID and configure Sign in with Apple
-3. Add Apple OAuth credentials to Clerk Production (replace shared credentials)
-4. Re-enable Apple SSO in Clerk Dashboard
-5. Consider building a native iOS app wrapper (PWA → native) while we have the account
-
-**Blocked on:** Apple Developer Program enrollment
-
----
-
 ### Custom Sign-Up Form (Replace Clerk's Default)
 **Priority:** Medium
 **Status:** Pending
@@ -445,15 +459,6 @@ Evaluate whether Gemini should be the primary scanner provider instead of Claude
 **Added:** Mar 18, 2026
 
 Add more vintage key issues to the curated key info database based on user scanning patterns. Current DB has 403+ entries — expand with additional silver/bronze/copper age keys that users are frequently scanning.
-
----
-
-### Native App Wrapper
-**Priority:** Low
-**Status:** Pending
-**Added:** Mar 18, 2026
-
-Create a native app wrapper (PWA or native shell) to hide the browser URL bar and provide a more app-like experience on mobile. Addresses feedback item #16 (browser URL bar showing on public collection).
 
 ---
 

@@ -2,7 +2,7 @@
 
 > **Comprehensive map of pages, features, and service dependencies**
 
-*Last Updated: April 7, 2026 — Session 33 (Netlify scheduled functions for all cron jobs, cover validation tests, email templates)*
+*Last Updated: April 20, 2026 — Session 35 (Clerk security patch 6.36.6→6.39.2, native-app brainstorm + IAP revenue model — no architectural changes)*
 
 ---
 

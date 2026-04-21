@@ -7,10 +7,11 @@ This log tracks session-by-session progress on Collectors Chest.
 ## Changes Since Last Deploy
 
 **Last Deploy:** 2026-04-16 (Session 34)
-**Sessions Since Last Deploy:** 0
-**Deploy Readiness:** All changes deployed incrementally via push-to-main auto-deploy (Netlify)
+**Sessions Since Last Deploy:** 1
+**Deploy Readiness:** Clerk security patch ready to push (middleware route-protection bypass fix — critical)
 
 ### Changes Since Last Deploy:
+- **Clerk security patch** — `npm audit fix` bumped `@clerk/nextjs` 6.36.6 → 6.39.2 (within v6; resolved GHSA-vqx2-fgx2-5wq9, 2 critical middleware route-protection bypass vulns)
 - Anthropic `MODEL_PRIMARY` upgraded to Sonnet 4.5 (`claude-sonnet-4-5-20250929`) ahead of Sonnet 4 retirement (June 15, 2026)
 - Fixed latent bug in `.github/scripts/discover-model.ts`: family matching replaced with tier matching (sonnet/opus/haiku) so self-healing pipeline tolerates minor version bumps; added "strictly newer than current" downgrade guard and dated-snapshot preference
 - `npm audit fix` resolved 2 new vulnerabilities (Next.js high-severity DoS, DOMPurify moderate)
@@ -33,6 +34,34 @@ This log tracks session-by-session progress on Collectors Chest.
 - EVALUATION.md slimmed from 649→359 lines; BACKLOG.md stripped to 32 open items
 - Cover validation improvements with caching architecture documentation
 - ZenRows CGC fix validated (deferred pending cost review)
+
+---
+
+## Apr 20, 2026 - Session 35: Native Apps Brainstorm, IAP Revenue Model, Clerk Security Patch
+
+### Summary
+- Started brainstorming native iOS/Android app distribution. Explored IAP constraints (Apple 30%/15% SBP; Google Play similar; Apple's physical-goods carveout means the auction marketplace is unaffected), 4 strategy options, and Capacitor vs React Native vs PWA Builder approaches.
+- Built a fully parametric xlsx revenue model at `docs/native-app-iap-analysis.xlsx` — 7 tabs with live formulas: Parameters & Summary, Baseline, Options A–D, Growth Sensitivity. All assumptions (user count, pricing, platform split, fee rates, conversion drops) are editable and flow through.
+- Break-even analysis: Option A (Apple IAP + Stripe on Android/Web) needs only ~4% user growth from the App Store to offset Apple's 15% SBP cut. Option B (both stores) needs ~8%.
+- Moved "Apple Sign-In & Native App" and "Native App Wrapper" BACKLOG items from Low Priority to Pre-Launch High Priority, consolidated into a single "Apple Sign-In & Native iOS/Android Apps" item.
+- Paired brainstorm paused awaiting partner meeting review of the xlsx model.
+- Applied Clerk security patch during close-up-shop: `npm audit fix` bumped `@clerk/nextjs` 6.36.6 → 6.39.2 (stayed within v6, deferred v7 upgrade unaffected). Resolved 2 critical middleware route-protection bypass advisories (GHSA-vqx2-fgx2-5wq9).
+
+### Key Files Created/Modified
+- `scripts/build-iap-analysis.py` — NEW: openpyxl script generating the IAP analysis workbook
+- `docs/native-app-iap-analysis.xlsx` — NEW: 7-tab parametric revenue model for partner review
+- `BACKLOG.md` — Native app items consolidated and bumped to Pre-Launch (High). "Native App Wrapper" cross-referenced as rolled into the unified item.
+- `TESTING_RESULTS.md` — Session start entry (Both platforms, Free+Premium, Android, Mac Chrome)
+- `ARCHITECTURE.md` — "Last Updated" header refreshed (no structural changes this session)
+- `package-lock.json` — Clerk packages bumped via `npm audit fix`
+
+### Issues Encountered
+- None blocking. Minor: the IAP discussion surfaced a product-split idea (Marketplace Pro vs Scan Plus) that could reduce Apple's cut further by routing auction-fee discounts outside IAP. Captured as an alternative to revisit post-launch.
+
+### Where We Left Off
+- **Native apps brainstorm paused** pending partner review of `docs/native-app-iap-analysis.xlsx` this week. After meeting, resume to choose IAP strategy (A/B/product-split) and approach (Capacitor likely), then write design spec.
+- Clerk security patch ready to deploy on next push.
+- Email testing still 2-of-13 complete (#1 Welcome, #2 Verification) — 11 flows untested, most requiring a second test account for offer/message/listing scenarios.
 
 ---
 
