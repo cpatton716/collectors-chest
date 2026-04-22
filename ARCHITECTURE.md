@@ -760,51 +760,66 @@ All cron jobs run as **Netlify Scheduled Functions** (`netlify/functions/`). Eac
 └──────────────────────────┘
 ```
 
-### Auction Purchase Flow
+### Marketplace Purchase Flow (Buy Now + Auction — Session 36)
 
+Two entry paths converge at the PaymentButton. Payment flow below is identical once `payment_status: "pending"` is set.
+
+**Buy Now entry:**
 ```
-┌──────────────────┐
-│  Buyer clicks    │
-│  Buy Now         │
-└────────┬─────────┘
-         │
-         v
-┌──────────────────┐
-│  Clerk Auth      │
-│  Verify User     │
-└────────┬─────────┘
-         │
-         v
-┌──────────────────┐
-│  Create Stripe   │
-│  Checkout        │
-└────────┬─────────┘
-         │
-         v
-┌──────────────────┐
-│  User Pays       │
-│  on Stripe       │
-└────────┬─────────┘
-         │
-         v
-┌──────────────────┐
-│  Stripe Webhook  │
-│  Fires           │
-└────────┬─────────┘
-         │
-         v
-┌──────────────────┐
-│  Update Auction  │
-│  Status (Paid)   │
-└────────┬─────────┘
-         │
-         v
-┌──────────────────┐
-│  Create          │
-│  Notifications   │
-│  (Buyer/Seller)  │
-└──────────────────┘
+Buyer clicks "Buy Now" in ListingDetailModal
+         ↓
+POST /api/listings/[id]/purchase → purchaseFixedPriceListing (supabaseAdmin)
+         ↓
+Auction row: status="sold", winner_id=buyer, payment_status="pending"
+Notifications: seller "Your item sold!", buyer "Purchase reserved!"
+         ↓
+Modal renders amber "Payment required" banner + PaymentButton
 ```
+
+**Auction entry:**
+```
+Cron /api/cron/process-auctions (every 5 min) → processEndedAuctions (supabaseAdmin)
+         ↓
+Auction row: status="ended", winner_id=highest bidder, payment_status="pending"
+Notifications: seller "Your item sold!", winner "You won!"
+         ↓
+Winner visits /shop?listing=<id>&tab=auctions → AuctionDetailModal
+         ↓
+Modal renders amber "You won! Complete payment" banner + PaymentButton
+```
+
+**Shared payment flow (both entries):**
+```
+Buyer clicks "Pay $X" (PaymentButton)
+         ↓
+POST /api/checkout → Stripe Checkout Session
+  - Age verification gate (profile.age_confirmed_at)
+  - Seller Connect account lookup (stripe_connect_account_id + onboarding_complete)
+  - calculateDestinationAmount(totalCents, platform_fee_percent)
+    - Premium seller: 5% platform / 95% seller
+    - Free seller: 8% platform / 92% seller
+    - Math.floor (seller-favorable rounding)
+  - payment_intent_data.transfer_data = {destination, amount}
+         ↓
+Redirect to Stripe hosted Checkout (buyer enters card)
+         ↓
+Buyer completes payment on Stripe
+         ↓
+Stripe fires webhook chain → /api/webhooks/stripe (account.updated too for Connect events)
+  - checkout.session.completed → handleAuctionPayment
+    - Update auction: payment_status="paid", status="sold"
+    - Insert sales record (seller's sales history)
+    - Notify seller: payment_received
+    - Notify buyer: rating_request (feedback reminder)
+  - transfer.created (destination charge fires transfer to seller's Connect account)
+  - payment_intent.succeeded
+         ↓
+Buyer redirected to /collection?purchase=success&auction=<id>
+         ↓
+Seller's Stripe Express Dashboard shows incoming transfer on 2-5 day payout schedule
+```
+
+**Known gap (BACKLOG #6):** comic ownership does NOT transfer to buyer's collection after payment. Comic stays in seller's collection; buyer has no record in their collection. Pre-launch blocker.
 
 ---
 
