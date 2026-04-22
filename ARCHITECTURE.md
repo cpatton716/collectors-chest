@@ -2,7 +2,7 @@
 
 > **Comprehensive map of pages, features, and service dependencies**
 
-*Last Updated: April 20, 2026 — Session 35 (Clerk security patch 6.36.6→6.39.2, native-app brainstorm + IAP revenue model — no architectural changes)*
+*Last Updated: April 21, 2026 — Session 36 (Stripe Connect Marketplace + Buy Now payment flow wired end-to-end — PaymentButton integration, RLS silent-fail patches in purchaseFixedPriceListing/placeBid/processEndedAuctions)*
 
 ---
 
@@ -149,8 +149,9 @@ Manage comic trades with three tabs:
 |---------|----------|-------|
 | Create Auction | 🗄️ 🔐 | From collection comics; ListInShopModal gates on Stripe Connect status |
 | Place Bid | 🗄️ 🔐 🔴 | Rate limited, proxy bidding |
-| Buy It Now | 🗄️ 💰 | Instant purchase option |
-| Payment Processing | 💰 🗄️ | Stripe checkout flow |
+| Buy It Now | 🗄️ 💰 | Instant purchase option via PaymentButton in ListingDetailModal |
+| Auction Payment | 💰 🗄️ | PaymentButton in AuctionDetailModal for winning bidders |
+| Payment Processing | 💰 🗄️ | Stripe Connect checkout with destination charges (fee split to seller) |
 | Seller Ratings | 🗄️ 🔐 | Positive/negative reviews (part of Creator Credits system) |
 | Notifications | 🗄️ | Outbid, won, sold alerts |
 | Auction End Processing | 🗄️ | Cron job marks completed |

@@ -6,34 +6,58 @@ This log tracks session-by-session progress on Collectors Chest.
 
 ## Changes Since Last Deploy
 
-**Last Deploy:** 2026-04-16 (Session 34)
-**Sessions Since Last Deploy:** 1
-**Deploy Readiness:** Clerk security patch ready to push (middleware route-protection bypass fix — critical)
+**Last Deploy:** 2026-04-21 (Session 36)
+**Sessions Since Last Deploy:** 0
+**Deploy Readiness:** Deployed — Session 36 marketplace patches live on collectors-chest.com
 
 ### Changes Since Last Deploy:
-- **Clerk security patch** — `npm audit fix` bumped `@clerk/nextjs` 6.36.6 → 6.39.2 (within v6; resolved GHSA-vqx2-fgx2-5wq9, 2 critical middleware route-protection bypass vulns)
-- Anthropic `MODEL_PRIMARY` upgraded to Sonnet 4.5 (`claude-sonnet-4-5-20250929`) ahead of Sonnet 4 retirement (June 15, 2026)
-- Fixed latent bug in `.github/scripts/discover-model.ts`: family matching replaced with tier matching (sonnet/opus/haiku) so self-healing pipeline tolerates minor version bumps; added "strictly newer than current" downgrade guard and dated-snapshot preference
-- `npm audit fix` resolved 2 new vulnerabilities (Next.js high-severity DoS, DOMPurify moderate)
-- Clerk Production instance fully operational (DNS fix, Google OAuth)
-- Welcome email template overhauled (logo image header, emoji icons, yellow title badge)
-- Email preview endpoint for local testing
-- Username availability check fix (exclude own profile)
-- Stripe Connect gate on listing modal
-- Profile page ?tab= query param with auto-scroll
-- UI polish: green scan pack CTA, Key Hunt How to Use section, trial copy fix, forgot password hint
-- Deleted 14 test user accounts from Clerk + Supabase
-- New EMAIL_TEST_CASES.md with 12 notification types
-- 4 new backlog items added
-- Stripe Production keys verified in .env.local and Netlify; webhook endpoint confirmed (test-mode webhook pointing at prod deleted)
-- Fixed cover harvest AI prompt (was cropping grade label instead of cover artwork)
-- Added `validated` boolean to cover pipeline + fixed analyze and con-mode-lookup routes
-- 11 new error path tests for cover validation pipeline
-- 4 Netlify Scheduled Function wrappers (process-auctions, reset-scans, moderate-messages, send-feedback-reminders)
-- Major docs reorganization (specs/ → features/, superpowers/specs/ → engineering-specs/)
-- EVALUATION.md slimmed from 649→359 lines; BACKLOG.md stripped to 32 open items
-- Cover validation improvements with caching architecture documentation
-- ZenRows CGC fix validated (deferred pending cost review)
+- Session 36 patches were deployed at end of session (Stripe Connect enablement, 7 marketplace bug fixes, UX polish). See Session 36 entry below for full detail.
+
+---
+
+## Apr 21, 2026 - Session 36: Stripe Connect Enablement (Test + Live), Marketplace UX Validation, 7 Live Patches
+
+### Summary
+- Completed Stripe Connect end-to-end validation in test mode and enabled production Connect in Live mode. Stripe payment infrastructure is now production-ready for real-money testing tomorrow on `collectors-chest.com`.
+- Stripe Connect platform setup completed in both Test and Live mode: Marketplace business model, Express account type, Transfers-only capability, platform profile, liability acknowledgements.
+- Validated full Buy Now payment flow end-to-end on localhost: seller onboarding → fixed-price listing → buyer purchase → Stripe Checkout → destination charge → `transfer.created` webhook → 5% platform / 95% seller split verified.
+- Validated full auction payment flow end-to-end: auction creation → bidding (3 bids, proxy bidding logic validated) → force-end via Supabase REST API → cron processing → winner payment → Stripe Checkout → transfer.
+- Live webhook endpoint updated — added `account.updated` event (8 events total now subscribed on `https://collectors-chest.com/api/webhooks/stripe`).
+- Discovered and patched a chain of silent-failure bugs in the marketplace transaction flow — 7 live patches shipped (see below).
+- Captured 21 new BACKLOG items (5 standalone features + 16 sub-bugs) covering open marketplace UX blockers.
+- Created 8-phase Stripe Connect setup doc at `docs/stripe-connect-setup.md`.
+
+### Bug Fixes Shipped (7 live patches)
+1. **RLS silent-fail in `purchaseFixedPriceListing`** (`auctionDb.ts:876`): switched from `supabase` → `supabaseAdmin` client. Buyers lacked RLS permission for the UPDATE; regular client silently failed with `success: true` but no DB state change. Root cause of "Purchase Complete!" UI while listing remained active.
+2. **RLS silent-fail in `placeBid`** (`auctionDb.ts`): 4 writes (bid insert + bid updates + auction updates) switched to `supabaseAdmin`. Symptom: `"new row violates row-level security policy for table bids"`.
+3. **RLS silent-fail in `processEndedAuctions`** (`auctionDb.ts:1834, 1867`): cron processor UPDATE to set `status=ended` switched to `supabaseAdmin`. Symptom: cron returned `processed: 1` but auction stayed `status: active` with `winner_id: null`.
+4. **PaymentButton wired into ListingDetailModal** — new amber "Payment required" / "Item reserved" state renders when current user is buyer with payment pending.
+5. **PaymentButton wired into AuctionDetailModal** — same pattern for auction winners. Previously AuctionDetailModal had NO payment UI at all.
+6. **Notification copy overrides** — `createNotification` accepts optional `{title, message}` overrides. Buy Now purchases now say "Purchase reserved!" / "A buyer completed a Buy Now purchase" instead of auction-specific copy.
+7. **Checkout `success_url` fix** — redirected from `/my-auctions` (seller view) to `/collection` for buyer.
+8. **UI polish:** mobile sign-in icon button (bypassed Clerk wrapper via `useUser` hook), "SCAN YOUR FIRST BOOK!" guest CTA.
+
+### Key Files Created/Modified
+- `src/lib/auctionDb.ts` — RLS fixes (3 functions), notification override param
+- `src/components/auction/ListingDetailModal.tsx` — PaymentButton integration, status normalization
+- `src/components/auction/AuctionDetailModal.tsx` — PaymentButton integration
+- `src/app/api/checkout/route.ts` — `success_url` → `/collection`
+- `src/components/Navigation.tsx` — mobile sign-in icon
+- `src/app/page.tsx` — "SCAN YOUR FIRST BOOK!" CTA
+- `docs/stripe-connect-setup.md` — NEW 8-phase setup guide
+- `BACKLOG.md` — 21 new items (5 standalone features + 16 sub-bugs)
+
+### Issues Encountered
+- **Clerk auth issue on mobile localhost (via IP 10.0.0.34):** `<SignedIn>` / `<SignedOut>` wrappers silently render nothing when host isn't authorized. Worked around by switching to `useUser()` hook for the sign-in button. Full fix would require adding IP to Clerk dev origins or using ngrok. Not blocking.
+- **Initial test-mode Connect call failed** with Stripe error "You can only create new accounts if you've signed up for Connect" — required completing the Connect platform wizard in dashboard (had jumped to Phase 7 testing without confirming Phases 1–6 were done).
+- **Modal renders based on URL `tab` param, not `listing_type`** — auction opened via `/shop?listing=<id>` (no tab) routed to Buy Now modal, showing "Buy Now for $X" button on an auction. Captured as backlog bug #9.
+- **`expireOffers` cron error:** `"Could not find a relationship between 'auctions' and 'collection_items'"` — stale join definition. Non-blocking (doesn't affect auction processing). Captured as backlog bug #12.
+
+### Where We Left Off
+- **Stripe Connect production-ready** for real-money testing tomorrow on `collectors-chest.com`.
+- Session 36 code deployed to production via push to main (Netlify auto-deploy).
+- 21 new BACKLOG items captured — most critical: #6 comic ownership transfer (buyer pays but never receives comic in collection), transactions page, policy doc gaps.
+- User will run real-money tests tomorrow with real seller identity + bank account + real card ($1–2 test transaction).
 
 ---
 

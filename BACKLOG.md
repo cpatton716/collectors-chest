@@ -138,6 +138,12 @@ During Stripe Connect Phase 7e testing (Buy Now purchase flow with test accounts
    - Add to `src/lib/email/` (wherever Resend templates live) + hook into `handleCheckoutCompleted` / `handleAuctionPayment` in `webhooks/stripe/route.ts`
    - Respect user email preferences (`notification_preferences` if that exists)
 
+**16. Sales History rows show clickable cursor but don't respond to click** 🟢 Low (Post-Launch OK)
+   - `/sales` page (Sales History): hovering a row in the sold-items table shows the pointer cursor, implying clickability, but clicking does nothing
+   - Users will naturally expect a click to either (a) open a detail view of the sale, or (b) navigate to the sold listing / comic page
+   - Fix: either remove the `cursor: pointer` styling OR wire up a proper onClick handler (e.g., open a SaleDetailModal showing sale price, fees, buyer, shipping info, tracking status). A detail view would be ideal once Transactions and Shipping Tracking features exist.
+   - Files: wherever the Sales table is rendered (likely `src/app/sales/page.tsx` or a component under `src/components/`)
+
 **15. Duplicate notifications possible from cron re-processing (now mitigated)** 🟢 Low
    - During Apr 21 testing, the winner received 3 duplicate "You won!" notifications and the seller received 3 "Your auction has ended" notifications. Root cause: while the `processEndedAuctions` RLS bug (#11) was still live, the cron was idempotent in loop iteration but not in side effects — each run sent new notifications without checking if the auction was already processed.
    - **Already largely fixed by bug #11 patch:** once status transitions to `"ended"` via `supabaseAdmin`, the next cron run's `.eq("status", "active")` filter excludes the row. No duplicate processing.

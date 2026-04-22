@@ -1,6 +1,8 @@
 # Collectors Chest - Key Technical Features
 
 > Reference document for spec doc creation. Each feature below should get its own detailed spec document through individual review sessions.
+>
+> **Last Updated:** April 21, 2026 — Session 36
 
 ---
 
@@ -121,9 +123,16 @@ Mobile-first quick-lookup: cover scan or manual entry → grade selector → `/a
 ---
 
 ## 11. Auction & Fixed-Price Marketplace
-Two listing types: timed auction (1-14 days, proxy bidding) and fixed-price (30-day, accepts offers). Offer negotiation (max 3 rounds, 7-day expiry). Stripe Connect for seller payouts. Transaction fees: 8% free / 5% premium. Cron-driven auction processing, listing expiration, and offer expiration.
+Two listing types: timed auction (1-14 days, proxy bidding) and fixed-price (30-day, accepts offers). Offer negotiation (max 3 rounds, 7-day expiry). Stripe Connect (Express) for seller payouts via destination charges. Transaction fees: 8% free / 5% premium (seller-favorable `Math.floor` rounding). Cron-driven auction processing, listing expiration, and offer expiration.
 
-**Key files:** `src/lib/auctionDb.ts`, `src/app/api/auctions/`, `src/app/api/offers/`, `src/app/api/connect/`
+**Session 36 changes (April 21, 2026):**
+- **Stripe Connect fully enabled in both test and live mode.** Destination-charge fee splits validated end-to-end on localhost with test keys (5% premium tier and 8% free tier both verified). Live webhook endpoint now subscribed to `account.updated` (8 of 8 events configured).
+- **RLS silent-failure fix:** `purchaseFixedPriceListing`, `placeBid`, and `processEndedAuctions` now use `supabaseAdmin` for writes. The regular client was silently failing under RLS — UI showed "Purchase Complete" while DB state remained unchanged. This caused stuck listings and unpaid winners.
+- **PaymentButton rendered in detail modals:** Both `ListingDetailModal` and `AuctionDetailModal` now render `PaymentButton` when the viewer is the winner with `payment_status = "pending"`. Status checks normalized to cover both `sold` (Buy Now) and `ended` (auction) post-sale states.
+- **Contextual notification copy:** `createNotification` accepts optional `{title, message}` overrides, so Buy Now purchases show Buy-Now-specific copy instead of inheriting the default auction-completion text.
+- **Checkout success redirect** fixed from `/my-auctions` (seller view) to `/collection` (buyer view) — the buyer is the one completing the checkout.
+
+**Key files:** `src/lib/auctionDb.ts`, `src/app/api/auctions/`, `src/app/api/offers/`, `src/app/api/connect/`, `src/app/api/checkout/route.ts`, `src/app/api/webhooks/stripe/route.ts`, `src/components/auction/ListingDetailModal.tsx`, `src/components/auction/AuctionDetailModal.tsx`, `src/components/auction/PaymentButton.tsx`, `docs/stripe-connect-setup.md`
 
 ---
 

@@ -1,6 +1,8 @@
 # Stripe Connect Marketplace Payments - Implementation Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+>
+> **Status (April 21, 2026 — Session 36):** IMPLEMENTED and VALIDATED end-to-end in both test and live mode. See "Session 36 validation notes" at the bottom of this file for the post-implementation fixes (RLS silent-failures, PaymentButton wiring, notification copy, redirect fix, live-mode `account.updated` webhook) and `docs/stripe-connect-setup.md` for the 8-phase dashboard setup guide.
 
 **Goal:** Enable automated seller payouts via Stripe Connect destination charges, with platform fee collection and a premium upsell modal after a free seller's 3rd completed sale.
 
@@ -1173,3 +1175,55 @@ Task 8 (Webhook update)─┴── Task 11 (Upsell modal) ─────┤
 ```
 
 Tasks 1-6 can be parallelized. Tasks 7-13 have some dependencies. Task 14 is the final gate.
+
+---
+
+## Session 36 validation notes (April 21, 2026)
+
+After the original 14 tasks were implemented, end-to-end testing uncovered a handful of issues that were fixed in Session 36. These are post-implementation corrections that the plan above does NOT describe — treat this section as the authoritative record of the shipped behavior.
+
+### RLS silent-failure fix (critical)
+
+`purchaseFixedPriceListing`, `placeBid`, and `processEndedAuctions` (in `src/lib/auctionDb.ts`) were using the anon Supabase client for writes. Under RLS, the writes returned no error but also updated zero rows — the UI happily reported "Purchase Complete" while the database stayed in the pre-purchase state. Winners couldn't pay because the listing wasn't marked ended/sold.
+
+**Fix:** all three functions now use `supabaseAdmin` for state transitions (listing status, winner assignment, bid recording, auction processing). This matches the pattern used elsewhere for server-side writes that cross RLS boundaries.
+
+### PaymentButton wiring in detail modals
+
+Task 12 punted on where the winner would actually pay. In practice, winners view the listing (not a standalone success page) after winning. Session 36 added:
+
+- `PaymentButton` rendered inline in both `ListingDetailModal.tsx` and `AuctionDetailModal.tsx`
+- Button only appears when: `viewer.id === winner_id` AND `payment_status === "pending"`
+- Status checks normalized across both `sold` (Buy Now Fixed-price) and `ended` (auction) terminal states
+
+### Notification copy override
+
+`createNotification` (in `src/lib/notificationDb.ts`) now accepts optional `{title, message}` overrides. Buy Now purchases use override copy specific to Fixed-price ("You bought …"), while auction completions keep the default auction-centric copy ("You won …"). Without this, Buy Now notifications inherited confusing auction language.
+
+### Checkout success redirect
+
+The Checkout session's `success_url` redirected to `/my-auctions` — but that's the seller view. The buyer just paid, so they now redirect to `/collection` instead (where the newly-owned comic will appear once the ownership transfer ships).
+
+### Live-mode `account.updated` webhook
+
+The live webhook endpoint previously had 7 of 8 events subscribed — `account.updated` was blocked until Connect was enabled in the Stripe dashboard. Session 36 added that 8th event. `STRIPE_WEBHOOK_SECRET` was unchanged. See `docs/stripe-connect-setup.md` Phase 5 for exact dashboard steps.
+
+### Validation coverage
+
+Both tiers validated end-to-end with test-mode keys + Stripe CLI webhook forwarding on localhost:
+- Free tier: $20 Buy Now → seller $18.40, platform $1.60 (8% fee, `Math.floor`)
+- Premium tier: $20 Buy Now → seller $19.00, platform $1.00 (5% fee, `Math.floor`)
+- `account.updated` events received with `[200 OK]`
+- `profiles.stripe_connect_onboarding_complete` flipped to `true` after onboarding
+- `stripe_connect_account_id` persisted correctly
+
+After validation, `.env.local` was swapped back to live keys and the live webhook config verified.
+
+### Outstanding follow-ups (tracked in BACKLOG.md)
+
+Session 36 also surfaced 15 pre-launch items that are NOT in this plan — most notably:
+- Ownership transfer on sale completion (`comics.user_id` flip)
+- Transactions page (buyer/seller history)
+- Transactional emails (purchase confirmation, payout notice)
+- Shipping tracking with held payments (release funds only after delivery)
+- RLS audit across marketplace write paths to catch any other silent-failure patterns

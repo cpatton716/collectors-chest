@@ -2,7 +2,7 @@
 
 > Launch readiness scorecard. See `BACKLOG.md` for open work items and `DEV_LOG.md` for session history.
 
-*Last Updated: April 20, 2026*
+*Last Updated: April 21, 2026*
 
 ---
 
@@ -30,7 +30,7 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Stripe Connect for seller payouts | ⏳ Code complete | Enable Connect in Stripe dashboard, configure Express accounts |
+| Stripe Connect for seller payouts | ✅ Live mode enabled Apr 21, 2026 - ready for real-money test | Enable Connect in Stripe dashboard, configure Express accounts |
 
 ### High Priority
 
@@ -39,7 +39,7 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 | Item | Status | Notes |
 |------|--------|-------|
 | Test payment flows end-to-end | ❌ Untested | Auction bids, Buy Now, subscription billing |
-| Test Stripe Connect seller flow | ❌ Untested | Seller onboarding, sandbox purchase, verify fee split, test payout to seller bank |
+| Test Stripe Connect seller flow | ⚠️ Test mode validated end-to-end Apr 21, 2026 — real-money test pending | Seller onboarding, sandbox purchase, verify fee split, test payout to seller bank |
 | Generate QR code for /join/trial | ⚠️ Needed | URL ready, need to print on business cards |
 | Database backup strategy | ⚠️ Planned | **Upgrade to Supabase Pro ($25/mo) before opening registration** - daily backups + 7-day retention |
 
@@ -115,6 +115,9 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 - Cron job for processing ended auctions
 - Good database schema with RLS
 - **Buy Now fixed-price listings** ✅ NEW
+- **Stripe Connect fee split** ✅ Buy Now and auction fee splits validated end-to-end (Apr 21, 2026) — `transfer.created` webhook firing correctly
+
+> ⚠️ Marketplace UX is feature-complete but has known post-purchase gaps: comic ownership transfer (BACKLOG #6, critical), transactions page (missing), and 19 other pre-launch items logged in `BACKLOG.md` during session 36.
 
 ### Issues & Gaps
 
@@ -357,4 +360,4 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 
 ## Next Steps
 
-See `BACKLOG.md` for the prioritized list of open items.
+See `BACKLOG.md` for the prioritized list of open items — **21 new pre-launch items added during session 36** (Apr 21, 2026), including critical comic ownership transfer fix (#6) and the missing transactions page.
