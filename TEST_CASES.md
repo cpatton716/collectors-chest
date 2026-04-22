@@ -429,6 +429,66 @@ A guide for testing the main and secondary features of the application.
 | Listing image sizing | View listing with large cover image | Image constrained to modal, not oversized |
 | Bid input visible | View auction → Bid form | Bid amount input text is dark/visible (not white) |
 
+### 18a. Stripe Connect Seller Onboarding (Added Apr 21, 2026 - Session 36)
+
+**Location:** Settings → Seller Payments, or Shop → Create Listing gate
+
+| Test Case | Steps | Expected Result | Status |
+|-----------|-------|-----------------|--------|
+| New seller clicks "Set up seller payments" | Signed-in user without Connect account → click CTA | Redirects to Stripe Express hosted onboarding page | Test mode: ✅ Apr 21, 2026 |
+| Complete Express onboarding (test) | Use `address_full_match`, SSN `0000`, bank `110000000/000123456789` | Redirects to `/api/connect/onboarding-return?account_id=...` → success page | Test mode: ✅ Apr 21, 2026 |
+| Complete Express onboarding (live) | Use real legal name, real SSN last-4, real bank info | Redirects back to app, profile shows "Payment setup complete" | Live: ⏳ Pending real-money test |
+| DB state after onboarding | Check `profiles.stripe_connect_account_id`, `profiles.stripe_connect_onboarding_complete` | Both fields populated; `onboarding_complete = true` | Test mode: ✅ Apr 21, 2026 |
+| Express Dashboard access | After onboarding, click "View Payout Dashboard" | Opens Stripe Express dashboard for seller's connected account | Test mode: ✅ Apr 21, 2026 |
+| Listing gate enforcement | User without Connect tries to create listing | UI blocks with "Set up seller payments" prompt | Pending |
+| Onboarding resume (abandoned) | Start onboarding, close tab before completing | Return to app, status shows incomplete, can click again to resume | Pending |
+
+### 18b. Marketplace Payment Flow (Added Apr 21, 2026 - Session 36)
+
+**Location:** Shop → Listing modal → "Pay $X" button (post-claim or post-auction-win)
+
+| Test Case | Steps | Expected Result | Status |
+|-----------|-------|-----------------|--------|
+| Buy Now: claim reserves listing | Buyer clicks "Buy Now" on fixed-price listing | Listing status=sold, payment_status=pending, buyer notified "Purchase reserved" | Test mode: ✅ Apr 21, 2026 |
+| Buy Now: Payment UI appears | Buyer returns to listing (or stays on modal) | Amber "Payment required to complete your purchase" banner + green "Pay $X" button render | Test mode: ✅ Apr 21, 2026 |
+| Auction: winner Payment UI | Auction ends → winner visits `/shop?listing=<id>&tab=auctions` | Amber "You won! Complete payment to finalize your purchase" + "Pay $X" button | Test mode: ✅ Apr 21, 2026 |
+| Click "Pay $X" → Stripe Checkout | Buyer clicks Pay button | Redirects to Stripe hosted Checkout with correct total (bid + shipping) | Test mode: ✅ Apr 21, 2026 |
+| Complete payment | Test card `4242 4242 4242 4242` | Success redirect to `/collection?purchase=success&auction=<id>` | Test mode: ✅ Apr 21, 2026 |
+| Webhook: checkout.session.completed | Watch `stripe listen` terminal | Event fires, 200 OK response from local webhook handler | Test mode: ✅ Apr 21, 2026 |
+| Webhook: transfer.created | Same terminal | Event fires with correct transfer amount to seller's Connect account | Test mode: ✅ Apr 21, 2026 |
+| Fee split (Premium seller) | $6.00 total, seller is Premium | Transfer amount = `$5.70` (Math.floor(600 × 0.95)), platform keeps $0.30 | Test mode: ✅ Apr 21, 2026 |
+| Fee split (Free seller) | $X total, seller is Free tier | Transfer amount = `Math.floor(X × 0.92)`, platform keeps 8% | ⏳ Pending (free-tier path not yet tested) |
+| Sales record created | After payment completes | Seller's /sales page shows the sale with correct sale price + profit | Test mode: ✅ Apr 21, 2026 |
+| Payment cancellation | Start Stripe Checkout → click Cancel | Redirects to `/shop?listing=<id>&payment=cancelled`, listing still accessible | ⏳ Pending |
+
+### 18c. Multi-Bidder Auction Flow (Added Apr 21, 2026 - Session 36)
+
+**Location:** Shop → Auctions tab → auction listing
+
+| Test Case | Steps | Expected Result | Status |
+|-----------|-------|-----------------|--------|
+| First bid sets current_bid to starting_price | Bidder 1 places max bid of $3 on $2 start | current_bid displays as $2.00, Bidder 1 winning with max_bid=$3 | Test mode: ✅ Apr 21, 2026 |
+| New bidder under existing max | Bidder 2 places max $3 when Bidder 1 has max $3 | Tie goes to first bidder (Bidder 1 stays winning) | Pending |
+| New bidder exceeds existing max | Bidder 2 places max $4 when Bidder 1 has max $3 | current_bid = $4 ($3 + $1 increment capped at Bidder 2's max), Bidder 2 winning | Test mode: ✅ Apr 21, 2026 |
+| Outbid notification to previous winner | After someone places higher max | Previous high bidder receives "You've been outbid!" notification | Test mode: ✅ Apr 21, 2026 |
+| Self-bid prevention | Seller tries to bid on own auction | Error: "You cannot bid on your own auction" | Pending |
+| Bid history display | View auction after multiple bids | Shows all bids in reverse chronological order with Bidder 1, Bidder 2, etc. (anonymized) | Test mode: ✅ Apr 21, 2026 |
+| Original bidder increases max | Bidder 1 places higher max after being outbid | max_bid updated on existing bid record; wins if new max exceeds current winner's | Test mode: ✅ Apr 21, 2026 |
+
+### 18d. Auction End Processing (Added Apr 21, 2026 - Session 36)
+
+**Location:** Automatic via cron (`/api/cron/process-auctions`, runs every 5 min in prod)
+
+| Test Case | Steps | Expected Result | Status |
+|-----------|-------|-----------------|--------|
+| Auction with bids ends | Auction passes end_time with at least one bid | Status → "ended", winner_id set to highest max bidder, winning_bid set, payment_status = "pending" | Test mode: ✅ Apr 21, 2026 |
+| Winner notification | After auction ends | Winner receives "You won! Complete payment within 48 hours" notification | Test mode: ✅ Apr 21, 2026 |
+| Seller notification | After auction ends | Seller receives "Your item sold!" notification | Test mode: ✅ Apr 21, 2026 |
+| Watcher notifications | Watchers (non-winner, non-seller) after auction ends | Each watcher receives "Auction ended" notification | Pending |
+| Auction with no bids ends | Auction passes end_time with zero bids | Status → "ended", no winner_id, no payment_status | Pending |
+| Payment deadline set | After auction ends with winner | payment_deadline = now + 48 hours | Test mode: ✅ Apr 21, 2026 |
+| Feedback reminders created | After auction ends with winner | Both winner and seller queued for feedback reminders | Test mode: ✅ Apr 21, 2026 |
+
 ### 19. Seller Ratings & Reputation
 
 **Location:** Shop → Any listing → Seller info, or Profile
