@@ -23,12 +23,15 @@ import { LeaveFeedbackButton } from "@/components/creatorCredits";
 
 import { Auction, formatPrice } from "@/types/auction";
 
+import { AlertCircle } from "lucide-react";
+
 import { ComicImage } from "../ComicImage";
 import { LocationBadge } from "../LocationBadge";
 import { MessageButton } from "../messaging/MessageButton";
 import { AuctionCountdown } from "./AuctionCountdown";
 import { BidForm } from "./BidForm";
 import { BidHistory } from "./BidHistory";
+import { PaymentButton } from "./PaymentButton";
 import { SellerBadge } from "./SellerBadge";
 import { WatchlistButton } from "./WatchlistButton";
 
@@ -451,8 +454,30 @@ export function AuctionDetailModal({
                   </div>
                 )}
 
+                {/* Winner payment-pending: show PaymentButton for auction winner */}
+                {(auction.status === "ended" || auction.status === "sold") &&
+                  auction.winnerId &&
+                  auction.paymentStatus === "pending" &&
+                  !auction.isSeller && (
+                    <div className="mt-6 pt-4 border-t space-y-3">
+                      <div className="flex items-center justify-center gap-2 py-3 bg-amber-50 text-amber-800 rounded-xl border border-amber-200">
+                        <AlertCircle className="w-5 h-5" />
+                        <span className="font-semibold">
+                          You won! Complete payment to finalize your purchase
+                        </span>
+                      </div>
+                      <PaymentButton
+                        auctionId={auction.id}
+                        amount={auction.winningBid || auction.currentBid || auction.startingPrice}
+                        shippingCost={auction.shippingCost || 0}
+                      />
+                    </div>
+                  )}
+
                 {/* Sold Status with Feedback */}
-                {auction.status === "sold" && auction.winnerId && (
+                {(auction.status === "sold" ||
+                  (auction.status === "ended" && auction.paymentStatus !== "pending")) &&
+                  auction.winnerId && (
                   <div className="mt-6 pt-4 border-t">
                     <div className="flex items-center gap-2 mb-3">
                       <Trophy className="w-5 h-5 text-amber-500" />

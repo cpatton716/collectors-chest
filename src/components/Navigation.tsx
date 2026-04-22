@@ -388,10 +388,12 @@ export function Navigation() {
                 <NotificationBell />
               </SignedIn>
 
-              {/* Ask the Professor button */}
+              {/* Ask the Professor button — hidden on mobile for guests so Sign In takes priority */}
               <button
                 onClick={() => setShowProfessor(true)}
-                className="p-2 mr-4 bg-pop-blue border-2 border-pop-black shadow-comic-sm hover:shadow-comic hover:-translate-x-0.5 hover:-translate-y-0.5 transition-all"
+                className={`p-2 bg-pop-blue border-2 border-pop-black shadow-comic-sm hover:shadow-comic hover:-translate-x-0.5 hover:-translate-y-0.5 transition-all ${
+                  !isSignedIn ? "hidden sm:inline-flex" : "inline-flex"
+                }`}
                 aria-label="Ask the Professor"
               >
                 <Brain className="w-5 h-5 text-pop-yellow" />
@@ -410,15 +412,26 @@ export function Navigation() {
                   }}
                 />
               </SignedIn>
-              <SignedOut>
-                <Link
-                  href="/sign-in"
-                  className="btn-pop btn-pop-blue flex items-center gap-1.5 px-3 py-1.5 text-sm"
-                >
-                  <LogIn className="w-4 h-4" />
-                  <span className="hidden sm:inline font-comic">SIGN IN</span>
-                </Link>
-              </SignedOut>
+              {!isSignedIn && (
+                <>
+                  {/* Mobile: icon-only sign-in button */}
+                  <Link
+                    href="/sign-in"
+                    className="sm:hidden inline-flex items-center p-2 bg-pop-blue border-2 border-pop-black shadow-comic-sm hover:shadow-comic transition-all"
+                    aria-label="Sign In"
+                  >
+                    <LogIn className="w-5 h-5 text-pop-white" />
+                  </Link>
+                  {/* Desktop: full SIGN IN button (no btn-pop class — collides with `hidden`) */}
+                  <Link
+                    href="/sign-in"
+                    className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 bg-pop-blue text-pop-white border-2 border-pop-black shadow-comic-sm hover:shadow-comic hover:-translate-x-0.5 hover:-translate-y-0.5 transition-all text-sm"
+                  >
+                    <LogIn className="w-4 h-4" />
+                    <span className="font-comic">SIGN IN</span>
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         </div>

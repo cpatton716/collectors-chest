@@ -224,7 +224,7 @@ export default function Home() {
               ? "SCAN A BOOK!"
               : guestScanCount > 0
                 ? "SCAN ANOTHER!"
-                : "SCAN YOUR FIRST!"}
+                : "SCAN YOUR FIRST BOOK!"}
             <ArrowRight className="w-5 h-5" />
           </Link>
         </div>

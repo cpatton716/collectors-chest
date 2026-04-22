@@ -671,8 +671,8 @@ export async function placeBid(
       };
     }
 
-    // Update existing bid
-    await supabase
+    // Update existing bid (admin: buyer lacks RLS permission on bids row-level writes)
+    await supabaseAdmin
       .from("bids")
       .update({ max_bid: maxBid, updated_at: new Date().toISOString() })
       .eq("id", currentWinningBid.id);
@@ -694,7 +694,7 @@ export async function placeBid(
       outbidUserId = currentWinningBid.bidder_id;
 
       // Mark old bid as not winning
-      await supabase.from("bids").update({ is_winning: false }).eq("id", currentWinningBid.id);
+      await supabaseAdmin.from("bids").update({ is_winning: false }).eq("id", currentWinningBid.id);
     } else if (maxBid === currentWinningBid.max_bid) {
       // Tie goes to first bidder
       newCurrentBid = maxBid;
@@ -708,12 +708,12 @@ export async function placeBid(
       isHighBidder = false;
 
       // Update current bid amount
-      await supabase.from("auctions").update({ current_bid: newCurrentBid }).eq("id", auctionId);
+      await supabaseAdmin.from("auctions").update({ current_bid: newCurrentBid }).eq("id", auctionId);
     }
   }
 
-  // Create new bid
-  const { data: newBid, error: bidError } = await supabase
+  // Create new bid (admin: buyers lack RLS insert permission on bids table)
+  const { data: newBid, error: bidError } = await supabaseAdmin
     .from("bids")
     .insert({
       auction_id: auctionId,
@@ -731,7 +731,7 @@ export async function placeBid(
   }
 
   // Update auction
-  await supabase
+  await supabaseAdmin
     .from("auctions")
     .update({
       current_bid: newCurrentBid,
@@ -873,7 +873,10 @@ export async function purchaseFixedPriceListing(
   const paymentDeadline = new Date();
   paymentDeadline.setHours(paymentDeadline.getHours() + 48);
 
-  const { error } = await supabase
+  // Use supabaseAdmin: the buyer doesn't have RLS permission to update the seller's auction row,
+  // so a regular-client update would silently fail (no error, 0 rows affected).
+  // Auth has already been verified at the API layer before this function is called.
+  const { error } = await supabaseAdmin
     .from("auctions")
     .update({
       status: "sold",
@@ -888,11 +891,17 @@ export async function purchaseFixedPriceListing(
     return { success: false, error: error.message };
   }
 
-  // Notify seller
-  await createNotification(listing.seller_id, "auction_sold", listingId);
+  // Notify seller (Buy Now — not an auction, use fixed-price copy)
+  await createNotification(listing.seller_id, "auction_sold", listingId, undefined, {
+    title: "Your item sold!",
+    message: "A buyer completed a Buy Now purchase. Payment will be collected shortly.",
+  });
 
-  // Notify buyer
-  await createNotification(buyerId, "won", listingId);
+  // Notify buyer (Buy Now — not an auction, use fixed-price copy)
+  await createNotification(buyerId, "won", listingId, undefined, {
+    title: "Purchase reserved!",
+    message: "Your Buy Now purchase is reserved. Complete payment to finalize the sale.",
+  });
 
   // Create feedback reminders for both parties (fixed_price uses "sale" transaction type)
   await createFeedbackReminders("sale", listingId, buyerId, listing.seller_id);
@@ -1429,7 +1438,8 @@ export async function createNotification(
   userId: string,
   type: NotificationType,
   auctionId?: string,
-  offerId?: string
+  offerId?: string,
+  overrides?: { title?: string; message?: string }
 ): Promise<void> {
   const titles: Record<NotificationType, string> = {
     outbid: "You've been outbid!",
@@ -1484,8 +1494,8 @@ export async function createNotification(
   await supabaseAdmin.from("notifications").insert({
     user_id: userId,
     type,
-    title: titles[type],
-    message: messages[type],
+    title: overrides?.title ?? titles[type],
+    message: overrides?.message ?? messages[type],
     auction_id: auctionId || null,
     offer_id: offerId || null,
   });
@@ -1821,7 +1831,8 @@ export async function processEndedAuctions(): Promise<{
         const paymentDeadline = new Date();
         paymentDeadline.setHours(paymentDeadline.getHours() + 48);
 
-        await supabase
+        // supabaseAdmin: cron runs with no user context; anon client would be blocked by RLS
+        await supabaseAdmin
           .from("auctions")
           .update({
             status: "ended",
@@ -1853,8 +1864,8 @@ export async function processEndedAuctions(): Promise<{
         // Create feedback reminders for both parties
         await createFeedbackReminders("auction", auction.id, winningBid.bidder_id, auction.seller_id);
       } else {
-        // No bids, just end it
-        await supabase.from("auctions").update({ status: "ended" }).eq("id", auction.id);
+        // No bids, just end it (admin: cron has no user context)
+        await supabaseAdmin.from("auctions").update({ status: "ended" }).eq("id", auction.id);
       }
 
       processed++;

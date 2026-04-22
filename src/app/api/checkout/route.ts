@@ -121,8 +121,11 @@ export async function POST(request: NextRequest) {
           amount: sellerAmount,
         },
       },
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/my-auctions?payment=success&auction=${auctionId}`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/my-auctions?payment=cancelled&auction=${auctionId}`,
+      // Redirect buyer to their collection after successful payment — they just bought a comic,
+      // not a listing of their own, so /my-auctions (seller-view) would be confusing.
+      // TODO: replace with /transactions once that page exists (see BACKLOG).
+      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/collection?purchase=success&auction=${auctionId}`,
+      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/shop?listing=${auctionId}&payment=cancelled`,
       metadata: {
         auctionId,
         buyerId: profile.id,

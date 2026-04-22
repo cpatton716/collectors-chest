@@ -33,6 +33,7 @@ import { LeaveFeedbackButton } from "@/components/creatorCredits";
 import { Auction, formatPrice } from "@/types/auction";
 
 import { ComicImage } from "../ComicImage";
+import { PaymentButton } from "./PaymentButton";
 import { SellerBadge } from "./SellerBadge";
 import { WatchlistButton } from "./WatchlistButton";
 
@@ -112,6 +113,9 @@ export function ListingDetailModal({
       if (response.ok) {
         setPurchaseSuccess(true);
         onListingUpdated?.();
+        // Refetch so listing.paymentStatus reflects the new "pending" state,
+        // which drives the PaymentButton render.
+        await loadListing();
       } else {
         setPurchaseError(data.error || "Failed to complete purchase");
       }
@@ -363,12 +367,36 @@ export function ListingDetailModal({
 
                 {/* Purchase Button */}
                 <div className="space-y-3">
-                  {purchaseSuccess ? (
+                  {purchaseSuccess && listing.paymentStatus === "pending" && !listing.isSeller ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-center gap-2 py-3 bg-amber-50 text-amber-800 rounded-xl border border-amber-200">
+                        <Check className="w-5 h-5" />
+                        <span className="font-semibold">Item reserved — complete payment to finish</span>
+                      </div>
+                      <PaymentButton
+                        auctionId={listing.id}
+                        amount={listing.winningBid || listing.startingPrice}
+                        shippingCost={listing.shippingCost || 0}
+                      />
+                    </div>
+                  ) : purchaseSuccess ? (
                     <div className="flex items-center justify-center gap-2 py-4 bg-green-100 text-green-700 rounded-xl">
                       <Check className="w-5 h-5" />
                       <span className="font-semibold">Purchase Complete!</span>
                     </div>
-                  ) : listing.status === "sold" && listing.winnerId ? (
+                  ) : (listing.status === "sold" || listing.status === "ended") && listing.winnerId && listing.paymentStatus === "pending" && !listing.isSeller ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-center gap-2 py-3 bg-amber-50 text-amber-800 rounded-xl border border-amber-200">
+                        <AlertCircle className="w-5 h-5" />
+                        <span className="font-semibold">Payment required to complete your purchase</span>
+                      </div>
+                      <PaymentButton
+                        auctionId={listing.id}
+                        amount={listing.winningBid || listing.startingPrice}
+                        shippingCost={listing.shippingCost || 0}
+                      />
+                    </div>
+                  ) : (listing.status === "sold" || listing.status === "ended") && listing.winnerId ? (
                     <div className="space-y-3">
                       <div className="flex items-center gap-2 py-4 bg-gray-100 text-gray-700 rounded-xl justify-center">
                         <Trophy className="w-5 h-5 text-amber-500" />
