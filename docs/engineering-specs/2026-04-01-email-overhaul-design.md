@@ -3,6 +3,12 @@
 **Date:** April 1, 2026
 **Status:** Approved
 
+> **Apr 23, 2026 update:** Two production additions layered on top of this design:
+> - **Per-category preference gating** — `sendNotificationEmail()` now consults the recipient's email-preference settings before dispatching. Each email type maps to a category (e.g., offer emails, listing emails, trade emails, marketing) and is suppressed if the user has that category disabled. Transactional-critical emails (payment confirmations, etc.) still send regardless.
+> - **Batch send via Resend `batch.send()`** — Fan-out sends (e.g., new-listing-from-followed to all followers, payment reminders across many auctions) now use Resend's `batch.send()` API instead of looping individual `emails.send()` calls, reducing API calls and improving throughput.
+>
+> Template content / header / footer / sound-effect map below remains accurate.
+
 ---
 
 ## Overview

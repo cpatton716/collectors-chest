@@ -1,5 +1,7 @@
 # Cover Image Validation Pipeline — Implementation Plan
 
+> **Apr 23, 2026 update:** Metron verification was fully removed from the scan pipeline this session. Steps in this plan that set `coverSource: "metron"` or call the pipeline "as a fallback when no Metron cover" describe historical behavior only. The current production flow gathers candidates from Community DB → eBay → Open Library with no Metron branch. The `"metron"` enum value is retained only for already-cached legacy rows.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace the current blind-trust cover image system with a two-stage pipeline that gathers candidates from multiple sources and validates them with Gemini vision before caching.

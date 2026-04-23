@@ -4,6 +4,8 @@
 **Status:** Draft
 **Author:** Claude + Chris Patton
 
+> **Apr 23, 2026 update:** Metron verification was fully removed from the scan pipeline this session. All references below to Metron (as a candidate source, `cover_source: 'metron'`, `metronResult.cover_image`, "no Metron cover available" fallback logic, etc.) describe historical behavior only and no longer reflect production code. The current candidate chain is: Community DB → eBay images → Open Library. `'metron'` is preserved as a legal `coverSource` enum value only for already-cached rows from before the removal — no new rows are written with that source.
+
 ## Problem
 
 Cover images are frequently wrong — showing completely different comics (e.g., Batman #423 displays a "2000 AD Snowbound" cover). The current system blindly trusts results from Open Library, which often returns incorrect matches for comic books. There is no validation step, so bad covers get cached permanently and shown to all users.

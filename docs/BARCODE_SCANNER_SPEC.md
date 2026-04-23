@@ -4,6 +4,8 @@
 > **Reason**: External barcode databases have unreliable/unusable UPC data
 > **Path Forward**: Build crowd-sourced barcode catalog from verified cover scans
 
+> **Apr 23, 2026 note:** Metron references below are fully obsolete. Metron was removed from the app entirely this session (scan flow, verification, cover pipeline). Any "Try Metron API" path described in this historical doc no longer exists in code.
+
 ---
 
 ## Table of Contents

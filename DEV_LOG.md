@@ -6,12 +6,15 @@ This log tracks session-by-session progress on Collectors Chest.
 
 ## Changes Since Last Deploy
 
-**Last Deploy:** 2026-04-23 (Session 39) — commit `14037e1` pushed to main, Netlify auto-deploy triggered. Prior deploy was `8b4a9eb` (Session 38, same day).
+**Last Deploy:** 2026-04-23 (Session 39, third deploy of the day — pending at commit `[SESSION 39C]`). Prior same-day deploys: `14037e1` (Session 39 pre-beta hardening batch) and `8b4a9eb` (Session 38).
 **Sessions Since Last Deploy:** 0
-**Deploy Readiness:** Deploying — Session 39 pre-beta hardening batch (Zod validation sweep, audit log, Second Chance Offer, Payment-Miss Strike System, Email Notification Preferences, and more) live on collectors-chest.com. Four migrations applied to production Supabase prior to deploy.
+**Deploy Readiness:** Deploying — Session 39 follow-up bundle: hCaptcha guest-scan protection (client + siteverify with 5s timeout guard) and BACKLOG reconciliation / doc updates. No new migrations in this deploy.
 
 ### Changes Since Last Deploy:
-- Session 39 patches deployed at end of session. See Session 39 entry below for full detail.
+- **hCaptcha Guest Scan Protection** — Invisible + floating badge at scans 4-5 of the guest free-tier. Full server-side siteverify wired into `/api/analyze`.
+- **hCaptcha siteverify timeout guard** — 5s AbortSignal cap on the siteverify HTTP call + friendly error copy when hCaptcha is slow/down. Prevents 30s request hangs during vendor outages.
+- **BACKLOG reconciliation** — 13 completed items removed, CGC-related items reclassified to post-launch (pending ZenRows ROI decision), 6 newly-surfaced items captured.
+- Doc updates: DEV_LOG (Session 39 extended), TEST_CASES (new scenarios for today's work).
 
 ---
 
@@ -26,7 +29,7 @@ This log tracks session-by-session progress on Collectors Chest.
 - CC ↔ Clerk username sync-on-write: when a user sets their CC username, Clerk's username is also updated via Backend API. Graceful degradation if Clerk fails (Supabase remains source of truth).
 - Defensive cleanup: Metron integration fully removed (decision from Apr 22). Cover harvest aspect-ratio guard (new `coverCropValidator.ts`) rejects AI crops outside 0.55-0.85 w/h range before they pollute the cover cache. ScreenshotPlaceholder soft-match for filename typos.
 
-### Features Shipped (10)
+### Features Shipped (11)
 
 1. **Zod Validation Sweep — 82 routes** across three scope groups:
    - Marketplace + money (31 routes): auctions, offers, listings, checkout, billing, connect, trades, transactions, feedback, reputation
@@ -53,6 +56,8 @@ This log tracks session-by-session progress on Collectors Chest.
 
 10. **ScreenshotPlaceholder Soft-Match** — prefix fallback when exact filename doesn't match (e.g. `09-stripe-success.png` matches even if file is named `09-success.png`). Module-scope directory cache with dev-server hot-reload bypass.
 
+11. **hCaptcha Guest Scan Protection (Sessions 4-5)** — Invisible + floating badge (Pro trial until May 7, then auto-downgrade to free). Server-side siteverify verification with 5s AbortSignal timeout; dev/prod key swap via NODE_ENV. Client component (`GuestCaptcha`) + helper (`src/lib/hcaptcha.ts`). Gated on `guestScansCompleted >= 3` in `/api/analyze`; authenticated users never see CAPTCHA. 15 unit tests covering siteverify success/failure/timeout/no-token paths.
+
 ### Key Files Created
 - `src/lib/validation.ts`, `src/lib/auditLog.ts`, `src/lib/concurrency.ts`, `src/lib/coverCropValidator.ts`, `src/lib/notificationPreferences.ts`
 - `src/components/auction/SecondChanceOfferButton.tsx`, `SecondChanceInboxCard.tsx`
@@ -74,18 +79,26 @@ This log tracks session-by-session progress on Collectors Chest.
 - After session 39: **730** (+110)
 - All suites passing, 0 TS errors, 0 lint errors, build clean, smoke test passes
 
+### Post-Initial-Deploy Work (Session 39 continued)
+- **hCaptcha integration** — full implementation wired into guest scan flow as described in Feature #11 above. Client component + helper library + `/api/analyze` gating + 15 unit tests.
+- **hCaptcha siteverify timeout** — 5-second AbortSignal cap on siteverify fetch; new `siteverify_timeout` failure reason + user-friendly message ("CAPTCHA verification is slow right now. Please try again in a moment."). Prevents 30-second hangs during hCaptcha outages. +3 tests.
+- **BACKLOG.md reconciliation** — Removed 13 completed items (all shipped this session); reclassified CGC Cert Lookup (+ Pre-populate Top Comics Cache) from High Pre-Launch to Medium Post-Launch pending ZenRows ROI decision (price bumped $49→$69, break-even now ~4,600 slab scans/month — unlikely in private beta); added 6 new deferred items (Align Clerk Username Rules, Second Chance cascade, cover validator expansion, cron batching enhancements, notification drift audit, hCaptcha retry-on-transient). File size 1346 → 1070 lines.
+- **ZenRows paid plan decision** — Evaluated against updated pricing. Recommendation to partner: defer post-launch, revisit after 2-4 weeks of real scan volume. Fallback to AI pipeline is working; no user is blocked. BACKLOG entry reflects this.
+- **Pricing backfill preflight** — Ran preflight SQL against production `comics` table: 0 legacy rows with non-eBay priceSource. Confirmed `scripts/backfill-pricing.ts` is not needed for beta launch; kept as a safety-net script.
+- **Partner hCaptcha setup** — User signed up via GitHub OAuth, landed in Pro Publisher 14-day trial. No payment info provided, will auto-downgrade to free tier on May 7, 2026. Keys added to `.env.local` AND Netlify environment variables.
+
 ### Issues Encountered
 - **Parallel agent coordination around `src/lib/email.ts`.** Both Second Chance + Strike agent and Email Notification Preferences agent needed to modify email.ts. Resolved by strict instructions: Email Prefs agent adds preference-check wrapper only (no template changes), Second Chance agent appends new templates in a clearly-labeled section at the end of the file. No conflicts observed post-merge.
 - **Pre-existing notification CHECK constraint drift.** Discovered by the Second Chance agent while adding new notification types: the `valid_notification_type` CHECK constraint on `notifications` table was missing 4 types that were already being inserted in code (`auction_payment_expired`, `auction_payment_expired_seller`, `bid_auction_lost`, `new_bid_received`). Silent because Postgres wasn't rejecting them (column width permitted, constraint was either loose or the inserts were bypassing somehow). Payment-miss migration now updates the constraint to include everything. Worth a follow-up investigation for whether any inserts were silently failing on affected types in production — BACKLOG.
 - **UserId/CLERK regex friction surfaced earlier today.** Supabase `profiles.username` enforces `^[a-z0-9_]{3,20}$`; Clerk allows more (including dashes). Webhook sanitizer added today handles this for inbound sync; the new sync-on-write path handles outbound direction. BACKLOG item for aligning Clerk dashboard username rules still open.
 
 ### Where We Left Off
-- Session 39 code deploy shipped at `14037e1`, Netlify auto-deploy building. User to validate deploy by loading production site after build completes (~3 min).
-- Real-money Stripe Connect live-mode test still on deck — user will schedule when ready. Can happen any time; the platform is now production-ready.
-- Sunday April 26 is the private-beta launch target.
-- CAPTCHA for guest scan limit: queued pending user setup of hCaptcha account (will run at scans 4-5 only).
-- CGC cert lookup (ZenRows): queued pending user setup of paid ZenRows plan. Unblocks 3 other BACKLOG items (Optimize Scan Pipeline, Signature Detection, Top Comics Cache) the moment it lands.
-- BACKLOG items still open but not pre-launch critical: Apple Developer enrollment (1-3 week window), Strengthen Input Validation was closed by Zod sweep, remaining items are medium/low post-launch.
+- **Three deploys shipped today.** Deploy 1 (`8b4a9eb`, Session 38). Deploy 2 (`14037e1`, Session 39 pre-beta hardening batch). Deploy 3 (`[SESSION 39C]`, pending tonight) — hCaptcha guest-scan protection + siteverify timeout guard + BACKLOG reconciliation + doc updates.
+- **Real-money Stripe Connect live-mode test still on deck** — user will schedule when ready. Can happen any time; the platform is production-ready.
+- **Sunday April 26 private-beta launch is ON TRACK.** All pre-launch blockers closed. hCaptcha is live on guest scans 4-5; authenticated users never see it. Siteverify timeout guard prevents user lockout during hCaptcha outages.
+- **ZenRows / CGC cert lookup deferred post-launch.** Updated pricing ($49→$69) pushes break-even to ~4,600 slab scans/month, which is unrealistic in private beta. Fallback AI pipeline is adequate. Revisit after 2-4 weeks of real volume. Not a beta-launch blocker.
+- **Pricing backfill script not required for launch.** Preflight showed 0 legacy non-eBay rows in production. Script stays in repo as a safety net.
+- BACKLOG items still open but not pre-launch critical: Apple Developer enrollment (1-3 week window), and 6 newly-captured medium/low post-launch items (see BACKLOG.md for details).
 
 ---
 

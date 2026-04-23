@@ -2,7 +2,7 @@
 
 > Launch readiness scorecard. See `BACKLOG.md` for open work items and `DEV_LOG.md` for session history.
 
-*Last Updated: April 22, 2026*
+*Last Updated: April 23, 2026*
 
 ---
 
@@ -10,7 +10,7 @@
 
 Collectors Chest is a comic book collection tracking app with AI-powered cover recognition and a new auction marketplace feature. The app is currently in **Private Beta** with public registration disabled.
 
-**Overall Score: 8.8/10**
+**Overall Score: 9.1/10** (up from 8.8/10 — Sessions 38 + 39 pre-beta hardening: Zod validation sweep on 82 routes, audit logging, payment-deadline enforcement, Second Chance Offer, Strike System, Notification Preferences, hCaptcha on guest scans, 10MB upload caps)
 
 **Current Status: PRIVATE BETA**
 - Site is live at collectors-chest.com
@@ -51,13 +51,13 @@ _(No open Medium items. Hottest Books was removed from scope Apr 22, 2026 — se
 
 ## 1. Code Quality & Technical Debt
 
-**Score: 8/10** (up from 7/10)
+**Score: 9/10** (up from 8/10)
 
 ### Issues Status
 
 | Issue | Severity | Status |
 |-------|----------|--------|
-| Test suite | 🟢 Good | 584 tests passing (Apr 7, 2026) |
+| Test suite | 🟢 Good | **730 tests passing** (Apr 23, 2026) |
 | ESLint config | 🟢 Fixed | Working with Next.js defaults |
 | Viewport/themeColor metadata | 🟢 Fixed | Migrated to `export const viewport` |
 | Stripe webhook config export | 🟢 Fixed | Deprecated config removed |
@@ -65,16 +65,17 @@ _(No open Medium items. Hottest Books was removed from scope Apr 22, 2026 — se
 | Production build | 🟢 Passing | Clean |
 | Sentry error tracking | 🟢 Added | Production-ready |
 | PostHog analytics | 🟢 Added | Tracking enabled |
+| API input validation | 🟢 Complete | **Zod validation sweep across 82 routes** (Apr 23, 2026) — marketplace, user/social/admin, content/scan/lookup. Shared `src/lib/validation.ts` helper with `validateBody`/`validateQuery`/`validateParams` + standardized `{error, details:[{field, issue}]}` response shape |
 
 ### Remaining Work
 
-1. **Expand test coverage** - Add tests for auction bid logic, authentication flows, payment webhooks
+1. **Expand test coverage** - Hook coverage, component coverage for auction flows
 
 ---
 
 ## 2. Security Posture
 
-**Score: 8/10** (up from 6/10)
+**Score: 9.5/10** (up from 8/10)
 
 | Item | Status | Notes |
 |------|--------|-------|
@@ -84,25 +85,28 @@ _(No open Medium items. Hottest Books was removed from scope Apr 22, 2026 — se
 | API authentication | ✅ Good | Clerk auth on protected routes |
 | Stripe webhook verification | ✅ Good | Signature validation |
 | Rate limiting | ✅ Added | Upstash rate limiting on AI & bid routes |
-| npm audit (dependencies) | ✅ Clean | 0 vulnerabilities (2 new moderate/high auto-resolved via `npm audit fix` during Apr 16 close-up-shop — Next.js high DoS, DOMPurify moderate) |
-| Input validation | ⚠️ Basic | Auction routes have validation, others minimal |
+| npm audit (dependencies) | ✅ Clean | 0 vulnerabilities |
+| Input validation | ✅ Complete | **Zod schema validation on 82 API routes** (Apr 23, 2026) — UUID format, enum values, length caps, nested shapes. HTTP 400 with standardized `{error, details}` shape on invalid input |
+| Image upload size caps | ✅ Complete | 10MB cap enforced on `/api/analyze` + `/api/messages/upload-image` via `src/lib/uploadLimits.ts` (added Apr 23, 2026) |
+| CAPTCHA on guest scans | ✅ Complete | **hCaptcha on scans 4–5** (added Session 38/39). Pro trial through May 7, 2026 → auto-downgrades to free tier (1M req/mo) |
+| Audit logging | ✅ Complete | **`auction_audit_log` table** with 20 event types + 17 lifecycle wire-ups (Apr 23, 2026). Admin-only RLS. Covers auction/offer/payment/shipment transitions + Stripe webhook |
+| Payment-miss strike system | ✅ Complete | First-offense warning email, 2-strikes-in-90-days triggers bid restriction + reputation hit (Apr 23, 2026) — partial fraud mitigation |
 | CSRF protection | ⚠️ Implicit | Next.js provides some protection |
 | Middleware protection | ⚠️ Minimal | Few routes marked as protected |
+| Bid fraud detection | ⚠️ Partial | Strike system covers payment-miss pattern; pattern-based bid anomaly detection is post-launch — see BACKLOG |
 
 ### Security Recommendations
 
-**Medium Priority:**
-1. Strengthen input validation across all endpoints
-2. Add request size limits for image uploads
-3. Add audit logging for auction transactions
-4. Implement fraud detection for bidding patterns
-5. Add CAPTCHA for guest scan limits (prevent bypass)
+Remaining items tracked in BACKLOG.md:
+- Advanced bidding fraud detection (pattern-based)
+- Middleware protection expansion
+- Explicit CSRF tokens on sensitive mutations
 
 ---
 
 ## 3. Auction Feature Evaluation
 
-**Score: 8/10** (up from 7/10)
+**Score: 9.5/10** (up from 8/10)
 
 ### What's Working Well
 - eBay-style proxy bidding system
@@ -112,26 +116,23 @@ _(No open Medium items. Hottest Books was removed from scope Apr 22, 2026 — se
 - In-app notifications system
 - Cron job for processing ended auctions
 - Good database schema with RLS
-- **Buy Now fixed-price listings** ✅ NEW
-- **Stripe Connect fee split** ✅ Buy Now and auction fee splits validated end-to-end (Apr 21, 2026) — `transfer.created` webhook firing correctly
-
-> ⚠️ Marketplace UX is feature-complete but has known post-purchase gaps: comic ownership transfer (BACKLOG #6, critical), transactions page (missing), and 19 other pre-launch items logged in `BACKLOG.md` during session 36.
+- **Buy Now fixed-price listings** ✅
+- **Stripe Connect fee split** ✅ Validated end-to-end (Apr 21, 2026) — `transfer.created` webhook firing correctly
+- **Payment deadline enforcement** ✅ Complete — checkout-time deadline guard, T-24h reminder cron, expire-unpaid-auctions cron, live countdown UI (Sessions 38 + 39)
+- **Second Chance Offer** ✅ Complete — seller-initiated 48h offer to runner-up when winner doesn't pay (Session 39)
+- **Payment-Miss Strike System** ✅ Complete — warn on 1st offense, bid restriction on 2 strikes within 90 days (Session 39)
+- **Shipping tracking (Option A)** ✅ Mark-as-shipped with carrier + tracking number, fires buyer notification (Session 37)
+- **Auction audit log** ✅ Complete — 20 event types covering full lifecycle (Session 39)
 
 ### Issues & Gaps
 
 | Issue | Severity | Notes |
 |-------|----------|--------|
-| No dispute resolution | 🟡 Medium | Need buyer protection |
-| Stripe Connect (pending) | 🟡 Medium | Seller payouts via Connect — needs onboarding flow + setup |
-| No shipping tracking | 🟡 Medium | Manual coordination |
-| Payment deadline enforcement | ⚠️ Unclear | Logic in place but untested |
-| Auction sniping protection | ❌ Missing | No auto-extend on last-minute bids |
+| No dispute resolution | 🟡 Medium | Buyer protection — tracked in BACKLOG |
+| Auction sniping protection | 🟡 Medium | No auto-extend on last-minute bids — tracked in BACKLOG |
+| Shipping tracking Option B | 🟡 Medium | EasyPost integration + 10-day auto-refund — deferred to dedicated session, see BACKLOG |
 
-### Recommendations
-1. Implement auction time extension on late bids
-2. Add dispute/refund workflow
-3. Add shipping integration (EasyPost API)
-4. Add auction history/analytics for sellers
+See BACKLOG.md for open auction/marketplace work.
 
 ---
 
@@ -222,6 +223,8 @@ _(No open Medium items. Hottest Books was removed from scope Apr 22, 2026 — se
 | Upstash Redis | Free | $0 | 10K commands/day |
 | Sentry | Free | $0 | 5K errors/month |
 | PostHog | Free | $0 | 1M events/month |
+| hCaptcha | Pro trial → Free | $0 | Trial through May 7, 2026; then free tier (1M req/mo) |
+| Resend | Free | $0 | 3K emails/mo |
 
 ### Cost Risks
 
@@ -257,7 +260,7 @@ _(No open Medium items. Hottest Books was removed from scope Apr 22, 2026 — se
 
 ## 8. Feature Completeness
 
-**Score: 8.7/10** (up from 8.5/10)
+**Score: 9.3/10** (up from 8.7/10)
 
 | Feature | Status |
 |---------|--------|
@@ -273,7 +276,7 @@ _(No open Medium items. Hottest Books was removed from scope Apr 22, 2026 — se
 | PWA Support | ✅ Complete |
 | Auction Marketplace | ✅ Complete |
 | Fixed-Price Listings (Buy Now) | ✅ Complete |
-| CGC/CBCS Cert Lookup | ✅ Enhanced |
+| CGC/CBCS Cert Lookup | ✅ Enhanced (ZenRows-backed lookup deferred post-launch) |
 | Error Tracking (Sentry) | ✅ Complete |
 | Analytics (PostHog) | ✅ Complete |
 | Redis Caching | ✅ Complete |
@@ -283,9 +286,17 @@ _(No open Medium items. Hottest Books was removed from scope Apr 22, 2026 — se
 | Pricing Page | ✅ Complete |
 | Scan Cost Dashboard | ✅ Complete |
 | Scan Resilience (Multi-Provider) | ✅ Phase 1 Deployed (Mar 3, 2026) |
+| Email Notifications | ✅ Complete |
+| Email Notification Preferences | ✅ Complete — 4-category toggles (Transactional locked, Marketplace/Social/Marketing togglable), `/settings/notifications` (Apr 23, 2026) |
+| CAPTCHA (guest scan bot prevention) | ✅ Complete — hCaptcha on scans 4–5 (Apr 23, 2026) |
+| Payment Deadline Enforcement | ✅ Complete — 5 of 6 gaps closed; second-highest-bidder promotion covered by Second Chance Offer |
+| Second Chance Offer | ✅ Complete — seller-initiated single-level 48h offer to runner-up (Apr 23, 2026) |
+| Payment-Miss Strike System | ✅ Complete — warn on 1st, flag at 2-in-90-days (Apr 23, 2026) |
+| Auction Audit Log | ✅ Complete — 20 event types + admin-only RLS (Apr 23, 2026) |
+| Shipping Tracking (Option A) | ✅ Complete — mark-as-shipped with carrier + tracking (Session 37) |
+| Shipping Tracking (Option B, EasyPost) | ⏳ Deferred post-launch — see BACKLOG |
 | Price Alerts | ❌ Not Started |
 | Pull Lists | ❌ Not Started |
-| Email Notifications | ✅ Complete |
 
 ---
 
@@ -338,24 +349,24 @@ _(No open Medium items. Hottest Books was removed from scope Apr 22, 2026 — se
 ### Active Risks ⚠️
 | Risk | Severity | Mitigation |
 |------|----------|------------|
-| Single AI provider dependency | 🟢 Low | Self-healing model pipeline auto-updates deprecated models (bug-fixed Apr 16 to properly handle minor-version bumps, e.g. 4.0 → 4.5 → 4.6). MODEL_PRIMARY proactively upgraded to Sonnet 4.5 (`claude-sonnet-4-5-20250929`) on Apr 16 to pre-empt the announced June 15, 2026 Sonnet 4 retirement. OpenAI fallback available. |
+| Single AI provider dependency | 🟢 Low | Self-healing model pipeline auto-updates deprecated models. MODEL_PRIMARY on Sonnet 4.5 (`claude-sonnet-4-5-20250929`) pre-empting June 15, 2026 Sonnet 4 retirement. OpenAI + Gemini fallbacks available. |
 | Limited deploys | 🟡 Medium | Strategic batching |
-| Auction fraud potential | 🟡 Medium | Add monitoring |
+| Auction fraud potential | 🟢 Low | **Mitigated Apr 23, 2026**: audit log (20 event types), payment-miss strike system (warn + flag), Zod input validation on 82 routes, hCaptcha on guest scans. Pattern-based bid anomaly detection remains post-launch — see BACKLOG |
+| Input validation gaps | 🟢 Low | **Mitigated Apr 23, 2026**: Zod validation sweep closed; remaining risk is basic CSRF + middleware expansion — see BACKLOG |
 
 ---
 
 ## 11. Launch Readiness
 
-### Overall: 95% Ready
+### Overall: 99% Ready
 
-#### Still Pending 🟡
-- [ ] Price alerts
-- [ ] Pull lists
-- [ ] Sales trend graphs
-- [ ] Shipping integration
+**Private beta launch target: Sunday April 26, 2026.**
 
----
+#### Remaining items (tracked in BACKLOG.md)
+- Real-money Stripe Connect live-mode test (on deck, user-scheduled)
+- CGC cert lookup via ZenRows (deferred post-launch, unblocks 3 other BACKLOG items)
+- Apple Developer enrollment (1–3 week lead time, post-launch)
+- Price Alerts, Pull Lists, Sales Trend Graphs (post-launch enhancements)
+- Shipping Tracking Option B — EasyPost + 10-day auto-refund (post-launch)
 
-## Next Steps
-
-See `BACKLOG.md` for the prioritized list of open items — **21 new pre-launch items added during session 36** (Apr 21, 2026), including critical comic ownership transfer fix (#6) and the missing transactions page.
+See `BACKLOG.md` for the full prioritized list of open items.

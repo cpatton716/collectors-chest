@@ -2,61 +2,6 @@
 
 ## Pre-Launch — Critical / High Priority
 
-### Fix CGC Cert Lookup Cloudflare 403 Errors
-**Priority:** High (Pre-Launch Blocker — required for Beta)
-**Status:** Pending — ZenRows validated, awaiting cost review
-**Added:** Apr 5, 2026
-**Updated:** Apr 7, 2026
-
-CGC website (`cgccomics.com/certlookup/`) is blocking cert lookups with Cloudflare bot protection (HTTP 403). The current User-Agent (`"CollectorsChest/1.0"`) is detected as a bot. All cert lookups fail, forcing fallback to the full AI pipeline.
-
-**Root cause:** Cloudflare managed challenge blocks non-browser requests. Even full browser headers via curl return 403 — JS execution is required.
-
-**Validated solution:** ZenRows API with `mode=auto&wait=5000` successfully bypasses Cloudflare and returns full cert data (tested Apr 7, 2026 — cert #3986843008 returned complete HTML with grade, title, publisher, etc.).
-
-**Services tested:**
-- ❌ ScraperAPI (standard, premium) — failed against CGC
-- ❌ ZenRows (`js_render=true&antibot=true`) — timed out
-- ✅ ZenRows (`mode=auto&wait=5000`) — **works**, returns full cert page HTML
-
-**Cost:** 25 credits per request. Free trial: 1,000 credits (14 days). Paid plans start at $49/mo for 250K credits (~10,000 cert lookups). With 1-year Redis cache, ongoing costs should be low.
-
-**Blocked on:** Partner cost review of ZenRows subscription before implementation.
-
-**Implementation:** Replace `fetch()` in `src/lib/certLookup.ts` `lookupCGCCert()` with ZenRows API call. Env var `ZENROWS_API_KEY` already added to `.env.local`. Needs to be added to Netlify when ready.
-
-**Impact:** Cert-first pipeline falls back to full AI on every slabbed scan, negating cost savings. Also affects existing cert lookup feature for all users.
-
----
-
-### Optimize Scan Pipeline for Slabbed Comics (Cert-First)
-**Priority:** High (Pre-Launch Blocker — required for Beta)
-**Status:** Implemented (Apr 5, 2026) — effectiveness limited by CGC Cloudflare 403
-**Added:** Apr 5, 2026
-
-Pipeline code is complete and deployed. The cert-first path works end-to-end for CBCS and PGX slabs. CGC slabs fall back to the full AI pipeline due to the Cloudflare 403 blocking issue (see "Fix CGC Cert Lookup Cloudflare 403 Errors"). Once ZenRows is deployed, this item is fully complete.
-
----
-
-### Auto-Harvest Cover Images from Graded Book Scans
-**Priority:** High
-**Status:** Prompt fixed — needs deploy + re-test
-**Added:** Feb 26, 2026
-**Updated:** Apr 7, 2026
-
-Pipeline is running end-to-end (7 covers harvested in production), but the AI is returning **wrong crop coordinates**. It's cropping the grade label area (top of slab) instead of the cover artwork (lower portion visible through the case). All 3 tested images show the same pattern: grade number + label info + just the top edge of the cover.
-
-**Root cause:** The `extractSlabDetails()` AI prompt isn't specific enough about what "cover artwork" means. The AI is interpreting "cover" as the top of the slab (which includes the grading label) rather than the comic book cover art visible through the case below the label.
-
-**Fix needed:** Update the AI prompt in `src/lib/providers/anthropic.ts` and `gemini.ts` to explicitly instruct: "The cover artwork is the comic book art visible through the clear slab case BELOW the grading label. Do NOT include the grade label, cert number, or barcode area in the crop coordinates."
-
-**Also consider:** Delete the 7 bad harvested covers from `cover_images` table and Supabase Storage after fixing.
-
-**Design doc:** `docs/plans/2026-02-25-cover-image-harvesting-design.md`
-**Implementation Plan:** `docs/superpowers/plans/2026-04-02-cover-image-harvesting.md`
-
----
-
 ### Shipping Tracking for Sold Items (payment gated on validated tracking)
 **Priority:** High (Pre-Launch Blocker — required for Full Launch, NOT Beta)
 **Status:** Pending — Option A shipped Apr 22, 2026; Option B (this item) is the full carrier-validated flow
@@ -141,332 +86,6 @@ During Session 36 Stripe Connect testing, the `account.updated` webhook handler 
 
 ---
 
-### Marketplace Policy Gaps in Guest-Facing Docs (Pre-Launch Blocker)
-**Priority:** High (Pre-Launch Blocker)
-**Status:** Pending
-**Added:** Apr 21, 2026
-
-During Stripe Connect setup, user agreed to three platform responsibilities with Stripe (refunds/chargebacks, seller vetting, first-line support). These are not adequately reflected in guest-facing Terms, FAQ, or marketplace policy pages. **Must be closed before opening the marketplace to real users.**
-
-**Gaps identified (audit run Apr 21, 2026):**
-
-1. **Refunds & chargebacks** — Terms of Service covers subscription refunds only. Marketplace refund/chargeback policy is absent.
-   - Add to Terms § Marketplace: "Collectors Chest processes refunds and handles chargeback claims on behalf of the marketplace. Sellers do not directly manage refunds."
-
-2. **Seller vetting / restricted products** — Acceptable Use Policy *prohibits* counterfeits and stolen goods, but nowhere states that Collectors Chest *actively reviews* sellers.
-   - Add to Terms § Marketplace: "Collectors Chest reviews seller accounts to ensure compliance with these Terms and applicable law, including restrictions on counterfeit goods, stolen property, and unauthorized merchandise."
-
-3. **First-line support for payment & risk inquiries** — Terms has weak "may facilitate disputes" language only.
-   - Rename/expand Terms § 10.1: "Collectors Chest provides first-line support for marketplace payment issues and disputes."
-
-4. **Seller communication (risk/fraud actions)** — Stripe requires the platform to notify sellers when their account is affected by risk or fraud prevention/mitigation actions (Apr 21, 2026 acknowledgement). No current content covers this.
-   - Add to Terms § Marketplace (seller-facing): "If your seller account is affected by risk or fraud prevention actions — including holds, reviews, or restrictions — Collectors Chest will notify you with the reason and any steps required to remediate."
-   - Consider: internal runbook for how notifications get sent (email template + timing).
-
-5. **Seller remediation (collecting additional info)** — Stripe requires the platform to collect additional seller information when needed to support the account (KYC updates, doc requests, etc.). No current content covers this.
-   - Add to Terms § Marketplace (seller-facing): "Collectors Chest may periodically request additional information from you to keep your seller account in good standing. You agree to provide requested information promptly; failure to respond may result in account restrictions."
-   - Implementation note: Stripe-hosted onboarding components can collect most remediation data — no custom forms needed.
-
-**Add 3-5 FAQ entries** (in `Navigation.tsx` `faqs` array):
-- "What happens if I want a refund on a marketplace purchase?"
-- "How does Collectors Chest ensure sellers are legitimate?"
-- "Who do I contact if I have a payment problem?"
-- "What happens if my seller account is restricted or under review?"
-- "Why might Collectors Chest ask me for additional information after I've already signed up as a seller?"
-
-**Optional:** dedicated `/marketplace-policy` or `/seller-guidelines` page for single-URL reference during disputes.
-
-**Files to touch:** `src/app/terms/page.tsx`, `src/components/Navigation.tsx` (FAQ array), optionally new `src/app/marketplace-policy/page.tsx`.
-
----
-
-### Seller Onboarding Help Page ("How to set up your Stripe seller account")
-**Priority:** High (Pre-Launch Blocker)
-**Status:** Pending
-**Added:** Apr 21, 2026
-
-Build a dedicated help/tutorial page that walks new sellers through the Stripe Connect Express onboarding flow on Collectors Chest. During session 36 while completing the Stripe setup in test mode, user noted that the same questions a real seller will ask — *What business type? What goes in the "your website" field? What if I don't have a website? What information will Stripe ask for?* — deserve proactive documentation.
-
-**Purpose:** Reduce seller drop-off during onboarding and cut first-line support volume. When sellers reach decision points in Stripe's hosted flow, they should have a Collectors-Chest-branded page explaining the context.
-
-**Design principle — LOW BARRIER TO ENTRY:** User priority (Apr 21, 2026): "If the barrier to entry is too high, people will not sign up, so we need to make it as easy as possible." Every design choice on this page and the surrounding flow should be evaluated against: *does this reduce friction or increase it?*
-
-**Specific low-friction tactics to implement:**
-1. **Pre-fill from Clerk profile** — pass the seller's email, first/last name, and any existing profile data to Stripe's onboarding (Stripe API supports pre-filled values on account creation). Every prefill is one less field to type.
-2. **Explicit time estimate** — "This takes about 5 minutes" at the top of the help page and before the "Set up seller payments" button. Sets expectations.
-3. **Upfront "what you'll need" checklist** — before clicking into Stripe, show the user exactly what to have ready (name, phone, bank info) so they don't start and stall.
-4. **Save/resume flow** — if the user bails mid-Stripe onboarding, make it trivial to resume. The code already uses `accountLinks.create` which handles this via `refresh_url`, but the UX around returning partway through should be polished (e.g., a "Finish seller setup" banner on their settings page).
-5. **Defer onboarding to the last possible moment** — ideally, users should be able to browse and create their collection without ever seeing Stripe onboarding. Only prompt when they're about to list their first item for sale. Current code already gates listing creation on Connect; keep it that way.
-6. **Trust cues** — "Your info is encrypted. Stripe handles identity verification; Collectors Chest never sees your SSN or bank details."
-7. **Mobile-first design** — the majority of sellers will onboard from mobile. The help page and the flow around it must work cleanly on a 375px-wide viewport.
-8. **Progress visibility** — after they return from Stripe, if onboarding is incomplete, show a clear "You're 3/4 done — one more step" nudge rather than forcing them to figure out what's pending.
-9. **No unnecessary fields** — only ask for info Stripe actually requires. Never add custom forms on top of Stripe's. Embedded onboarding components can shorten the flow further if basic Stripe-hosted proves too long.
-10. **Handle the "no website" case gracefully** — explicitly call it out ("Most hobbyist sellers don't have a website — that's fine, select 'add product description' on Stripe's page").
-
-**Scope (user-facing content only — NO test-mode details):**
-
-1. **Overview:** Why sellers need to complete Stripe onboarding (to receive payouts from sales)
-2. **What to have ready before starting:**
-   - Legal name + DOB
-   - Real US mobile phone for SMS verification
-   - Last 4 of SSN (individuals) or EIN (companies)
-   - Bank account + routing number for payouts
-3. **Step-by-step walkthrough** (mirror the Stripe screens the seller will see):
-   - Email & phone verification
-   - Business type decision — "Choose Individual if you're a hobbyist collector; choose Company if you have a registered LLC or sole proprietorship"
-   - Legal name + website/product description — "Don't have a website? Use the 'product description' option and describe what you sell"
-   - Address (must match government records)
-   - SSN last 4 (for individuals) — "Stripe uses this for identity verification only; Collectors Chest never sees it"
-   - Bank account for payouts — "Payouts typically arrive 2-5 business days after a sale completes"
-4. **What happens after onboarding:**
-   - How payouts work (Stripe Express Dashboard, payout schedule)
-   - How disputes/chargebacks are handled (links back to marketplace policy)
-   - How to update bank info later (via Express Dashboard)
-5. **Troubleshooting:**
-   - "Stripe rejected my info" → link to Stripe support
-   - "I want to cancel my seller account" → contact collectors-chest support
-
-**Add FAQ entry** (in `Navigation.tsx` `faqs` array) — link directly to the new page:
-- Q: "How do I set up my Stripe seller account?"
-- A: "Before you can list comics for sale, you'll need to complete a short onboarding flow with Stripe, our payment processor. This takes ~5 minutes. See our [Seller Onboarding Guide](/seller-onboarding) for a step-by-step walkthrough."
-
-**Files to create:**
-- `src/app/seller-onboarding/page.tsx` — new help page (follow Lichtenstein design language; use existing Terms/Privacy page structure as reference)
-- `src/components/Navigation.tsx` — add the FAQ entry pointing at `/seller-onboarding`
-
-**Note:** This is DIFFERENT from the "Marketplace Policy Gaps" item above. That one is about legal language in Terms of Service. This one is user-facing help content to reduce onboarding friction.
-
----
-
-### Payment Deadline Enforcement Test
-**Priority:** High (Pre-Launch Blocker)
-**Status:** Pending — bundle with real-money Stripe Connect test
-**Added:** Apr 22, 2026
-
-Auction payment deadline logic exists in the codebase but has never been exercised end-to-end. Session 36 validated payment *success* flows but did NOT test what happens when a winning bidder misses the payment deadline. Per EVALUATION.md § 3: *"Payment deadline enforcement — ⚠️ Unclear — logic in place but untested."*
-
-**User direction (Apr 22, 2026):** *"Should be tested along with real money test. Please make sure the test cases account for this."*
-
-**Test scenarios to add to TEST_CASES.md:**
-1. Winning bidder never pays — verify auction auto-cancels after the deadline
-2. Payment attempted after deadline — verify logic correctly rejects or flags the attempt
-3. Second-highest bidder fallback (if supported) — verify deadline-miss triggers the promotion path
-4. Notifications fire — buyer reminder before deadline, seller cancellation alert after
-
-**Implementation sanity-check:** audit `src/lib/auctionDb.ts` and auction cron handlers for the deadline code path before running live tests.
-
-**Related:** real-money Stripe Connect live-mode test; EVALUATION § 3 Auction Issues & Gaps.
-
----
-
-### Request Size Limits on Image Uploads
-**Priority:** Medium (Pre-Launch Blocker)
-**Status:** Pending
-**Added:** Apr 22, 2026
-
-Image upload endpoints (scans, covers, profile avatars) currently have no enforced upper size limit on the server side. A malicious or buggy client could POST oversized payloads, leading to OOM, elevated Anthropic API costs on oversized scan inputs, or bloated Supabase Storage bills. EVALUATION.md § 2 Security Recommendations flagged this.
-
-**Scope:**
-- Add per-request max-size enforcement at the API route layer for all image upload endpoints (`/api/analyze`, `/api/covers/upload`, profile avatar, any other multipart or base64 image sinks)
-- Reasonable limit: **10MB per image** (typical phone photos are 2-5MB; gives headroom without abuse)
-- Return HTTP 413 Payload Too Large on exceed, with a user-friendly error message
-- Add matching client-side pre-validation to prevent wasted upload attempts
-
-**Files to touch:** every API route that handles multipart/form-data or base64 image payloads. Grep `request.formData()` or `request.json()` with image fields as a starting point.
-
----
-
-### Remove "Hottest Books" Feature (Codebase Cleanup)
-**Priority:** Medium (Pre-Launch Cleanup)
-**Status:** Pending
-**Added:** Apr 22, 2026
-
-Decision (Apr 22, 2026): do not move forward with the Hottest Books feature at all. Remove all references from the codebase and docs.
-
-**Scope:**
-- Audit codebase for all Hottest Books references (components, API routes, constants like `USE_STATIC_LIST`, feature flags, hooks)
-- Remove homepage Hottest Books section and any standalone `/hottest-books` page
-- Remove associated API routes (e.g., `/api/hottest-books` if present)
-- Remove stale constants and flags
-- Clean up imports, unit tests, documentation mentions
-- EVALUATION.md § 0 Medium Priority row already removed Apr 22, 2026
-
-**Verification:**
-- `grep -ri "hottest" src/` should return zero functional hits (may still appear in unrelated contexts — audit each)
-- `npm run check:full` must pass (typecheck + lint + build)
-- Spot-check the app: homepage, navigation, any known entry points
-
----
-
-### Strengthen Input Validation Across API Endpoints
-**Priority:** Medium (Pre-Launch Blocker — required for Beta)
-**Status:** Pending
-**Added:** Apr 22, 2026
-
-Auction routes have schema validation; most other API routes accept request bodies with minimal server-side validation. EVALUATION § 2 Security Recommendations flagged this as defense-in-depth against malformed data, stored XSS, and injection attempts.
-
-**User direction (Apr 22, 2026):** Yes — launch blocker.
-
-**Scope:**
-- Systematic sweep of all `src/app/api/**/route.ts` endpoints
-- Add Zod (or equivalent) schema validation at the top of each handler
-- Validate: type, length, format, enum values, required/optional fields
-- Standardize error response shape (HTTP 400 with field-specific error messages)
-- Prioritize routes accepting free-text, file paths, or URLs (highest injection risk)
-
-**Effort:** 3-5 days.
-
-**Related:** Request Size Limits on Image Uploads (sibling blocker); general API hardening.
-
----
-
-### CAPTCHA for Guest Scan Limit
-**Priority:** Medium (Pre-Launch Blocker — required for Full Launch, NOT Beta)
-**Status:** Pending — defer until Beta → Full Launch transition
-**Added:** Apr 22, 2026
-
-Guests get 5 free scans tracked in localStorage; clearing localStorage / using incognito bypasses the limit. Each scan costs ~$0.015 in Anthropic API — a bad actor in a loop burns real money. Upstash IP-based rate limiting is live and sufficient for Beta, but abuse risk escalates when public registration opens.
-
-**User direction (Apr 22, 2026):** *"Yes, but not for Beta Launch."*
-
-**Scope:**
-- Integrate hCaptcha (recommended — privacy-friendly, GDPR-compliant) or reCAPTCHA v3 free tier
-- Challenge trigger: first scan attempt AND at scan-limit wall
-- Server-side token verification at the scan endpoint
-- Respect existing Upstash rate limit (don't double-gate)
-
-**Effort:** 1-2 days.
-
----
-
-### Audit Logging for Auction Transactions
-**Priority:** Medium (Pre-Launch Blocker — required for Full Launch, NOT Beta)
-**Status:** Pending — defer until Beta → Full Launch transition
-**Added:** Apr 22, 2026
-
-Immutable backend audit log of every auction state change (bid placed, auction ended, payment captured, transfer created, dispute filed) for compliance, fraud investigation, and debugging. **NOTE:** This is NOT the user-facing transaction history — that's the separate "Transactions Page for Buyers" item (already a Beta Pre-Launch Blocker).
-
-**User direction (Apr 22, 2026):** *"Yes, but not for Beta Launch."*
-
-**Scope:**
-- New `auction_audit_log` table: id, event_type, auction_id, user_id, actor_type (user/cron/webhook), payload JSON, created_at
-- Instrument every state-change function in `src/lib/auctionDb.ts` to append log rows
-- Admin-only viewer at `/admin/audit/auctions` — filter by auction / user / date / event type
-- RLS: admin-only read; no update/delete permissions from any client
-- Logs are immutable — no updates to existing rows
-
-**Effort:** 2-3 days.
-
-**Related:** Transactions Page for Buyers (user-facing, separate item); Fraud Detection (feeds off audit log).
-
----
-
-### Pre-populate Top Comics Cache (ZenRows Scrape — Marvel + DC)
-**Priority:** Medium (Pre-Launch Blocker — required for Full Launch, NOT Beta)
-**Status:** Pending — defer until Beta → Full Launch transition
-**Added:** Apr 22, 2026
-
-Our AI cover scan pipeline costs ~$0.015/scan. Most scans target popular issues from major publishers. Pre-seeding the `comic_metadata` + `cover_images` tables with the top Marvel + DC catalogs *before* Full Launch skips AI calls for those scans entirely — significant cost reduction at scale.
-
-**User direction (Apr 22, 2026):** *"Yes, but not for Beta Launch. Would like to go ZenRows scraping approach for both Marvel & DC. I'll look into a similar approach for Image and other publishers."*
-
-**Approach:**
-- Use ZenRows (already in consideration for CGC cert lookup — shared subscription amortizes cost)
-- **Phase 1:** scrape Marvel.com catalog (supersedes existing "Scrape Marvel.com for Cover Images (ZenRows)" backlog item)
-- **Phase 2:** scrape DC.com catalog
-- **Phase 3 (user follow-up research):** evaluate Image Comics, Dark Horse, and other major publishers
-- ETL: normalize scraped metadata into our schema, download + store cover images to Supabase Storage, populate `comic_metadata` and `cover_images`
-- One-time batch job; optional periodic re-scrape for new releases (ties into Follow List feature — reuses the release-date data)
-
-**Effort:** 3-5 days scripting per publisher + content review.
-
-**Scale win:** Marvel + DC represent ~70% of typical collector scans — pre-seeding those alone cuts AI costs sharply at Full-Launch volume.
-
-**Related:** Existing "Scrape Marvel.com for Cover Images (ZenRows)" entry — consolidate into this; Follow List (reuses release-date data).
-
----
-
-### Remove Metron Integration from Codebase
-**Priority:** Low (Pre-Launch Cleanup)
-**Status:** Pending
-**Added:** Apr 22, 2026
-
-**User direction (Apr 22, 2026):** *"Remove all reference and or mention of Metron. We've looked at their stuff and it was junk. Very unreliable. Unless we know for sure they've improved the quality of their API or you have a strong reason to keep them in the mix, I vote we continue to disregard them in all future contexts that we've already explored their ability to support."*
-
-**Code surface to remove:**
-- `src/lib/metronVerify.ts` — verification helper
-- `src/lib/__tests__/metronVerify.test.ts` — tests
-- Metron usage in `src/app/api/analyze/route.ts` (verification pass)
-- Metron usage in `src/lib/coverValidation.ts`
-- `METRON_USERNAME` / `METRON_PASSWORD` env vars (.env.local + Netlify)
-- `CLAUDE.md` Services & Infrastructure table — Metron row
-- Historical spec docs in `docs/engineering-specs/` and `docs/plans/` — leave as-is (historical record, not future-facing)
-
-**Verification:**
-- `grep -ri "metron" src/` should return zero functional hits
-- `npm run check:full` must pass (typecheck + lint + build)
-- Confirm cover validation + AI analyze pipeline still works without Metron verification pass
-
-**Consideration:** If the AI-only pipeline loses meaningful precision without Metron verification, evaluate an alternative (or accept the precision delta). Baseline test: compare scan accuracy before vs after removal on a 50-book sample.
-
----
-
-### Email Notification Preferences / Opt-Out System
-**Priority:** Medium (Pre-Launch Blocker — required for Full Launch, NOT Beta)
-**Status:** Pending — defer until Beta → Full Launch transition
-**Added:** Apr 22, 2026
-
-No email opt-out mechanism exists today — every notification email fires unconditionally. Safe while users are test accounts / small private beta, but **required before public launch** for CAN-SPAM / GDPR compliance on notification-style emails (outbid, won, new listing from followed, feedback reminder, etc.). Strictly transactional emails (purchase confirmation, payment receipt) can always send, but users must be able to silence the rest.
-
-**Scope:**
-- New `notification_preferences` JSON column on `profiles` table (migration):
-  - `{ outbid: true, auction_won: true, auction_sold: true, new_listing_from_followed: true, feedback_reminder: true, offer_received: true, offer_status: true, ... }`
-  - Default all to `true` for existing users (backwards-compatible)
-- Update every call site in `src/lib/auctionDb.ts` and webhook where `sendNotificationEmail(...)` is invoked:
-  - Fetch recipient's preferences first
-  - Skip send if the corresponding preference is `false`
-  - **Always-send categories** (no opt-out): `purchase_confirmation`, `item_sold`, `welcome`, `trial_expiring`
-- Settings UI: new section on `/settings` or Profile page listing each notification type with a toggle
-- Unsubscribe link in every non-transactional email footer — routes to `/settings?tab=notifications` (deep-link)
-- Optional: one-click unsubscribe per type via signed token URL (RFC 8058 compliant — Gmail/Apple increasingly require this)
-
-**Schema migration sketch:**
-```sql
-ALTER TABLE profiles ADD COLUMN notification_preferences JSONB DEFAULT '{
-  "outbid": true,
-  "auction_won": true,
-  "auction_sold": true,
-  "new_listing_from_followed": true,
-  "feedback_reminder": true,
-  "offer_received": true,
-  "offer_status_change": true,
-  "payment_reminder": true
-}'::jsonb;
-```
-
-**Files expected:**
-- Migration for `notification_preferences` column
-- `src/lib/notificationPreferences.ts` — helper to check prefs before send
-- `src/lib/email.ts` — wrap `sendNotificationEmail` with preference check OR have every caller check
-- Settings UI component + API route for reading/updating preferences
-- Unsubscribe footer partial in email templates
-
-**Effort:** 3-5 days.
-
-**Related:** Marketplace Notification & Email Coverage Gaps (below — those new emails must respect these preferences from day one).
-
----
-
-### Signature Detection on Cached Scan Path
-**Priority:** High (Pre-Launch Blocker — required for Beta)
-**Status:** Implemented — effectiveness limited by CGC Cloudflare 403
-**Added:** Apr 6, 2026
-**Updated:** Apr 7, 2026
-
-When cert lookups work (CBCS/PGX now, CGC after ZenRows fix), signature data comes directly from the cert — `signatures` field and `labelType: "Signature Series"`. This covers the primary use case of detecting signed slabbed books. Once the CGC Cloudflare fix (#1) is deployed, this is effectively resolved for all grading companies.
-
----
-
 ### Sign in with Apple + Apple Developer Program Enrollment
 **Priority:** Medium (Pre-Launch — not a strict blocker; unblocks iOS downstream)
 **Status:** Pending — prerequisite for iOS Native App
@@ -521,6 +140,78 @@ Native iOS app via Capacitor wrapping our existing Next.js/PWA codebase. Distrib
 ---
 
 ## Pending Enhancements
+
+### Fix CGC Cert Lookup Cloudflare 403 Errors
+**Priority:** Medium (Post-Launch)
+**Status:** Deferred post-launch pending ZenRows ROI decision
+**Added:** Apr 5, 2026
+**Updated:** Apr 23, 2026
+
+CGC website (`cgccomics.com/certlookup/`) is blocking cert lookups with Cloudflare bot protection (HTTP 403). The current User-Agent (`"CollectorsChest/1.0"`) is detected as a bot. All cert lookups fail, forcing fallback to the full AI pipeline.
+
+**Root cause:** Cloudflare managed challenge blocks non-browser requests. Even full browser headers via curl return 403 — JS execution is required.
+
+**Validated solution:** ZenRows API with `mode=auto&wait=5000` successfully bypasses Cloudflare and returns full cert data (tested Apr 7, 2026 — cert #3986843008 returned complete HTML with grade, title, publisher, etc.).
+
+**Services tested:**
+- ❌ ScraperAPI (standard, premium) — failed against CGC
+- ❌ ZenRows (`js_render=true&antibot=true`) — timed out
+- ✅ ZenRows (`mode=auto&wait=5000`) — **works**, returns full cert page HTML
+
+**Cost:** 25 credits per request. Free trial: 1,000 credits (14 days). Paid plans start at $49/mo for 250K credits (~10,000 cert lookups). With 1-year Redis cache, ongoing costs should be low.
+
+**Blocked on:**
+
+> **Repriced Apr 23, 2026:** ZenRows pricing bumped $49 → $69/month. Pure break-even on AI-scan savings now requires ~4,600 CGC slab scans/month, unlikely to hit in private beta. Fallback to AI pipeline is confirmed working (users aren't blocked — just slower + ~$0.015 per-scan cost). Decision: defer subscription post-launch; revisit after 2-4 weeks of real scan volume data. If post-launch data shows sustained CGC slab volume that justifies the spend, subscribe and wire the integration (spec below is still accurate, just swap `fetch()` for ZenRows API call in `src/lib/certLookup.ts`).
+
+Partner cost review of ZenRows subscription before implementation.
+
+**Implementation:** Replace `fetch()` in `src/lib/certLookup.ts` `lookupCGCCert()` with ZenRows API call. Env var `ZENROWS_API_KEY` already added to `.env.local`. Needs to be added to Netlify when ready.
+
+**Impact:** Cert-first pipeline falls back to full AI on every slabbed scan, negating cost savings. Also affects existing cert lookup feature for all users.
+
+---
+
+### Pre-populate Top Comics Cache (ZenRows Scrape — Marvel + DC)
+**Priority:** Medium (Post-Launch — gated on ZenRows subscription)
+**Status:** Pending — defer until Beta → Full Launch transition
+**Added:** Apr 22, 2026
+**Updated:** Apr 23, 2026
+
+**[CP - 4/23] - Blocked by "Fix CGC Cert Lookup Cloudflare 403 Errors" / ZenRows post-launch decision. One-time scrape burst; defer until ZenRows subscription is active.**
+
+Our AI cover scan pipeline costs ~$0.015/scan. Most scans target popular issues from major publishers. Pre-seeding the `comic_metadata` + `cover_images` tables with the top Marvel + DC catalogs *before* Full Launch skips AI calls for those scans entirely — significant cost reduction at scale.
+
+**User direction (Apr 22, 2026):** *"Yes, but not for Beta Launch. Would like to go ZenRows scraping approach for both Marvel & DC. I'll look into a similar approach for Image and other publishers."*
+
+**Approach:**
+- Use ZenRows (already in consideration for CGC cert lookup — shared subscription amortizes cost)
+- **Phase 1:** scrape Marvel.com catalog (supersedes existing "Scrape Marvel.com for Cover Images (ZenRows)" backlog item)
+- **Phase 2:** scrape DC.com catalog
+- **Phase 3 (user follow-up research):** evaluate Image Comics, Dark Horse, and other major publishers
+- ETL: normalize scraped metadata into our schema, download + store cover images to Supabase Storage, populate `comic_metadata` and `cover_images`
+- One-time batch job; optional periodic re-scrape for new releases (ties into Follow List feature — reuses the release-date data)
+
+**Effort:** 3-5 days scripting per publisher + content review.
+
+**Scale win:** Marvel + DC represent ~70% of typical collector scans — pre-seeding those alone cuts AI costs sharply at Full-Launch volume.
+
+**Related:** Existing "Scrape Marvel.com for Cover Images (ZenRows)" entry — consolidate into this; Follow List (reuses release-date data).
+
+---
+
+### Align Clerk Username Rules with Supabase Regex
+**Priority:** Medium
+**Status:** Pending
+**Added:** Apr 23, 2026
+
+Clerk dashboard currently accepts dashes in usernames, but Supabase `profiles.username` enforces `^[a-z0-9_]{3,20}$`. This means users can set a username at Clerk signup that silently fails to sync to Supabase. Today's session added a sanitizer on the Clerk webhook that rejects invalid characters before upsert (so invalid usernames don't crash the whole row), and a sync-on-write path that pushes CC usernames back to Clerk — but the root fix is to tighten Clerk's username rules to match Supabase at the source.
+
+**How to fix:** In Clerk Dashboard → User & Authentication → Email, Phone, Username → edit the username format settings to require `[a-z0-9_]` only, 3-20 chars. This is a dashboard-only change, no code required. Takes ~2 min.
+
+**Impact:** Prevents silent username drops at signup. Users get a friendly Clerk-side error ("Username can only contain lowercase letters, numbers, and underscores") instead of an account whose username disappears into a DB constraint violation.
+
+---
 
 ### Android Native App (Google Play Store)
 **Priority:** Medium (Post-Launch)
@@ -942,6 +633,61 @@ eBay-style auction sniping — bidders placing winning bids in the final seconds
 
 ---
 
+### Second Chance Offer — Cascade to Third-Highest Bidder
+**Priority:** Low (Post-Launch)
+**Status:** Pending
+**Added:** Apr 23, 2026
+
+The Second Chance Offer feature shipped today (seller-initiated, 48h window, runner-up's last actual bid). If the runner-up declines or ignores, the offer currently ends and the seller must re-list manually. This item tracks the potential enhancement to cascade automatically to the 3rd-highest bidder, 4th, etc., with a cap (e.g., 3 deep).
+
+Rationale for deferring: Spam risk and unclear conversion value. Wait for post-launch data on how often Second Chance Offers happen and what the accept rate looks like before adding cascade complexity.
+
+---
+
+### Cover Harvest Aspect-Ratio Server-Side Guard Expansion
+**Priority:** Low (Post-Launch)
+**Status:** Implemented (basic version) — future enhancements possible
+**Added:** Apr 23, 2026
+
+Today's session shipped `coverCropValidator.ts` with a 0.55–0.85 w/h aspect ratio guard on AI-returned crop coordinates. Rejects clearly-wrong crops (grade label strips, full slab regions) before they pollute the cover cache. Future enhancements worth tracking:
+
+- Per-slab-type ratio tuning (CGC/CBCS/PGX have slightly different clear-window proportions)
+- y-coordinate validation (crop must START below the expected label height, not at top of slab)
+- Rejection metrics / alerts if the guard fires more than X% of the time (signals the AI prompt needs further refinement)
+
+---
+
+### Payment-Expiry Cron Batching Enhancements
+**Priority:** Low (Post-Launch)
+**Status:** Basic batching shipped — further enhancements possible
+**Added:** Apr 23, 2026
+
+Today's session shipped Resend `batch.send()` + `mapWithConcurrency(5)` for the payment-expiry cron pipeline. Further enhancements if volume grows past ~50 expirations per cron tick:
+
+- Per-batch retry on transient 429 rate-limit errors (exponential backoff)
+- Batched `profiles` + comic lookups via a single `IN (...)` query instead of per-auction prep
+- Move email send entirely off the critical cron path via a queue (e.g., Inngest, Resend scheduled sends)
+
+---
+
+### Notification CHECK Constraint — Audit Pre-Existing Drift
+**Priority:** Low (Post-Launch)
+**Status:** Pending investigation
+**Added:** Apr 23, 2026
+
+During Session 39, the Second Chance Offer agent discovered the `valid_notification_type` CHECK constraint on `notifications` table was missing 4 types that were already being inserted in code (`auction_payment_expired`, `auction_payment_expired_seller`, `bid_auction_lost`, `new_bid_received`). The constraint was updated to include them. Question worth a post-launch investigation: did any notification inserts silently fail in production before the fix, and if so, how many users had missing notifications? Query the notifications table + server logs around the date range when those types were first inserted.
+
+---
+
+### hCaptcha Siteverify — Add Retry on Transient Failures
+**Priority:** Low (Post-Launch)
+**Status:** Pending
+**Added:** Apr 23, 2026
+
+Today's session wired a 5-second AbortSignal timeout on the hCaptcha siteverify fetch to fail-fast during outages. Future enhancement: add 1-2 retries with short backoff for transient network errors before returning `network_error` to the user. Current behavior is fail-closed, which is correct, but retries would improve UX during brief connectivity blips.
+
+---
+
 ### Customizable Initial Message
 **Priority:** Low
 **Status:** Pending
@@ -1268,28 +1014,6 @@ Evaluate whether Gemini should be the primary scanner provider instead of Claude
 **Added:** Mar 18, 2026
 
 Add more vintage key issues to the curated key info database based on user scanning patterns. Current DB has 403+ entries — expand with additional silver/bronze/copper age keys that users are frequently scanning.
-
----
-
-### Scrape Marvel.com for Cover Images (ZenRows)
-**Priority:** Low
-**Status:** Pending
-**Added:** Apr 7, 2026
-
-Use ZenRows (or similar scraping API) to harvest comic cover images from Marvel's website (https://www.marvel.com/comics). Marvel's deprecated Developer Program means their API is no longer available, but cover images are still publicly accessible on the website. This could replace or supplement Open Library as a cover source in the pipeline.
-
-**Approach:**
-- One-time batch scrape of Marvel's comic catalog to pre-seed our `cover_images` / `comic_metadata` database with cover image URLs
-- Marvel doesn't have Cloudflare-level bot protection — standard scraping should work
-- Crawl their comics listing pages, extract cover image URLs + title/issue metadata, and bulk-insert into our community cover database
-- Could also set up a periodic re-scrape (weekly/monthly) to pick up newly released covers
-- Goal: When a user scans any Marvel book, we already have the cover image cached — no AI validation needed, no eBay image hunting
-
-**Scale:** Marvel is the largest publisher. Pre-seeding their covers would dramatically improve cover hit rates across the platform.
-
-**Dependencies:** ZenRows subscription (shared with CGC cert lookup if approved). Evaluate whether `mode=auto` is needed or if basic scraping suffices for Marvel.
-
-**Related:** "Remove Open Library from Cover Pipeline" — Marvel scraping could replace Open Library as a more reliable cover source for Marvel titles. Could expand to DC, Image, and other publishers later.
 
 ---
 

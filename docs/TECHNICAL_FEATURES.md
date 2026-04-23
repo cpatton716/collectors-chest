@@ -2,7 +2,7 @@
 
 > Reference document for spec doc creation. Each feature below should get its own detailed spec document through individual review sessions.
 >
-> **Last Updated:** April 22, 2026 — Session 37
+> **Last Updated:** April 23, 2026 — Sessions 38 + 39
 
 ---
 
@@ -38,7 +38,9 @@ Four-source waterfall for finding covers: Community covers → eBay listing imag
 
 **Auto-harvest from graded scans:** When scanning slabbed comics, the AI reports crop coordinates for the cover artwork visible through the slab. If harvestable (sharp, well-lit, minimal glare), the pipeline automatically crops the cover, converts to WebP, uploads to Supabase Storage, and submits to the community cover DB — zero user friction. Runs pre-response with a 2s timeout. Deduplication via partial unique index.
 
-**Key files:** `src/lib/coverValidation.ts`, `src/lib/coverImageDb.ts`, `src/lib/coverHarvest.ts`, `src/app/api/cover-images/route.ts`
+**Session 39 addition — Aspect-ratio guard:** `src/lib/coverCropValidator.ts` rejects AI-returned crop coordinates outside the comic-book aspect range (0.55-0.85 w/h). Runs at the top of `harvestCoverFromScan` so out-of-range crops don't pollute the cover cache. 16 unit tests.
+
+**Key files:** `src/lib/coverValidation.ts`, `src/lib/coverImageDb.ts`, `src/lib/coverHarvest.ts`, `src/lib/coverCropValidator.ts`, `src/app/api/cover-images/route.ts`
 
 ---
 
@@ -58,7 +60,13 @@ Redis (backend): eBay prices (12h), metadata (7d), AI analysis (30d), barcodes (
 ## 5. Scan Quota & Reservation System
 Guest: 5 scans (client-side + server header validation, +5 via email capture). Free: 10/month (atomic `reserveScanSlot()` with conditional UPDATE). Premium: unlimited. Purchased 10-packs ($1.99, never expire). Scan slot released on AI failure. Monthly auto-reset on 1st.
 
-**Key files:** `src/lib/subscription.ts`, `src/hooks/useGuestScans.ts`, `src/app/api/analyze/route.ts`
+**Session 38 additions:**
+- 10MB image upload cap via `src/lib/uploadLimits.ts` (`MAX_IMAGE_UPLOAD_BYTES`, `assertImageSize()`, `base64DecodedByteLength()`). Returns HTTP 413 on oversize. Shared by `/api/analyze` and `/api/messages/upload-image`. Client-side pre-validation in `ImageUpload.tsx` and `MessageComposer.tsx`.
+- Scan-slot reservation leak fix: 413 (too large) and 400 (no image) error branches now release the reserved slot so users aren't billed a scan for a malformed request.
+
+**Session 39 addition — hCaptcha Guest Scan Protection:** Invisible hCaptcha gates guest scans **4 and 5 only** (the last two free scans before the limit). Client via `@hcaptcha/react-hcaptcha` with floating badge (`src/components/GuestCaptcha.tsx`), server helper at `src/lib/hcaptcha.ts` with 5s siteverify timeout and dev/prod key swap. Env vars: `HCAPTCHA_SECRET` + `NEXT_PUBLIC_HCAPTCHA_SITE_KEY`.
+
+**Key files:** `src/lib/subscription.ts`, `src/lib/uploadLimits.ts`, `src/lib/hcaptcha.ts`, `src/hooks/useGuestScans.ts`, `src/components/GuestCaptcha.tsx`, `src/app/api/analyze/route.ts`
 
 ---
 
@@ -145,7 +153,22 @@ Two listing types: timed auction (1-14 days, proxy bidding) and fixed-price (30-
 - **Auction-end email templates** — `auction_won`, `auction_sold`, `bid_auction_lost` (new types); all deliver correctly after FK fix.
 - **Friendly DB error translation** — `placeBid` maps `valid_max_bid` and RLS errors to user-facing messages instead of surfacing raw Postgres strings.
 
-**Key files:** `src/lib/auctionDb.ts`, `src/app/api/auctions/`, `src/app/api/offers/`, `src/app/api/connect/`, `src/app/api/checkout/route.ts`, `src/app/api/transactions/route.ts`, `src/app/api/auctions/[id]/mark-shipped/route.ts`, `src/app/api/webhooks/stripe/route.ts`, `src/app/transactions/page.tsx`, `src/components/auction/ListingDetailModal.tsx`, `src/components/auction/AuctionDetailModal.tsx`, `src/components/auction/PaymentButton.tsx`, `src/components/auction/BidForm.tsx`, `src/components/auction/MarkAsShippedForm.tsx`, `src/lib/cloneSoldComic.ts`, `src/types/auction.ts`, `docs/stripe-connect-setup.md`
+**Session 38 changes (April 23, 2026) — Payment Deadline Enforcement:**
+- **Checkout-time deadline guard** (`/api/checkout`): HTTP 400 "The payment window for this auction has expired" when `listing.paymentDeadline < now`. Previously buyers could pay days/weeks late — route only checked `paymentStatus !== "pending"`.
+- **Live countdown timer on `/transactions`** via new `<PaymentDeadlineCountdown>` client component. Neutral >24h, orange ≤24h, red ≤6h, "Expired" at ≤0. Ticks every 60s, hydration-safe.
+- **`sendPaymentReminders()` cron pass** fires at T-24h, idempotent via `payment_reminder_sent_at` column. `payment_reminder` NotificationType was already declared but never emitted.
+- **`expireUnpaidAuctions()` cron pass** transitions stale auctions (`status='ended' AND payment_status='pending' AND payment_deadline < NOW()`) to `status='cancelled'`, sets `payment_expired_at`, emails both parties. Race-safe via `WHERE payment_expired_at IS NULL` + `.select()` row-count check.
+- **`PAYMENT_WINDOW_HOURS` const cleanup** — four hardcoded `48`s replaced with `calculatePaymentDeadline()`.
+- **New cron pipeline:** `processEndedAuctions → sendPaymentReminders → expireUnpaidAuctions → expireOffers → expireListings` (Session 39 adds `expireSecondChanceOffers`).
+- **Migration:** `20260423_payment_reminder_tracking.sql` — adds `payment_reminder_sent_at`, `payment_expired_at` columns + partial index on `(payment_deadline) WHERE status='ended' AND payment_status='pending'`.
+
+**Session 39 changes (April 23, 2026) — Second Chance + Strike + Audit + Cron Batching:**
+- **Second Chance Offer System** — When auction expires unpaid and runner-up exists, seller gets email + in-app notification with "Offer to runner-up" CTA. Runner-up has 48h to accept at their last actual bid price (not max_bid). No cascade. New table `second_chance_offers` + RLS, new routes (`/api/auctions/[id]/second-chance`, `/api/second-chance-offers`, `/api/second-chance-offers/[id]`), new components (`SecondChanceOfferButton`, `SecondChanceInboxCard`), cron pass `expireSecondChanceOffers`, 5 new email templates, 7 new notification types. See Feature #22 below.
+- **Payment-Miss Strike System** — See Feature #21 below. Inside `expireUnpaidAuctions()`, increments `payment_missed_count`; 1st offense → warning email, 2+ strikes in 90 days → sets `bid_restricted_at`, inserts system-negative reputation rating, emails user + admins. `/api/auctions/[id]/bid` enforces bid restriction.
+- **Auction Audit Log** — See Feature #23 below. New table `auction_audit_log` (admin-read RLS), `auction_audit_event_type` enum, `src/lib/auditLog.ts` helper, 17 wire-ups across auction/offer/payment/shipment lifecycle. Admins can now query a complete transaction log for dispute resolution + debugging.
+- **Cron Batching** — `src/lib/concurrency.ts` with `mapWithConcurrency(5)`. `sendPaymentReminders` + `expireUnpaidAuctions` refactored: serial race-safe UPDATE → batched Supabase notification insert → Resend `batch.send()` (50 emails/batch). Handles 50+ expirations per tick without timeout or rate-limit issues.
+
+**Key files:** `src/lib/auctionDb.ts`, `src/lib/auditLog.ts`, `src/lib/concurrency.ts`, `src/app/api/auctions/`, `src/app/api/second-chance-offers/`, `src/app/api/offers/`, `src/app/api/connect/`, `src/app/api/checkout/route.ts`, `src/app/api/transactions/route.ts`, `src/app/api/auctions/[id]/mark-shipped/route.ts`, `src/app/api/auctions/[id]/second-chance/route.ts`, `src/app/api/cron/process-auctions/route.ts`, `src/app/api/webhooks/stripe/route.ts`, `src/app/transactions/page.tsx`, `src/app/seller-onboarding/page.tsx`, `src/components/PaymentDeadlineCountdown.tsx`, `src/components/auction/`, `src/lib/cloneSoldComic.ts`, `src/types/auction.ts`, `docs/stripe-connect-setup.md`
 
 ---
 
@@ -186,12 +209,9 @@ Service Worker: network-first for pages, cache-first for static assets. Offline 
 
 ---
 
-## 17. ~~Hot Books / Trending Discovery~~
-`hot_books` table with AI-generated rankings. Background eBay price refresh (24h TTL). Historical tracking in `hot_books_history` for trend analysis. Rank change tracking. "Add to Hunt List" integration.
+## 17. ~~Hot Books / Trending Discovery~~ (REMOVED — Session 38)
 
-**Status:** CANDIDATE FOR REMOVAL — Feature still exists in codebase but does not align with product vision (collection & community first, marketplace secondary). Code, routes, pages, and DB tables still present. Needs cleanup session to remove.
-
-**Affected files:** `src/app/api/hottest-books/route.ts`, `src/app/hottest-books/page.tsx`, `src/app/hottest-books/HotBooksClient.tsx`, `src/lib/hotBooksData.ts`, `src/components/AddToKeyHuntButton.tsx` (partial), DB tables: `hot_books`, `hot_books_history`
+Feature fully removed April 23, 2026. Deleted: `src/app/hottest-books/*`, `src/app/api/hottest-books/*`, `src/lib/hotBooksData.ts`. DB tables `hot_books`, `hot_books_history`, `hot_books_refresh_log` remain but are no longer read by any code path. Navigation entries pruned from `Navigation.tsx` and `MobileNav.tsx`. Removed because the feature did not align with product vision (collection & community first, marketplace secondary).
 
 ---
 
@@ -203,13 +223,115 @@ Toggle `is_public` → auto-generate URL slug → `/u/[slug]` renders public pro
 ---
 
 ## 19. Admin Operations Suite
-Cover approval queue, barcode review queue, key info moderation, message report review, user management (suspend/grant premium/reset trial), health checks (Metron/eBay/storage connectivity), usage monitoring with rate limit alerts.
+Cover approval queue, barcode review queue, key info moderation, message report review, user management (suspend/grant premium/reset trial), health checks (eBay/storage connectivity), usage monitoring with rate limit alerts. **Session 39 addition:** flagged-users endpoint (`/api/admin/flagged-users`) surfaces users with `bid_restricted_at` set from the Payment-Miss Strike System.
 
 **Key files:** `src/app/api/admin/`, `src/lib/adminAuth.ts`
 
 ---
 
 ## 20. Email System (Themed Templates)
-Resend integration with comic-themed templates (POW!, BAM!, KA-CHING! sound effects). 12+ email types: welcome, trial expiring, offers, listings, messages, feedback reminders, followed seller alerts. Cron-driven batch sending with idempotency guards.
+Resend integration with comic-themed templates (POW!, BAM!, KA-CHING! sound effects). **27+ email types** (was 12+): welcome, trial expiring, offers, listings, messages, feedback reminders, followed seller alerts, auction won/sold/lost, payment received, shipped, rating request, plus Session 38+39 additions (payment_reminder, auction_payment_expired, auction_payment_expired_seller, payment_missed_warning, payment_missed_flagged, 5 Second Chance Offer templates). Cron-driven batch sending with idempotency guards.
 
-**Key files:** `src/lib/email.ts`, `src/app/api/cron/send-trial-reminders/route.ts`, `src/app/api/cron/send-feedback-reminders/route.ts`
+**Session 39 additions:**
+- **Preference gating** via `NOTIFICATION_CATEGORY_MAP` (`src/lib/notificationPreferences.ts`): 4 categories (Transactional locked / Marketplace / Social / Marketing). `sendNotificationEmail` + `sendNotificationEmailsBatch` check `profiles.notify_marketplace`/`notify_social`/`notify_marketing` before sending, return skipped count.
+- **Resend `batch.send()`** used by cron passes — 50 emails/batch, fed via `mapWithConcurrency(5)` from `src/lib/concurrency.ts`. Unlocks 50+ payment expirations per cron tick without rate-limit issues.
+- **UI:** per-category toggles at `/settings/notifications` (GET/PATCH on `/api/settings/notifications`), plus 49 unit tests.
+
+**Key files:** `src/lib/email.ts`, `src/lib/notificationPreferences.ts`, `src/lib/concurrency.ts`, `src/types/notificationPreferences.ts`, `src/app/api/cron/send-trial-reminders/route.ts`, `src/app/api/cron/send-feedback-reminders/route.ts`, `src/app/api/settings/notifications/route.ts`, `src/app/settings/notifications/page.tsx`
+
+---
+
+## 21. Payment Deadline Enforcement + Payment-Miss Strike System (Sessions 38 + 39)
+
+48-hour payment window enforced automatically from auction end (or Buy Now purchase) through the `/api/cron/process-auctions` pipeline.
+
+**Timeline:**
+- `T=0` — auction ends or Buy Now purchase → `payment_deadline` = T+48h
+- `T+24h` — `sendPaymentReminders()` cron pass. Conditional UPDATE `WHERE payment_reminder_sent_at IS NULL` (race-safe). Resend `batch.send()` delivers `payment_reminder` templates via `mapWithConcurrency(5)`.
+- `T+48h` — `expireUnpaidAuctions()` cron pass. Conditional UPDATE `WHERE payment_expired_at IS NULL`. Sets `status='cancelled'`, `payment_expired_at=NOW()`. Emails `auction_payment_expired` (buyer) + `auction_payment_expired_seller` (seller). Fires Payment-Miss Strike System.
+- `T+48h`+ — checkout-time guard on `/api/checkout`: HTTP 400 "payment window has expired" if a late-pay attempt sneaks in.
+- `/transactions` — live `<PaymentDeadlineCountdown>` ticks every 60s; neutral >24h, orange ≤24h, red ≤6h, "Expired" at ≤0.
+
+**Payment-Miss Strike System (Session 39):**
+- **1st offense:** increment `profiles.payment_missed_count`, set `payment_missed_at`, send `payment_missed_warning` email.
+- **2+ strikes in 90 days:** set `profiles.bid_restricted_at`, insert system-generated negative `transaction_feedback` row (idempotent on unique constraint), email `payment_missed_flagged`, notify admins via `/api/admin/flagged-users`.
+- **Enforcement:** `/api/auctions/[id]/bid` blocks bid placement when `bid_restricted_at IS NOT NULL`.
+- **Audit:** every transition is logged to `auction_audit_log` (see Feature #23).
+
+**Migrations:**
+- `20260423_payment_reminder_tracking.sql` — `payment_reminder_sent_at`, `payment_expired_at` columns + partial index (Session 38)
+- `20260423_payment_miss_tracking.sql` — 4 profile columns + `user_flagged` audit enum value + `valid_notification_type` CHECK constraint fix (Session 39)
+
+**Key files:** `src/lib/auctionDb.ts` (`sendPaymentReminders()`, `expireUnpaidAuctions()`), `src/lib/concurrency.ts`, `src/lib/email.ts`, `src/app/api/cron/process-auctions/route.ts`, `src/app/api/checkout/route.ts`, `src/app/api/auctions/[id]/bid/route.ts`, `src/app/api/admin/flagged-users/route.ts`, `src/components/PaymentDeadlineCountdown.tsx`, `src/types/auction.ts` (`calculatePaymentDeadline()`, `PAYMENT_REMINDER_WINDOW_HOURS`)
+
+---
+
+## 22. Second Chance Offer System (Session 39)
+
+Seller-initiated re-offer to the runner-up after an auction expires unpaid.
+
+**Flow:**
+1. Auction expires unpaid via `expireUnpaidAuctions()` cron pass; if a runner-up exists, the seller gets email + in-app notification with an "Offer to runner-up" CTA.
+2. Seller clicks CTA in `SecondChanceOfferButton` → `POST /api/auctions/[id]/second-chance` → creates `second_chance_offers` row with `expires_at = NOW() + 48h`.
+3. Runner-up is notified (email + in-app), sees the offer in `SecondChanceInboxCard` with 48h countdown.
+4. **Price = runner-up's last actual bid price** (not their `max_bid`).
+5. Accept → `POST /api/second-chance-offers/[id]` → flows into standard `/api/checkout` path (same payment deadline enforcement as a won auction).
+6. Decline or ignore → `expireSecondChanceOffers()` cron pass cancels at 48h. **No cascade** — the offer simply ends; it does NOT fall to 3rd place.
+
+**Infrastructure:**
+- New table `second_chance_offers` with RLS (migration `20260423_second_chance_offers.sql`)
+- New routes: `POST /api/auctions/[id]/second-chance`, `GET /api/second-chance-offers`, `POST/PATCH /api/second-chance-offers/[id]`
+- New cron pass `expireSecondChanceOffers` added to `/api/cron/process-auctions` pipeline
+- 5 new email templates + 7 new notification types
+- Components: `src/components/auction/SecondChanceOfferButton.tsx`, `src/components/auction/SecondChanceInboxCard.tsx`
+
+**Key files:** `src/lib/auctionDb.ts`, `src/app/api/auctions/[id]/second-chance/route.ts`, `src/app/api/second-chance-offers/route.ts`, `src/app/api/second-chance-offers/[id]/route.ts`, `src/components/auction/SecondChanceOfferButton.tsx`, `src/components/auction/SecondChanceInboxCard.tsx`
+
+---
+
+## 23. Auction Audit Log (Session 39)
+
+Complete state-transition log for every auction/offer/payment/shipment event. Enables admin dispute resolution + debugging.
+
+- **Table:** `auction_audit_log` (admin-read RLS, service-role insert). Migration: `20260423_auction_audit_log.sql`.
+- **Enum:** `auction_audit_event_type` with 20+ events: `auction_created`, `bid_placed`, `auction_ended`, `buy_now_purchased`, `payment_received`, `payment_reminder_sent`, `payment_expired`, `second_chance_sent`, `second_chance_accepted`, `second_chance_expired`, `shipped`, `offer_sent`, `offer_accepted`, `offer_declined`, `user_flagged`, etc.
+- **Helper:** `src/lib/auditLog.ts` — fire-and-forget single + batch variants; does NOT block critical path on failure.
+- **Wire-ups:** 17 call sites across `src/lib/auctionDb.ts`, `src/app/api/auctions/[id]/mark-shipped/route.ts`, and `src/app/api/webhooks/stripe/route.ts`.
+- **Tests:** 15 unit tests.
+
+**Key files:** `src/lib/auditLog.ts`, `src/app/api/auctions/[id]/mark-shipped/route.ts`, `src/app/api/webhooks/stripe/route.ts`, `supabase/migrations/20260423_auction_audit_log.sql`
+
+---
+
+## 24. Input Validation Layer — Zod (Session 39)
+
+All 82 API routes validate input via a shared helper before any business logic runs.
+
+- **Helper:** `src/lib/validation.ts` — `validateBody(request, schema)`, `validateQuery(request, schema)`, `validateParams(params, schema)`, plus reusable field schemas (`schemas.uuid` / `email` / `url` / `trimmedString` / `positiveInt` / `nonNegativeNumber`)
+- **Standardized error:** HTTP 400 with `{error: "Validation failed", details: [{field, issue}]}`
+- **`.strict()` support** used on `settings/*` routes to reject unknown fields
+- **Scope:**
+  - Marketplace + money (31 routes): auctions, offers, listings, checkout, billing, connect, trades, transactions, feedback, reputation
+  - User + social + admin (32 routes): username, users, sellers, follows, messages, notifications, settings, age-verification, waitlist, email-capture, watchlist, sharing, location, admin/*
+  - Content + scan + lookup (19 routes): analyze, barcode-lookup, cert-lookup, comic-lookup, quick-lookup, import-lookup, con-mode-lookup, key-hunt, cover-*, comics, ebay-prices, titles
+- **Dependency:** adds `zod` as a runtime dep
+
+**Key files:** `src/lib/validation.ts`, `package.json` (zod), `src/app/api/**/*.ts` (82 routes instrumented)
+
+---
+
+## 25. Clerk ↔ Supabase Username & Profile Sync (Sessions 38 + 39)
+
+Bidirectional sync so that Clerk and Supabase `profiles` never drift.
+
+**Inbound (Clerk → Supabase)** — `/api/webhooks/clerk` on `user.created` and `user.updated`:
+- Upserts `profiles` row with email + username (sanitized via `sanitizeUsername()` against Supabase's `^[a-z0-9_]{3,20}$` regex) + `first_name` + `last_name` + derived `display_name` (via `buildDisplayName()`)
+- Sanitizer ensures invalid usernames (e.g. with dashes, which Clerk allows) don't kill the entire upsert — the rest of the fields still land
+
+**Outbound (Supabase → Clerk)** — `/api/username` sync-on-write (Session 39):
+- POST and DELETE now call the Clerk Backend API after successful Supabase update
+- Graceful degradation: Clerk errors are logged but don't fail the request (Supabase remains source of truth)
+
+**Known drift point:** Clerk dashboard allows dashes in usernames; Supabase's CHECK constraint doesn't. Still-open BACKLOG item to align Clerk's username rules so users get a friendly error at signup.
+
+**Key files:** `src/app/api/webhooks/clerk/route.ts` (`sanitizeUsername()`, `buildDisplayName()`), `src/app/api/username/route.ts`, `src/lib/db.ts` (`getOrCreateProfile()` self-heals email)

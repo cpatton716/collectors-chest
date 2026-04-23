@@ -1,5 +1,7 @@
 # Cover Image Harvesting Implementation Plan
 
+> **Apr 23, 2026 update:** Pre-harvest aspect-ratio guard shipped at `src/lib/coverCropValidator.ts` — runs before the sharp crop/upload and rejects crops whose aspect ratio deviates from the expected ~2:3 cover geometry. Slab prompt also updated with explicit EXCLUDE/CROP markers + color-palette hints for the slab label. Task list below is otherwise unchanged.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Automatically harvest clean cover artwork from graded/slabbed comic scans and populate the community cover database — zero user friction, zero extra API cost.

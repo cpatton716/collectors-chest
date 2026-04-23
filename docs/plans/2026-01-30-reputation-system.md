@@ -1,5 +1,7 @@
 # Reputation System Implementation Plan
 
+> **Apr 23, 2026 update:** Sessions 37/38 added a **system-inserted negative rating** path — when the payment-deadline cron flags a buyer for missing the 48-hour window, a negative transaction-feedback row is inserted with the system as the reviewer. Counts toward Transaction Trust percentage the same as user-submitted ratings. See the reputation system design doc's Apr 23 update note for context.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Implement a dual-score reputation system with Transaction Trust (eBay-style percentage) and Community Reputation (contributor badges).

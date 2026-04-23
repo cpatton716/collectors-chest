@@ -3,6 +3,8 @@
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 >
 > **Status (April 21, 2026 — Session 36):** IMPLEMENTED and VALIDATED end-to-end in both test and live mode. See "Session 36 validation notes" at the bottom of this file for the post-implementation fixes (RLS silent-failures, PaymentButton wiring, notification copy, redirect fix, live-mode `account.updated` webhook) and `docs/stripe-connect-setup.md` for the 8-phase dashboard setup guide.
+>
+> **Status (April 23, 2026 — Sessions 37+38):** Payment deadline enforcement layered on top of the Connect checkout (not in this plan's task list). Added: 48-hour payment window after auction win / offer accept, T-24h reminder cron, auto-cancel cron that moves the auction to `status='cancelled'` (payment expiry), Second Chance Offer flow for the runner-up bidder (48h, their last actual bid), and a payment-miss strike system (2 strikes / 90 days → bid restriction + system-inserted negative reputation rating). The core destination-charge flow below is unchanged.
 
 **Goal:** Enable automated seller payouts via Stripe Connect destination charges, with platform fee collection and a premium upsell modal after a free seller's 3rd completed sale.
 

@@ -4,6 +4,16 @@
 > **Status:** Approved
 > **Scope:** Replace placeholder payment flow with Stripe Connect for automated seller payouts
 
+> **Apr 23, 2026 update — Payment Deadline Enforcement (Session 37+38):** The post-auction/purchase flow now includes a payment-deadline system on top of the Stripe Connect checkout:
+>
+> - **48-hour payment window** — When a buyer wins an auction or accepts a "Buy Now" offer, they have 48 hours to pay via Stripe Checkout. Deadline is stamped on the auction/listing row.
+> - **T-24h payment reminder cron** — Emails the buyer a reminder 24 hours before the deadline if they haven't paid.
+> - **Auto-cancel cron** — On deadline expiry with no payment, the auction transitions to a new state `cancelled` (via payment expiry). Audit log captures the reason.
+> - **Second Chance Offer flow** — When an auction is auto-cancelled, the runner-up bidder is offered the item at their last actual bid price, with a fresh 48-hour window to accept + pay.
+> - **Payment-miss strike system** — Missing payment within 48 hours logs a strike on the buyer. A system-inserted negative reputation rating is applied. Two strikes within 90 days → bidding restriction on that account.
+>
+> These additions are layered on top of the unchanged Stripe Connect destination-charge flow below. The Stripe Checkout / onboarding / fee-split logic in this document all remains accurate.
+
 ---
 
 ## Problem

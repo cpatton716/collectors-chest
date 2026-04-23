@@ -4,6 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import { z } from "zod";
 
 import { isUserSuspended } from "@/lib/adminAuth";
+import { parseHCaptchaErrorForUser, verifyCaptchaToken } from "@/lib/hcaptcha";
 import { validateBody } from "@/lib/validation";
 import { executeWithFallback, executeSlabDetection, executeSlabDetailExtraction, getRemainingBudget, getProviders } from "@/lib/aiProvider";
 import { hasCompleteSlabData } from "@/lib/metadataCache";
@@ -51,8 +52,16 @@ const analyzeSchema = z
     mediaType: z.string().min(1).max(100).optional(),
     scanType: z.enum(["auto", "barcode", "cover", "cert"]).optional(),
     guestMode: z.boolean().optional(),
+    // Only required for guest scans 4-5 (enforced after parse, not in schema,
+    // because registered users never send this field).
+    captchaToken: z.string().min(1).max(8000).optional(),
   })
   .passthrough();
+
+// Guests must solve an hCaptcha on scans 4 and 5 (zero-indexed from 0, so the
+// claimed count of completed scans is >= 3 when this submission would be
+// the user's 4th or 5th).
+const GUEST_CAPTCHA_THRESHOLD = 3;
 
 function normalizeMediaType(raw: string | undefined): SupportedMediaType {
   if (raw && (SUPPORTED_MEDIA_TYPES as readonly string[]).includes(raw)) {
@@ -249,6 +258,40 @@ export async function POST(request: NextRequest) {
       return validated.response;
     }
     const { image, mediaType } = validated.data;
+
+    // ============================================
+    // hCaptcha Verification (Guest Scans 4-5 Only)
+    // ============================================
+    // Registered users are rate-limited by plan tier and never see CAPTCHA.
+    // Guests on scans 1-3 also skip — keeps onboarding friction minimal.
+    // On scans 4 and 5, a client-side hCaptcha token is required; we verify
+    // with hCaptcha siteverify and fail closed on any verification failure.
+    if (!userId) {
+      const guestScansCompleted = parseInt(
+        request.headers.get("x-guest-scan-count") || "0",
+        10
+      );
+      if (guestScansCompleted >= GUEST_CAPTCHA_THRESHOLD) {
+        const forwarded = request.headers.get("x-forwarded-for");
+        const clientIp = forwarded
+          ? forwarded.split(",")[0].trim()
+          : request.headers.get("x-real-ip");
+
+        const verification = await verifyCaptchaToken(
+          validated.data.captchaToken,
+          clientIp
+        );
+        if (!verification.valid) {
+          return NextResponse.json(
+            {
+              error: parseHCaptchaErrorForUser(verification.reason),
+              captchaRequired: true,
+            },
+            { status: 403 }
+          );
+        }
+      }
+    }
 
     // Enforce max decoded image size (10MB). Fast-reject the base64 string
     // before decoding if it can't possibly fit — base64 encoding inflates

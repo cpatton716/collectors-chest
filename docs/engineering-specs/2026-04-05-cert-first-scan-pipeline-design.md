@@ -3,6 +3,8 @@
 **Date:** April 5, 2026
 **Status:** Design — updated with caching architecture, data persistence, and CGC Cloudflare mitigation (Apr 7, 2026)
 
+> **Apr 23, 2026 update:** CGC cert lookup activation deferred post-launch pending ZenRows ROI decision. **CBCS + PGX paths fully active in production.** Uncached CGC certs continue to fall back to the full AI pipeline. Metron verification has been fully removed from the scan flow as of Apr 23, 2026 — any references to Metron below (e.g., cover pipeline candidate list, verification steps) describe historical behavior only.
+
 ---
 
 ## Problem

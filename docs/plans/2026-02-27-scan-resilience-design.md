@@ -5,6 +5,15 @@
 **Status:** Approved — awaiting implementation
 **Triggered by:** Production outage — `claude-sonnet-4-latest` model alias became invalid, breaking all scans with no fallback.
 
+> **Apr 23, 2026 update — scan flow additions (layered on top of this fallback design):**
+> - **Pre-harvest aspect-ratio guard** — `src/lib/coverCropValidator.ts` runs before slab cover harvest; rejects crops whose aspect ratio deviates from the expected ~2:3 cover geometry.
+> - **hCaptcha gate for guest scans 4-5** — Guests now see an hCaptcha challenge on their 4th and 5th scan of the day (before the 5-scan guest daily cap kicks in). Authenticated users are unaffected.
+> - **10MB image upload cap** — Analyze route now rejects uploads larger than 10MB up-front with a clear error, before any AI call is made.
+> - **Slab prompt updated** — Explicit EXCLUDE/CROP markers + color-palette hints for the slab label, reducing harvested crops that include label or case edges.
+> - **Metron verification removed** — No longer part of the scan flow. Any references to Metron in this document describe historical context only.
+>
+> The provider-fallback architecture below is unchanged.
+
 ---
 
 ## Problem

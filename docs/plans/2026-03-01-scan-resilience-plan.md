@@ -1,5 +1,7 @@
 # Scan Resilience: Multi-Provider Fallback — Implementation Plan
 
+> **Apr 23, 2026 update:** Provider-fallback task list below is unchanged. Adjacent scan-flow additions also shipped: pre-harvest aspect-ratio guard (`src/lib/coverCropValidator.ts`), hCaptcha gate on guest scans 4-5, 10MB upload cap, updated slab prompt with EXCLUDE/CROP markers, and Metron verification removed from the pipeline.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Add OpenAI GPT-4o as a fallback AI provider for the `/api/analyze` route so that comic cover scanning never goes down — even when Anthropic is unavailable.

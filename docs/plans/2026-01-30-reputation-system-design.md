@@ -4,6 +4,8 @@
 **Status:** Approved
 **Related Feedback:** #5 (Reward users for key info contributions)
 
+> **Apr 23, 2026 update:** Added a new input to Transaction Trust — **system-inserted negative rating on payment-miss flag**. When the marketplace payment-deadline cron flags a buyer for missing the 48-hour payment window, the system automatically inserts a negative rating against that buyer's reviewee profile (reviewer = system user). This is in addition to the strike/bid-restriction logic (2 strikes / 90 days → bid restriction). System-inserted ratings count the same as user-submitted ratings for percentage calculation and "New Seller / X% positive" display.
+
 ---
 
 ## Overview

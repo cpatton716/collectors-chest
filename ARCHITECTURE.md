@@ -2,7 +2,7 @@
 
 > **Comprehensive map of pages, features, and service dependencies**
 
-*Last Updated: April 22, 2026 — Session 37 (Feedback eligible on `shipped`, Clerk `user.created`/`user.updated` upsert profile+email, idempotent `processEndedAuctions`, flat $1 bid increment, `getListingComicData` FK-qualified join)*
+*Last Updated: April 23, 2026 — Sessions 38 + 39 (Payment deadline enforcement, Second Chance Offers, Payment-Miss Strike System, Auction Audit Log, Zod validation across 82 routes, Email Notification Preferences, hCaptcha guest-scan protection, Cover crop validator, Clerk ↔ Supabase username sync-on-write, Metron + Hottest Books removed, seller onboarding help page, 10MB upload cap)*
 
 ---
 
@@ -32,7 +32,6 @@
 |---------|----------|-------|
 | Collection Overview | 💾 🗄️ | Value, count, profit/loss stats |
 | Market Insights | 💾 | Biggest gains, best ROI, declines |
-| Hottest Books Carousel | 🗄️ 🤖 | Cached 24h, AI-generated trends |
 | Guest CTA | 🔐 | "Scan Your First Book" for non-auth |
 
 ---
@@ -53,6 +52,9 @@
 | Key Info Lookup | 🗄️ | 402 curated key comics database |
 | Suggest Key Info | 🗄️ 🔐 | Community submissions for key facts |
 | Scan Limits | 💾 🗄️ | Guest 5, Free 10/mo, Pro unlimited |
+| hCaptcha Guest Gate | 🔐 | Guest scans 4 & 5 require invisible hCaptcha verification; floating badge; 5s siteverify timeout; dev/prod key swap (see `src/lib/hcaptcha.ts`, `src/components/GuestCaptcha.tsx`) |
+| Image Upload Cap | — | Shared 10MB cap via `src/lib/uploadLimits.ts` (`MAX_IMAGE_UPLOAD_BYTES`, `assertImageSize()`, `base64DecodedByteLength()`); HTTP 413 on oversize |
+| Cover Crop Validator | — | Rejects AI crops outside comic-book aspect range (0.55-0.85 w/h) before harvest pollutes cover cache (`src/lib/coverCropValidator.ts`) |
 | Email Capture | 📧 | 5 bonus scans for email signup |
 | CSV Import | 🤖 🗄️ | Bulk import with dedup + parallel batch lookups (batches of 5) |
 | Image Optimization | — | Client-side compression to 400KB |
@@ -101,7 +103,7 @@
 | Barcode Cache | 💾 | 7-day TTL, max 20 entries |
 | Quick-Add Buttons | 💾 | Want List, Collection, Passed On |
 | My Hunt List | 🗄️ 🔐 | Wishlist of comics user wants to find |
-| Add to Hunt List | 🗄️ 🔐 | From Hot Books or scan results |
+| Add to Hunt List | 🗄️ 🔐 | From scan results or cover scan |
 
 ---
 
@@ -191,22 +193,15 @@ Manage comic trades with three tabs:
 | Feature | Services | Notes |
 |---------|----------|-------|
 | Push Notifications Toggle | 🗄️ 🔐 | Enable/disable browser push |
-| Email Notifications Toggle | 🗄️ 🔐 | Enable/disable email alerts |
+| Email Notification Preferences | 🗄️ 🔐 | Per-category toggles: **Transactional** (locked always-on), **Marketplace**, **Social**, **Marketing**. `NOTIFICATION_CATEGORY_MAP` covers all 27 notification email types. Gates `sendNotificationEmail` + `sendNotificationEmailsBatch` with skipped-count reporting (`src/lib/notificationPreferences.ts`, `src/types/notificationPreferences.ts`) |
 | Display Preferences | 🗄️ 🔐 | Show/hide financial data (show_financials toggle) |
 | Auto-save | — | Changes saved immediately on toggle |
 
 ---
 
-### Hottest Books (`/hottest-books`)
+### Seller Onboarding Help (`/seller-onboarding`)
 
-| Feature | Services | Notes |
-|---------|----------|-------|
-| Trending Comics List | 🗄️ 🤖 | Database-cached, AI fallback |
-| Cover Images | 🗄️ | Community DB + Open Library + manual paste |
-| Market Analysis | 🤖 | Why it's hot, price trends |
-| Database Caching | 🗄️ | hot_books table with seeded data |
-| Price Refresh | 🏷️ 🗄️ | eBay API, 24-hour lazy refresh |
-| Add to Hunt List | 🗄️ 🔐 | Track comics you want to find |
+Static, Lichtenstein-style help page walking new sellers through the 9-step Link-aware Stripe Connect onboarding flow. Uses `ScreenshotPlaceholder` auto-swap, troubleshooting as native `<details>`, and links out to support email. Server-rendered; mobile-first at 375px. Complements the FAQ entry in `Navigation.tsx`.
 
 ---
 
@@ -378,6 +373,11 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
 | Cover Image Queue | 🗄️ | Pending cover image submissions |
 | Approve/Reject | 🗄️ | Moderate community-submitted cover images |
 
+#### Flagged Users (Session 39)
+
+Admin endpoint `GET /api/admin/flagged-users` returns users with 2+ missed payments in a 90-day window (`bid_restricted_at IS NOT NULL`). UI surface pending — endpoint is currently consumed by admin notifications only.
+
+
 **Note:** Admin pages are protected by database `is_admin` check.
 
 ---
@@ -397,6 +397,10 @@ Clerk middleware protects specific routes requiring authentication:
 | `/api/key-hunt(.*)` | Hunt list management |
 | `/api/auctions/:id/bid(.*)` | Placing bids |
 | `/api/auctions/:id/buy-now(.*)` | Buy Now purchases |
+| `/api/auctions/:id/mark-shipped(.*)` | Seller ship confirmation |
+| `/api/auctions/:id/second-chance(.*)` | Seller-initiated Second Chance Offer |
+| `/api/second-chance-offers(.*)` | Runner-up accept/decline actions |
+| `/api/transactions(.*)` | Buyer transaction tabs |
 
 All other routes are public (unauthenticated access allowed). Individual API routes may perform their own auth checks internally.
 
@@ -408,7 +412,7 @@ All other routes are public (unauthenticated access allowed). Individual API rou
 
 | Route | Method | Purpose | Services |
 |-------|--------|---------|----------|
-| `/api/analyze` | POST | Cover image analysis (multi-provider with fallback) + cover validation | 🤖 🤖² 🗄️ 🔴 🏷️ |
+| `/api/analyze` | POST | Cover image analysis (multi-provider with fallback) + cover validation. Gates guest scans 4 & 5 on hCaptcha siteverify; 10MB upload cap; scan-slot reservation released on all error branches | 🤖 🤖² 🗄️ 🔴 🏷️ |
 | `/api/quick-lookup` | POST | Fast barcode + pricing | 🗄️ 🤖 |
 | `/api/comic-lookup` | POST | Title/issue lookup | 🤖 🗄️ 🔴 |
 | `/api/con-mode-lookup` | POST | Key Hunt pricing | 🏷️ 🤖 🗄️ |
@@ -425,7 +429,6 @@ All other routes are public (unauthenticated access allowed). Individual API rou
 | Route | Method | Purpose | Services |
 |-------|--------|---------|----------|
 | `/api/ebay-prices` | POST/GET | eBay sold listings | 🏷️ 🗄️ 🔴 |
-| `/api/hottest-books` | GET | Trending comics | 🤖 🗄️ |
 
 ### Auctions & Listings
 
@@ -433,11 +436,16 @@ All other routes are public (unauthenticated access allowed). Individual API rou
 |-------|--------|---------|----------|
 | `/api/auctions` | GET/POST | List/create auctions | 🗄️ 🔐 |
 | `/api/auctions/[id]` | GET/PATCH/DELETE | Auction management | 🗄️ 🔐 |
-| `/api/auctions/[id]/bid` | POST | Place bid | 🗄️ 🔐 🔴 |
+| `/api/auctions/[id]/bid` | POST | Place bid (enforces bid restriction for flagged users; blocks if profile has `bid_restricted_at`) | 🗄️ 🔐 🔴 |
 | `/api/auctions/[id]/bids` | GET | Bid history | 🗄️ |
 | `/api/auctions/[id]/buy-now` | POST | Buy It Now | 🗄️ 🔐 |
+| `/api/auctions/[id]/mark-shipped` | POST | Seller marks shipped + clones comic to buyer | 🗄️ 🔐 |
+| `/api/auctions/[id]/second-chance` | POST | Seller initiates Second Chance Offer to runner-up after payment-expiry | 🗄️ 🔐 |
 | `/api/auctions/by-comic/[comicId]` | GET | Check active listing | 🗄️ |
-| `/api/listings/[id]/purchase` | POST | Fixed-price purchase | 🗄️ 🔐 |
+| `/api/listings/[id]/purchase` | POST | Fixed-price purchase (HTTP 410 deprecated — unified into `/api/checkout`) | 🗄️ 🔐 |
+| `/api/second-chance-offers` | GET | Runner-up's inbox of Second Chance Offers | 🗄️ 🔐 |
+| `/api/second-chance-offers/[id]` | POST/PATCH | Accept/decline a Second Chance Offer | 🗄️ 🔐 |
+| `/api/transactions` | GET | Tabbed buyer view (Wins / Purchases / Bids / Offers) | 🗄️ 🔐 |
 
 ### Offers
 
@@ -479,7 +487,7 @@ All other routes are public (unauthenticated access allowed). Individual API rou
 
 | Route | Method | Purpose | Services |
 |-------|--------|---------|----------|
-| `/api/checkout` | POST | Stripe checkout session | 💰 🗄️ 🔐 |
+| `/api/checkout` | POST | Stripe checkout session (accepts `listingId` or `auctionId`; blocks post-deadline auction payments with HTTP 400 when `listing.paymentDeadline < now`) | 💰 🗄️ 🔐 |
 | `/api/billing/checkout` | POST | Subscription checkout | 💰 🗄️ 🔐 |
 | `/api/billing/portal` | POST | Stripe customer portal | 💰 🗄️ 🔐 |
 | `/api/billing/status` | GET | Subscription status | 🗄️ 🔐 |
@@ -585,12 +593,13 @@ All other routes are public (unauthenticated access allowed). Individual API rou
 | `/api/admin/message-reports` | GET | List message reports (paginated) | 🗄️ |
 | `/api/admin/message-reports/[reportId]` | PATCH | Update report status | 🗄️ |
 | `/api/admin/health-check` | GET | Production health check (used by CI/CD smoke test) | 🗄️ |
+| `/api/admin/flagged-users` | GET | List users flagged via Payment-Miss Strike System (≥2 missed payments in 90 days) | 🗄️ |
 
 ### User & Profile
 
 | Route | Method | Purpose | Services |
 |-------|--------|---------|----------|
-| `/api/username` | GET/POST/PATCH | Username management | 🗄️ 🔐 |
+| `/api/username` | GET/POST/DELETE/PATCH | Username management — POST and DELETE now sync-on-write to both Supabase and Clerk Backend API (graceful degradation: Clerk failures logged but don't fail request) | 🗄️ 🔐 |
 | `/api/username/current` | GET | Get current user's username | 🗄️ 🔐 |
 | `/api/key-info/submit` | POST | Submit key info suggestion | 🗄️ 🔐 |
 | `/api/email-capture` | POST | Guest email for bonus scans | 📧 🗄️ |
@@ -610,7 +619,7 @@ All other routes are public (unauthenticated access allowed). Individual API rou
 
 | Route | Trigger | Purpose | Services |
 |-------|---------|---------|----------|
-| `/api/webhooks/clerk` | `user.created` / `user.updated` / `user.deleted` | **Created:** upserts `profiles` row (Clerk user ID + email captured at account creation, fixes NULL-email social sign-ins that used to rely on lazy `getOrCreateProfile`). **Updated:** syncs email changes to `profiles`. **Deleted:** cascade delete user data. | 🔐 🗄️ |
+| `/api/webhooks/clerk` | `user.created` / `user.updated` / `user.deleted` | **Created/Updated:** upserts `profiles` row with email, **username (sanitized via `sanitizeUsername()` against `^[a-z0-9_]{3,20}$`), first_name, last_name, and derived display_name** (via `buildDisplayName()`). Sanitizer lets the rest of the upsert land even when Clerk username contains dashes or other Supabase-invalid characters. **Deleted:** cascade delete user data. | 🔐 🗄️ |
 | `/api/webhooks/stripe` | Payment events | Auction payments, subscriptions | 💰 🗄️ |
 
 **Stripe webhook — subscription handling notes:**
@@ -626,7 +635,7 @@ All cron jobs run as **Netlify Scheduled Functions** (`netlify/functions/`). Eac
 
 | Netlify Function | Schedule | API Route | Purpose | Services |
 |------------------|----------|-----------|---------|----------|
-| `process-auctions.ts` | Every 5 min | `/api/cron/process-auctions` | End auctions, expire offers/listings | 🗄️ |
+| `process-auctions.ts` | Every 5 min | `/api/cron/process-auctions` | Pipeline: `processEndedAuctions → sendPaymentReminders → expireUnpaidAuctions → expireSecondChanceOffers → expireOffers → expireListings`. Returns stats for all six passes. | 🗄️ 📧 |
 | `reset-scans.ts` | 1st of month | `/api/cron/reset-scans` | Reset free tier scan counts | 🗄️ |
 | `moderate-messages.ts` | Every hour | `/api/cron/moderate-messages` | AI moderation of flagged messages | 🗄️ 🤖 |
 | `send-feedback-reminders.ts` | Daily 3 PM UTC | `/api/cron/send-feedback-reminders` | Remind users to leave transaction feedback | 🗄️ 📧 |
@@ -634,13 +643,17 @@ All cron jobs run as **Netlify Scheduled Functions** (`netlify/functions/`). Eac
 | `send-trial-reminders.ts` | Daily | — | Send trial expiration reminders | 📧 |
 
 **Automation Logic:**
-- Auctions: Mark as `closed` or `sold` when end time passes
+- Auctions: Mark as `ended`/`sold` when end time passes (idempotent via conditional UPDATE + row-count check)
+- Payment Reminders: Fires T-24h before `payment_deadline`; idempotent via `payment_reminder_sent_at` column
+- Unpaid Auction Expiry: When `status='ended' AND payment_status='pending' AND payment_deadline < NOW() AND payment_expired_at IS NULL`, transition to `cancelled`, set `payment_expired_at`, notify both parties, trigger Payment-Miss Strike System logging
+- Second Chance Offer Expiry: 48h window enforced via `expireSecondChanceOffers`
 - Offers: Expire after 48 hours if no response
 - Listings: Expire after 30 days
 - Scans: Reset monthly counts on 1st of month
 - Alerts: Email admin when approaching service limits
 - Message Moderation: Claude analyzes flagged messages, auto-creates reports with 1-10 priority
 - Feedback Reminders: Nudge buyers/sellers to leave transaction feedback after completed transactions
+- Cron Batching: `sendPaymentReminders` + `expireUnpaidAuctions` use `mapWithConcurrency(5)` (from `src/lib/concurrency.ts`) for email prep and Resend `batch.send()` (50 emails/batch). Handles 50+ expirations per tick without timeout or rate-limit issues.
 
 ---
 
@@ -698,9 +711,10 @@ All cron jobs run as **Netlify Scheduled Functions** (`netlify/functions/`). Eac
                │
                v
        ┌───────────────┐
-       │ Cover Harvest │  coverHarvestable? → crop with sharp
-       │ (async, no-op │  → upload to cover-images bucket
-       │  on dup/fail) │  → insert cover_images row w/ variant
+       │ Cover Harvest │  coverHarvestable? → validate aspect ratio
+       │ (async, no-op │    via coverCropValidator (0.55-0.85 w/h)
+       │  on dup/fail) │  → crop with sharp → upload to cover-images
+       │               │  → insert cover_images row w/ variant
        └───────┬───────┘
                │
                v
@@ -761,20 +775,20 @@ All cron jobs run as **Netlify Scheduled Functions** (`netlify/functions/`). Eac
 └──────────────────────────┘
 ```
 
-### Marketplace Purchase Flow (Buy Now + Auction — Session 36)
+### Marketplace Purchase Flow (Buy Now + Auction — Sessions 36-39)
 
-Two entry paths converge at the PaymentButton. Payment flow below is identical once `payment_status: "pending"` is set.
+Two entry paths converge at the PaymentButton. Once `payment_status: "pending"` is set, a 48-hour payment window starts (`calculatePaymentDeadline()` from `src/types/auction.ts`). Cron enforces reminders, expiry, and Second Chance Offers.
 
 **Buy Now entry:**
 ```
 Buyer clicks "Buy Now" in ListingDetailModal
          ↓
-POST /api/listings/[id]/purchase → purchaseFixedPriceListing (supabaseAdmin)
+POST /api/checkout (unified route) → purchaseFixedPriceListing (supabaseAdmin)
          ↓
-Auction row: status="sold", winner_id=buyer, payment_status="pending"
+Auction row: status="sold", winner_id=buyer, payment_status="pending", payment_deadline=now+48h
 Notifications: seller "Your item sold!", buyer "Purchase reserved!"
          ↓
-Modal renders amber "Payment required" banner + PaymentButton
+Modal renders amber "Payment required" banner + PaymentButton (+ live countdown on /transactions)
 ```
 
 **Auction entry:**
@@ -783,19 +797,52 @@ Cron /api/cron/process-auctions (every 5 min) → processEndedAuctions (supabase
   - Idempotent: conditional UPDATE ... WHERE status='active' + row-count check
   - Repeat cron calls on same auction are no-ops (no duplicate notifications)
          ↓
-Auction row: status="ended", winner_id=highest bidder, payment_status="pending"
+Auction row: status="ended", winner_id=highest bidder, payment_status="pending", payment_deadline=now+48h
+Audit: auction_audit_log insert (event: auction_ended)
 Notifications: seller "Your item sold!", winner "You won!"
          ↓
 Winner visits /shop?listing=<id>&tab=auctions → AuctionDetailModal
          ↓
-Modal renders amber "You won! Complete payment" banner + PaymentButton
+Modal renders amber "You won! Complete payment" banner + PaymentButton (+ countdown timer)
 ```
 
-**Shared payment flow (both entries):**
+**Payment deadline timeline (enforced by `/api/cron/process-auctions`):**
+```
+T=0      Auction ends / Buy Now purchase → payment_deadline = T+48h
+                  ↓
+T+24h    sendPaymentReminders() cron pass
+         - Conditional UPDATE WHERE payment_reminder_sent_at IS NULL (race-safe)
+         - Resend batch.send() (50 emails/batch, mapWithConcurrency(5))
+         - Emails `payment_reminder` template + in-app notification
+                  ↓
+T+48h    expireUnpaidAuctions() cron pass (if still unpaid)
+         - Conditional UPDATE WHERE payment_expired_at IS NULL (race-safe)
+         - status → 'cancelled', payment_expired_at = NOW()
+         - Emails: `auction_payment_expired` (buyer) + `auction_payment_expired_seller` (seller)
+         - Audit: auction_audit_log insert (event: payment_expired)
+         - Payment-Miss Strike System fires:
+             - Increment profiles.payment_missed_count, set payment_missed_at
+             - 1st offense: send warning email (`payment_missed_warning`)
+             - 2nd offense in 90 days: set bid_restricted_at, insert system-negative
+               reputation rating (idempotent unique constraint), email
+               `payment_missed_flagged`, notify admins
+                  ↓
+Second Chance Offer (seller-initiated, optional)
+         - POST /api/auctions/[id]/second-chance → creates second_chance_offers row
+         - Runner-up notified (email + in-app) with 48h to accept at their last actual
+           bid price (not their max_bid)
+         - Accept → `/api/second-chance-offers/[id]` POST → checkout flow
+         - Decline/ignore → expireSecondChanceOffers cron cancels after 48h
+         - No cascade: if declined/ignored, the offer ends
+```
+
+**Shared payment flow (both entries, and Second Chance acceptance):**
 ```
 Buyer clicks "Pay $X" (PaymentButton)
          ↓
 POST /api/checkout → Stripe Checkout Session
+  - Post-deadline guard: HTTP 400 "The payment window for this auction has expired"
+    when listing.paymentDeadline < now (blocks late-pay attempts)
   - Age verification gate (profile.age_confirmed_at)
   - Seller Connect account lookup (stripe_connect_account_id + onboarding_complete)
   - calculateDestinationAmount(totalCents, platform_fee_percent)
@@ -808,21 +855,25 @@ Redirect to Stripe hosted Checkout (buyer enters card)
          ↓
 Buyer completes payment on Stripe
          ↓
-Stripe fires webhook chain → /api/webhooks/stripe (account.updated too for Connect events)
-  - checkout.session.completed → handleAuctionPayment
+Stripe fires webhook chain → /api/webhooks/stripe (8 events incl. account.updated)
+  - checkout.session.completed → handleMarketplacePayment
     - Update auction: payment_status="paid", status="sold"
+    - Audit: auction_audit_log insert (event: payment_received)
     - Insert sales record (seller's sales history)
-    - Notify seller: payment_received
-    - Notify buyer: rating_request (feedback reminder)
+    - Notify seller: payment_received; Notify buyer: rating_request
   - transfer.created (destination charge fires transfer to seller's Connect account)
   - payment_intent.succeeded
          ↓
-Buyer redirected to /collection?purchase=success&auction=<id>
+Buyer redirected to /transactions (unified transactions page, tabbed)
+         ↓
+Seller marks shipped via /api/auctions/[id]/mark-shipped:
+  - Sets shipped_at + tracking_carrier + tracking_number
+  - Audit: auction_audit_log insert (event: shipped)
+  - Clones comic row to buyer's collection (ownership transfer gated on shipping)
+  - Fires shipped + rating_request notifications
          ↓
 Seller's Stripe Express Dashboard shows incoming transfer on 2-5 day payout schedule
 ```
-
-**Known gap (BACKLOG #6):** comic ownership does NOT transfer to buyer's collection after payment. Comic stays in seller's collection; buyer has no record in their collection. Pre-launch blocker.
 
 ---
 
@@ -862,7 +913,9 @@ Seller's Stripe Express Dashboard shows incoming transfer on 2-5 day payout sche
 | `src/components/follows/` | Follow system UI (FollowButton, FollowerCount, FollowListModal) |
 | `src/components/collection/` | Bulk actions UI (SelectionToolbar, SelectionCheckbox, SelectionHeader, BulkDeleteModal, BulkListPickerModal, UndoToast) |
 | `src/components/trading/` | Trading UI (TradeCard, TradeProposalModal, TradeableComicCard) |
-| `src/components/auction/` | Auction/listing UI (AuctionCard, AuctionCountdown, AuctionDetailModal, BidForm, BidHistory, CreateAuctionModal, CreateListingModal, ListingCard, ListingDetailModal, ListInShopModal, MakeOfferModal, OfferResponseModal, PaymentButton, PremiumSellerUpsell, SellerBadge, WatchlistButton) |
+| `src/components/auction/` | Auction/listing UI (AuctionCard, AuctionCountdown, AuctionDetailModal, BidForm, BidHistory, CreateAuctionModal, CreateListingModal, ListingCard, ListingDetailModal, ListInShopModal, MakeOfferModal, MarkAsShippedForm, OfferResponseModal, PaymentButton, PremiumSellerUpsell, SecondChanceInboxCard, SecondChanceOfferButton, SellerBadge, WatchlistButton) |
+| `src/components/PaymentDeadlineCountdown.tsx` | Client component that live-ticks every 60s on pending-payment rows of /transactions — neutral >24h, orange ≤24h, red ≤6h, "Expired" at ≤0; hydration-safe (SSR placeholder, populates in useEffect) |
+| `src/components/GuestCaptcha.tsx` | Invisible hCaptcha wrapper (via `@hcaptcha/react-hcaptcha`) used by scan page to gate guest scans 4 & 5; floating badge |
 | `src/components/messaging/` | Messaging UI (ConversationList, MessageThread, MessageBubble, MessageButton, MessageComposer, BlockUserModal, ReportMessageModal) |
 | `src/components/admin/` | Admin UI (ReportCard) |
 | `src/components/icons/` | Custom icons (ChestIcon) |
@@ -901,7 +954,13 @@ Seller's Stripe Express Dashboard shows incoming transfer on 2-5 day payout sche
 | `src/lib/models.ts` | AI model constants incl. GEMINI_PRIMARY, MODEL_PRIMARY, MODEL_LIGHTWEIGHT, VISION_PROVIDER_ORDER |
 | `src/lib/analyticsServer.ts` | Server-side analytics helpers (provider-aware cost estimation via PROVIDER_COSTS lookup); ScanPath type, `scan_path` and `barcode_extracted` fields; `cover_harvested` boolean field |
 | `src/lib/coverValidation.ts` | Gemini-powered cover image validation pipeline |
-| `src/lib/metronVerify.ts` | Metron API verification for comic metadata |
+| `src/lib/coverCropValidator.ts` | Validates AI-returned crop coordinates produce comic-book aspect ratio (0.55-0.85 w/h); rejects out-of-range crops before they pollute the cover cache; wired at the top of `harvestCoverFromScan` |
+| `src/lib/validation.ts` | Zod-backed API input validation shared across 82 routes — `validateBody()`, `validateQuery()`, `validateParams()`, `schemas.uuid`/`email`/`url`/`trimmedString`/`positiveInt`/`nonNegativeNumber`; standardized `{error, details:[{field, issue}]}` HTTP 400 response; `.strict()` supported for rejecting unknown fields |
+| `src/lib/auditLog.ts` | Auction audit log helper; fire-and-forget single + batch variants; 17 wire-ups across `auctionDb.ts`, `mark-shipped` route, and Stripe webhook; writes to `auction_audit_log` table (admin-read RLS, service-role insert) |
+| `src/lib/notificationPreferences.ts` | Per-category email notification gating — `NOTIFICATION_CATEGORY_MAP` (4 categories: transactional/marketplace/social/marketing) covers all 27 notification email types; `isNotificationAllowed()`, `filterRecipientsByPreference()` |
+| `src/lib/concurrency.ts` | `mapWithConcurrency(items, concurrency, fn)` — used by `sendPaymentReminders` + `expireUnpaidAuctions` to cap parallel email prep at 5 while feeding Resend `batch.send()` |
+| `src/lib/hcaptcha.ts` | hCaptcha siteverify helper; 5s timeout; dev/prod key swap via `HCAPTCHA_SECRET`/`NEXT_PUBLIC_HCAPTCHA_SITE_KEY`; invoked on `/api/analyze` for guest scans 4 & 5 |
+| `src/lib/uploadLimits.ts` | Shared 10MB image upload cap — `MAX_IMAGE_UPLOAD_BYTES`, `assertImageSize()`, `base64DecodedByteLength()`; wired into `/api/analyze` and `/api/messages/upload-image` |
 | `src/lib/choosePlanHelpers.ts` | Choose plan page helpers |
 | `src/lib/imageOptimization.ts` | Client-side image compression utilities |
 | `src/lib/scanAnalyticsHelpers.ts` | Scan analytics tracking helpers |
@@ -910,14 +969,13 @@ Seller's Stripe Express Dashboard shows incoming transfer on 2-5 day payout sche
 | `src/lib/keyInfoHelpers.ts` | Key info display and formatting helpers |
 | `src/lib/offlineCache.ts` | Offline caching utilities for Key Hunt |
 | `src/lib/emailValidation.ts` | Email validation helpers |
-| `src/lib/hotBooksData.ts` | Hot books data seeding and management |
 | `src/lib/comicFacts.ts` | Random comic facts for UI display |
 | `src/lib/certLookup.ts` | CGC/CBCS certificate lookup logic |
 | `src/lib/ebayBrowse.ts` | eBay Browse API integration; `filterIrrelevantListings()` removes non-comic listings; `buildSearchKeywords()` accepts year param for disambiguation; `filterOutliersAndCalculateMedian()` uses Q1 for conservative pricing; grade filtering for slabbed results |
 | `src/lib/gradePrice.ts` | Grade-based price calculation logic |
 | `src/lib/csvExport.ts` | CSV export generation |
 | `src/lib/csvHelpers.ts` | CSV parsing and import helpers |
-| `src/lib/email.ts` | Email sending via Resend; `getListingComicData()` uses FK-qualified PostgREST join `comics!auctions_comic_id_fkey(...)` to disambiguate from the second comics FK (`sold_via_auction_id`) added in the sold-tracking migration |
+| `src/lib/email.ts` | Email sending via Resend; `getListingComicData()` uses FK-qualified PostgREST join `comics!auctions_comic_id_fkey(...)`; `sendNotificationEmail` + `sendNotificationEmailsBatch` gate on `NOTIFICATION_CATEGORY_MAP` preferences with skipped-count reporting; Resend `batch.send()` (50 emails/batch) used by cron passes; new templates: `payment_reminder`, `auction_payment_expired`, `auction_payment_expired_seller`, `payment_missed_warning`, `payment_missed_flagged`, 5 Second Chance Offer templates |
 | `src/lib/rateLimit.ts` | Upstash Redis rate limiting helpers |
 | `src/lib/storage.ts` | Supabase storage helpers |
 | `src/lib/supabase.ts` | Supabase client initialization |
@@ -929,6 +987,7 @@ Seller's Stripe Express Dashboard shows incoming transfer on 2-5 day payout sche
 | `src/types/messaging.ts` | Messaging type definitions |
 | `src/types/trade.ts` | Trade type definitions |
 | `src/types/follow.ts` | Follow system type definitions |
+| `src/types/notificationPreferences.ts` | Email notification preference types — 4 categories (transactional/marketplace/social/marketing) |
 
 ---
 
@@ -962,10 +1021,9 @@ Seller's Stripe Express Dashboard shows incoming transfer on 2-5 day payout sche
 | `user_follows` | User-to-user follow relationships |
 | `key_comics` | Curated key comics database |
 | `key_info_submissions` | Community key info submissions for moderation |
-| `hot_books` | Cached trending/hot comics |
-| `hot_books_history` | Historical hot books data |
-| `hot_books_refresh_log` | Hot books refresh tracking |
 | `key_hunt_lists` | User hunt/wish lists |
+| `auction_audit_log` | Full auction/offer/payment/shipment lifecycle audit trail (20+ event types via `auction_audit_event_type` enum); admin-read RLS, service-role insert |
+| `second_chance_offers` | Seller-initiated Second Chance Offers to runner-up after unpaid auction expiry (48h window, one-shot, no cascade) |
 | `scan_usage` | Monthly scan count tracking per user |
 | `bonus_scan_claims` | Email capture bonus scan claims |
 | `usage_alerts` | Service usage monitoring alerts |
@@ -1014,6 +1072,17 @@ Seller's Stripe Express Dashboard shows incoming transfer on 2-5 day payout sche
 
 **profiles table additions**
 - `show_financials` (boolean) - User preference to show/hide financial data in collection
+- `payment_missed_count` (int) - Total count of unpaid auction-wins (Payment-Miss Strike System)
+- `payment_missed_at` (timestamp) - Timestamp of most recent missed payment
+- `bid_restricted_at` (timestamp, nullable) - When set, user is blocked from placing new bids (2 strikes in 90 days)
+- `notify_marketplace` (boolean, default true) - Marketplace email notifications opt-in
+- `notify_social` (boolean, default true) - Social email notifications opt-in
+- `notify_marketing` (boolean, default false) - Marketing email notifications opt-in (transactional is locked always-on, not toggleable)
+
+**auctions table additions (Session 38)**
+- `payment_reminder_sent_at` (timestamp, nullable) - Idempotency marker for T-24h `sendPaymentReminders()` cron pass
+- `payment_expired_at` (timestamp, nullable) - Set by `expireUnpaidAuctions()` when auction auto-cancels past deadline
+- Partial index on `(payment_deadline) WHERE status='ended' AND payment_status='pending'` for cron scan efficiency
 
 ---
 
@@ -1031,6 +1100,8 @@ Seller's Stripe Express Dashboard shows incoming transfer on 2-5 day payout sche
 | Package | Purpose |
 |---------|---------|
 | `sharp` | Server-side image cropping and format conversion for cover harvest; used in `coverHarvest.ts` to crop to AI-returned coordinates before Supabase Storage upload |
+| `zod` | Runtime schema validation for 82 API routes via `src/lib/validation.ts` (Session 39) |
+| `@hcaptcha/react-hcaptcha` | Invisible hCaptcha widget for guest-scan gating on scans 4 & 5 (`src/components/GuestCaptcha.tsx`) (Session 39) |
 
 ---
 
@@ -1069,8 +1140,11 @@ Seller's Stripe Express Dashboard shows incoming transfer on 2-5 day payout sche
 - `COMIC_VINE_API_KEY` (legacy - used in barcode fallback)
 - `EBAY_APP_ID`
 - `EBAY_CERT_ID`
-- `METRON_USERNAME`
-- `METRON_PASSWORD`
+- ~~`METRON_USERNAME` / `METRON_PASSWORD`~~ (removed Session 39 — Metron integration decommissioned; .env.local entries can be deleted)
+
+### Guest Scan Protection
+- `HCAPTCHA_SECRET` (server-side siteverify)
+- `NEXT_PUBLIC_HCAPTCHA_SITE_KEY` (client widget)
 
 ### Stripe Price IDs
 - `STRIPE_PRICE_PREMIUM_MONTHLY`
@@ -1101,7 +1175,6 @@ Seller's Stripe Express Dashboard shows incoming transfer on 2-5 day payout sche
 | Sentry | Free | $0 | 5K errors/mo |
 | eBay API | Free | $0 | Rate limited |
 | Comic Vine | Free | $0 | Barcode fallback in analyze, quick-lookup, con-mode-lookup |
-| Metron | Free | $0 | Comic metadata verification |
 
 ---
 
@@ -1150,6 +1223,13 @@ The `/api/analyze` route uses a provider abstraction layer so that each of the 3
 
 - `supabase/migrations/20260301_scan_analytics_provider.sql` — adds `provider`, `fallback_used`, `fallback_reason` columns to `scan_analytics`
 - `supabase/migrations/20260326_cover_harvest.sql` — adds `variant` column + unique index to `cover_images`; adds `cover_harvested` to `scan_analytics`; creates sentinel profile for harvest bot
+- `supabase/migrations/20260422_comic_sold_tracking.sql` — `sold_at`, `sold_to_profile_id`, `sold_via_auction_id` on `comics`
+- `supabase/migrations/20260422_shipping_tracking_option_a.sql` — `shipped_at`, `tracking_number`, `tracking_carrier`, `completed_at`, `ended_at` on `auctions`
+- `supabase/migrations/20260423_payment_reminder_tracking.sql` — `payment_reminder_sent_at`, `payment_expired_at` on auctions + partial index (Session 38)
+- `supabase/migrations/20260423_auction_audit_log.sql` — new `auction_audit_log` table + `auction_audit_event_type` enum + indexes + RLS (Session 39)
+- `supabase/migrations/20260423_notification_preferences.sql` — 3 boolean columns on `profiles` (notify_marketplace/notify_social/notify_marketing) (Session 39)
+- `supabase/migrations/20260423_second_chance_offers.sql` — new `second_chance_offers` table + indexes + RLS (Session 39)
+- `supabase/migrations/20260423_payment_miss_tracking.sql` — 4 profile columns (payment_missed_count, payment_missed_at, bid_restricted_at) + `user_flagged` enum value + **fixes pre-existing `valid_notification_type` CHECK constraint drift** (4 notification types were being inserted without being on the allowlist: `auction_payment_expired`, `auction_payment_expired_seller`, `bid_auction_lost`, `new_bid_received`) (Session 39)
 
 ---
 
@@ -1370,6 +1450,69 @@ priceData: {
 - `src/app/api/con-mode-lookup/route.ts` — Key Hunt route (pricing at lines ~118-143)
 - `src/app/api/comic-lookup/route.ts` — Manual entry lookup (no pricing)
 - `src/app/api/import-lookup/route.ts` — CSV import lookup (no pricing)
+
+---
+
+## Cross-Cutting Subsystems (Session 39)
+
+### Input Validation (Zod)
+
+All 82 API routes validate input via `src/lib/validation.ts`:
+
+- `validateBody(request, schema)` / `validateQuery(request, schema)` / `validateParams(params, schema)` helpers
+- Shared `schemas.uuid` / `email` / `url` / `trimmedString` / `positiveInt` / `nonNegativeNumber`
+- Standardized error shape: `{error: "Validation failed", details: [{field, issue}]}` with HTTP 400
+- `.strict()` opt-in used on `settings/*` routes to reject unknown fields
+- Scope: marketplace + money (31 routes), user + social + admin (32 routes), content + scan + lookup (19 routes)
+
+### Auction Audit Log
+
+`auction_audit_log` table (admin-read RLS, service-role insert) captures every state transition in the auction/offer/payment/shipment lifecycle. `auction_audit_event_type` enum covers 20+ event types including `auction_created`, `bid_placed`, `auction_ended`, `payment_received`, `payment_expired`, `second_chance_sent`, `shipped`, `user_flagged`.
+
+- Helper: `src/lib/auditLog.ts` — fire-and-forget single + batch variants
+- 17 wire-ups across `src/lib/auctionDb.ts`, `src/app/api/auctions/[id]/mark-shipped/route.ts`, and `src/app/api/webhooks/stripe/route.ts`
+- Enables dispute resolution + debugging queries; only admins (via RLS) can read
+
+### Payment-Miss Strike System
+
+Fires inside `expireUnpaidAuctions()`. Each missed payment:
+
+1. Increments `profiles.payment_missed_count` + sets `payment_missed_at`
+2. **1st offense:** sends `payment_missed_warning` email
+3. **2+ strikes in a 90-day window:** sets `profiles.bid_restricted_at`, inserts a system-generated negative `transaction_feedback` row (idempotent on unique constraint), emails `payment_missed_flagged`, notifies admins via the flagged-users endpoint
+4. `/api/auctions/[id]/bid` enforces `bid_restricted_at` at bid placement
+
+### Second Chance Offer System
+
+Seller-initiated re-offer to runner-up after an auction expires unpaid.
+
+- Table: `second_chance_offers` — `auction_id`, `recipient_profile_id`, `offer_price`, `expires_at`, `status`
+- **Price:** runner-up's *last actual bid price* (not their max_bid)
+- **Window:** 48 hours, enforced by `expireSecondChanceOffers()` cron pass
+- **No cascade:** if declined/ignored, the offer simply ends (does not fall to 3rd place)
+- 5 new email templates + 7 new notification types
+- UI: `SecondChanceOfferButton` (seller side) and `SecondChanceInboxCard` (runner-up side)
+
+### Email Notification Preferences
+
+4 categories toggled at `/settings/notifications`:
+
+| Category | Toggleable | Examples |
+|----------|:---:|----------|
+| Transactional | No (locked) | Purchase confirmation, payment received, shipped |
+| Marketplace | Yes | Outbid, new bid, offer received, listing expired |
+| Social | Yes | New follower, new message, mention |
+| Marketing | Yes | Newsletter, feature announcements |
+
+`NOTIFICATION_CATEGORY_MAP` in `src/lib/notificationPreferences.ts` covers all 27 notification email types. `sendNotificationEmail` + `sendNotificationEmailsBatch` check preferences before sending; skipped sends are counted and returned to the caller.
+
+### hCaptcha Guest Scan Protection
+
+Invisible hCaptcha gates guest scans 4 & 5 (the last two free scans before the limit).
+
+- Client: `src/components/GuestCaptcha.tsx` via `@hcaptcha/react-hcaptcha`, floating badge
+- Server: `src/lib/hcaptcha.ts` siteverify helper, 5s timeout, dev/prod key swap
+- Gating: `/api/analyze` requires a valid hCaptcha token on scans 4 & 5
 
 ---
 

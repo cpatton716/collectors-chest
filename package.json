@@ -31,6 +31,7 @@
     "@anthropic-ai/sdk": "^0.52.0",
     "@clerk/nextjs": "^6.36.6",
     "@google/generative-ai": "^0.24.1",
+    "@hcaptcha/react-hcaptcha": "^2.0.2",
     "@sentry/nextjs": "^10.32.1",
     "@supabase/supabase-js": "^2.90.0",
     "@upstash/ratelimit": "^2.0.7",

@@ -1,7 +1,9 @@
 # Cover Image Harvesting from Graded Book Scans — Design
 
-**Status:** Approved
+**Status:** Superseded by `docs/engineering-specs/2026-04-02-cover-image-harvesting-design.md`
 **Date:** February 25, 2026
+
+> **Apr 23, 2026 update:** This original design was superseded by the Apr 2, 2026 Rev 3 spec. For current behavior (including the new `coverCropValidator.ts` aspect-ratio guard shipped Apr 23), see the newer spec. Preserved for historical reference only.
 
 ---
 

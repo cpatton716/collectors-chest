@@ -1,8 +1,16 @@
 # Collectors Chest - Operating Cost Projections
 
 > Cost estimates for running the application at various scale levels.
-> All prices in USD. Updated April 22, 2026.
+> All prices in USD. Updated April 23, 2026.
 > **Audit cadence:** reviewed at end of every session (close-up-shop). Any new service added or cost change must land here before commit.
+
+---
+
+## Recent Changes (Audit Log)
+
+| Date | Change | Net Cost Impact |
+|------|--------|-----------------|
+| Apr 23, 2026 (Sessions 38 + 39) | Added hCaptcha (Pro trial until May 7, 2026, then auto-downgrades to free tier at 1M requests/mo). Removed Metron integration (was using free tier). Added `ZENROWS_API_KEY` env var but CGC-lookup feature deferred post-launch pending ROI review — no current cost. | $0/mo — private beta remains on free tiers |
 
 ---
 
@@ -189,7 +197,26 @@
 
 ---
 
-### 9. eBay API (Price Data)
+### 9. hCaptcha (Bot Prevention)
+
+| Tier        | Price       | Includes                                                    |
+|-------------|-------------|-------------------------------------------------------------|
+| **Free**    | $0/mo       | 1M requests/mo, standard challenge                          |
+| Pro (trial) | $0 (trial)  | Advanced features, currently on trial through **May 7, 2026** — no payment info provided; auto-downgrades to free tier after trial |
+| Pro         | $99/mo      | Only if user opts in post-trial — not planned               |
+
+**Current: Pro trial (free) → will auto-downgrade to Free tier May 7, 2026**
+
+**Use Case:** Triggered on guest scans 4–5 only (not on authenticated users). Expected volume in private beta is well under free-tier limits.
+
+**Projection:**
+- Launch: $0/mo (Pro trial, then free tier)
+- Growth: $0/mo (1M req/mo covers ~10k users easily)
+- Scale: $0/mo until 1M+ challenges/mo
+
+---
+
+### 10. eBay API (Price Data)
 
 | Aspect        | Cost                      |
 |---------------|---------------------------|
@@ -219,6 +246,7 @@
 | Analytics (PostHog)       | $0                                                 |
 | Upstash                   | $0                                                 |
 | Resend                    | $0                                                 |
+| hCaptcha                  | $0 (Pro trial → free tier after May 7, 2026)       |
 | eBay API                  | $0                                                 |
 | **Total (today)**         | **~$20-40/mo**                                     |
 | **Total (at ~500 users)** | **~$45-65/mo**                                     |
@@ -237,6 +265,7 @@
 | Analytics | $0             |
 | Upstash   | $0-5           |
 | Resend    | $0             |
+| hCaptcha  | $0             |
 | eBay API  | $0             |
 | **Total** | **$50-105/mo** |
 
@@ -254,6 +283,7 @@
 | Analytics | $0              |
 | Upstash   | $10             |
 | Resend    | $20             |
+| hCaptcha  | $0              |
 | eBay API  | $0              |
 | **Total** | **$250-400/mo** |
 
@@ -271,6 +301,7 @@
 | Analytics | $50               |
 | Upstash   | $30               |
 | Resend    | $40               |
+| hCaptcha  | $0 (free tier)    |
 | eBay API  | $0                |
 | **Total** | **$750-2,150/mo** |
 
@@ -360,6 +391,7 @@ If we implement a premium tier at $5/month:
 | PostHog   | 1M events/mo         | Rarely                           | Low           |
 | Upstash   | 10k commands/day     | 1k+ daily users                  | Medium        |
 | Resend    | 3k emails/mo         | 100+ daily emails                | Low           |
+| hCaptcha  | 1M requests/mo       | Very rarely                      | Low           |
 | eBay      | 5k calls/day         | Rarely                           | Low           |
 
 ---

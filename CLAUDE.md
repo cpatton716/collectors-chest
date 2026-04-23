@@ -149,7 +149,7 @@ For ad-hoc use during development:
 | **Stripe** | Payments | [dashboard.stripe.com](https://dashboard.stripe.com) | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` |
 | **Anthropic** | AI (Claude) for cover recognition | [console.anthropic.com](https://console.anthropic.com) | `ANTHROPIC_API_KEY` |
 | **Google AI (Gemini)** | AI fallback for cover recognition | [aistudio.google.com](https://aistudio.google.com) | `GEMINI_API_KEY` |
-| **Metron** | Comic database verification | [metron.cloud](https://metron.cloud) | `METRON_USERNAME`, `METRON_PASSWORD` |
+| **hCaptcha** | Bot prevention on guest scans (triggered at scans 4–5) | [dashboard.hcaptcha.com](https://dashboard.hcaptcha.com) | `NEXT_PUBLIC_HCAPTCHA_SITE_KEY`, `HCAPTCHA_SECRET_KEY` |
 
 ### Supporting Services
 | Service | Purpose | Dashboard | Env Variable |
@@ -166,6 +166,7 @@ For ad-hoc use during development:
 | **Marvel API** | ~~Comic metadata, covers, creators~~ | ~~Free, 3K calls/day~~ — Developer program deprecated, no longer available (Feb 2026) |
 | **eBay Browse API** | Real-time pricing | Free tier, rate limited |
 | **CGC/CBCS** | Cert verification | Web scraping for grade details |
+| **ZenRows** | Scraping proxy for CGC cert lookup | Env var `ZENROWS_API_KEY` configured — **deferred post-launch** pending ROI review; no current cost |
 
 ### Project Costs
 
@@ -189,6 +190,7 @@ For ad-hoc use during development:
 - Resend: 3K emails/mo
 - PostHog: 1M events/mo
 - Sentry: 5K errors/mo
+- hCaptcha: 1M requests/mo (currently on Pro trial through **May 7, 2026** — no payment info provided; auto-downgrades to free tier after trial; $0 throughout private beta)
 
 ---
 
@@ -213,6 +215,7 @@ When I say **"Deploy"**, perform the following steps:
      - Provide direct link: Netlify → Site settings → Environment variables
      - **DO NOT PROCEED** until user confirms they've added the variables to Netlify
    - This prevents production failures from missing env vars
+   - **Known Netlify env vars (as of Apr 23, 2026):** `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `CLERK_WEBHOOK_SECRET`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `RESEND_API_KEY`, `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`, `SENTRY_DSN`, `NEXT_PUBLIC_POSTHOG_KEY`, `NETLIFY_API_TOKEN`, `NEXT_PUBLIC_HCAPTCHA_SITE_KEY`, `HCAPTCHA_SECRET_KEY`, `ZENROWS_API_KEY` (configured but feature deferred post-launch)
 
 3. **Review Deploy Checklist** - Confirm with user:
    - [ ] All tests passing

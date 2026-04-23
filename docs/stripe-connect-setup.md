@@ -4,6 +4,8 @@
 **Context:** Stripe account verification cleared. Ready to enable Connect for seller marketplace.
 **Mode:** Live mode in dashboard; test mode + localhost for end-to-end test.
 
+> **Apr 23, 2026 update:** Dashboard setup below is unchanged. On top of the core Connect flow, the marketplace now also enforces a 48-hour payment deadline after an auction win / offer accept (T-24h reminder cron + auto-cancel cron + Second Chance Offer for runner-up + strike system). None of that requires new Stripe dashboard config — it's implemented in the app and Supabase — but operators should know that `checkout.session.completed` is only one of several ways an auction can leave the "awaiting payment" state.
+
 This guide walks through enabling Stripe Connect Express for the Collectors Chest marketplace. Settings below match exactly what the code expects — don't deviate.
 
 ---

@@ -1,5 +1,7 @@
 # Cost Monitoring & API Optimization Implementation Plan
 
+> **Apr 23, 2026 update:** Cost-monitoring and cache logic below is unchanged. Adjacent scan-flow additions that also affect cost protection: hCaptcha gate on guest scans 4-5 (before hitting the 5/day guest cap), 10MB image upload cap (rejects oversized uploads before any AI call), and the pre-harvest aspect-ratio guard in `src/lib/coverCropValidator.ts` (prevents wasted harvest work on bad crops). Metron verification has been removed from the scan flow.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Reduce Anthropic API spend by caching comic metadata (40-60% savings), add in-app admin alerts for usage thresholds, and instrument scans with server-side PostHog for passive cost monitoring.

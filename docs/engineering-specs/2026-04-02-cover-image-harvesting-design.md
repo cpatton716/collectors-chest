@@ -4,6 +4,8 @@
 **Date:** April 2, 2026
 **Supersedes:** `docs/plans/2026-02-25-cover-image-harvesting-design.md` (original design doc)
 
+> **Apr 23, 2026 update:** Shipped a pre-harvest aspect-ratio guard in `src/lib/coverCropValidator.ts`. Before the crop is uploaded, the validator checks the crop's aspect ratio (~2:3 cover geometry) and rejects out-of-spec crops outright — catching cases where the AI returns coordinates that include label, slab edges, or the entire slab bounding box. Slab prompt also updated with color palette + explicit EXCLUDE/CROP markers to reduce bad coordinate returns. Metron verification is no longer part of the scan flow; the harvest pipeline remains unchanged.
+
 ---
 
 ## Goal

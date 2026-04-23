@@ -1,5 +1,7 @@
 # Email System Overhaul Implementation Plan
 
+> **Apr 23, 2026 update:** `sendNotificationEmail()` now checks the recipient's per-category email preference before dispatching, and fan-out sends use Resend's `batch.send()` API. See the email overhaul design spec for the category-to-template mapping. Tasks in this plan are otherwise unchanged.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add trial expiration reminder email, wire 7 offer + 2 listing email sends, and apply pop-art branded header/footer to all 12 email templates.

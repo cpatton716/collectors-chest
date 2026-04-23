@@ -33,6 +33,7 @@ import { MilestoneType, useGuestScans } from "@/hooks/useGuestScans";
 import CoverReviewQueue from "@/components/CoverReviewQueue";
 import { CSVImport } from "@/components/CSVImport";
 import { ComicDetailsForm } from "@/components/ComicDetailsForm";
+import { GuestCaptcha, GuestCaptchaHandle } from "@/components/GuestCaptcha";
 import { GuestLimitBanner } from "@/components/GuestLimitBanner";
 import { ImageUpload } from "@/components/ImageUpload";
 import { analytics } from "@/components/PostHogProvider";
@@ -116,6 +117,12 @@ export default function ScanPage() {
   const [showSlowMessage, setShowSlowMessage] = useState(false);
   const reviewSectionRef = useRef<HTMLDivElement>(null);
   const analysisSectionRef = useRef<HTMLDivElement>(null);
+  const captchaRef = useRef<GuestCaptchaHandle>(null);
+
+  // CAPTCHA is required for guest scans 4 and 5 (but NOT authenticated users
+  // or the first 3 scans). `count` is the number of scans ALREADY completed,
+  // so if count >= 3 this upcoming submit is scan #4 or #5.
+  const captchaRequired = isGuest && !isSignedIn && count >= 3;
 
   // Rotate fun facts every 7 seconds during analyzing state
   useEffect(() => {
@@ -153,15 +160,36 @@ export default function ScanPage() {
       // Get the media type from the file
       const mediaType = file.type || "image/jpeg";
 
-      // Send to our API for Claude Vision analysis
+      // For guests on scans 4 and 5, run the invisible hCaptcha challenge
+      // before hitting the scan endpoint. Block on failure to avoid wasting
+      // AI credits and to match the server-side requirement.
+      let captchaToken: string | null = null;
+      if (captchaRequired) {
+        captchaToken = (await captchaRef.current?.execute()) ?? null;
+        if (!captchaToken) {
+          setError("Please complete the CAPTCHA and try again.");
+          setState("error");
+          return;
+        }
+      }
+
+      // Send to our API for Claude Vision analysis.
+      // Guest scan count goes in a header so the server can enforce
+      // CAPTCHA on scans 4-5 and the 5-scan hard limit.
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (isGuest && !isSignedIn) {
+        headers["x-guest-scan-count"] = String(count);
+      }
+
       const response = await fetch("/api/analyze", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers,
         body: JSON.stringify({
           image: preview,
           mediaType,
+          ...(captchaToken ? { captchaToken } : {}),
         }),
       });
 
@@ -357,6 +385,18 @@ export default function ScanPage() {
       <Suspense fallback={null}>
         <BonusVerificationHandler addBonusScans={addBonusScans} showToast={showToast} />
       </Suspense>
+
+      {/* Invisible hCaptcha — only mounted for guests who may need it (scans 4-5).
+          Renders a floating badge; challenge is triggered via captchaRef.execute(). */}
+      {isGuest && !isSignedIn && (
+        <GuestCaptcha
+          ref={captchaRef}
+          onError={(msg) => {
+            setError(msg);
+            setState("error");
+          }}
+        />
+      )}
 
       {/* Header */}
       <div className="mb-8">

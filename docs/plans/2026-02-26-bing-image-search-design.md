@@ -3,6 +3,8 @@
 **Date:** 2026-02-26
 **Replaces:** Google Custom Search JSON API (closed to new customers)
 
+> **Apr 23, 2026 update:** The "Metron.cloud — Free comic DB API" listed under Alternatives Evaluated is no longer an option — Metron was fully removed from the scan flow this session. Decision to skip external image search (rely on community DB + Open Library + manual URL paste) still stands.
+
 ## Context
 
 Google CSE was set up on Feb 25 for comic cover image search but returned 403 errors. After investigation, Google's Custom Search JSON API is closed to new customers (deadline Jan 1, 2027 for existing customers). All Google CSE code and env vars have been removed.

@@ -1750,4 +1750,155 @@ If you encounter bugs or unexpected behavior:
 4. **Second-highest-bidder promotion is not implemented** — decision required: is this a product goal, or should sellers just relist?
 5. **Buyer has no UI warning the deadline is approaching** — transactions page shows "Pending Payment" pill but no countdown; buyers may not realize a deadline exists after the email is buried.
 
+### hCaptcha Guest Scan Protection (Apr 23, 2026)
+
+**Scope:** Validates the new hCaptcha gate on guest scans 4-5 of the free-tier scan limit. Authenticated users should never see CAPTCHA. Also validates the siteverify timeout guard.
+
+**What changed (Session 39 follow-up):**
+- New client component `GuestCaptcha` renders invisible hCaptcha + floating badge
+- Gated on `guestScansCompleted >= 3` (scans 4 and 5 only)
+- Server-side siteverify in `/api/analyze` via new `src/lib/hcaptcha.ts` helper
+- 5s AbortSignal timeout on siteverify fetch with user-friendly error copy
+- Dev/prod key swap via `NODE_ENV`
+- hCaptcha plan: Pro Publisher trial until May 7, 2026 → auto-downgrade to free
+
+**Preconditions:**
+- Guest session (no Clerk sign-in, localStorage `guestScansCompleted` reset to 0 via DevTools if needed)
+- `NEXT_PUBLIC_HCAPTCHA_SITE_KEY` + `HCAPTCHA_SECRET` set in env
+- Dev server running
+
+| Test Case | Steps | Expected Result | Status |
+|-----------|-------|-----------------|--------|
+| Scans 1-3: no CAPTCHA rendered | As guest, scan 3 comics back-to-back | No hCaptcha badge visible; no CAPTCHA token required; server-side siteverify skipped | Pending |
+| Scan 4: invisible CAPTCHA runs | As guest with `guestScansCompleted=3`, upload a 4th scan | Invisible CAPTCHA challenge runs silently for valid traffic; scan proceeds normally. Floating hCaptcha badge visible bottom-right | Pending |
+| Scan 4: suspicious traffic sees challenge | Use a VPN / Tor / known-bot UA, scan 4th comic | hCaptcha presents visible challenge (image puzzle); must solve before scan executes | Pending |
+| Scan 5: same CAPTCHA gate as scan 4 | As guest with `guestScansCompleted=4`, scan a 5th comic | Same behavior as scan 4 — invisible for clean traffic, challenge for suspicious | Pending |
+| Scan 6+: blocked by existing limit | As guest with `guestScansCompleted=5`, attempt scan 6 | Existing scan-limit upgrade prompt fires; CAPTCHA never runs (upstream block) | Pending |
+| Authenticated user: no CAPTCHA ever | Sign in, scan 10 comics | No CAPTCHA badge at any scan; no CAPTCHA token sent in request; server-side siteverify skipped for authenticated users | Pending |
+| hCaptcha outage — siteverify timeout | Block `hcaptcha.com/siteverify` in DevTools → Network → "Block request URL". As guest, attempt scan 4 | Within ~5 seconds, user sees friendly error "CAPTCHA verification is slow right now. Please try again in a moment." No 30-second hang. Scan slot released. | Pending |
+| Widget rendering — scans 1-3 | Observe page at scans 1-3 | No hCaptcha floating badge visible | Pending |
+| Widget rendering — scans 4+ | Observe page at scan 4+ start | Floating hCaptcha badge visible at bottom-right of viewport | Pending |
+| Missing CAPTCHA token on scan 4 | Manipulate client to send `/api/analyze` request without CAPTCHA token (via DevTools or curl) | Server responds HTTP 400 "CAPTCHA required" with failure reason `captcha_missing`. Scan slot released. | Pending |
+| Invalid CAPTCHA token on scan 4 | Send scan 4 request with garbage `captchaToken` value | Server responds with "CAPTCHA verification failed"; scan slot released. | Pending |
+
+### Second Chance Offer — Seller-Initiated (Apr 23, 2026)
+
+**Scope:** When an auction expires unpaid and a runner-up (second-highest bidder) exists, seller can offer the item to the runner-up at their last actual bid price. Runner-up has 48 hours to accept.
+
+**What changed (Session 39):**
+- New table `second_chance_offers` (migration `20260423_second_chance_offers.sql`)
+- New cron pass `expireSecondChanceOffers` in `/api/cron/process-auctions`
+- 5 new email templates, 7 new notification types
+- UI: `SecondChanceOfferButton` (seller), `SecondChanceInboxCard` (runner-up)
+- Routes: `/api/auctions/[id]/second-chance`, `/api/second-chance-offers`, `/api/second-chance-offers/[id]`
+
+**Preconditions:**
+- Completed auction with at least 2 distinct bidders (winner + runner-up)
+- Winner misses 48h payment deadline → auction transitions to `status=cancelled`, `payment_expired_at` stamped
+- Seller has Stripe Connect active
+- Runner-up still has active account
+
+| Test Case | Steps | Expected Result | Status |
+|-----------|-------|-----------------|--------|
+| Seller notification on expiry with runner-up | Let auction expire unpaid with runner-up. Wait for cron `expireUnpaidAuctions` to run. | Seller receives email + in-app notification: "Offer to runner-up?" with CTA. Email includes comic + runner-up bid amount. | Pending |
+| Seller clicks "Offer to runner-up" CTA | From notification or transaction page, click CTA → confirm | New row in `second_chance_offers` with `status='pending'`, 48h expiry. Runner-up receives notification + email ("Second chance offer for [comic]"). | Pending |
+| Runner-up accepts within 48h | As runner-up, open second-chance inbox card → click Accept → Stripe checkout → pay | Auction transitions to paid state for runner-up. Second-chance offer `status='accepted'`. Standard post-payment flow (transfer, shipping notification, etc.). | Pending |
+| Runner-up declines | As runner-up, click Decline on inbox card | Offer `status='declined'`. Seller notified. Offer ends (no cascade). Seller can re-list manually. | Pending |
+| Runner-up ignores (48h timeout) | Do not act on offer. Let cron `expireSecondChanceOffers` run. | Offer `status='expired'` after 48h. Seller receives "Offer expired — consider re-listing" notification. Runner-up does NOT receive a penalty strike. | Pending |
+| No runner-up exists | Auction ends with only 1 bidder. Winner misses payment. | Seller receives standard payment-expired notification but NO "Offer to runner-up" CTA. No second-chance offer is created. | Pending |
+| Idempotency — double CTA tap | Seller taps "Offer to runner-up" twice rapidly | Exactly ONE `second_chance_offers` row created. Second tap either hits existing-offer error or returns same offer ID. No duplicate notifications/emails to runner-up. | Pending |
+| Audit log entries | After any of the above flows | `auction_audit_log` contains rows for `second_chance_offered`, `second_chance_accepted`/`declined`/`expired` as appropriate | Pending |
+
+### Payment-Miss Strike System (Apr 23, 2026)
+
+**Scope:** Tracks missed payments on a rolling 90-day window. First miss → warning email. Second miss within 90 days → user flagged (bid restriction + reputation hit + admin notification).
+
+**What changed (Session 39):**
+- Migration `20260423_payment_miss_tracking.sql` adds 4 profile columns + `user_flagged` audit enum value
+- Bid placement route checks `is_flagged` and returns HTTP 403
+- Reputation hit via system-inserted negative rating (idempotent on unique constraint)
+- New admin endpoint `/api/admin/flagged-users`
+
+**Preconditions:**
+- Fresh guest account (`payment_miss_count=0`, `is_flagged=false`)
+- Active auction with bid placed on it
+
+| Test Case | Steps | Expected Result | Status |
+|-----------|-------|-----------------|--------|
+| First miss — warning only | Winner misses 48h deadline on one auction. Wait for `expireUnpaidAuctions`. | `profiles.payment_miss_count = 1`, `last_payment_miss_at` stamped. Winner receives warning email ("Please pay on time — one strike"). NO bid restriction. NO reputation hit. NO admin notification. | Pending |
+| Second miss within 90 days — flagged | Same user misses a 2nd payment within 90 days of the first | `payment_miss_count = 2`, `is_flagged = true`, `flagged_at` stamped. Negative rating row inserted in ratings table (1-star, system-attributed). Admin receives notification. Flagged user receives `payment_missed_flagged` email. | Pending |
+| Flagged user attempts new bid | As flagged user, try to place a bid on any auction | HTTP 403 response with `{error: "Bidding restricted"}`. No bid row created. Friendly UI message surfaces. | Pending |
+| Strike outside 90-day window counts as first | User missed payment 91+ days ago (only 1 miss ever). They miss a second payment. | Treated as FIRST offense (rolling window). Warning email sent. `payment_miss_count` increments to 2 but `is_flagged` stays false because the first miss is outside the window. (Or: implementation may reset count — verify behavior matches spec.) | Pending |
+| Admin queries flagged-users endpoint | As admin, `GET /api/admin/flagged-users` | Returns JSON array of flagged profiles with `payment_miss_count`, `flagged_at`, reputation score. Non-admin users receive 403. | Pending |
+| Idempotent negative rating | Manually trigger flagging logic twice on same user | Only ONE negative rating row exists (unique constraint prevents duplicate). | Pending |
+| Audit log entries | After any flag event | `auction_audit_log` contains `user_flagged` row with user ID + strike counts | Pending |
+
+### Email Notification Preferences (Apr 23, 2026)
+
+**Scope:** 4-category toggle system. Transactional is always-on (locked). Marketplace / Social / Marketing each togglable per user on `/settings/notifications`.
+
+**What changed (Session 39):**
+- Migration `20260423_notification_preferences.sql` adds 3 boolean columns on profiles
+- `NOTIFICATION_CATEGORY_MAP` in `src/types/notificationPreferences.ts` covers all 27 notification email types
+- `sendNotificationEmail` + `sendNotificationEmailsBatch` gate on preferences before dispatch
+- GET/PATCH `/api/settings/notifications` extended
+- UI at `/settings/notifications`
+
+**Preconditions:**
+- Signed-in user
+- At least one other account to trigger notifications from
+
+| Test Case | Steps | Expected Result | Status |
+|-----------|-------|-----------------|--------|
+| Transactional always sends | Disable all togglable categories on `/settings/notifications`. Trigger `auction_won` (win an auction) and `payment_received` (receive payment) | Both emails deliver regardless of toggle state. Transactional cannot be disabled. | Pending |
+| Marketplace off → no outbid/offer emails | Toggle Marketplace OFF. Get outbid by another user. Receive an offer. Receive a second-chance offer. | No outbid email. No offer-received email. No second-chance email. In-app notifications still appear (toggles gate email only). | Pending |
+| Marketplace off → transactional still works | With Marketplace OFF, win an auction and pay | `auction_won` + `payment_received` + `purchase_confirmation` emails all deliver (transactional category) | Pending |
+| Social off → no follow/message emails | Toggle Social OFF. Have another user follow you. Have another user send a message. | No new-follower email. No new-message email. | Pending |
+| Marketing off → no product updates | Toggle Marketing OFF. Trigger any marketing email (product update, re-engagement, newsletter) | No marketing emails deliver. | Pending |
+| Batch send respects per-recipient prefs | Trigger cron path that calls `sendNotificationEmailsBatch` to a mix of recipients with different preferences (e.g., auction expiry to buyer + seller where seller has Marketplace OFF) | Seller's email is skipped. Buyer's email sends. Logs show skipped-count reporting per category. | Pending |
+| Preference UI persists across sessions | Toggle Marketplace OFF on `/settings/notifications` → sign out → sign back in | Toggle state persists (reads from `profiles`, not localStorage). | Pending |
+| GET /api/settings/notifications | As signed-in user, GET the endpoint | Returns JSON `{transactional: true, marketplace: bool, social: bool, marketing: bool}`. `transactional` is always `true`. | Pending |
+| PATCH with unknown fields rejected | PATCH with `{foo: true}` | HTTP 400 validation error (strict schema) | Pending |
+
+### Input Validation Sweep (Apr 23, 2026)
+
+**Scope:** Spot-check that the Zod validation sweep across 82 API routes rejects malformed input with a consistent error shape.
+
+**What changed (Session 39):**
+- New shared helper `src/lib/validation.ts` with `validateBody`/`validateQuery`/`validateParams`
+- Standardized error shape: `{error: string, details: [{field, issue}]}` with HTTP 400
+- Strict schema used on settings routes to reject unknown fields
+
+| Test Case | Steps | Expected Result | Status |
+|-----------|-------|-----------------|--------|
+| POST /api/auctions with missing required fields | `curl -X POST /api/auctions -d '{}'` (authenticated) | HTTP 400 with `{error, details: [{field, issue}, ...]}` listing required fields | Pending |
+| POST /api/username with dash | `curl -X POST /api/username -d '{"username":"my-name"}'` | HTTP 400 with details array, regex-violation message | Pending |
+| POST /api/analyze without `image` field | POST to analyze with no image | HTTP 400 before any scan-slot reservation or AI call. Scan count not incremented. | Pending |
+| GET /api/transactions with invalid `type` query | `GET /api/transactions?type=garbage` | HTTP 400 with enum-validation details | Pending |
+| Consistent error shape across routes | Trigger validation errors on 3-5 different routes | All responses match `{error, details:[{field, issue}]}` shape. HTTP status always 400. | Pending |
+
+### Auction Audit Log (Apr 23, 2026)
+
+**Scope:** New `auction_audit_log` table + 17 wire-ups across auction/offer/payment/shipment/bid lifecycle. Admin-only read via RLS.
+
+**What changed (Session 39):**
+- Migration `20260423_auction_audit_log.sql` creates table + enum + indexes + RLS
+- `src/lib/auditLog.ts` with fire-and-forget single + batch variants
+- Stripe webhook integration logs payment events
+
+**Preconditions:**
+- Admin account (`is_admin = true` on profile)
+- Non-admin account for RLS verification
+
+| Test Case | Steps | Expected Result | Status |
+|-----------|-------|-----------------|--------|
+| Auction state transition generates audit row | Create auction, wait for it to end, let cron process it | `auction_audit_log` contains rows for `auction_created`, `auction_ended`, `auction_finalized` (or equivalent event types) | Pending |
+| Bid placement generates `bid_placed` | Place a valid bid | `auction_audit_log` row inserted with event_type `bid_placed`, actor_id = bidder, auction_id correct | Pending |
+| Successful payment generates `payment_succeeded` | Complete a Stripe Checkout for an auction or Buy Now | Stripe webhook inserts `payment_succeeded` row with transfer amount in metadata | Pending |
+| Shipment generates `shipment_created` | Seller marks auction as shipped with carrier + tracking | `auction_audit_log` row for `shipment_created` with tracking metadata | Pending |
+| Non-admin cannot read audit table | As non-admin user, query `SELECT * FROM auction_audit_log` via Supabase client | RLS blocks query (empty result or 403, depending on client). Direct REST call returns 401/403. | Pending |
+| Admin can read audit table | As admin user, query the table | Full rows returned | Pending |
+| Offer events logged | Create, accept, and decline an offer | Audit rows for `offer_created`, `offer_accepted`, `offer_declined` | Pending |
+| User flag event logged | Trigger payment-miss strike flagging | Audit row for `user_flagged` with strike count + timestamp | Pending |
+
 *Last Updated: April 23, 2026*
