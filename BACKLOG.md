@@ -670,6 +670,21 @@ Today's session shipped Resend `batch.send()` + `mapWithConcurrency(5)` for the 
 
 ---
 
+### Audit `cover_image_url` Source — Stop Persisting Long URLs / data: URIs
+**Priority:** Low (Post-Launch)
+**Status:** Defensive guards in place — root cause not yet fixed
+**Added:** Apr 23, 2026 (Session 40)
+
+Session 40 Buy Now 500 in prod traced to Stripe rejecting `line_items[0].product_data.images[0]` because the URL exceeded 2048 chars. Root cause: `cover_image_url` sometimes carries a very long Supabase signed URL (JWT query params) or a base64 `data:` URI.
+
+Two call sites already defensively strip problematic values (`csvExport.ts` filters `data:` prefix; `api/checkout/route.ts` as of Session 40 filters non-http or >2048 chars), but future code will hit the same trap. Fix at the persistence layer:
+
+- Audit every path that writes `cover_image_url` (scan/upload/batch-import/harvest) — should always persist a short, public http(s) URL.
+- If a signed URL is the only available form, store the object key and build the signed URL on read instead of persisting the signed URL.
+- One-time migration to normalize existing rows (strip `data:` URIs; re-derive URLs from storage keys where possible).
+
+---
+
 ### Notification CHECK Constraint — Audit Pre-Existing Drift
 **Priority:** Low (Post-Launch)
 **Status:** Pending investigation

@@ -4,17 +4,44 @@ This log tracks session-by-session progress on Collectors Chest.
 
 ---
 
+## Apr 23, 2026 - Session 40: Marketplace PROD Testing — Buy Now 500 Hotfix + Mobile Modal Layout
+
+### Summary
+User began PROD testing of auction + buy-now flows with three accounts (collector-patton buyer / patton716 seller / pattonrt bidder). Auction bidding path worked end-to-end (outbid notifications + emails + links all verified). Buy Now blocked by a 500 from `/api/checkout`. Mobile auction page had unusable cover-image sizing. Both fixed in a single deploy bundle.
+
+### Features / Fixes Shipped
+
+1. **Buy Now checkout 500 — root cause fixed.** Stripe API was returning `invalid_request_error: "Invalid URL: URL must be 2048 characters or less"` on `line_items[0].product_data.images[0]`. The `cover_image_url` field sometimes carries a very long Supabase signed URL (JWT query param) or a base64 `data:` URL, both of which blow past Stripe's 2048-char cap. `src/app/api/checkout/route.ts` now only passes the cover to Stripe when it's an `http(s)://` URL ≤2048 chars; otherwise omits the image (cosmetic-only on the Checkout page). Same defensive pattern already exists in `csvExport.ts` for `data:` URLs — consistent with existing codebase approach.
+
+2. **Mobile Auction modal cover dominated viewport.** `AuctionDetailModal.tsx:180` forced `aspect-square` + `max-h-[60vh]` on mobile, leaving a tiny sliver for bid details. Dropped to `max-h-[35vh]` on mobile; desktop `md:max-h-[70vh]` unchanged.
+
+3. **Mobile Buy Now modal had same class of bug.** `ListingDetailModal.tsx:219` used `aspect-[3/4]` with no mobile height cap — portrait ratio at 100vw produced ~76vh of cover. Added `max-h-[40vh]` on mobile; desktop layout untouched.
+
+### Files Modified
+- `src/app/api/checkout/route.ts` — defensive image URL guard before Stripe session creation.
+- `src/components/auction/AuctionDetailModal.tsx` — mobile image cap.
+- `src/components/auction/ListingDetailModal.tsx` — mobile image cap.
+
+### Testing Context
+- **Buyer:** collector-patton (Mac Chrome, Free)
+- **Seller:** patton716 (Android Chrome, Free)
+- **Bidder:** pattonrt (iOS Chrome, Free)
+- **Verified working:** auction bidding, outbid notification + email, link navigation from notification/email.
+- **Not yet verified:** auction close at 10:30 tomorrow (winner notification + winner flow), Buy Now checkout in prod (fix deployed, user to re-test), post-purchase flows (Stripe payment, order confirmation emails, shipping workflow).
+
+### Deploy
+- Pushed to main at commit `814ca29` → Netlify auto-deploy.
+
+### Backlog / Follow-ups Captured
+- Audit where `cover_image_url` gets persisted as a `data:` URL or overlong signed URL. Multiple codepaths (checkout, CSV export) now defensively strip it — worth fixing at the source eventually.
+
+---
+
 ## Changes Since Last Deploy
 
-**Last Deploy:** 2026-04-23 (Session 39, third deploy of the day — pending at commit `4175035`). Prior same-day deploys: `14037e1` (Session 39 pre-beta hardening batch) and `8b4a9eb` (Session 38).
+**Last Deploy:** 2026-04-23 (Session 40 — marketplace hotfix bundle at commit `814ca29`). Same-day prior deploys: `4175035` (Session 39c hCaptcha), `14037e1` (Session 39 pre-beta hardening), `8b4a9eb` (Session 38).
 **Sessions Since Last Deploy:** 0
-**Deploy Readiness:** Deploying — Session 39 follow-up bundle: hCaptcha guest-scan protection (client + siteverify with 5s timeout guard) and BACKLOG reconciliation / doc updates. No new migrations in this deploy.
-
-### Changes Since Last Deploy:
-- **hCaptcha Guest Scan Protection** — Invisible + floating badge at scans 4-5 of the guest free-tier. Full server-side siteverify wired into `/api/analyze`.
-- **hCaptcha siteverify timeout guard** — 5s AbortSignal cap on the siteverify HTTP call + friendly error copy when hCaptcha is slow/down. Prevents 30s request hangs during vendor outages.
-- **BACKLOG reconciliation** — 13 completed items removed, CGC-related items reclassified to post-launch (pending ZenRows ROI decision), 6 newly-surfaced items captured.
-- Doc updates: DEV_LOG (Session 39 extended), TEST_CASES (new scenarios for today's work).
+**Deploy Readiness:** Deployed — marketplace prod-testing hotfixes: Buy Now 500 root cause fixed, mobile modal layout fixes. No new migrations, no new env vars.
 
 ---
 
