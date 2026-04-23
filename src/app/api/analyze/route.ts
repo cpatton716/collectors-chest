@@ -33,6 +33,11 @@ import {
   reserveScanSlot,
   releaseScanSlot,
 } from "@/lib/subscription";
+import {
+  MAX_IMAGE_UPLOAD_BYTES,
+  MAX_IMAGE_UPLOAD_LABEL,
+  base64DecodedByteLength,
+} from "@/lib/uploadLimits";
 
 import { PriceData } from "@/types/comic";
 
@@ -215,20 +220,40 @@ export async function POST(request: NextRequest) {
     const { image, mediaType } = await request.json();
 
     if (!image) {
+      // Release the reserved scan slot — the request is invalid, don't charge the user
+      if (profileId && scanSlotReserved) {
+        releaseScanSlot(profileId, scanSlotUsedPurchased).catch((err) => {
+          console.error("Failed to release scan slot:", err);
+        });
+        scanSlotReserved = false;
+      }
       return NextResponse.json(
         { error: "No image was received. Please try uploading your photo again." },
         { status: 400 }
       );
     }
 
-    // Check if image is too large (base64 adds ~33% overhead, so 20MB base64 ≈ 15MB image)
-    if (image.length > 20 * 1024 * 1024) {
+    // Enforce max decoded image size (10MB). Fast-reject the base64 string
+    // before decoding if it can't possibly fit — base64 encoding inflates
+    // payloads by ~4/3, so a decoded 10MB image is ~13.34MB as base64.
+    const base64StringUpperBound = Math.ceil((MAX_IMAGE_UPLOAD_BYTES * 4) / 3) + 64;
+    if (
+      typeof image !== "string" ||
+      image.length > base64StringUpperBound ||
+      base64DecodedByteLength(image) > MAX_IMAGE_UPLOAD_BYTES
+    ) {
+      // Release the reserved scan slot — the user never got a scan
+      if (profileId && scanSlotReserved) {
+        releaseScanSlot(profileId, scanSlotUsedPurchased).catch((err) => {
+          console.error("Failed to release scan slot:", err);
+        });
+        scanSlotReserved = false;
+      }
       return NextResponse.json(
         {
-          error:
-            "This image is too large. Please use a smaller image (under 10MB) or try taking a new photo.",
+          error: `This image is too large. Please use a smaller image (under ${MAX_IMAGE_UPLOAD_LABEL}) or try taking a new photo.`,
         },
-        { status: 400 }
+        { status: 413 }
       );
     }
 

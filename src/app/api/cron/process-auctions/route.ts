@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { expireListings, expireOffers, processEndedAuctions } from "@/lib/auctionDb";
+import {
+  expireListings,
+  expireOffers,
+  expireUnpaidAuctions,
+  processEndedAuctions,
+  sendPaymentReminders,
+} from "@/lib/auctionDb";
 
 // POST - Process ended auctions and expirations (called by cron)
 export async function POST(request: NextRequest) {
@@ -14,8 +20,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Process ended auctions
+    // Process ended auctions (active → ended with winner)
     const auctionResult = await processEndedAuctions();
+
+    // Send payment reminders BEFORE the expiry pass, so winners still inside
+    // the window get a final ping before their auction is cancelled.
+    const reminderResult = await sendPaymentReminders();
+
+    // Expire unpaid auctions (ended → cancelled when payment_deadline passes)
+    const paymentExpiryResult = await expireUnpaidAuctions();
 
     // Expire old offers (48 hour expiration)
     const offerResult = await expireOffers();
@@ -28,6 +41,14 @@ export async function POST(request: NextRequest) {
       auctions: {
         processed: auctionResult.processed,
         errors: auctionResult.errors,
+      },
+      paymentReminders: {
+        reminded: reminderResult.reminded,
+        errors: reminderResult.errors,
+      },
+      unpaidAuctions: {
+        expired: paymentExpiryResult.expired,
+        errors: paymentExpiryResult.errors,
       },
       offers: {
         expired: offerResult.expired,
@@ -56,6 +77,12 @@ export async function GET(request: NextRequest) {
     // Process ended auctions
     const auctionResult = await processEndedAuctions();
 
+    // Payment reminders
+    const reminderResult = await sendPaymentReminders();
+
+    // Expire unpaid auctions
+    const paymentExpiryResult = await expireUnpaidAuctions();
+
     // Expire old offers
     const offerResult = await expireOffers();
 
@@ -67,6 +94,14 @@ export async function GET(request: NextRequest) {
       auctions: {
         processed: auctionResult.processed,
         errors: auctionResult.errors,
+      },
+      paymentReminders: {
+        reminded: reminderResult.reminded,
+        errors: reminderResult.errors,
+      },
+      unpaidAuctions: {
+        expired: paymentExpiryResult.expired,
+        errors: paymentExpiryResult.errors,
       },
       offers: {
         expired: offerResult.expired,

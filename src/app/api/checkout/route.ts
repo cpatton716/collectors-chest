@@ -100,6 +100,12 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
+      if (listing.paymentDeadline && new Date(listing.paymentDeadline) < new Date()) {
+        return NextResponse.json(
+          { error: "The payment window for this auction has expired" },
+          { status: 400 }
+        );
+      }
     }
 
     // Fetch seller's Connect account

@@ -12,6 +12,7 @@ import { AlertCircle, CheckCircle, Clock, Gavel, Loader2, ShoppingBag, Trophy, W
 
 import type { BidRow, OfferRow, TransactionRow } from "@/app/api/transactions/route";
 
+import PaymentDeadlineCountdown from "@/components/PaymentDeadlineCountdown";
 import { formatPrice } from "@/types/auction";
 
 type TabKey = "purchases" | "wins" | "bids" | "offers";
@@ -280,6 +281,12 @@ function TransactionCard({
         <div className="flex items-center gap-3 mt-1 flex-wrap">
           <span className="font-semibold text-pop-black">{formatPrice(row.totalPrice)}</span>
           {statusPill}
+          {pendingPayment && row.paymentDeadline && (
+            <PaymentDeadlineCountdown
+              deadline={row.paymentDeadline}
+              className="text-xs"
+            />
+          )}
         </div>
         {footer}
       </div>

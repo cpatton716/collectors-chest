@@ -7,6 +7,10 @@ import Image from "next/image";
 import { Camera, FolderOpen, Image as ImageIcon, Upload, X } from "lucide-react";
 
 import { formatBytes, quickCompress } from "@/lib/imageOptimization";
+import {
+  MAX_IMAGE_UPLOAD_BYTES,
+  MAX_IMAGE_UPLOAD_LABEL,
+} from "@/lib/uploadLimits";
 
 import { LiveCameraCapture } from "./LiveCameraCapture";
 
@@ -37,7 +41,7 @@ export function ImageUpload({ onImageSelect, disabled }: ImageUploadProps) {
   }, []);
 
   const acceptedTypes = ["image/jpeg", "image/jpg", "image/png"];
-  const maxSize = 15 * 1024 * 1024; // 15MB before compression
+  const maxSize = MAX_IMAGE_UPLOAD_BYTES; // Shared cap with server (see uploadLimits.ts)
   const maxDimension = 1200; // Max width/height for compression (reduced from 2048)
   const targetSize = 400 * 1024; // Target ~400KB after compression (reduced from 1.5MB)
 
@@ -56,7 +60,7 @@ export function ImageUpload({ onImageSelect, disabled }: ImageUploadProps) {
       return "This file type isn't supported. Please use a JPEG, JPG, or PNG image.";
     }
     if (file.size > maxSize) {
-      return "This image is too large. Please use an image under 15MB or try taking a new photo.";
+      return `This image is too large. Please use an image under ${MAX_IMAGE_UPLOAD_LABEL} or try taking a new photo.`;
     }
     return null;
   };

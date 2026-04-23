@@ -13,6 +13,7 @@ import {
   NotificationType,
   Offer,
   OfferStatus,
+  PAYMENT_REMINDER_WINDOW_HOURS,
   PlaceBidResult,
   RespondToOfferInput,
   SellerProfile,
@@ -21,6 +22,7 @@ import {
   UpdateAuctionInput,
   WatchlistItem,
   calculateMinimumBid,
+  calculatePaymentDeadline,
   calculateSellerReputation,
   getBidIncrement,
 } from "@/types/auction";
@@ -869,8 +871,7 @@ export async function executeBuyItNow(
   }
 
   // End auction with buyer as winner
-  const paymentDeadline = new Date();
-  paymentDeadline.setHours(paymentDeadline.getHours() + 48);
+  const paymentDeadline = calculatePaymentDeadline();
 
   const { error } = await supabase
     .from("auctions")
@@ -1176,8 +1177,7 @@ export async function respondToOffer(
 
   if (input.action === "accept") {
     // Accept the offer - complete the sale
-    const paymentDeadline = new Date();
-    paymentDeadline.setHours(paymentDeadline.getHours() + 48);
+    const paymentDeadline = calculatePaymentDeadline();
 
     // Update offer status
     await supabase
@@ -1352,8 +1352,7 @@ export async function respondToCounterOffer(
 
   if (action === "accept") {
     // Accept the counter-offer
-    const paymentDeadline = new Date();
-    paymentDeadline.setHours(paymentDeadline.getHours() + 48);
+    const paymentDeadline = calculatePaymentDeadline();
 
     await supabase
       .from("offers")
@@ -1514,6 +1513,8 @@ export async function createNotification(
     bid_auction_lost: "Auction ended — you didn't win",
     new_bid_received: "New bid on your auction",
     payment_reminder: "Payment reminder",
+    auction_payment_expired: "Auction cancelled — payment window expired",
+    auction_payment_expired_seller: "Buyer did not pay in time",
     rating_request: "Leave feedback",
     auction_sold: "Your item sold!",
     payment_received: "Payment received",
@@ -1541,6 +1542,8 @@ export async function createNotification(
     bid_auction_lost: "An auction you bid on has ended with another winner.",
     new_bid_received: "A bidder placed a new bid on one of your auctions.",
     payment_reminder: "Payment is due soon for your won auction.",
+    auction_payment_expired: "Your payment window has expired. The auction has been cancelled.",
+    auction_payment_expired_seller: "The winning bidder did not pay within the 48-hour window. The auction has been cancelled and you may re-list the comic.",
     rating_request: "Please leave feedback for your recent purchase.",
     auction_sold: "Your auction has ended with a winning bidder!",
     payment_received: "Payment has been received for your sold item.",
@@ -1898,8 +1901,7 @@ export async function processEndedAuctions(): Promise<{
 
       if (winningBid) {
         // Auction has a winner
-        const paymentDeadline = new Date();
-        paymentDeadline.setHours(paymentDeadline.getHours() + 48);
+        const paymentDeadline = calculatePaymentDeadline();
 
         // Idempotent guard: only transition from 'active' to 'ended'. If the
         // row is already in a finalized state (ended/sold/cancelled) because
@@ -2395,4 +2397,378 @@ export async function expireListings(): Promise<{
   }
 
   return { expired: expiredListings.length, expiring: expiringCount, errors };
+}
+
+// ============================================================================
+// PAYMENT DEADLINE ENFORCEMENT (Gaps 1 + 3)
+// ============================================================================
+//
+// Two cron passes work together to enforce the 48-hour payment window:
+//
+//   sendPaymentReminders()    fires once per auction at T-24h (or sooner,
+//                             if the cron didn't run exactly at T-24h).
+//                             Idempotency: auctions.payment_reminder_sent_at
+//                             is stamped by a conditional UPDATE.
+//
+//   expireUnpaidAuctions()    fires after the deadline passes. Flips the
+//                             auction to status='cancelled' and stamps
+//                             payment_expired_at. Notifies BOTH parties
+//                             so the seller knows they can re-list and
+//                             the buyer knows they will not be charged.
+//                             Idempotency: conditional UPDATE on the
+//                             pre-expiry state (status='ended' +
+//                             payment_status='pending' + payment_expired_at
+//                             IS NULL) with .select() to detect 0-row updates
+//                             from concurrent cron runs.
+//
+// Both use supabaseAdmin: cron has no user context, so anon+RLS writes
+// would silently no-op (see Sessions 36–37 debugging lessons).
+
+/**
+ * Send a payment reminder to winners whose payment deadline is within
+ * PAYMENT_REMINDER_WINDOW_HOURS and who haven't been reminded yet.
+ *
+ * Race-safe: stamps `payment_reminder_sent_at` via a conditional UPDATE
+ * so duplicate cron runs cannot double-send.
+ */
+export async function sendPaymentReminders(): Promise<{
+  reminded: number;
+  errors: string[];
+}> {
+  const errors: string[] = [];
+  let reminded = 0;
+
+  try {
+    const now = new Date();
+    const reminderWindowEnd = new Date(
+      now.getTime() + PAYMENT_REMINDER_WINDOW_HOURS * 60 * 60 * 1000
+    );
+
+    // Fetch candidate auctions: ended, pending payment, deadline inside
+    // the reminder window, and reminder not yet sent.
+    const { data: candidates, error: fetchError } = await supabaseAdmin
+      .from("auctions")
+      .select("id, seller_id, winner_id, winning_bid, payment_deadline")
+      .eq("status", "ended")
+      .eq("payment_status", "pending")
+      .gt("payment_deadline", now.toISOString())
+      .lte("payment_deadline", reminderWindowEnd.toISOString())
+      .is("payment_reminder_sent_at", null);
+
+    if (fetchError) {
+      errors.push(`Failed to fetch reminder candidates: ${fetchError.message}`);
+      console.error("[sendPaymentReminders] fetch error:", fetchError);
+      return { reminded: 0, errors };
+    }
+
+    if (!candidates || candidates.length === 0) {
+      console.warn("[sendPaymentReminders] processed 0, skipped 0, errors 0");
+      return { reminded: 0, errors };
+    }
+
+    let skipped = 0;
+
+    for (const auction of candidates) {
+      try {
+        if (!auction.winner_id) {
+          // Defensive: payment_status=pending on status=ended should imply a
+          // winner, but skip gracefully if the DB is in a weird state.
+          skipped++;
+          continue;
+        }
+
+        // Conditional UPDATE: only stamp if reminder not already sent.
+        // If another cron run beat us to it, select() returns 0 rows and
+        // we skip the send.
+        const { data: claimedRows, error: claimError } = await supabaseAdmin
+          .from("auctions")
+          .update({ payment_reminder_sent_at: new Date().toISOString() })
+          .eq("id", auction.id)
+          .is("payment_reminder_sent_at", null)
+          .select("id");
+
+        if (claimError) {
+          errors.push(
+            `Auction ${auction.id}: claim error ${claimError.message}`
+          );
+          continue;
+        }
+
+        if (!claimedRows || claimedRows.length === 0) {
+          // Another invocation already sent the reminder.
+          skipped++;
+          continue;
+        }
+
+        // In-app notification to winner.
+        try {
+          await createNotification(
+            auction.winner_id,
+            "payment_reminder",
+            auction.id
+          );
+        } catch (notifyErr) {
+          errors.push(
+            `Auction ${auction.id}: notification failed ${String(notifyErr)}`
+          );
+        }
+
+        // Email to winner (fire-and-forget inside try/catch).
+        try {
+          const [winnerProfile, comicData] = await Promise.all([
+            getProfileForEmail(auction.winner_id),
+            getListingComicData(auction.id),
+          ]);
+
+          if (winnerProfile?.email && comicData && auction.payment_deadline) {
+            const baseUrl =
+              process.env.NEXT_PUBLIC_APP_URL || "https://collectors-chest.com";
+            const deadlineDate = new Date(auction.payment_deadline);
+            const hoursRemaining = Math.max(
+              0,
+              Math.round(
+                (deadlineDate.getTime() - new Date().getTime()) /
+                  (60 * 60 * 1000)
+              )
+            );
+            sendNotificationEmail({
+              to: winnerProfile.email,
+              type: "payment_reminder",
+              data: {
+                recipientName: winnerProfile.displayName ?? "there",
+                comicTitle: comicData.comicTitle,
+                issueNumber: comicData.issueNumber,
+                finalPrice:
+                  auction.winning_bid != null
+                    ? Number(auction.winning_bid)
+                    : comicData.price,
+                paymentDeadline: deadlineDate.toLocaleString("en-US", {
+                  dateStyle: "long",
+                  timeStyle: "short",
+                }),
+                hoursRemaining,
+                listingUrl: `${baseUrl}/shop?listing=${auction.id}`,
+                transactionsUrl: `${baseUrl}/transactions?tab=wins`,
+              },
+            }).catch((err) =>
+              console.error("[Email] payment_reminder failed:", err)
+            );
+          }
+        } catch (emailErr) {
+          errors.push(
+            `Auction ${auction.id}: email setup failed ${String(emailErr)}`
+          );
+        }
+
+        reminded++;
+      } catch (loopErr) {
+        errors.push(
+          `Auction ${auction.id}: ${
+            loopErr instanceof Error ? loopErr.message : "Unknown error"
+          }`
+        );
+      }
+    }
+
+    console.warn(
+      `[sendPaymentReminders] processed ${reminded}, skipped ${skipped}, errors ${errors.length}`
+    );
+    return { reminded, errors };
+  } catch (topLevelErr) {
+    errors.push(
+      `sendPaymentReminders top-level failure: ${String(topLevelErr)}`
+    );
+    console.error("[sendPaymentReminders] top-level failure:", topLevelErr);
+    return { reminded, errors };
+  }
+}
+
+/**
+ * Expire auctions whose 48-hour payment window has passed.
+ *
+ * Transitions status: 'ended' → 'cancelled'. Stamps payment_expired_at.
+ * Notifies BOTH parties (winner and seller) so the seller knows they
+ * can re-list and the winner knows they will not be charged.
+ *
+ * Race-safe: conditional UPDATE on the pre-expiry state. If another cron
+ * invocation got there first, the UPDATE returns 0 rows and we skip all
+ * side effects.
+ *
+ * Does NOT promote a second-highest bidder — that's out of scope (see
+ * BACKLOG).
+ */
+export async function expireUnpaidAuctions(): Promise<{
+  expired: number;
+  errors: string[];
+}> {
+  const errors: string[] = [];
+  let expired = 0;
+
+  try {
+    const now = new Date();
+
+    const { data: candidates, error: fetchError } = await supabaseAdmin
+      .from("auctions")
+      .select("id, seller_id, winner_id, winning_bid, payment_deadline, ended_at")
+      .eq("status", "ended")
+      .eq("payment_status", "pending")
+      .lt("payment_deadline", now.toISOString())
+      .is("payment_expired_at", null);
+
+    if (fetchError) {
+      errors.push(`Failed to fetch expiry candidates: ${fetchError.message}`);
+      console.error("[expireUnpaidAuctions] fetch error:", fetchError);
+      return { expired: 0, errors };
+    }
+
+    if (!candidates || candidates.length === 0) {
+      console.warn("[expireUnpaidAuctions] processed 0, skipped 0, errors 0");
+      return { expired: 0, errors };
+    }
+
+    let skipped = 0;
+
+    for (const auction of candidates) {
+      try {
+        // Conditional UPDATE: only flip if still in the pre-expiry state.
+        // If a concurrent run beat us, select() returns 0 rows.
+        const nowIso = new Date().toISOString();
+        const { data: updatedRows, error: updateError } = await supabaseAdmin
+          .from("auctions")
+          .update({
+            status: "cancelled",
+            payment_expired_at: nowIso,
+            updated_at: nowIso,
+          })
+          .eq("id", auction.id)
+          .eq("status", "ended")
+          .eq("payment_status", "pending")
+          .is("payment_expired_at", null)
+          .select("id");
+
+        if (updateError) {
+          errors.push(
+            `Auction ${auction.id}: update error ${updateError.message}`
+          );
+          continue;
+        }
+
+        if (!updatedRows || updatedRows.length === 0) {
+          skipped++;
+          continue;
+        }
+
+        // Notify both parties. Wrap each send so one failure doesn't
+        // cascade and block the remaining auctions in the loop.
+        if (auction.winner_id) {
+          try {
+            await createNotification(
+              auction.winner_id,
+              "auction_payment_expired",
+              auction.id
+            );
+          } catch (err) {
+            errors.push(
+              `Auction ${auction.id}: winner notify failed ${String(err)}`
+            );
+          }
+        }
+
+        try {
+          await createNotification(
+            auction.seller_id,
+            "auction_payment_expired_seller",
+            auction.id
+          );
+        } catch (err) {
+          errors.push(
+            `Auction ${auction.id}: seller notify failed ${String(err)}`
+          );
+        }
+
+        // Emails — fire-and-forget per party.
+        try {
+          const [winnerProfile, sellerProfile, comicData] = await Promise.all([
+            auction.winner_id
+              ? getProfileForEmail(auction.winner_id)
+              : Promise.resolve(null),
+            getProfileForEmail(auction.seller_id),
+            getListingComicData(auction.id),
+          ]);
+
+          const baseUrl =
+            process.env.NEXT_PUBLIC_APP_URL || "https://collectors-chest.com";
+
+          if (comicData) {
+            if (winnerProfile?.email) {
+              sendNotificationEmail({
+                to: winnerProfile.email,
+                type: "auction_payment_expired",
+                data: {
+                  recipientName: winnerProfile.displayName ?? "there",
+                  comicTitle: comicData.comicTitle,
+                  issueNumber: comicData.issueNumber,
+                  finalPrice:
+                    auction.winning_bid != null
+                      ? Number(auction.winning_bid)
+                      : comicData.price,
+                  listingUrl: `${baseUrl}/shop`,
+                },
+              }).catch((err) =>
+                console.error(
+                  "[Email] auction_payment_expired (buyer) failed:",
+                  err
+                )
+              );
+            }
+
+            if (sellerProfile?.email) {
+              sendNotificationEmail({
+                to: sellerProfile.email,
+                type: "auction_payment_expired_seller",
+                data: {
+                  recipientName: sellerProfile.displayName ?? "there",
+                  comicTitle: comicData.comicTitle,
+                  issueNumber: comicData.issueNumber,
+                  finalPrice:
+                    auction.winning_bid != null
+                      ? Number(auction.winning_bid)
+                      : comicData.price,
+                  listingUrl: `${baseUrl}/collection`,
+                },
+              }).catch((err) =>
+                console.error(
+                  "[Email] auction_payment_expired_seller failed:",
+                  err
+                )
+              );
+            }
+          }
+        } catch (emailErr) {
+          errors.push(
+            `Auction ${auction.id}: email setup failed ${String(emailErr)}`
+          );
+        }
+
+        expired++;
+      } catch (loopErr) {
+        errors.push(
+          `Auction ${auction.id}: ${
+            loopErr instanceof Error ? loopErr.message : "Unknown error"
+          }`
+        );
+      }
+    }
+
+    console.warn(
+      `[expireUnpaidAuctions] processed ${expired}, skipped ${skipped}, errors ${errors.length}`
+    );
+    return { expired, errors };
+  } catch (topLevelErr) {
+    errors.push(
+      `expireUnpaidAuctions top-level failure: ${String(topLevelErr)}`
+    );
+    console.error("[expireUnpaidAuctions] top-level failure:", topLevelErr);
+    return { expired, errors };
+  }
 }

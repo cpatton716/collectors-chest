@@ -4,6 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 
 import { getProfileByClerkId } from "@/lib/db";
 import { supabaseAdmin } from "@/lib/supabase";
+import { MAX_IMAGE_UPLOAD_BYTES, MAX_IMAGE_UPLOAD_LABEL } from "@/lib/uploadLimits";
 
 export async function POST(request: NextRequest) {
   try {
@@ -29,9 +30,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "File must be an image" }, { status: 400 });
     }
 
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      return NextResponse.json({ error: "Image must be under 5MB" }, { status: 400 });
+    // Validate file size (max 10MB — shared limit with scan endpoint)
+    if (file.size > MAX_IMAGE_UPLOAD_BYTES) {
+      return NextResponse.json(
+        { error: `Image must be under ${MAX_IMAGE_UPLOAD_LABEL}` },
+        { status: 413 }
+      );
     }
 
     // Generate unique filename

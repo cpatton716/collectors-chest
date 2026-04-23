@@ -15,6 +15,8 @@ export type NotificationType =
   | "bid_auction_lost"
   | "new_bid_received"
   | "payment_reminder"
+  | "auction_payment_expired"
+  | "auction_payment_expired_seller"
   | "rating_request"
   | "auction_sold"
   | "payment_received"
@@ -558,3 +560,39 @@ export const MIN_STARTING_PRICE = 0.99;
 export const MIN_FIXED_PRICE = 0.99;
 export const MAX_DETAIL_IMAGES = 4;
 export const PAYMENT_WINDOW_HOURS = 48;
+
+/**
+ * Hours before payment deadline when the reminder email fires.
+ * Kept as a named constant so cron logic and tests agree on the boundary.
+ */
+export const PAYMENT_REMINDER_WINDOW_HOURS = 24;
+
+/**
+ * Compute the payment deadline for a won auction / accepted offer / Buy Now.
+ * Pure helper so pricing-side call sites and tests can share a single source
+ * of truth for `PAYMENT_WINDOW_HOURS`.
+ */
+export function calculatePaymentDeadline(fromDate: Date = new Date()): Date {
+  const deadline = new Date(fromDate.getTime());
+  deadline.setHours(deadline.getHours() + PAYMENT_WINDOW_HOURS);
+  return deadline;
+}
+
+/**
+ * Is an auction's payment deadline inside the reminder window
+ * (i.e., the reminder email should fire now)?
+ * Returns `true` when `deadline - now <= PAYMENT_REMINDER_WINDOW_HOURS` AND
+ * the deadline has not yet passed. Pure function — no side effects.
+ */
+export function isWithinPaymentReminderWindow(
+  paymentDeadline: Date,
+  now: Date = new Date()
+): boolean {
+  const msUntilDeadline = paymentDeadline.getTime() - now.getTime();
+  if (msUntilDeadline <= 0) {
+    // Deadline has passed — expiration handles this, not reminders.
+    return false;
+  }
+  const reminderWindowMs = PAYMENT_REMINDER_WINDOW_HOURS * 60 * 60 * 1000;
+  return msUntilDeadline <= reminderWindowMs;
+}

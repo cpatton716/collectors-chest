@@ -99,6 +99,33 @@ interface AuctionEndEmailData {
   transactionsUrl?: string; // for winner: deep-link to Transactions page
 }
 
+interface PaymentReminderEmailData {
+  recipientName: string;
+  comicTitle: string;
+  issueNumber: string;
+  finalPrice: number;
+  paymentDeadline: string; // formatted for display, e.g. "April 25, 2026, 4:00 PM"
+  hoursRemaining: number; // rounded hours until deadline; may be 0 if very close
+  listingUrl: string;
+  transactionsUrl: string;
+}
+
+interface PaymentExpiredBuyerEmailData {
+  recipientName: string;
+  comicTitle: string;
+  issueNumber: string;
+  finalPrice: number;
+  listingUrl: string; // link back to /shop to browse more listings
+}
+
+interface PaymentExpiredSellerEmailData {
+  recipientName: string;
+  comicTitle: string;
+  issueNumber: string;
+  finalPrice: number;
+  listingUrl: string; // link to /collection so the seller can re-list
+}
+
 function formatPrice(amount: number): string {
   return `$${amount.toFixed(2)}`;
 }
@@ -125,6 +152,9 @@ export const EMAIL_SOUND_EFFECTS: Record<NotificationEmailType, string> = {
   outbid: "OUCH!",
   auction_won: "WINNER!",
   auction_sold: "SOLD!",
+  payment_reminder: "TICK TOCK!",
+  auction_payment_expired: "TIME'S UP!",
+  auction_payment_expired_seller: "NO PAY!",
 };
 
 export function emailHeader(_soundEffect: string): string {
@@ -676,6 +706,86 @@ function auctionSoldTemplate(data: AuctionEndEmailData): EmailTemplate {
   };
 }
 
+function paymentReminderTemplate(data: PaymentReminderEmailData): EmailTemplate {
+  const hoursLabel =
+    data.hoursRemaining <= 1
+      ? "less than 1 hour"
+      : `${data.hoursRemaining} hours`;
+  return {
+    subject: `Payment due soon — ${data.comicTitle} #${data.issueNumber}`,
+    html: `
+      <div style="max-width: 600px; margin: 0 auto; font-family: 'Segoe UI', Arial, sans-serif; background: #ffffff;">
+        ${emailHeader(EMAIL_SOUND_EFFECTS.payment_reminder)}
+        <div style="padding: 32px 24px;">
+          <h2 style="font-size: 22px; font-weight: 900; color: #000; margin: 0 0 16px;">Payment Due Soon</h2>
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;">Hi ${data.recipientName || "there"} — you have <strong>${hoursLabel}</strong> left to complete payment for your winning bid:</p>
+          <p style="font-size: 18px; font-weight: bold; color: #000; margin: 0 0 8px;">${data.comicTitle} #${data.issueNumber}</p>
+          <p style="font-size: 15px; color: #555; margin: 0 0 12px;">Final price: <strong>${formatPrice(data.finalPrice)}</strong></p>
+          <p style="font-size: 14px; color: #b45309; margin: 0 0 16px;">Deadline: <strong>${data.paymentDeadline}</strong></p>
+          <p style="font-size: 14px; color: #555; line-height: 1.6; margin: 0 0 24px;">If payment isn't received before the deadline, the auction will be cancelled and the seller may re-list the comic.</p>
+          <div style="text-align: center; margin: 24px 0;">
+            <a href="${data.transactionsUrl}" style="display: inline-block; background: #00CC66; color: #000000; font-weight: 900; padding: 14px 36px; border: 3px solid #000; border-radius: 8px; text-decoration: none; text-transform: uppercase; letter-spacing: 1px; box-shadow: 4px 4px 0 #000;">COMPLETE PAYMENT →</a>
+          </div>
+        </div>
+        ${emailFooter()}
+      </div>
+    `,
+    text: `Payment due soon!\n\nYou have ${hoursLabel} left to complete payment for ${data.comicTitle} #${data.issueNumber}.\nFinal price: ${formatPrice(data.finalPrice)}\nDeadline: ${data.paymentDeadline}\n\nIf payment isn't received before the deadline, the auction will be cancelled.\n\nComplete payment: ${data.transactionsUrl}\n\nScan comics. Track value. Collect smarter.\nTwisted Jester LLC · collectors-chest.com`,
+  };
+}
+
+function auctionPaymentExpiredBuyerTemplate(
+  data: PaymentExpiredBuyerEmailData
+): EmailTemplate {
+  return {
+    subject: `Payment window closed — ${data.comicTitle} #${data.issueNumber} auction cancelled`,
+    html: `
+      <div style="max-width: 600px; margin: 0 auto; font-family: 'Segoe UI', Arial, sans-serif; background: #ffffff;">
+        ${emailHeader(EMAIL_SOUND_EFFECTS.auction_payment_expired)}
+        <div style="padding: 32px 24px;">
+          <h2 style="font-size: 22px; font-weight: 900; color: #000; margin: 0 0 16px;">Payment Window Closed</h2>
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;">Hi ${data.recipientName || "there"} — your 48-hour payment window for this auction has passed:</p>
+          <p style="font-size: 18px; font-weight: bold; color: #000; margin: 0 0 8px;">${data.comicTitle} #${data.issueNumber}</p>
+          <p style="font-size: 15px; color: #555; margin: 0 0 12px;">Final bid: <strong>${formatPrice(data.finalPrice)}</strong></p>
+          <p style="font-size: 14px; color: #555; line-height: 1.6; margin: 0 0 12px;">The auction has been cancelled. <strong>You will not be charged.</strong></p>
+          <p style="font-size: 14px; color: #555; line-height: 1.6; margin: 0 0 24px;">Keep an eye on the shop for similar books — new listings go up every day.</p>
+          <div style="text-align: center; margin: 24px 0;">
+            <a href="${data.listingUrl}" style="display: inline-block; background: #0066FF; color: #ffffff; font-weight: 900; padding: 14px 36px; border: 3px solid #000; border-radius: 8px; text-decoration: none; text-transform: uppercase; letter-spacing: 1px; box-shadow: 4px 4px 0 #000;">BROWSE SHOP →</a>
+          </div>
+        </div>
+        ${emailFooter()}
+      </div>
+    `,
+    text: `Payment window closed.\n\nYour 48-hour payment window for ${data.comicTitle} #${data.issueNumber} (${formatPrice(data.finalPrice)}) has passed and the auction has been cancelled. You will not be charged.\n\nBrowse more listings: ${data.listingUrl}\n\nScan comics. Track value. Collect smarter.\nTwisted Jester LLC · collectors-chest.com`,
+  };
+}
+
+function auctionPaymentExpiredSellerTemplate(
+  data: PaymentExpiredSellerEmailData
+): EmailTemplate {
+  return {
+    subject: `Buyer did not pay — ${data.comicTitle} #${data.issueNumber} cancelled, relist ready`,
+    html: `
+      <div style="max-width: 600px; margin: 0 auto; font-family: 'Segoe UI', Arial, sans-serif; background: #ffffff;">
+        ${emailHeader(EMAIL_SOUND_EFFECTS.auction_payment_expired_seller)}
+        <div style="padding: 32px 24px;">
+          <h2 style="font-size: 22px; font-weight: 900; color: #000; margin: 0 0 16px;">Buyer Did Not Pay In Time</h2>
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;">Hi ${data.recipientName || "there"} — the winning bidder didn't complete payment within the 48-hour window:</p>
+          <p style="font-size: 18px; font-weight: bold; color: #000; margin: 0 0 8px;">${data.comicTitle} #${data.issueNumber}</p>
+          <p style="font-size: 15px; color: #555; margin: 0 0 12px;">Final bid: <strong>${formatPrice(data.finalPrice)}</strong></p>
+          <p style="font-size: 14px; color: #555; line-height: 1.6; margin: 0 0 12px;">The auction has been cancelled. The comic is back in your collection and ready to be re-listed.</p>
+          <p style="font-size: 14px; color: #555; line-height: 1.6; margin: 0 0 24px;">Tip: enabling Buy It Now on a re-list can speed up future sales by letting committed buyers skip the auction wait.</p>
+          <div style="text-align: center; margin: 24px 0;">
+            <a href="${data.listingUrl}" style="display: inline-block; background: #0066FF; color: #ffffff; font-weight: 900; padding: 14px 36px; border: 3px solid #000; border-radius: 8px; text-decoration: none; text-transform: uppercase; letter-spacing: 1px; box-shadow: 4px 4px 0 #000;">RE-LIST COMIC →</a>
+          </div>
+        </div>
+        ${emailFooter()}
+      </div>
+    `,
+    text: `Buyer did not pay.\n\nThe winning bidder for ${data.comicTitle} #${data.issueNumber} (${formatPrice(data.finalPrice)}) did not pay within 48 hours. The auction has been cancelled and the comic is back in your collection.\n\nConsider enabling Buy It Now on the re-list for faster sales.\n\nRe-list: ${data.listingUrl}\n\nScan comics. Track value. Collect smarter.\nTwisted Jester LLC · collectors-chest.com`,
+  };
+}
+
 // ============================================================================
 // SEND EMAIL FUNCTION
 // ============================================================================
@@ -697,7 +807,10 @@ export type NotificationEmailType =
   | "item_sold"
   | "outbid"
   | "auction_won"
-  | "auction_sold";
+  | "auction_sold"
+  | "payment_reminder"
+  | "auction_payment_expired"
+  | "auction_payment_expired_seller";
 
 interface SendNotificationEmailParams {
   to: string;
@@ -712,7 +825,10 @@ interface SendNotificationEmailParams {
     | TrialExpiringEmailData
     | MarketplaceTransactionEmailData
     | BidActivityEmailData
-    | AuctionEndEmailData;
+    | AuctionEndEmailData
+    | PaymentReminderEmailData
+    | PaymentExpiredBuyerEmailData
+    | PaymentExpiredSellerEmailData;
 }
 
 export async function sendNotificationEmail({
@@ -778,6 +894,19 @@ export async function sendNotificationEmail({
       break;
     case "auction_sold":
       template = auctionSoldTemplate(data as AuctionEndEmailData);
+      break;
+    case "payment_reminder":
+      template = paymentReminderTemplate(data as PaymentReminderEmailData);
+      break;
+    case "auction_payment_expired":
+      template = auctionPaymentExpiredBuyerTemplate(
+        data as PaymentExpiredBuyerEmailData
+      );
+      break;
+    case "auction_payment_expired_seller":
+      template = auctionPaymentExpiredSellerTemplate(
+        data as PaymentExpiredSellerEmailData
+      );
       break;
     default:
       return { success: false, error: `Unknown email type: ${type}` };

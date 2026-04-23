@@ -1,10 +1,14 @@
 import {
+  PAYMENT_REMINDER_WINDOW_HOURS,
+  PAYMENT_WINDOW_HOURS,
   calculateMinimumBid,
+  calculatePaymentDeadline,
   calculateSellerReputation,
   formatPrice,
   formatTimeRemaining,
   getBidIncrement,
   isValidBidAmount,
+  isWithinPaymentReminderWindow,
 } from "../auction";
 
 // ============================================================================
@@ -209,5 +213,89 @@ describe("formatPrice", () => {
 
   it("handles decimal values", () => {
     expect(formatPrice(10.99)).toBe("$10.99");
+  });
+});
+
+// ============================================================================
+// Payment Deadline Tests (Gap 1/3/6 enforcement)
+// ============================================================================
+
+describe("calculatePaymentDeadline", () => {
+  it("adds PAYMENT_WINDOW_HOURS to the provided date", () => {
+    const from = new Date("2026-04-23T12:00:00Z");
+    const deadline = calculatePaymentDeadline(from);
+    const deltaHours =
+      (deadline.getTime() - from.getTime()) / (60 * 60 * 1000);
+    expect(deltaHours).toBe(PAYMENT_WINDOW_HOURS);
+  });
+
+  it("defaults to now() when no date is provided", () => {
+    const before = Date.now();
+    const deadline = calculatePaymentDeadline();
+    const after = Date.now();
+    const expectedMinMs = before + PAYMENT_WINDOW_HOURS * 60 * 60 * 1000;
+    const expectedMaxMs = after + PAYMENT_WINDOW_HOURS * 60 * 60 * 1000;
+    expect(deadline.getTime()).toBeGreaterThanOrEqual(expectedMinMs);
+    expect(deadline.getTime()).toBeLessThanOrEqual(expectedMaxMs);
+  });
+
+  it("does not mutate the input date", () => {
+    const from = new Date("2026-04-23T12:00:00Z");
+    const snapshotIso = from.toISOString();
+    calculatePaymentDeadline(from);
+    expect(from.toISOString()).toBe(snapshotIso);
+  });
+
+  it("uses PAYMENT_WINDOW_HOURS = 48 (regression guard for the constant)", () => {
+    // If someone changes PAYMENT_WINDOW_HOURS without updating tests and emails
+    // this fails loudly.
+    expect(PAYMENT_WINDOW_HOURS).toBe(48);
+  });
+});
+
+describe("isWithinPaymentReminderWindow", () => {
+  const now = new Date("2026-04-23T12:00:00Z");
+
+  it("returns true when deadline is exactly at the reminder boundary", () => {
+    // Exactly 24h away — inside the window (<=24h).
+    const deadline = new Date(
+      now.getTime() + PAYMENT_REMINDER_WINDOW_HOURS * 60 * 60 * 1000
+    );
+    expect(isWithinPaymentReminderWindow(deadline, now)).toBe(true);
+  });
+
+  it("returns true when deadline is 23h59m away", () => {
+    const deadline = new Date(
+      now.getTime() + (PAYMENT_REMINDER_WINDOW_HOURS * 60 - 1) * 60 * 1000
+    );
+    expect(isWithinPaymentReminderWindow(deadline, now)).toBe(true);
+  });
+
+  it("returns false when deadline is 24h01m away (outside reminder window)", () => {
+    const deadline = new Date(
+      now.getTime() + (PAYMENT_REMINDER_WINDOW_HOURS * 60 + 1) * 60 * 1000
+    );
+    expect(isWithinPaymentReminderWindow(deadline, now)).toBe(false);
+  });
+
+  it("returns false when the deadline has already passed", () => {
+    // Post-deadline handling is the expiration pass's job, not the reminder's.
+    const deadline = new Date(now.getTime() - 60 * 1000);
+    expect(isWithinPaymentReminderWindow(deadline, now)).toBe(false);
+  });
+
+  it("returns false when the deadline is exactly now (treated as expired)", () => {
+    // Equal → msUntilDeadline === 0 → fails the >0 guard → false.
+    const deadline = new Date(now.getTime());
+    expect(isWithinPaymentReminderWindow(deadline, now)).toBe(false);
+  });
+
+  it("returns true when deadline is just 1 minute away", () => {
+    const deadline = new Date(now.getTime() + 60 * 1000);
+    expect(isWithinPaymentReminderWindow(deadline, now)).toBe(true);
+  });
+
+  it("uses PAYMENT_REMINDER_WINDOW_HOURS = 24 (regression guard for the constant)", () => {
+    expect(PAYMENT_REMINDER_WINDOW_HOURS).toBe(24);
   });
 });

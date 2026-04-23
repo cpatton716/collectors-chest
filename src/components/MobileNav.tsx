@@ -12,7 +12,6 @@ import {
   BarChart3,
   BookOpen,
   DollarSign,
-  // Flame, // Hottest Books hidden
   Gavel,
   Home,
   KeyRound,
@@ -173,7 +172,6 @@ export function MobileNav() {
     { href: "/trades", icon: ArrowLeftRight, label: "Trades" },
     { href: "/collection", icon: Layers, label: "Lists" },
     { href: "/my-auctions", icon: Gavel, label: "My Listings" },
-    // { href: "/hottest-books", icon: Flame, label: "Hottest Books" }, // Hottest Books hidden
     { href: "/stats", icon: BarChart3, label: "Stats" },
   ];
 

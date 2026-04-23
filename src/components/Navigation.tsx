@@ -17,7 +17,6 @@ import {
   ChevronUp,
   DollarSign,
   UserCheck,
-  // Flame, // Hottest Books hidden
   Gavel,
   Home,
   KeyRound,
@@ -122,12 +121,6 @@ const faqs = [
     answer:
       "Yes! From your Collection page, create lists to organize comics however you like \u2014 by series, want list, favorites, reading order, or any category. Comics can belong to multiple lists.",
   },
-  // Hottest Books FAQ hidden
-  // {
-  //   question: "What is the Hottest Books feature?",
-  //   answer:
-  //     "Professor's Hottest Books is a weekly market analysis showing the top trending comics based on recent sales activity. It includes key facts about each book, why it's hot, and current price ranges to help you spot opportunities.",
-  // },
   {
     question: "What is Key Info and why does it matter?",
     answer:
@@ -147,6 +140,44 @@ const faqs = [
     question: "Is my data safe?",
     answer:
       "Your collection data is stored securely in the cloud and synced across all your devices. We use industry-standard encryption, secure authentication via Clerk, and your payment info is handled entirely by Stripe \u2014 we never store credit card details.",
+  },
+  {
+    question: "What happens if I want a refund on a marketplace purchase?",
+    answer:
+      "Collectors Chest processes refunds and handles chargeback claims for marketplace purchases. Contact our support team to initiate a refund request \u2014 don't go to your bank or card issuer first. We'll review the claim, coordinate with the seller, and resolve the issue.",
+  },
+  {
+    question: "How does Collectors Chest ensure sellers are legitimate?",
+    answer:
+      "We review seller accounts and require Stripe identity verification for all sellers before they can list items. We also prohibit counterfeit goods, stolen property, and unauthorized merchandise \u2014 sellers who violate these rules lose access to the marketplace.",
+  },
+  {
+    question: "Who do I contact if I have a payment problem?",
+    answer:
+      "Contact Collectors Chest support first \u2014 we provide first-line support for all marketplace payment issues and disputes. We respond within two business days and coordinate directly with our payment processor when needed.",
+  },
+  {
+    question: "What happens if my seller account is restricted or under review?",
+    answer:
+      "If your seller account is affected by a risk or fraud review, we'll notify you by email and in-app with the reason and any steps required to resolve it. Responding promptly is the fastest way to restore your account.",
+  },
+  {
+    question: "Why might Collectors Chest ask me for additional information after I've signed up as a seller?",
+    answer:
+      "Our payment processor occasionally requires updated identity or business information to keep seller accounts in good standing. If we ask for additional info, provide it promptly \u2014 if you don't respond in time, your payout access may be temporarily paused.",
+  },
+  {
+    question: "How do I set up my Stripe seller account?",
+    answer: (
+      <>
+        Before you can list comics for sale, you&apos;ll need to complete a short onboarding flow
+        with Stripe, our payment processor. This takes about 5 minutes. See our step-by-step{" "}
+        <Link href="/seller-onboarding" className="text-pop-blue underline hover:text-pop-red">
+          Seller Onboarding Guide
+        </Link>{" "}
+        for what to expect and what to have ready.
+      </>
+    ),
   },
 ];
 
@@ -269,7 +300,6 @@ export function Navigation() {
     { href: "/following", label: "Following", icon: UserCheck },
     { href: "/collection", label: "Lists", icon: Layers },
     { href: "/my-auctions", label: "My Listings", icon: Gavel },
-    // { href: "/hottest-books", label: "Hottest Books", icon: Flame }, // Hottest Books hidden
     { href: "/key-hunt", label: "Key Hunt", icon: KeyRound },
     { href: "/about", label: "About", icon: Info },
   ];

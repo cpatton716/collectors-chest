@@ -16,7 +16,28 @@ interface ClerkWebhookEvent {
     primary_email_address_id?: string;
     first_name?: string | null;
     last_name?: string | null;
+    username?: string | null;
   };
+}
+
+// Build a default display_name from first/last name when present.
+function buildDisplayName(first?: string | null, last?: string | null): string | null {
+  const f = first?.trim() ?? "";
+  const l = last?.trim() ?? "";
+  const joined = `${f} ${l}`.trim();
+  return joined.length > 0 ? joined : null;
+}
+
+// Supabase profiles.username has a CHECK constraint: ^[a-z0-9_]{3,20}$.
+// Clerk allows characters Supabase rejects (e.g., dashes). Only forward the
+// username if it satisfies our constraint — otherwise leaving it NULL lets
+// the rest of the upsert (email, name) land and the user can set a valid
+// username later via the app's profile settings.
+const USERNAME_REGEX = /^[a-z0-9_]{3,20}$/;
+function sanitizeUsername(raw?: string | null): string | null {
+  if (!raw) return null;
+  const trimmed = raw.trim().toLowerCase();
+  return USERNAME_REGEX.test(trimmed) ? trimmed : null;
 }
 
 export async function POST(req: Request) {
@@ -64,20 +85,28 @@ export async function POST(req: Request) {
   // component passes the email, creating a profile with email=null.
   if (event.type === "user.created") {
     const clerkUserId = event.data.id;
-    const { email_addresses, primary_email_address_id } = event.data;
+    const { email_addresses, primary_email_address_id, first_name, last_name, username } =
+      event.data;
 
     // Find the primary email address
     const primaryEmail = email_addresses?.find(
       (e) => e.id === primary_email_address_id
     )?.email_address;
 
+    const displayName = buildDisplayName(first_name, last_name);
+
     try {
-      await supabase
-        .from("profiles")
-        .upsert(
-          { clerk_user_id: clerkUserId, email: primaryEmail ?? null },
-          { onConflict: "clerk_user_id" }
-        );
+      await supabase.from("profiles").upsert(
+        {
+          clerk_user_id: clerkUserId,
+          email: primaryEmail ?? null,
+          username: sanitizeUsername(username),
+          first_name: first_name ?? null,
+          last_name: last_name ?? null,
+          display_name: displayName,
+        },
+        { onConflict: "clerk_user_id" }
+      );
     } catch (err) {
       console.error("[Webhook] Failed to upsert profile for new user:", err);
     }
@@ -103,19 +132,26 @@ export async function POST(req: Request) {
   // stay in sync.
   if (event.type === "user.updated") {
     const clerkUserId = event.data.id;
-    const { email_addresses, primary_email_address_id } = event.data;
+    const { email_addresses, primary_email_address_id, first_name, last_name, username } =
+      event.data;
     const primaryEmail = email_addresses?.find(
       (e) => e.id === primary_email_address_id
     )?.email_address;
 
-    if (primaryEmail) {
+    const updates: Record<string, string | null> = {};
+    if (primaryEmail) updates.email = primaryEmail;
+    if (username !== undefined) updates.username = sanitizeUsername(username);
+    if (first_name !== undefined) updates.first_name = first_name ?? null;
+    if (last_name !== undefined) updates.last_name = last_name ?? null;
+    if (first_name !== undefined || last_name !== undefined) {
+      updates.display_name = buildDisplayName(first_name, last_name);
+    }
+
+    if (Object.keys(updates).length > 0) {
       try {
-        await supabase
-          .from("profiles")
-          .update({ email: primaryEmail })
-          .eq("clerk_user_id", clerkUserId);
+        await supabase.from("profiles").update(updates).eq("clerk_user_id", clerkUserId);
       } catch (err) {
-        console.error("[Webhook] Failed to sync email on user.updated:", err);
+        console.error("[Webhook] Failed to sync profile fields on user.updated:", err);
       }
     }
 

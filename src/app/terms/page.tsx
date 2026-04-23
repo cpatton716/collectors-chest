@@ -246,6 +246,43 @@ export default function TermsOfServicePage() {
             cancellation.
           </p>
 
+          <h3>4.11 Refunds &amp; Chargebacks</h3>
+          <p>
+            Collectors Chest processes refunds and handles chargeback claims on behalf of the
+            marketplace. Sellers do not directly manage refunds. When a buyer initiates a refund
+            request or a chargeback, Collectors Chest reviews the claim, communicates with both
+            parties, and coordinates with our payment processor (Stripe) to resolve the issue.
+            Sellers agree to cooperate with refund and dispute investigations and to provide any
+            requested documentation (shipping proof, communication records, etc.) promptly.
+          </p>
+
+          <h3>4.12 Seller Vetting &amp; Restricted Products</h3>
+          <p>
+            Collectors Chest reviews seller accounts to ensure compliance with these Terms and
+            applicable law, including restrictions on counterfeit goods, stolen property, and
+            unauthorized merchandise. We may decline, suspend, or terminate seller accounts at our
+            discretion. Sellers are responsible for confirming that all listed items are authentic,
+            legally owned, and permitted for resale under applicable law.
+          </p>
+
+          <h3>4.13 Risk &amp; Fraud Notifications to Sellers</h3>
+          <p>
+            If your seller account is affected by risk or fraud prevention actions — including
+            holds, reviews, or restrictions — Collectors Chest will notify you with the reason for
+            the action and any steps required to remediate. Notifications may be delivered by email,
+            in-app notification, or both. Sellers are expected to respond to remediation requests
+            promptly to restore their account.
+          </p>
+
+          <h3>4.14 Seller Remediation &amp; Additional Information</h3>
+          <p>
+            Collectors Chest may periodically request additional information from you to keep your
+            seller account in good standing. This includes identity verification updates, business
+            documentation, and compliance-related materials requested by our payment processor. You
+            agree to provide requested information promptly; failure to respond within the stated
+            timeframe may result in temporary account restrictions or suspension of payout access.
+          </p>
+
           <h2>5. AI-Powered Features</h2>
 
           <h3>5.1 Comic Identification and Analysis</h3>
@@ -448,13 +485,14 @@ export default function TermsOfServicePage() {
 
           <h2>10. Dispute Resolution</h2>
 
-          <h3>10.1 Between Users</h3>
+          <h3>10.1 First-Line Support for Marketplace Disputes</h3>
           <p>
-            The Company does not provide formal dispute resolution services for transactions between
-            users. Buyers and sellers are encouraged to communicate directly to resolve any issues.
-            If you are unable to resolve a dispute, you may seek remedies available to you under
-            applicable law. The Company may, but is not obligated to, assist in facilitating
-            communication between disputing parties.
+            Collectors Chest provides first-line support for marketplace payment issues and
+            disputes. Buyers and sellers should contact Collectors Chest support before escalating
+            to their bank, card issuer, or payment processor. We respond to marketplace support
+            inquiries within two business days and will work to resolve issues directly where
+            possible. If we are unable to resolve a dispute, you may seek remedies available to you
+            under applicable law.
           </p>
 
           <h3>10.2 Between You and the Company</h3>

@@ -4,6 +4,11 @@ import { useRef, useState } from "react";
 
 import { ImagePlus, Loader2, Send, X } from "lucide-react";
 
+import {
+  MAX_IMAGE_UPLOAD_BYTES,
+  MAX_IMAGE_UPLOAD_LABEL,
+} from "@/lib/uploadLimits";
+
 interface MessageComposerProps {
   onSend: (content: string, imageUrls?: string[]) => Promise<void>;
   placeholder?: string;
@@ -25,6 +30,14 @@ export function MessageComposer({
     const files = Array.from(e.target.files || []);
     if (files.length + images.length > 2) {
       alert("Maximum 2 images allowed");
+      return;
+    }
+    // Reject oversized files before hitting the server
+    const oversized = files.find((file) => file.size > MAX_IMAGE_UPLOAD_BYTES);
+    if (oversized) {
+      alert(`Image must be under ${MAX_IMAGE_UPLOAD_LABEL}`);
+      // Clear the input so the same file can be re-selected later
+      if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
     const newImages = [...images, ...files].slice(0, 2);
