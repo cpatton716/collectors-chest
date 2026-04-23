@@ -6,12 +6,12 @@ This log tracks session-by-session progress on Collectors Chest.
 
 ## Changes Since Last Deploy
 
-**Last Deploy:** 2026-04-21 (Session 36)
-**Sessions Since Last Deploy:** 1
-**Deploy Readiness:** Ready — auction flow fully validated E2E in localhost + Stripe sandbox; no known blockers
+**Last Deploy:** 2026-04-22 (Session 37) — commit `782e6fd` pushed to main at end of session, Netlify auto-deploy triggered.
+**Sessions Since Last Deploy:** 0
+**Deploy Readiness:** Deployed — Session 37 auction flow fixes live on collectors-chest.com. Real-money test planned for Apr 23, 2026.
 
 ### Changes Since Last Deploy:
-- **Session 37 (2026-04-22):** Full auction + marketplace flow validated E2E with 3 test accounts (buyer, seller, 3rd bidder). 9 bug fixes shipped (flat $1 bid increment, Buy It Now auto-hide when bid exceeds BIN, friendly bid error UI, idempotent `processEndedAuctions`, Clerk profile.email sync via `user.created` + `user.updated` webhooks, `getListingComicData` FK disambiguation unblocking outbid/auction-end emails, auction buyer feedback eligibility unlocks on `shipped_at`, `submitFeedback` FK column fix, notification click routing). Plus new features: `/transactions` page for buyers, mark-as-shipped flow with ownership transfer gated on shipping, auction-end email templates (auction_won/auction_sold/bid_auction_lost).
+- Session 37 patches were deployed at end of session. See Session 37 entry below for full detail.
 
 ---
 
