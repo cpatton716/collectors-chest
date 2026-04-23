@@ -153,6 +153,15 @@ export async function POST(request: NextRequest) {
       listingRow?.platform_fee_percent || 8
     );
 
+    // Stripe rejects product image URLs over 2048 chars (long Supabase signed
+    // URLs can exceed this). The image is purely cosmetic on the Checkout
+    // page — drop it rather than fail the session.
+    const coverUrl = listing.comic?.coverImageUrl;
+    const stripeImages =
+      coverUrl && coverUrl.length <= 2048 && /^https?:\/\//.test(coverUrl)
+        ? [coverUrl]
+        : undefined;
+
     // Create Stripe checkout session.
     // Metadata carries full context so the webhook can dispatch to the right
     // handler without re-querying the DB first.
@@ -165,7 +174,7 @@ export async function POST(request: NextRequest) {
             product_data: {
               name: `${listing.comic?.comic?.title || "Comic"} #${listing.comic?.comic?.issueNumber || "?"}`,
               description: isBuyNow ? "Buy Now purchase - includes shipping" : "Auction winner - includes shipping",
-              images: listing.comic?.coverImageUrl ? [listing.comic.coverImageUrl] : undefined,
+              images: stripeImages,
             },
             unit_amount: totalCents,
           },

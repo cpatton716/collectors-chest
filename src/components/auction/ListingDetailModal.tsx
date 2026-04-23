@@ -216,7 +216,7 @@ export function ListingDetailModal({
           ) : (
             <div className="grid md:grid-cols-2 gap-0 max-h-[90vh] overflow-y-auto">
               {/* Left Column - Images */}
-              <div className="relative bg-gray-900 aspect-[3/4] md:aspect-auto md:min-h-[400px] md:max-h-[70vh]">
+              <div className="relative bg-gray-900 aspect-[3/4] max-h-[40vh] md:aspect-auto md:max-h-[70vh] md:min-h-[400px]">
                 {allImages.length > 0 ? (
                   <>
                     <Image

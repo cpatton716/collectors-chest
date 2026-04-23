@@ -177,7 +177,7 @@ export function AuctionDetailModal({
               {/* Left: Image Gallery */}
               <div className="md:w-1/2 flex-shrink-0 bg-gray-100 relative">
                 {/* Main Image */}
-                <div className="aspect-square relative max-h-[60vh] md:max-h-[70vh]">
+                <div className="aspect-square relative max-h-[35vh] md:max-h-[70vh]">
                   {allImages[selectedImageIndex] ? (
                     <Image
                       src={allImages[selectedImageIndex]}
