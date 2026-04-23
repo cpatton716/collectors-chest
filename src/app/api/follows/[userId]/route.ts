@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@clerk/nextjs/server";
+import { z } from "zod";
 
 import { getProfileByClerkId } from "@/lib/db";
 import { followUser, unfollowUser, checkFollowStatus, getFollowCounts } from "@/lib/followDb";
+import { schemas, validateParams } from "@/lib/validation";
+
+const paramsSchema = z.object({ userId: schemas.uuid });
 
 interface RouteParams {
   params: Promise<{ userId: string }>;
@@ -22,7 +26,10 @@ export async function POST(_request: NextRequest, context: RouteParams) {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
-    const { userId } = await context.params;
+    const rawParams = await context.params;
+    const paramsResult = validateParams(paramsSchema, rawParams);
+    if (!paramsResult.success) return paramsResult.response;
+    const { userId } = paramsResult.data;
 
     // Prevent self-follow
     if (profile.id === userId) {
@@ -55,7 +62,10 @@ export async function DELETE(_request: NextRequest, context: RouteParams) {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
-    const { userId } = await context.params;
+    const rawParams = await context.params;
+    const paramsResult = validateParams(paramsSchema, rawParams);
+    if (!paramsResult.success) return paramsResult.response;
+    const { userId } = paramsResult.data;
 
     const result = await unfollowUser(profile.id, userId);
 
@@ -74,7 +84,10 @@ export async function DELETE(_request: NextRequest, context: RouteParams) {
 export async function GET(_request: NextRequest, context: RouteParams) {
   try {
     const { userId: clerkId } = await auth();
-    const { userId } = await context.params;
+    const rawParams = await context.params;
+    const paramsResult = validateParams(paramsSchema, rawParams);
+    if (!paramsResult.success) return paramsResult.response;
+    const { userId } = paramsResult.data;
 
     // Fetch counts in parallel (always available, even for unauthenticated users)
     const counts = await getFollowCounts(userId);

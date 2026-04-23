@@ -2,9 +2,15 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@clerk/nextjs/server";
+import { z } from "zod";
 
 import { getOrCreateProfile } from "@/lib/db";
 import { supabase } from "@/lib/supabase";
+import { schemas, validateBody } from "@/lib/validation";
+
+const bulkDeleteSchema = z.object({
+  comicIds: z.array(schemas.uuid).min(1, "At least one comic ID is required").max(500),
+});
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,11 +19,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { comicIds } = await request.json();
-
-    if (!Array.isArray(comicIds) || comicIds.length === 0) {
-      return NextResponse.json({ error: "Invalid comic IDs" }, { status: 400 });
-    }
+    const rawBody = await request.json().catch(() => null);
+    const validated = validateBody(bulkDeleteSchema, rawBody);
+    if (!validated.success) return validated.response;
+    const { comicIds } = validated.data;
 
     // Get user's profile
     const profile = await getOrCreateProfile(userId);

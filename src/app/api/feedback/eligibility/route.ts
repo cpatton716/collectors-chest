@@ -1,9 +1,15 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 
 import { getProfileByClerkId } from "@/lib/db";
 import { checkFeedbackEligibility } from "@/lib/creatorCreditsDb";
-import { TransactionType } from "@/types/creatorCredits";
+import { schemas, validateQuery } from "@/lib/validation";
+
+const eligibilityQuerySchema = z.object({
+  transactionId: schemas.uuid,
+  transactionType: z.enum(["sale", "auction", "trade"]),
+});
 
 // GET - Check if user can leave feedback for a transaction
 export async function GET(request: NextRequest) {
@@ -18,25 +24,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
-    const searchParams = request.nextUrl.searchParams;
-    const transactionId = searchParams.get("transactionId");
-    const transactionType = searchParams.get(
-      "transactionType"
-    ) as TransactionType;
-
-    if (!transactionId || !transactionType) {
-      return NextResponse.json(
-        { error: "transactionId and transactionType required" },
-        { status: 400 }
-      );
-    }
-
-    if (!["sale", "auction", "trade"].includes(transactionType)) {
-      return NextResponse.json(
-        { error: "Invalid transaction type" },
-        { status: 400 }
-      );
-    }
+    const validatedQuery = validateQuery(eligibilityQuerySchema, request.nextUrl.searchParams);
+    if (!validatedQuery.success) return validatedQuery.response;
+    const { transactionId, transactionType } = validatedQuery.data;
 
     const eligibility = await checkFeedbackEligibility(
       profile.id,

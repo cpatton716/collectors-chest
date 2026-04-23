@@ -1,7 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 
 import { getAdminProfile } from "@/lib/adminAuth";
 import { approveSubmission, rejectSubmission } from "@/lib/keyComicsDb";
+import { schemas, validateBody, validateParams } from "@/lib/validation";
+
+const paramsSchema = z.object({ id: schemas.uuid });
+
+const submissionActionSchema = z
+  .object({
+    action: z.enum(["approve", "reject"]),
+    reason: z.string().max(1000).optional(),
+  })
+  .refine((v) => v.action !== "reject" || (v.reason && v.reason.trim().length > 0), {
+    message: "Rejection reason is required",
+    path: ["reason"],
+  });
 
 // POST - Approve or reject a submission
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -12,26 +26,21 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const { id } = await params;
-    const body = await request.json();
-    const { action, reason } = body;
+    const rawParams = await params;
+    const paramsResult = validateParams(paramsSchema, rawParams);
+    if (!paramsResult.success) return paramsResult.response;
+    const { id } = paramsResult.data;
 
-    if (!action || !["approve", "reject"].includes(action)) {
-      return NextResponse.json(
-        { error: "Invalid action. Must be 'approve' or 'reject'" },
-        { status: 400 }
-      );
-    }
-
-    if (action === "reject" && !reason) {
-      return NextResponse.json({ error: "Rejection reason is required" }, { status: 400 });
-    }
+    const body = await request.json().catch(() => null);
+    const validated = validateBody(submissionActionSchema, body);
+    if (!validated.success) return validated.response;
+    const { action, reason } = validated.data;
 
     let result;
     if (action === "approve") {
       result = await approveSubmission(id, adminProfile.clerk_user_id);
     } else {
-      result = await rejectSubmission(id, adminProfile.clerk_user_id, reason);
+      result = await rejectSubmission(id, adminProfile.clerk_user_id, reason!);
     }
 
     if (!result.success) {

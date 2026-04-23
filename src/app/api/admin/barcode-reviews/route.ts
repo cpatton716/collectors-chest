@@ -1,8 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@clerk/nextjs/server";
+import { z } from "zod";
 
 import { supabaseAdmin } from "@/lib/supabase";
+import { schemas, validateBody, validateQuery } from "@/lib/validation";
+
+const listQuerySchema = z.object({
+  status: z.enum(["pending", "approved", "corrected", "rejected"]).optional().default("pending"),
+  page: z.coerce.number().int().positive().optional().default(1),
+  limit: z.coerce.number().int().positive().max(100).optional().default(20),
+});
+
+const patchSchema = z
+  .object({
+    reviewId: schemas.uuid,
+    action: z.enum(["approve", "correct", "reject"]),
+    correctedUpc: z.string().min(1).max(32).optional(),
+    adminNotes: z.string().max(2000).optional(),
+  })
+  .refine((v) => v.action !== "correct" || !!v.correctedUpc, {
+    message: "correctedUpc is required for correction",
+    path: ["correctedUpc"],
+  });
 
 // Check if user is admin
 async function isAdmin(clerkUserId: string): Promise<boolean> {
@@ -29,9 +49,9 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const status = searchParams.get("status") || "pending";
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "20");
+    const queryResult = validateQuery(listQuerySchema, searchParams);
+    if (!queryResult.success) return queryResult.response;
+    const { status, page, limit } = queryResult.data;
     const offset = (page - 1) * limit;
 
     // Get reviews with pagination
@@ -75,16 +95,10 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Admin access required" }, { status: 403 });
     }
 
-    const body = await request.json();
-    const { reviewId, action, correctedUpc, adminNotes } = body;
-
-    if (!reviewId || !action) {
-      return NextResponse.json({ error: "reviewId and action are required" }, { status: 400 });
-    }
-
-    if (!["approve", "correct", "reject"].includes(action)) {
-      return NextResponse.json({ error: "Invalid action" }, { status: 400 });
-    }
+    const body = await request.json().catch(() => null);
+    const validated = validateBody(patchSchema, body);
+    if (!validated.success) return validated.response;
+    const { reviewId, action, correctedUpc, adminNotes } = validated.data;
 
     // Get admin's profile ID
     const { data: profile } = await supabaseAdmin
@@ -133,12 +147,9 @@ export async function PATCH(request: NextRequest) {
         .eq("id", review.barcode_catalog_id);
 
     } else if (action === "correct") {
-      if (!correctedUpc) {
-        return NextResponse.json({ error: "correctedUpc is required for correction" }, { status: 400 });
-      }
-
+      // correctedUpc is guaranteed present here thanks to the Zod refine above.
       // Parse corrected UPC
-      const parsed = parseBarcode(correctedUpc);
+      const parsed = parseBarcode(correctedUpc!);
 
       // Update review status with correction
       await supabaseAdmin
@@ -156,7 +167,7 @@ export async function PATCH(request: NextRequest) {
       await supabaseAdmin
         .from("barcode_catalog")
         .update({
-          raw_barcode: correctedUpc,
+          raw_barcode: correctedUpc!,
           upc_prefix: parsed?.upcPrefix || null,
           item_number: parsed?.itemNumber || null,
           check_digit: parsed?.checkDigit || null,

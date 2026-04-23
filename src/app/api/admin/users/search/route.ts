@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 
 import { getAdminProfile, logAdminAction, searchUsersByEmail } from "@/lib/adminAuth";
+import { validateQuery } from "@/lib/validation";
+
+const searchQuerySchema = z.object({
+  email: z
+    .string()
+    .min(2, "Email search query must be at least 2 characters")
+    .max(320, "Email search query is too long"),
+});
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,15 +20,9 @@ export async function GET(request: NextRequest) {
     }
 
     // Get search query
-    const searchParams = request.nextUrl.searchParams;
-    const email = searchParams.get("email");
-
-    if (!email || email.length < 2) {
-      return NextResponse.json(
-        { error: "Email search query must be at least 2 characters" },
-        { status: 400 }
-      );
-    }
+    const queryResult = validateQuery(searchQuerySchema, request.nextUrl.searchParams);
+    if (!queryResult.success) return queryResult.response;
+    const { email } = queryResult.data;
 
     // Search users
     const users = await searchUsersByEmail(email);

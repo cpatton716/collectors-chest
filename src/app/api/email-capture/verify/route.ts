@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { Resend } from "resend";
+import { z } from "zod";
 
 import { supabaseAdmin } from "@/lib/supabase";
+import { validateQuery } from "@/lib/validation";
+
+const verifyQuerySchema = z.object({
+  token: z.string().min(1, "Verification token is required").max(256),
+});
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -18,11 +24,12 @@ const BONUS_SCANS_AUDIENCE_ID = process.env.RESEND_BONUS_SCANS_AUDIENCE_ID;
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const token = searchParams.get("token");
-
-    if (!token) {
+    const queryResult = validateQuery(verifyQuerySchema, searchParams);
+    if (!queryResult.success) {
+      // This is a user-facing redirect flow, so preserve the redirect UX.
       return redirectWithMessage("error", "Invalid verification link");
     }
+    const { token } = queryResult.data;
 
     // Look up the claim by token
     const { data: claim, error: lookupError } = await supabaseAdmin

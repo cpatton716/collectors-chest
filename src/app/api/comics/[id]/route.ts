@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@clerk/nextjs/server";
+import { z } from "zod";
 
 import { getProfileByClerkId } from "@/lib/db";
 import { supabase } from "@/lib/supabase";
+import { schemas, validateParams } from "@/lib/validation";
+
+const comicIdParamsSchema = z.object({
+  id: schemas.uuid,
+});
 
 // DELETE - Remove comic from user's collection
 export async function DELETE(
@@ -21,7 +27,10 @@ export async function DELETE(
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
-    const { id } = await params;
+    const rawParams = await params;
+    const paramsValidated = validateParams(comicIdParamsSchema, rawParams);
+    if (!paramsValidated.success) return paramsValidated.response;
+    const { id } = paramsValidated.data;
 
     // Guard: sold comics live in the seller's read-only sold history.
     const { data: soldRow } = await supabase

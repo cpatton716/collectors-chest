@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import Anthropic from "@anthropic-ai/sdk";
+import { z } from "zod";
 
 import { getComicMetadata, incrementComicLookupCount, saveComicMetadata } from "@/lib/db";
 import { MODEL_PRIMARY } from "@/lib/models";
@@ -12,6 +13,17 @@ import { checkRateLimit, getRateLimitIdentifier, rateLimiters } from "@/lib/rate
 import { runCoverPipeline, shouldRunPipeline } from "@/lib/coverValidation";
 import type { CoverPipelineResult } from "@/lib/coverValidation";
 import { cacheDelete, generateComicMetadataCacheKey } from "@/lib/cache";
+import { validateBody } from "@/lib/validation";
+
+const conModeLookupSchema = z.object({
+  title: z.string().trim().min(1, "Title is required").max(200),
+  issueNumber: z
+    .union([z.string(), z.number()])
+    .transform((v) => String(v))
+    .pipe(z.string().min(1, "Issue number is required").max(50)),
+  grade: z.coerce.number().min(0.5).max(10).optional(),
+  years: z.string().trim().max(20).optional().nullable(),
+});
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -59,11 +71,10 @@ export async function POST(request: NextRequest) {
     );
     if (!rateLimitSuccess) return rateLimitResponse;
 
-    const { title, issueNumber, grade, years } = await request.json();
-
-    if (!title || !issueNumber) {
-      return NextResponse.json({ error: "Title and issue number are required." }, { status: 400 });
-    }
+    const rawBody = await request.json().catch(() => null);
+    const validated = validateBody(conModeLookupSchema, rawBody);
+    if (!validated.success) return validated.response;
+    const { title, issueNumber, grade, years } = validated.data;
 
     const normalizedTitle = normalizeTitle(title);
     const normalizedIssue = normalizeIssueNumber(issueNumber.toString());

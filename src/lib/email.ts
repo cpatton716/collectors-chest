@@ -155,6 +155,14 @@ export const EMAIL_SOUND_EFFECTS: Record<NotificationEmailType, string> = {
   payment_reminder: "TICK TOCK!",
   auction_payment_expired: "TIME'S UP!",
   auction_payment_expired_seller: "NO PAY!",
+  // Second Chance Offer + Strike System
+  second_chance_available: "SECOND SHOT!",
+  second_chance_offered: "LUCKY YOU!",
+  second_chance_accepted: "BOOM!",
+  second_chance_declined: "PASS!",
+  second_chance_expired: "TIME'S UP!",
+  payment_missed_warning: "HEADS UP!",
+  payment_missed_flagged: "WHOA!",
 };
 
 export function emailHeader(_soundEffect: string): string {
@@ -810,7 +818,15 @@ export type NotificationEmailType =
   | "auction_sold"
   | "payment_reminder"
   | "auction_payment_expired"
-  | "auction_payment_expired_seller";
+  | "auction_payment_expired_seller"
+  // Second Chance Offer + Strike System (templates appended at bottom of file)
+  | "second_chance_available"
+  | "second_chance_offered"
+  | "second_chance_accepted"
+  | "second_chance_declined"
+  | "second_chance_expired"
+  | "payment_missed_warning"
+  | "payment_missed_flagged";
 
 interface SendNotificationEmailParams {
   to: string;
@@ -828,88 +844,169 @@ interface SendNotificationEmailParams {
     | AuctionEndEmailData
     | PaymentReminderEmailData
     | PaymentExpiredBuyerEmailData
-    | PaymentExpiredSellerEmailData;
+    | PaymentExpiredSellerEmailData
+    | SecondChanceSellerAvailableEmailData
+    | SecondChanceRunnerUpEmailData
+    | SecondChanceSellerResultEmailData
+    | PaymentMissedWarningEmailData
+    | PaymentMissedFlaggedEmailData;
+  /**
+   * Optional profile ID for preference gating. When omitted, we look up
+   * the profile by email. Pass explicitly in hot paths to avoid the extra
+   * round-trip. Transactional emails bypass the lookup entirely.
+   */
+  profileId?: string | null;
+}
+
+/**
+ * Look up a profile's ID by email. Used when callers don't have the ID
+ * handy but we still want to gate on the recipient's preferences.
+ * Returns null when the email isn't tied to a known profile (e.g., guest
+ * or unsubscribed legacy account) — in which case gating is skipped.
+ */
+async function resolveProfileIdByEmail(email: string): Promise<string | null> {
+  try {
+    const { data } = await supabaseAdmin
+      .from("profiles")
+      .select("id")
+      .eq("email", email)
+      .maybeSingle();
+    return data?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Resolve an email template from a notification type + its data payload.
+ * Returns null when `type` is unknown.
+ *
+ * Extracted so both `sendNotificationEmail` (single) and
+ * `sendNotificationEmailsBatch` (Resend batch API) can reuse the same
+ * switch.
+ */
+function resolveNotificationTemplate(
+  type: NotificationEmailType,
+  data: SendNotificationEmailParams["data"]
+): EmailTemplate | null {
+  switch (type) {
+    case "offer_received":
+      return offerReceivedTemplate(data as OfferEmailData);
+    case "offer_accepted":
+      return offerAcceptedTemplate(data as OfferEmailData);
+    case "offer_rejected":
+      return offerRejectedTemplate(data as OfferEmailData);
+    case "offer_countered":
+      return offerCounteredTemplate(data as OfferEmailData);
+    case "offer_expired":
+      return offerExpiredTemplate(data as OfferEmailData);
+    case "listing_expiring":
+      return listingExpiringTemplate(data as ListingEmailData);
+    case "listing_expired":
+      return listingExpiredTemplate(data as ListingEmailData);
+    case "message_received":
+      return messageReceivedTemplate(data as MessageEmailData);
+    case "feedback_reminder":
+      return feedbackReminderTemplate(data as FeedbackEmailData);
+    case "new_listing_from_followed":
+      return newListingFromFollowedTemplate(data as NewListingEmailData);
+    case "welcome":
+      return welcomeTemplate(data as WelcomeEmailData);
+    case "trial_expiring":
+      return trialExpiringTemplate(data as TrialExpiringEmailData);
+    case "purchase_confirmation":
+      return purchaseConfirmationTemplate(
+        data as MarketplaceTransactionEmailData
+      );
+    case "item_sold":
+      return itemSoldTemplate(data as MarketplaceTransactionEmailData);
+    case "outbid":
+      return outbidTemplate(data as BidActivityEmailData);
+    case "auction_won":
+      return auctionWonTemplate(data as AuctionEndEmailData);
+    case "auction_sold":
+      return auctionSoldTemplate(data as AuctionEndEmailData);
+    case "payment_reminder":
+      return paymentReminderTemplate(data as PaymentReminderEmailData);
+    case "auction_payment_expired":
+      return auctionPaymentExpiredBuyerTemplate(
+        data as PaymentExpiredBuyerEmailData
+      );
+    case "auction_payment_expired_seller":
+      return auctionPaymentExpiredSellerTemplate(
+        data as PaymentExpiredSellerEmailData
+      );
+    // Second Chance Offer + Strike System — see section at bottom of file.
+    case "second_chance_available":
+      return secondChanceAvailableTemplate(
+        data as SecondChanceSellerAvailableEmailData
+      );
+    case "second_chance_offered":
+      return secondChanceOfferedTemplate(
+        data as SecondChanceRunnerUpEmailData
+      );
+    case "second_chance_accepted":
+      return secondChanceAcceptedTemplate(
+        data as SecondChanceSellerResultEmailData
+      );
+    case "second_chance_declined":
+      return secondChanceDeclinedTemplate(
+        data as SecondChanceSellerResultEmailData
+      );
+    case "second_chance_expired":
+      return secondChanceExpiredTemplate(
+        data as SecondChanceSellerResultEmailData
+      );
+    case "payment_missed_warning":
+      return paymentMissedWarningTemplate(
+        data as PaymentMissedWarningEmailData
+      );
+    case "payment_missed_flagged":
+      return paymentMissedFlaggedTemplate(
+        data as PaymentMissedFlaggedEmailData
+      );
+    default:
+      return null;
+  }
 }
 
 export async function sendNotificationEmail({
   to,
   type,
   data,
-}: SendNotificationEmailParams): Promise<{ success: boolean; error?: string }> {
+  profileId,
+}: SendNotificationEmailParams): Promise<{ success: boolean; error?: string; skipped?: boolean }> {
   // Skip if no API key configured
   if (!process.env.RESEND_API_KEY) {
     return { success: true };
   }
 
-  let template: EmailTemplate;
+  // Preference gating — skip if the recipient has opted out of this category.
+  // Transactional types and unknown profiles always pass through (handled
+  // inside `shouldSendEmailForUser`).
+  try {
+    const { shouldSendEmailForUser, getNotificationCategory } = await import(
+      "./notificationPreferences"
+    );
+    let resolvedProfileId: string | null = profileId ?? null;
+    if (resolvedProfileId === null && getNotificationCategory(type) !== "transactional") {
+      // Only do the email->profile lookup when the category could be gated.
+      resolvedProfileId = await resolveProfileIdByEmail(to);
+    }
+    const allowed = await shouldSendEmailForUser(resolvedProfileId, type, supabaseAdmin);
+    if (!allowed) {
+      const category = getNotificationCategory(type);
+      console.log(`[email] skipped — user opted out of ${category} (${type} to ${to})`);
+      return { success: true, skipped: true };
+    }
+  } catch (err) {
+    // Preference check failing should never block a send — log and continue.
+    console.error("[email] preference check failed, sending anyway:", err);
+  }
 
-  switch (type) {
-    case "offer_received":
-      template = offerReceivedTemplate(data as OfferEmailData);
-      break;
-    case "offer_accepted":
-      template = offerAcceptedTemplate(data as OfferEmailData);
-      break;
-    case "offer_rejected":
-      template = offerRejectedTemplate(data as OfferEmailData);
-      break;
-    case "offer_countered":
-      template = offerCounteredTemplate(data as OfferEmailData);
-      break;
-    case "offer_expired":
-      template = offerExpiredTemplate(data as OfferEmailData);
-      break;
-    case "listing_expiring":
-      template = listingExpiringTemplate(data as ListingEmailData);
-      break;
-    case "listing_expired":
-      template = listingExpiredTemplate(data as ListingEmailData);
-      break;
-    case "message_received":
-      template = messageReceivedTemplate(data as MessageEmailData);
-      break;
-    case "feedback_reminder":
-      template = feedbackReminderTemplate(data as FeedbackEmailData);
-      break;
-    case "new_listing_from_followed":
-      template = newListingFromFollowedTemplate(data as NewListingEmailData);
-      break;
-    case "welcome":
-      template = welcomeTemplate(data as WelcomeEmailData);
-      break;
-    case "trial_expiring":
-      template = trialExpiringTemplate(data as TrialExpiringEmailData);
-      break;
-    case "purchase_confirmation":
-      template = purchaseConfirmationTemplate(data as MarketplaceTransactionEmailData);
-      break;
-    case "item_sold":
-      template = itemSoldTemplate(data as MarketplaceTransactionEmailData);
-      break;
-    case "outbid":
-      template = outbidTemplate(data as BidActivityEmailData);
-      break;
-    case "auction_won":
-      template = auctionWonTemplate(data as AuctionEndEmailData);
-      break;
-    case "auction_sold":
-      template = auctionSoldTemplate(data as AuctionEndEmailData);
-      break;
-    case "payment_reminder":
-      template = paymentReminderTemplate(data as PaymentReminderEmailData);
-      break;
-    case "auction_payment_expired":
-      template = auctionPaymentExpiredBuyerTemplate(
-        data as PaymentExpiredBuyerEmailData
-      );
-      break;
-    case "auction_payment_expired_seller":
-      template = auctionPaymentExpiredSellerTemplate(
-        data as PaymentExpiredSellerEmailData
-      );
-      break;
-    default:
-      return { success: false, error: `Unknown email type: ${type}` };
+  const template = resolveNotificationTemplate(type, data);
+  if (!template) {
+    return { success: false, error: `Unknown email type: ${type}` };
   }
 
   try {
@@ -933,6 +1030,117 @@ export async function sendNotificationEmail({
   }
 }
 
+/**
+ * Resend caps a single batch.send() call at 100 emails. We stay well under
+ * that so there's headroom for upstream additions and transient retries.
+ */
+export const EMAIL_BATCH_SIZE = 50;
+
+/**
+ * Fan-in multiple notification emails via Resend's `batch.send()` API.
+ *
+ * Use this from cron jobs or any fan-out where a loop of
+ * `sendNotificationEmail()` calls would hit Resend's 10 req/sec rate limit
+ * or risk a Netlify function timeout.
+ *
+ * Behavior:
+ *   - Skips cleanly when RESEND_API_KEY is not configured (dev/preview).
+ *   - Chunks into EMAIL_BATCH_SIZE calls.
+ *   - Never throws: failures are logged and returned in `errors`.
+ *   - Skips any entries whose template fails to resolve (unknown type).
+ *
+ * Returns aggregate stats so callers can log how many batches were used.
+ */
+export async function sendNotificationEmailsBatch(
+  emails: SendNotificationEmailParams[]
+): Promise<{ sent: number; batches: number; errors: string[]; skipped?: number }> {
+  const errors: string[] = [];
+
+  if (emails.length === 0) {
+    return { sent: 0, batches: 0, errors };
+  }
+
+  // Skip if no API key configured (dev/preview envs)
+  if (!process.env.RESEND_API_KEY) {
+    return { sent: emails.length, batches: 0, errors };
+  }
+
+  // Preference gating — drop opted-out recipients before building payloads.
+  // Transactional types and no-profile-context entries pass through.
+  let filteredEmails = emails;
+  let skippedCount = 0;
+  try {
+    const { filterEmailsByPreference } = await import("./notificationPreferences");
+    const normalized = emails.map((e) => ({
+      ...e,
+      emailType: e.type,
+      profileId: e.profileId ?? null,
+    }));
+    const kept = await filterEmailsByPreference(normalized, supabaseAdmin);
+    skippedCount = emails.length - kept.length;
+    if (skippedCount > 0) {
+      console.log(`[email] batch: ${skippedCount} opted-out recipient(s) filtered`);
+    }
+    filteredEmails = kept;
+  } catch (err) {
+    console.error("[email] batch preference check failed, sending all:", err);
+  }
+
+  // Resolve templates first. Drop any entries with unknown types so Resend
+  // doesn't see a malformed payload.
+  const payloads: Array<{
+    from: string;
+    to: string;
+    subject: string;
+    html: string;
+    text: string;
+  }> = [];
+
+  for (const { to, type, data } of filteredEmails) {
+    const template = resolveNotificationTemplate(type, data);
+    if (!template) {
+      errors.push(`Unknown email type: ${type} (to=${to})`);
+      continue;
+    }
+    payloads.push({
+      from: FROM_EMAIL,
+      to,
+      subject: template.subject,
+      html: template.html,
+      text: template.text,
+    });
+  }
+
+  if (payloads.length === 0) {
+    return { sent: 0, batches: 0, errors, skipped: skippedCount };
+  }
+
+  // Chunk into Resend-sized batches.
+  const batches: typeof payloads[] = [];
+  for (let i = 0; i < payloads.length; i += EMAIL_BATCH_SIZE) {
+    batches.push(payloads.slice(i, i + EMAIL_BATCH_SIZE));
+  }
+
+  let sent = 0;
+
+  for (const batch of batches) {
+    try {
+      const { error } = await resend.batch.send(batch);
+      if (error) {
+        errors.push(`Resend batch error: ${error.message}`);
+        console.error("[Email] batch.send error:", error);
+        continue;
+      }
+      sent += batch.length;
+    } catch (err) {
+      errors.push(`Resend batch threw: ${String(err)}`);
+      console.error("[Email] batch.send threw:", err);
+    }
+  }
+
+  return { sent, batches: batches.length, errors, skipped: skippedCount };
+}
+
 export type {
   FeedbackEmailData,
   NewListingEmailData,
@@ -942,3 +1150,229 @@ export type {
   BidActivityEmailData,
   AuctionEndEmailData,
 };
+
+// ============================================================================
+// Second Chance Offer + Strike System
+// ----------------------------------------------------------------------------
+// Added April 23, 2026. All new types/templates for the Second Chance Offer
+// flow and the Payment-Miss Strike system live in this section. The template
+// resolver switch above dispatches here; nothing else in the file should
+// need to change to wire a new template up.
+// ============================================================================
+
+interface SecondChanceSellerAvailableEmailData {
+  recipientName: string; // seller's display name
+  comicTitle: string;
+  issueNumber: string;
+  runnerUpLastBid: number;
+  offerUrl: string; // deep-link the seller clicks to trigger the offer
+}
+
+interface SecondChanceRunnerUpEmailData {
+  recipientName: string; // runner-up's display name
+  comicTitle: string;
+  issueNumber: string;
+  offerPrice: number;
+  expiresAt: string; // formatted expiration, e.g. "April 25, 2026, 4:00 PM"
+  responseUrl: string; // deep-link to /transactions (or inbox card)
+}
+
+interface SecondChanceSellerResultEmailData {
+  recipientName: string; // seller's display name
+  comicTitle: string;
+  issueNumber: string;
+  offerPrice: number;
+  listingUrl: string; // link back to /collection for re-listing (declined/expired)
+}
+
+interface PaymentMissedWarningEmailData {
+  recipientName: string;
+  comicTitle: string;
+  issueNumber: string;
+  finalPrice: number;
+  shopUrl: string;
+}
+
+interface PaymentMissedFlaggedEmailData {
+  recipientName: string;
+  strikeCount: number;
+  windowDays: number; // the rolling-window constant for copy
+  reason: string;
+  supportUrl: string;
+}
+
+function secondChanceAvailableTemplate(
+  data: SecondChanceSellerAvailableEmailData
+): EmailTemplate {
+  return {
+    subject: `Buyer didn't pay — offer to runner-up for ${formatPrice(data.runnerUpLastBid)}?`,
+    html: `
+      <div style="max-width: 600px; margin: 0 auto; font-family: 'Segoe UI', Arial, sans-serif; background: #ffffff;">
+        ${emailHeader(EMAIL_SOUND_EFFECTS.second_chance_available)}
+        <div style="padding: 32px 24px;">
+          <h2 style="font-size: 22px; font-weight: 900; color: #000; margin: 0 0 16px;">Second Chance Available</h2>
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;">Hi ${data.recipientName || "there"} — the winning bidder didn't pay in time, but there was a runner-up on your auction:</p>
+          <p style="font-size: 18px; font-weight: bold; color: #000; margin: 0 0 8px;">${data.comicTitle} #${data.issueNumber}</p>
+          <p style="font-size: 15px; color: #555; margin: 0 0 12px;">Runner-up's last bid: <strong>${formatPrice(data.runnerUpLastBid)}</strong></p>
+          <p style="font-size: 14px; color: #555; line-height: 1.6; margin: 0 0 12px;">You can offer the comic to them at their last bid price. They'll have 48 hours to accept or decline.</p>
+          <div style="text-align: center; margin: 24px 0;">
+            <a href="${data.offerUrl}" style="display: inline-block; background: #0066FF; color: #ffffff; font-weight: 900; padding: 14px 36px; border: 3px solid #000; border-radius: 8px; text-decoration: none; text-transform: uppercase; letter-spacing: 1px; box-shadow: 4px 4px 0 #000;">OFFER TO RUNNER-UP →</a>
+          </div>
+          <p style="font-size: 13px; color: #999; line-height: 1.6; margin: 24px 0 0;">No pressure — if you'd rather re-list, just ignore this email.</p>
+        </div>
+        ${emailFooter()}
+      </div>
+    `,
+    text: `Second chance available.\n\nThe winner didn't pay for ${data.comicTitle} #${data.issueNumber}, but there was a runner-up at ${formatPrice(data.runnerUpLastBid)}. You can offer the comic to them at that price. They'll have 48 hours to respond.\n\nOffer to runner-up: ${data.offerUrl}\n\nScan comics. Track value. Collect smarter.\nTwisted Jester LLC · collectors-chest.com`,
+  };
+}
+
+function secondChanceOfferedTemplate(
+  data: SecondChanceRunnerUpEmailData
+): EmailTemplate {
+  return {
+    subject: `Good news — ${data.comicTitle} #${data.issueNumber} is yours for ${formatPrice(data.offerPrice)}`,
+    html: `
+      <div style="max-width: 600px; margin: 0 auto; font-family: 'Segoe UI', Arial, sans-serif; background: #ffffff;">
+        ${emailHeader(EMAIL_SOUND_EFFECTS.second_chance_offered)}
+        <div style="padding: 32px 24px;">
+          <h2 style="font-size: 22px; font-weight: 900; color: #000; margin: 0 0 16px;">You Got a Second Chance!</h2>
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;">Hi ${data.recipientName || "there"} — the original winner didn't pay, and the seller has offered this comic to you at your last bid:</p>
+          <p style="font-size: 18px; font-weight: bold; color: #000; margin: 0 0 8px;">${data.comicTitle} #${data.issueNumber}</p>
+          <p style="font-size: 15px; color: #555; margin: 0 0 12px;">Your price: <strong>${formatPrice(data.offerPrice)}</strong></p>
+          <p style="font-size: 14px; color: #555; line-height: 1.6; margin: 0 0 12px;">You have until <strong>${data.expiresAt}</strong> (48 hours) to accept or decline.</p>
+          <div style="text-align: center; margin: 24px 0;">
+            <a href="${data.responseUrl}" style="display: inline-block; background: #0066FF; color: #ffffff; font-weight: 900; padding: 14px 36px; border: 3px solid #000; border-radius: 8px; text-decoration: none; text-transform: uppercase; letter-spacing: 1px; box-shadow: 4px 4px 0 #000;">REVIEW OFFER →</a>
+          </div>
+          <p style="font-size: 13px; color: #999; line-height: 1.6; margin: 24px 0 0;">If you don't respond in 48 hours the offer expires and the seller can re-list.</p>
+        </div>
+        ${emailFooter()}
+      </div>
+    `,
+    text: `Second chance offer!\n\nThe seller has offered ${data.comicTitle} #${data.issueNumber} to you at your last bid of ${formatPrice(data.offerPrice)}. You have until ${data.expiresAt} (48 hours) to accept or decline.\n\nReview the offer: ${data.responseUrl}\n\nScan comics. Track value. Collect smarter.\nTwisted Jester LLC · collectors-chest.com`,
+  };
+}
+
+function secondChanceAcceptedTemplate(
+  data: SecondChanceSellerResultEmailData
+): EmailTemplate {
+  return {
+    subject: `Runner-up accepted your second-chance offer — ${data.comicTitle} #${data.issueNumber}`,
+    html: `
+      <div style="max-width: 600px; margin: 0 auto; font-family: 'Segoe UI', Arial, sans-serif; background: #ffffff;">
+        ${emailHeader(EMAIL_SOUND_EFFECTS.second_chance_accepted)}
+        <div style="padding: 32px 24px;">
+          <h2 style="font-size: 22px; font-weight: 900; color: #000; margin: 0 0 16px;">Runner-Up Accepted!</h2>
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;">Hi ${data.recipientName || "there"} — the runner-up accepted your second-chance offer:</p>
+          <p style="font-size: 18px; font-weight: bold; color: #000; margin: 0 0 8px;">${data.comicTitle} #${data.issueNumber}</p>
+          <p style="font-size: 15px; color: #555; margin: 0 0 12px;">Sale price: <strong>${formatPrice(data.offerPrice)}</strong></p>
+          <p style="font-size: 14px; color: #555; line-height: 1.6; margin: 0 0 24px;">Payment is pending. They have 48 hours to complete checkout.</p>
+          <div style="text-align: center; margin: 24px 0;">
+            <a href="${data.listingUrl}" style="display: inline-block; background: #0066FF; color: #ffffff; font-weight: 900; padding: 14px 36px; border: 3px solid #000; border-radius: 8px; text-decoration: none; text-transform: uppercase; letter-spacing: 1px; box-shadow: 4px 4px 0 #000;">VIEW SALE →</a>
+          </div>
+        </div>
+        ${emailFooter()}
+      </div>
+    `,
+    text: `Runner-up accepted!\n\n${data.comicTitle} #${data.issueNumber} has been sold to the runner-up for ${formatPrice(data.offerPrice)}. They have 48 hours to complete payment.\n\n${data.listingUrl}\n\nScan comics. Track value. Collect smarter.\nTwisted Jester LLC · collectors-chest.com`,
+  };
+}
+
+function secondChanceDeclinedTemplate(
+  data: SecondChanceSellerResultEmailData
+): EmailTemplate {
+  return {
+    subject: `Runner-up declined — ${data.comicTitle} #${data.issueNumber}`,
+    html: `
+      <div style="max-width: 600px; margin: 0 auto; font-family: 'Segoe UI', Arial, sans-serif; background: #ffffff;">
+        ${emailHeader(EMAIL_SOUND_EFFECTS.second_chance_declined)}
+        <div style="padding: 32px 24px;">
+          <h2 style="font-size: 22px; font-weight: 900; color: #000; margin: 0 0 16px;">Runner-Up Declined</h2>
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;">Hi ${data.recipientName || "there"} — the runner-up declined your second-chance offer on:</p>
+          <p style="font-size: 18px; font-weight: bold; color: #000; margin: 0 0 8px;">${data.comicTitle} #${data.issueNumber}</p>
+          <p style="font-size: 14px; color: #555; line-height: 1.6; margin: 0 0 24px;">The comic is back in your collection. You can re-list whenever you're ready.</p>
+          <div style="text-align: center; margin: 24px 0;">
+            <a href="${data.listingUrl}" style="display: inline-block; background: #0066FF; color: #ffffff; font-weight: 900; padding: 14px 36px; border: 3px solid #000; border-radius: 8px; text-decoration: none; text-transform: uppercase; letter-spacing: 1px; box-shadow: 4px 4px 0 #000;">RE-LIST COMIC →</a>
+          </div>
+        </div>
+        ${emailFooter()}
+      </div>
+    `,
+    text: `Runner-up declined.\n\nThe runner-up declined your second-chance offer on ${data.comicTitle} #${data.issueNumber}. The comic is back in your collection and ready to be re-listed.\n\nRe-list: ${data.listingUrl}\n\nScan comics. Track value. Collect smarter.\nTwisted Jester LLC · collectors-chest.com`,
+  };
+}
+
+function secondChanceExpiredTemplate(
+  data: SecondChanceSellerResultEmailData
+): EmailTemplate {
+  return {
+    subject: `Second-chance offer expired — ${data.comicTitle} #${data.issueNumber}`,
+    html: `
+      <div style="max-width: 600px; margin: 0 auto; font-family: 'Segoe UI', Arial, sans-serif; background: #ffffff;">
+        ${emailHeader(EMAIL_SOUND_EFFECTS.second_chance_expired)}
+        <div style="padding: 32px 24px;">
+          <h2 style="font-size: 22px; font-weight: 900; color: #000; margin: 0 0 16px;">Second-Chance Offer Expired</h2>
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;">Hi ${data.recipientName || "there"} — the runner-up did not respond within 48 hours for:</p>
+          <p style="font-size: 18px; font-weight: bold; color: #000; margin: 0 0 8px;">${data.comicTitle} #${data.issueNumber}</p>
+          <p style="font-size: 14px; color: #555; line-height: 1.6; margin: 0 0 24px;">No worries — the comic is back in your collection and ready to be re-listed.</p>
+          <div style="text-align: center; margin: 24px 0;">
+            <a href="${data.listingUrl}" style="display: inline-block; background: #0066FF; color: #ffffff; font-weight: 900; padding: 14px 36px; border: 3px solid #000; border-radius: 8px; text-decoration: none; text-transform: uppercase; letter-spacing: 1px; box-shadow: 4px 4px 0 #000;">RE-LIST COMIC →</a>
+          </div>
+        </div>
+        ${emailFooter()}
+      </div>
+    `,
+    text: `Second-chance offer expired.\n\nThe runner-up didn't respond within 48 hours for ${data.comicTitle} #${data.issueNumber}. The comic is back in your collection.\n\nRe-list: ${data.listingUrl}\n\nScan comics. Track value. Collect smarter.\nTwisted Jester LLC · collectors-chest.com`,
+  };
+}
+
+function paymentMissedWarningTemplate(
+  data: PaymentMissedWarningEmailData
+): EmailTemplate {
+  return {
+    subject: "Please pay on time next time",
+    html: `
+      <div style="max-width: 600px; margin: 0 auto; font-family: 'Segoe UI', Arial, sans-serif; background: #ffffff;">
+        ${emailHeader(EMAIL_SOUND_EFFECTS.payment_missed_warning)}
+        <div style="padding: 32px 24px;">
+          <h2 style="font-size: 22px; font-weight: 900; color: #000; margin: 0 0 16px;">Payment Deadline Missed</h2>
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;">Hi ${data.recipientName || "there"} — we noticed you missed the 48-hour payment window for:</p>
+          <p style="font-size: 18px; font-weight: bold; color: #000; margin: 0 0 8px;">${data.comicTitle} #${data.issueNumber}</p>
+          <p style="font-size: 15px; color: #555; margin: 0 0 12px;">Final bid: <strong>${formatPrice(data.finalPrice)}</strong></p>
+          <p style="font-size: 14px; color: #555; line-height: 1.6; margin: 0 0 12px;">That auction was cancelled and <strong>you were not charged</strong>. This is a friendly heads-up, not a strike.</p>
+          <p style="font-size: 14px; color: #555; line-height: 1.6; margin: 0 0 24px;">If this happens again within 90 days, we may temporarily restrict new bids on your account so other collectors don't miss out on listings you can't complete.</p>
+          <div style="text-align: center; margin: 24px 0;">
+            <a href="${data.shopUrl}" style="display: inline-block; background: #0066FF; color: #ffffff; font-weight: 900; padding: 14px 36px; border: 3px solid #000; border-radius: 8px; text-decoration: none; text-transform: uppercase; letter-spacing: 1px; box-shadow: 4px 4px 0 #000;">BROWSE SHOP →</a>
+          </div>
+        </div>
+        ${emailFooter()}
+      </div>
+    `,
+    text: `Payment deadline missed.\n\nYou missed the 48-hour payment window for ${data.comicTitle} #${data.issueNumber} (${formatPrice(data.finalPrice)}). That auction was cancelled — you were not charged. This is a friendly warning.\n\nIf this happens again within 90 days, new bids on your account may be temporarily restricted.\n\nBrowse the shop: ${data.shopUrl}\n\nScan comics. Track value. Collect smarter.\nTwisted Jester LLC · collectors-chest.com`,
+  };
+}
+
+function paymentMissedFlaggedTemplate(
+  data: PaymentMissedFlaggedEmailData
+): EmailTemplate {
+  return {
+    subject: "Your bidding privileges are temporarily restricted",
+    html: `
+      <div style="max-width: 600px; margin: 0 auto; font-family: 'Segoe UI', Arial, sans-serif; background: #ffffff;">
+        ${emailHeader(EMAIL_SOUND_EFFECTS.payment_missed_flagged)}
+        <div style="padding: 32px 24px;">
+          <h2 style="font-size: 22px; font-weight: 900; color: #000; margin: 0 0 16px;">Bidding Restricted</h2>
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;">Hi ${data.recipientName || "there"} — we've temporarily restricted new bids on your account.</p>
+          <p style="font-size: 14px; color: #555; line-height: 1.6; margin: 0 0 12px;">Our system flagged ${data.strikeCount} missed payment deadline(s) within the last ${data.windowDays} days. Reason on file: <em>${data.reason}</em>.</p>
+          <p style="font-size: 14px; color: #555; line-height: 1.6; margin: 0 0 12px;">You can still browse, buy-it-now, and sell — only bidding on new auctions is paused while an admin reviews your account.</p>
+          <p style="font-size: 14px; color: #555; line-height: 1.6; margin: 0 0 24px;">If you think this is a mistake or you'd like to appeal, reach out to support and we'll take another look.</p>
+          <div style="text-align: center; margin: 24px 0;">
+            <a href="${data.supportUrl}" style="display: inline-block; background: #0066FF; color: #ffffff; font-weight: 900; padding: 14px 36px; border: 3px solid #000; border-radius: 8px; text-decoration: none; text-transform: uppercase; letter-spacing: 1px; box-shadow: 4px 4px 0 #000;">CONTACT SUPPORT →</a>
+          </div>
+        </div>
+        ${emailFooter()}
+      </div>
+    `,
+    text: `Bidding restricted.\n\nWe've temporarily restricted new bids on your account. Our system flagged ${data.strikeCount} missed payment deadline(s) within the last ${data.windowDays} days. Reason: ${data.reason}.\n\nYou can still browse, buy-it-now, and sell. If you'd like to appeal, contact support.\n\nSupport: ${data.supportUrl}\n\nScan comics. Track value. Collect smarter.\nTwisted Jester LLC · collectors-chest.com`,
+  };
+}

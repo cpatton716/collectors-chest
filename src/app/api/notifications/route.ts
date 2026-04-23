@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@clerk/nextjs/server";
+import { z } from "zod";
 
 import { isUserSuspended } from "@/lib/adminAuth";
 import {
@@ -10,6 +11,22 @@ import {
   markNotificationRead,
 } from "@/lib/auctionDb";
 import { getProfileByClerkId } from "@/lib/db";
+import { schemas, validateBody, validateQuery } from "@/lib/validation";
+
+const querySchema = z.object({
+  unreadOnly: z.enum(["true", "false"]).optional(),
+  countOnly: z.enum(["true", "false"]).optional(),
+});
+
+const patchSchema = z
+  .object({
+    notificationId: schemas.uuid.optional(),
+    markAll: z.boolean().optional(),
+  })
+  .refine((v) => v.markAll === true || !!v.notificationId, {
+    message: "notificationId or markAll is required",
+    path: ["notificationId"],
+  });
 
 // GET - Get user's notifications
 export async function GET(request: NextRequest) {
@@ -24,9 +41,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
-    const searchParams = request.nextUrl.searchParams;
-    const unreadOnly = searchParams.get("unreadOnly") === "true";
-    const countOnly = searchParams.get("countOnly") === "true";
+    const queryResult = validateQuery(querySchema, request.nextUrl.searchParams);
+    if (!queryResult.success) return queryResult.response;
+    const unreadOnly = queryResult.data.unreadOnly === "true";
+    const countOnly = queryResult.data.countOnly === "true";
 
     if (countOnly) {
       const count = await getUnreadNotificationCount(profile.id);
@@ -65,15 +83,15 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
-    const body = await request.json();
-    const { notificationId, markAll } = body;
+    const body = await request.json().catch(() => null);
+    const bodyResult = validateBody(patchSchema, body);
+    if (!bodyResult.success) return bodyResult.response;
+    const { notificationId, markAll } = bodyResult.data;
 
     if (markAll) {
       await markAllNotificationsRead(profile.id);
     } else if (notificationId) {
       await markNotificationRead(notificationId);
-    } else {
-      return NextResponse.json({ error: "notificationId or markAll is required" }, { status: 400 });
     }
 
     return NextResponse.json({ success: true });

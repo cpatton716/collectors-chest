@@ -1,11 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@clerk/nextjs/server";
+import { z } from "zod";
 
 import { respondToCounterOffer, respondToOffer } from "@/lib/auctionDb";
 import { getProfileByClerkId } from "@/lib/db";
+import { schemas, validateBody, validateParams } from "@/lib/validation";
 
 import { MIN_FIXED_PRICE } from "@/types/auction";
+
+const paramsSchema = z.object({ id: schemas.uuid });
+
+const sellerRespondBodySchema = z
+  .object({
+    action: z.enum(["accept", "reject", "counter"]),
+    counterAmount: z.number().positive().max(1_000_000).optional(),
+  })
+  .strict();
+
+const buyerRespondBodySchema = z
+  .object({
+    action: z.enum(["accept", "reject"]),
+  })
+  .strict();
 
 // PATCH - Seller responds to an offer (accept, reject, or counter)
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -20,17 +37,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
-    const { id: offerId } = await params;
-    const body = await request.json();
-    const { action, counterAmount } = body;
+    const validatedParams = validateParams(paramsSchema, await params);
+    if (!validatedParams.success) return validatedParams.response;
+    const { id: offerId } = validatedParams.data;
 
-    // Validate action
-    if (!["accept", "reject", "counter"].includes(action)) {
-      return NextResponse.json(
-        { error: "Invalid action. Must be accept, reject, or counter" },
-        { status: 400 }
-      );
-    }
+    const rawBody = await request.json().catch(() => null);
+    const validatedBody = validateBody(sellerRespondBodySchema, rawBody);
+    if (!validatedBody.success) return validatedBody.response;
+    const { action, counterAmount } = validatedBody.data;
 
     // Validate counter amount if countering
     if (action === "counter") {
@@ -73,17 +87,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
-    const { id: offerId } = await params;
-    const body = await request.json();
-    const { action } = body;
+    const validatedParams = validateParams(paramsSchema, await params);
+    if (!validatedParams.success) return validatedParams.response;
+    const { id: offerId } = validatedParams.data;
 
-    // Validate action - buyer can only accept or reject counter-offers
-    if (!["accept", "reject"].includes(action)) {
-      return NextResponse.json(
-        { error: "Invalid action. Must be accept or reject" },
-        { status: 400 }
-      );
-    }
+    const rawBody = await request.json().catch(() => null);
+    const validatedBody = validateBody(buyerRespondBodySchema, rawBody);
+    if (!validatedBody.success) return validatedBody.response;
+    const { action } = validatedBody.data;
 
     const result = await respondToCounterOffer(profile.id, offerId, action);
 

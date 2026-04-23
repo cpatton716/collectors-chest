@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 
 import {
   getAdminProfile,
@@ -7,6 +8,14 @@ import {
   setUserSuspension,
 } from "@/lib/adminAuth";
 import { invalidateProfileCache } from "@/lib/db";
+import { schemas, validateBody, validateParams } from "@/lib/validation";
+
+const paramsSchema = z.object({ id: schemas.uuid });
+
+const suspendSchema = z.object({
+  suspend: z.boolean().optional(),
+  reason: z.string().max(500).optional(),
+});
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -16,21 +25,20 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const { id } = await params;
+    const rawParams = await params;
+    const paramsResult = validateParams(paramsSchema, rawParams);
+    if (!paramsResult.success) return paramsResult.response;
+    const { id } = paramsResult.data;
 
-    // Parse request body
+    // Parse optional body. Missing body defaults to {suspend: true}.
     let suspend = true;
     let reason: string | undefined;
-    try {
-      const body = await request.json();
-      if (typeof body.suspend === "boolean") {
-        suspend = body.suspend;
-      }
-      if (body.reason && typeof body.reason === "string") {
-        reason = body.reason.slice(0, 500); // Limit reason length
-      }
-    } catch {
-      // No body or invalid JSON, default to suspend
+    const rawBody = await request.json().catch(() => null);
+    if (rawBody !== null) {
+      const validated = validateBody(suspendSchema, rawBody);
+      if (!validated.success) return validated.response;
+      if (validated.data.suspend !== undefined) suspend = validated.data.suspend;
+      reason = validated.data.reason;
     }
 
     // Verify user exists

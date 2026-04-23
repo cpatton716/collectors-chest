@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 
 import { getAdminProfile, logAdminAction } from "@/lib/adminAuth";
 import { supabaseAdmin } from "@/lib/supabase";
+import { validateQuery } from "@/lib/validation";
+
+const listQuerySchema = z.object({
+  status: z.enum(["pending", "reviewed", "actioned", "dismissed"]).optional(),
+  page: z.coerce.number().int().positive().optional().default(1),
+  limit: z.coerce.number().int().positive().max(100).optional().default(20),
+});
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,9 +19,9 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const status = searchParams.get("status");
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "20");
+    const queryResult = validateQuery(listQuerySchema, searchParams);
+    if (!queryResult.success) return queryResult.response;
+    const { status, page, limit } = queryResult.data;
     const offset = (page - 1) * limit;
 
     let query = supabaseAdmin

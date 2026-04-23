@@ -1,10 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@clerk/nextjs/server";
+import { z } from "zod";
 
 import { supabase } from "@/lib/supabase";
+import { validateBody } from "@/lib/validation";
 
 export type LocationPrivacy = "full" | "state_country" | "country_only" | "hidden";
+
+const locationSchema = z.object({
+  city: z.string().max(100).nullable().optional(),
+  state: z.string().max(100).nullable().optional(),
+  country: z.string().max(100).nullable().optional(),
+  privacy: z.enum(["full", "state_country", "country_only", "hidden"]).optional(),
+});
 
 export interface UserLocation {
   city: string | null;
@@ -52,14 +61,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await request.json();
-    const { city, state, country, privacy } = body as UserLocation;
-
-    // Validate privacy setting
-    const validPrivacy: LocationPrivacy[] = ["full", "state_country", "country_only", "hidden"];
-    if (privacy && !validPrivacy.includes(privacy)) {
-      return NextResponse.json({ error: "Invalid privacy setting" }, { status: 400 });
-    }
+    const body = await request.json().catch(() => null);
+    const validated = validateBody(locationSchema, body);
+    if (!validated.success) return validated.response;
+    const { city, state, country, privacy } = validated.data;
 
     // Sanitize inputs (trim whitespace, convert empty to null)
     const sanitize = (val: string | null | undefined): string | null => {

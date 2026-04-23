@@ -1,10 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 
 import { getAdminProfile } from "@/lib/adminAuth";
 import { createNotification } from "@/lib/auctionDb";
 import { submitKeyInfo } from "@/lib/keyComicsDb";
 import { recordContribution } from "@/lib/creatorCreditsDb";
 import { supabase } from "@/lib/supabase";
+import { schemas, validateBody, validateParams } from "@/lib/validation";
+
+const paramsSchema = z.object({ id: schemas.uuid });
+
+// Accept either legacy single-action format or per-item decisions map.
+const customKeyInfoBodySchema = z
+  .object({
+    action: z.enum(["approve", "reject"]).optional(),
+    reason: z.string().max(500).optional(),
+    decisions: z.record(z.string(), z.enum(["approve", "reject"])).optional(),
+  })
+  .refine((v) => !!v.action || !!v.decisions, {
+    message: "action or decisions is required",
+  });
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -19,11 +34,17 @@ export async function POST(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const { id: comicId } = await context.params;
-    const body = await request.json();
+    const rawParams = await context.params;
+    const paramsResult = validateParams(paramsSchema, rawParams);
+    if (!paramsResult.success) return paramsResult.response;
+    const { id: comicId } = paramsResult.data;
+
+    const body = await request.json().catch(() => null);
+    const bodyResult = validateBody(customKeyInfoBodySchema, body);
+    if (!bodyResult.success) return bodyResult.response;
 
     // Support both legacy (action: "approve"/"reject") and new per-item format (decisions: { fact: "approve"|"reject" })
-    const { action, reason, decisions } = body;
+    const { action, reason, decisions } = bodyResult.data;
 
     // Get the comic
     const { data: comic, error: fetchError } = await supabase
@@ -99,7 +120,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     // Legacy: single action for all items
-    if (!action || !["approve", "reject"].includes(action)) {
+    if (!action) {
       return NextResponse.json({ error: "Invalid action" }, { status: 400 });
     }
 

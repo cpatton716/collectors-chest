@@ -1,8 +1,19 @@
 import { NextResponse } from "next/server";
 
 import { auth } from "@clerk/nextjs/server";
+import { z } from "zod";
 
 import { supabaseAdmin } from "@/lib/supabase";
+import { validateBody } from "@/lib/validation";
+
+const patchSchema = z
+  .object({
+    showFinancials: z.boolean().optional(),
+  })
+  .strict()
+  .refine((v) => v.showFinancials !== undefined, {
+    message: "No valid fields to update",
+  });
 
 export async function GET() {
   try {
@@ -38,15 +49,13 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await request.json();
+    const body = await request.json().catch(() => null);
+    const validated = validateBody(patchSchema, body);
+    if (!validated.success) return validated.response;
+
     const updates: Record<string, boolean> = {};
-
-    if (typeof body.showFinancials === "boolean") {
-      updates.show_financials = body.showFinancials;
-    }
-
-    if (Object.keys(updates).length === 0) {
-      return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
+    if (validated.data.showFinancials !== undefined) {
+      updates.show_financials = validated.data.showFinancials;
     }
 
     const { error } = await supabaseAdmin.from("profiles").update(updates).eq("clerk_user_id", clerkId);

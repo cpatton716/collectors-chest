@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@clerk/nextjs/server";
+import { z } from "zod";
 
 import { getProfileByClerkId } from "@/lib/db";
 import { markMessagesAsRead } from "@/lib/messagingDb";
 import { supabaseAdmin } from "@/lib/supabase";
+import { schemas, validateParams } from "@/lib/validation";
+
+const paramsSchema = z.object({ conversationId: schemas.uuid });
 
 // POST - Mark all messages in a conversation as read for the current user
 export async function POST(
@@ -22,7 +26,10 @@ export async function POST(
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
-    const { conversationId } = await params;
+    const rawParams = await params;
+    const paramsResult = validateParams(paramsSchema, rawParams);
+    if (!paramsResult.success) return paramsResult.response;
+    const { conversationId } = paramsResult.data;
 
     // Verify user is a participant
     const { data: conv } = await supabaseAdmin

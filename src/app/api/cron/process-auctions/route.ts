@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   expireListings,
   expireOffers,
+  expireSecondChanceOffers,
   expireUnpaidAuctions,
   processEndedAuctions,
   sendPaymentReminders,
@@ -33,6 +34,9 @@ export async function POST(request: NextRequest) {
     // Expire old offers (48 hour expiration)
     const offerResult = await expireOffers();
 
+    // Expire Second Chance Offers whose 48h window has passed
+    const secondChanceExpiryResult = await expireSecondChanceOffers();
+
     // Expire old listings (30 day expiration)
     const listingResult = await expireListings();
 
@@ -53,6 +57,10 @@ export async function POST(request: NextRequest) {
       offers: {
         expired: offerResult.expired,
         errors: offerResult.errors,
+      },
+      secondChanceOffers: {
+        expired: secondChanceExpiryResult.expired,
+        errors: secondChanceExpiryResult.errors,
       },
       listings: {
         expired: listingResult.expired,
@@ -86,6 +94,9 @@ export async function GET(request: NextRequest) {
     // Expire old offers
     const offerResult = await expireOffers();
 
+    // Expire Second Chance Offers
+    const secondChanceExpiryResult = await expireSecondChanceOffers();
+
     // Expire old listings
     const listingResult = await expireListings();
 
@@ -106,6 +117,10 @@ export async function GET(request: NextRequest) {
       offers: {
         expired: offerResult.expired,
         errors: offerResult.errors,
+      },
+      secondChanceOffers: {
+        expired: secondChanceExpiryResult.expired,
+        errors: secondChanceExpiryResult.errors,
       },
       listings: {
         expired: listingResult.expired,

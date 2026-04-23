@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@clerk/nextjs/server";
+import { z } from "zod";
 
 import { getProfileByClerkId } from "@/lib/db";
 import { supabaseAdmin } from "@/lib/supabase";
+import { schemas, validateBody, validateParams } from "@/lib/validation";
 
-import { ReportReason } from "@/types/messaging";
-
-const VALID_REASONS: ReportReason[] = ["spam", "scam", "harassment", "inappropriate", "other"];
+const paramsSchema = z.object({ messageId: schemas.uuid });
+const reportSchema = z.object({
+  reason: z.enum(["spam", "scam", "harassment", "inappropriate", "other"]),
+  details: z.string().max(2000).optional(),
+});
 
 export async function POST(
   request: NextRequest,
@@ -24,14 +28,15 @@ export async function POST(
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
-    const { messageId } = await params;
-    const body = await request.json();
-    const { reason, details } = body;
+    const rawParams = await params;
+    const paramsResult = validateParams(paramsSchema, rawParams);
+    if (!paramsResult.success) return paramsResult.response;
+    const { messageId } = paramsResult.data;
 
-    // Validate reason
-    if (!reason || !VALID_REASONS.includes(reason)) {
-      return NextResponse.json({ error: "Invalid report reason" }, { status: 400 });
-    }
+    const body = await request.json().catch(() => null);
+    const bodyResult = validateBody(reportSchema, body);
+    if (!bodyResult.success) return bodyResult.response;
+    const { reason, details } = bodyResult.data;
 
     // Verify the message exists
     const { data: message, error: msgError } = await supabaseAdmin

@@ -1,10 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@clerk/nextjs/server";
+import { z } from "zod";
 
 import { isUserSuspended } from "@/lib/adminAuth";
 import { getProfileByClerkId } from "@/lib/db";
 import { broadcastNewMessage, getUnreadMessageCount, getUserConversations, sendMessage } from "@/lib/messagingDb";
+import { schemas, validateBody } from "@/lib/validation";
+
+const sendMessageSchema = z
+  .object({
+    recipientId: schemas.uuid,
+    content: z.string().max(2000).optional(),
+    listingId: schemas.uuid.optional(),
+    imageUrls: z.array(z.string().url()).max(10).optional(),
+    embeddedListingId: schemas.uuid.optional(),
+  })
+  .refine(
+    (v) => (v.content && v.content.trim().length > 0) || (v.imageUrls && v.imageUrls.length > 0),
+    { message: "Message content or image is required", path: ["content"] }
+  );
 
 // GET - List user's conversations
 export async function GET() {
@@ -69,21 +84,15 @@ export async function POST(request: NextRequest) {
     }
 
     debugStep = "parse-body";
-    const body = await request.json();
-    const { recipientId, content, listingId, imageUrls, embeddedListingId } = body;
-
-    if (!recipientId) {
-      return NextResponse.json({ error: "Recipient ID is required" }, { status: 400 });
-    }
-
-    if ((!content || content.trim().length === 0) && (!imageUrls || imageUrls.length === 0)) {
-      return NextResponse.json({ error: "Message content or image is required" }, { status: 400 });
-    }
+    const body = await request.json().catch(() => null);
+    const validated = validateBody(sendMessageSchema, body);
+    if (!validated.success) return validated.response;
+    const { recipientId, content, listingId, imageUrls, embeddedListingId } = validated.data;
 
     debugStep = "send-message";
     const message = await sendMessage(profile.id, {
       recipientId,
-      content,
+      content: content ?? "",
       listingId,
       imageUrls,
       embeddedListingId,

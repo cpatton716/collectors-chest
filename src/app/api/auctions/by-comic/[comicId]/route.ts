@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { z } from "zod";
+
 import { supabase } from "@/lib/supabase";
+import { schemas, validateParams } from "@/lib/validation";
+
+const paramsSchema = z.object({ comicId: schemas.uuid });
 
 // GET - Check if a comic has an active listing (auction or fixed_price)
 export async function GET(
@@ -8,7 +13,9 @@ export async function GET(
   { params }: { params: Promise<{ comicId: string }> }
 ) {
   try {
-    const { comicId } = await params;
+    const validatedParams = validateParams(paramsSchema, await params);
+    if (!validatedParams.success) return validatedParams.response;
+    const { comicId } = validatedParams.data;
 
     // Check for any active listing (both auctions and fixed-price)
     const { data, error } = await supabase

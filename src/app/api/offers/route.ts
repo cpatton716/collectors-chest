@@ -1,11 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@clerk/nextjs/server";
+import { z } from "zod";
 
 import { createOffer, getBuyerOffers } from "@/lib/auctionDb";
 import { getProfileByClerkId } from "@/lib/db";
+import { schemas, validateBody } from "@/lib/validation";
 
 import { MIN_FIXED_PRICE } from "@/types/auction";
+
+const createOfferBodySchema = z
+  .object({
+    listingId: schemas.uuid,
+    amount: z.number().positive().max(1_000_000),
+  })
+  .strict();
 
 // GET - Get buyer's offers
 export async function GET() {
@@ -50,15 +59,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
-    const { listingId, amount } = body;
+    const rawBody = await request.json().catch(() => null);
+    const validatedBody = validateBody(createOfferBodySchema, rawBody);
+    if (!validatedBody.success) return validatedBody.response;
+    const { listingId, amount } = validatedBody.data;
 
-    // Validation
-    if (!listingId) {
-      return NextResponse.json({ error: "Listing ID is required" }, { status: 400 });
-    }
-
-    if (typeof amount !== "number" || amount < MIN_FIXED_PRICE) {
+    if (amount < MIN_FIXED_PRICE) {
       return NextResponse.json(
         { error: `Offer must be at least $${MIN_FIXED_PRICE}` },
         { status: 400 }

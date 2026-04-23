@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 
 import { createNotification } from "@/lib/auctionDb";
+import { logAuctionAuditEvent } from "@/lib/auditLog";
 import { createFeedbackReminders } from "@/lib/creatorCreditsDb";
 import { getProfileForEmail, sendNotificationEmail } from "@/lib/email";
 import { cacheGet, cacheSet } from "@/lib/cache";
@@ -237,6 +238,23 @@ async function handleMarketplacePayment(
     console.error("[handleMarketplacePayment] Error updating listing:", updateError);
     return;
   }
+
+  // Audit trail — fire-and-forget so a failure here never causes Stripe to
+  // retry the webhook. No PII: only IDs + amounts + session ID.
+  void logAuctionAuditEvent({
+    auctionId,
+    actorProfileId: buyerId,
+    eventType: "payment_succeeded",
+    eventData: {
+      amount:
+        (listingData.winning_bid as number | null) ||
+        (listingData.starting_price as number | null) ||
+        0,
+      sessionId: session.id,
+      transactionType: isBuyNow ? "buy_now" : "auction",
+      sellerId,
+    },
+  });
 
   // NOTE: Comic ownership transfer deliberately deferred to the seller's
   // "Mark as Shipped" action (see /api/auctions/[id]/mark-shipped). The buyer

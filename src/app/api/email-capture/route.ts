@@ -1,10 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { Resend } from "resend";
+import { z } from "zod";
 
 import { generateVerificationToken, validateEmail } from "@/lib/emailValidation";
 import { checkRateLimit, getRateLimitIdentifier, rateLimiters } from "@/lib/rateLimit";
 import { supabaseAdmin } from "@/lib/supabase";
+import { validateBody } from "@/lib/validation";
+
+// Honeypot field is validated as optional string — if present it triggers the
+// silent-success bot trap, so we don't reject here.
+const emailCaptureSchema = z.object({
+  email: z.string().min(1, "Email is required").max(320, "Email is too long"),
+  honeypot: z.string().optional(),
+});
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -31,8 +40,10 @@ export async function POST(request: NextRequest) {
     );
     if (!rateLimitSuccess) return rateLimitResponse;
 
-    const body = await request.json();
-    const { email, honeypot } = body;
+    const body = await request.json().catch(() => null);
+    const validated = validateBody(emailCaptureSchema, body);
+    if (!validated.success) return validated.response;
+    const { email, honeypot } = validated.data;
 
     // Honeypot check - bots will fill this hidden field
     if (honeypot) {
@@ -41,10 +52,6 @@ export async function POST(request: NextRequest) {
         success: true,
         message: "Verification email sent! Check your inbox.",
       });
-    }
-
-    if (!email || typeof email !== "string") {
-      return NextResponse.json({ error: "Email is required" }, { status: 400 });
     }
 
     // Comprehensive email validation (format, disposable, MX)

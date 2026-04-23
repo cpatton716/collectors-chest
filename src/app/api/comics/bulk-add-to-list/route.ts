@@ -2,9 +2,16 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@clerk/nextjs/server";
+import { z } from "zod";
 
 import { getOrCreateProfile } from "@/lib/db";
 import { supabase } from "@/lib/supabase";
+import { schemas, validateBody } from "@/lib/validation";
+
+const bulkAddToListSchema = z.object({
+  comicIds: z.array(schemas.uuid).min(1, "At least one comic ID is required").max(500),
+  listId: schemas.uuid,
+});
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,15 +20,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { comicIds, listId } = await request.json();
-
-    if (!Array.isArray(comicIds) || comicIds.length === 0) {
-      return NextResponse.json({ error: "Invalid comic IDs" }, { status: 400 });
-    }
-
-    if (!listId) {
-      return NextResponse.json({ error: "List ID required" }, { status: 400 });
-    }
+    const rawBody = await request.json().catch(() => null);
+    const validated = validateBody(bulkAddToListSchema, rawBody);
+    if (!validated.success) return validated.response;
+    const { comicIds, listId } = validated.data;
 
     // Get user's profile
     const profile = await getOrCreateProfile(userId);

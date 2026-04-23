@@ -1,11 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@clerk/nextjs/server";
+import { z } from "zod";
 
 import { isUserSuspended } from "@/lib/adminAuth";
 import { placeBid } from "@/lib/auctionDb";
 import { getProfileByClerkId } from "@/lib/db";
 import { checkRateLimit, rateLimiters } from "@/lib/rateLimit";
+import { supabaseAdmin } from "@/lib/supabase";
+import { schemas, validateBody, validateParams } from "@/lib/validation";
+
+const paramsSchema = z.object({ id: schemas.uuid });
+
+const placeBidBodySchema = z
+  .object({
+    maxBid: z.number().nonnegative().max(1_000_000),
+  })
+  .strict();
 
 // POST - Place a bid
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -48,12 +59,36 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       );
     }
 
-    const { id: auctionId } = await params;
-    const body = await request.json();
-    const { maxBid } = body;
+    // Bid restriction gate — set by the payment-miss strike system when a
+    // user has missed 2+ payment deadlines inside the rolling 90-day window.
+    const { data: bidder } = await supabaseAdmin
+      .from("profiles")
+      .select("bid_restricted_at, bid_restricted_reason")
+      .eq("id", profile.id)
+      .single();
 
-    // Validation
-    if (typeof maxBid !== "number" || maxBid < 0.99) {
+    if (bidder?.bid_restricted_at) {
+      return NextResponse.json(
+        {
+          error: "Bidding is currently restricted on your account",
+          reason:
+            bidder.bid_restricted_reason ?? "Contact support for details",
+        },
+        { status: 403 }
+      );
+    }
+
+    const validatedParams = validateParams(paramsSchema, await params);
+    if (!validatedParams.success) return validatedParams.response;
+    const { id: auctionId } = validatedParams.data;
+
+    const rawBody = await request.json().catch(() => null);
+    const validatedBody = validateBody(placeBidBodySchema, rawBody);
+    if (!validatedBody.success) return validatedBody.response;
+    const { maxBid } = validatedBody.data;
+
+    // Business-rule validation (minimum/whole-dollar)
+    if (maxBid < 0.99) {
       return NextResponse.json({ error: "Invalid bid amount" }, { status: 400 });
     }
 

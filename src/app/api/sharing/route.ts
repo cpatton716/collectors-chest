@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@clerk/nextjs/server";
+import { z } from "zod";
 
 import { isUserSuspended } from "@/lib/adminAuth";
 import {
@@ -9,6 +10,31 @@ import {
   togglePublicSharing,
   updatePublicProfileSettings,
 } from "@/lib/db";
+import { validateBody } from "@/lib/validation";
+
+// Allow the 2-char edge case that the prior logic permitted (regex only enforced when len > 2).
+const SLUG_REGEX = /^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]{1,2}$/;
+
+const toggleSchema = z.object({
+  enable: z.boolean(),
+  customSlug: z
+    .string()
+    .min(3, "URL must be between 3 and 30 characters")
+    .max(30, "URL must be between 3 and 30 characters")
+    .regex(SLUG_REGEX, "URL can only contain lowercase letters, numbers, and hyphens")
+    .optional(),
+});
+
+const updateSchema = z.object({
+  publicDisplayName: z.string().max(50, "Display name must be 50 characters or less").optional(),
+  publicBio: z.string().max(200, "Bio must be 200 characters or less").optional(),
+  publicSlug: z
+    .string()
+    .min(3, "URL must be between 3 and 30 characters")
+    .max(30, "URL must be between 3 and 30 characters")
+    .regex(SLUG_REGEX, "URL can only contain lowercase letters, numbers, and hyphens")
+    .optional(),
+});
 
 // GET - Get current sharing settings
 export async function GET() {
@@ -63,29 +89,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
-    const body = await request.json();
-    const { enable, customSlug } = body;
-
-    if (typeof enable !== "boolean") {
-      return NextResponse.json({ error: "enable must be a boolean" }, { status: 400 });
-    }
-
-    // Validate custom slug if provided
-    if (customSlug) {
-      const slugRegex = /^[a-z0-9][a-z0-9-]*[a-z0-9]$/;
-      if (customSlug.length < 3 || customSlug.length > 30) {
-        return NextResponse.json(
-          { error: "URL must be between 3 and 30 characters" },
-          { status: 400 }
-        );
-      }
-      if (!slugRegex.test(customSlug) && customSlug.length > 2) {
-        return NextResponse.json(
-          { error: "URL can only contain lowercase letters, numbers, and hyphens" },
-          { status: 400 }
-        );
-      }
-    }
+    const body = await request.json().catch(() => null);
+    const validated = validateBody(toggleSchema, body);
+    if (!validated.success) return validated.response;
+    const { enable, customSlug } = validated.data;
 
     const result = await togglePublicSharing(profile.id, enable, customSlug);
 
@@ -125,40 +132,10 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
-    const body = await request.json();
-    const { publicDisplayName, publicBio, publicSlug } = body;
-
-    // Validate slug if provided
-    if (publicSlug !== undefined) {
-      if (publicSlug) {
-        const slugRegex = /^[a-z0-9][a-z0-9-]*[a-z0-9]$/;
-        if (publicSlug.length < 3 || publicSlug.length > 30) {
-          return NextResponse.json(
-            { error: "URL must be between 3 and 30 characters" },
-            { status: 400 }
-          );
-        }
-        if (!slugRegex.test(publicSlug) && publicSlug.length > 2) {
-          return NextResponse.json(
-            { error: "URL can only contain lowercase letters, numbers, and hyphens" },
-            { status: 400 }
-          );
-        }
-      }
-    }
-
-    // Validate display name length
-    if (publicDisplayName && publicDisplayName.length > 50) {
-      return NextResponse.json(
-        { error: "Display name must be 50 characters or less" },
-        { status: 400 }
-      );
-    }
-
-    // Validate bio length
-    if (publicBio && publicBio.length > 200) {
-      return NextResponse.json({ error: "Bio must be 200 characters or less" }, { status: 400 });
-    }
+    const body = await request.json().catch(() => null);
+    const validated = validateBody(updateSchema, body);
+    if (!validated.success) return validated.response;
+    const { publicDisplayName, publicBio, publicSlug } = validated.data;
 
     const result = await updatePublicProfileSettings(profile.id, {
       publicDisplayName,

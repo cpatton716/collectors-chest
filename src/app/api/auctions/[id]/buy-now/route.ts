@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@clerk/nextjs/server";
+import { z } from "zod";
 
 import { isUserSuspended } from "@/lib/adminAuth";
 import { executeBuyItNow } from "@/lib/auctionDb";
 import { getProfileByClerkId } from "@/lib/db";
+import { schemas, validateParams } from "@/lib/validation";
+
+const paramsSchema = z.object({ id: schemas.uuid });
 
 // POST - Execute Buy It Now
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -32,7 +36,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
-    const { id: auctionId } = await params;
+    const validatedParams = validateParams(paramsSchema, await params);
+    if (!validatedParams.success) return validatedParams.response;
+    const { id: auctionId } = validatedParams.data;
 
     const result = await executeBuyItNow(auctionId, profile.id);
 

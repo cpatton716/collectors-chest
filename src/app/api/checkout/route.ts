@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@clerk/nextjs/server";
+import { z } from "zod";
 
 import Stripe from "stripe";
 
@@ -8,6 +9,18 @@ import { getAuction } from "@/lib/auctionDb";
 import { getProfileByClerkId } from "@/lib/db";
 import { supabaseAdmin } from "@/lib/supabase";
 import { calculateDestinationAmount } from "@/lib/stripeConnect";
+import { schemas, validateBody } from "@/lib/validation";
+
+// Either auctionId OR listingId (both accepted; listingId takes precedence for Buy Now).
+const checkoutBodySchema = z
+  .object({
+    auctionId: schemas.uuid.optional(),
+    listingId: schemas.uuid.optional(),
+  })
+  .strict()
+  .refine((data) => data.auctionId || data.listingId, {
+    message: "auctionId or listingId is required",
+  });
 
 // Initialize Stripe (conditionally - only if key exists)
 const stripe = process.env.STRIPE_SECRET_KEY
@@ -47,19 +60,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
-    const { auctionId, listingId } = body;
+    const rawBody = await request.json().catch(() => null);
+    const validatedBody = validateBody(checkoutBodySchema, rawBody);
+    if (!validatedBody.success) return validatedBody.response;
+    const { auctionId, listingId } = validatedBody.data;
 
     // listingId (Buy Now) takes precedence. auctionId is the legacy auction-winner path.
-    const targetId: string | undefined = listingId || auctionId;
+    const targetId: string = (listingId || auctionId) as string;
     const isBuyNow = !!listingId;
-
-    if (!targetId) {
-      return NextResponse.json(
-        { error: "auctionId or listingId is required" },
-        { status: 400 }
-      );
-    }
 
     const listing = await getAuction(targetId);
     if (!listing) {

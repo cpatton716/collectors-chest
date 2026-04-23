@@ -1,9 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@clerk/nextjs/server";
+import { z } from "zod";
 
 import { getProfileByClerkId } from "@/lib/db";
 import { getUserMatches, triggerMatchFinding } from "@/lib/tradingDb";
+import { schemas, validateBody, validateQuery } from "@/lib/validation";
+
+const matchesQuerySchema = z.object({
+  refresh: z.enum(["true", "false"]).optional(),
+});
+
+const triggerMatchBodySchema = z
+  .object({
+    comicId: schemas.uuid.optional(),
+  })
+  .strict();
 
 // GET - Get user's trade matches (grouped by their comic)
 export async function GET(request: NextRequest) {
@@ -20,7 +32,9 @@ export async function GET(request: NextRequest) {
 
     // Optionally trigger match finding first
     const { searchParams } = new URL(request.url);
-    if (searchParams.get("refresh") === "true") {
+    const validatedQuery = validateQuery(matchesQuerySchema, searchParams);
+    if (!validatedQuery.success) return validatedQuery.response;
+    if (validatedQuery.data.refresh === "true") {
       await triggerMatchFinding(profile.id);
     }
 
@@ -49,8 +63,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
-    const body = await request.json().catch(() => ({}));
-    const comicId = body.comicId;
+    const rawBody = await request.json().catch(() => ({}));
+    const validatedBody = validateBody(triggerMatchBodySchema, rawBody);
+    if (!validatedBody.success) return validatedBody.response;
+    const { comicId } = validatedBody.data;
 
     const matchesFound = await triggerMatchFinding(profile.id, comicId);
 

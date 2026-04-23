@@ -1,13 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@clerk/nextjs/server";
+import { z } from "zod";
 
 import { getProfileByClerkId } from "@/lib/db";
 import { updateFeedback } from "@/lib/creatorCreditsDb";
+import { schemas, validateBody, validateParams } from "@/lib/validation";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
 }
+
+const paramsSchema = z.object({ id: schemas.uuid });
+
+const updateFeedbackBodySchema = z
+  .object({
+    ratingType: z.enum(["positive", "negative"]).optional(),
+    comment: z.string().max(2000).optional(),
+  })
+  .strict();
 
 // PATCH - Update feedback (within 7-day edit window)
 export async function PATCH(request: NextRequest, context: RouteContext) {
@@ -22,12 +33,18 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
-    const { id: feedbackId } = await context.params;
-    const body = await request.json();
+    const validatedParams = validateParams(paramsSchema, await context.params);
+    if (!validatedParams.success) return validatedParams.response;
+    const { id: feedbackId } = validatedParams.data;
+
+    const rawBody = await request.json().catch(() => null);
+    const validatedBody = validateBody(updateFeedbackBodySchema, rawBody);
+    if (!validatedBody.success) return validatedBody.response;
+    const { ratingType, comment } = validatedBody.data;
 
     const result = await updateFeedback(profile.id, feedbackId, {
-      ratingType: body.ratingType,
-      comment: body.comment,
+      ratingType,
+      comment,
     });
 
     if (result.error) {

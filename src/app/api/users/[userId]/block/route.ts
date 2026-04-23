@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@clerk/nextjs/server";
+import { z } from "zod";
 
 import { getProfileByClerkId } from "@/lib/db";
 import { supabaseAdmin } from "@/lib/supabase";
+import { schemas, validateParams } from "@/lib/validation";
+
+const paramsSchema = z.object({ userId: schemas.uuid });
 
 export async function POST(
   request: NextRequest,
@@ -20,7 +24,10 @@ export async function POST(
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
-    const { userId: blockedId } = await params;
+    const rawParams = await params;
+    const paramsResult = validateParams(paramsSchema, rawParams);
+    if (!paramsResult.success) return paramsResult.response;
+    const { userId: blockedId } = paramsResult.data;
 
     if (profile.id === blockedId) {
       return NextResponse.json({ error: "Cannot block yourself" }, { status: 400 });
@@ -58,7 +65,10 @@ export async function DELETE(
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
-    const { userId: blockedId } = await params;
+    const rawParams = await params;
+    const paramsResult = validateParams(paramsSchema, rawParams);
+    if (!paramsResult.success) return paramsResult.response;
+    const { userId: blockedId } = paramsResult.data;
 
     await supabaseAdmin
       .from("user_blocks")

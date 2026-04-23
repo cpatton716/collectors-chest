@@ -13,6 +13,9 @@ import { AlertCircle, CheckCircle, Clock, Gavel, Loader2, ShoppingBag, Trophy, W
 import type { BidRow, OfferRow, TransactionRow } from "@/app/api/transactions/route";
 
 import PaymentDeadlineCountdown from "@/components/PaymentDeadlineCountdown";
+import SecondChanceInboxCard, {
+  type SecondChanceInboxItem,
+} from "@/components/auction/SecondChanceInboxCard";
 import { formatPrice } from "@/types/auction";
 
 type TabKey = "purchases" | "wins" | "bids" | "offers";
@@ -40,6 +43,9 @@ function TransactionsPageContent() {
   const [items, setItems] = useState<TransactionRow[] | BidRow[] | OfferRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [secondChanceOffers, setSecondChanceOffers] = useState<
+    SecondChanceInboxItem[]
+  >([]);
 
   // Auth redirect
   useEffect(() => {
@@ -54,6 +60,25 @@ function TransactionsPageContent() {
       setActiveTab(tabFromUrl);
     }
   }, [tabFromUrl, activeTab]);
+
+  // Load pending second-chance offers (runner-up) once per mount — they
+  // live above the Wins tab regardless of which tab is active on load.
+  useEffect(() => {
+    if (!isSignedIn) return;
+    let cancelled = false;
+    fetch("/api/second-chance-offers")
+      .then(async (res) => {
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setSecondChanceOffers(data.offers || []);
+      })
+      .catch(() => {
+        /* non-fatal */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isSignedIn]);
 
   // Fetch when tab changes
   useEffect(() => {
@@ -127,6 +152,27 @@ function TransactionsPageContent() {
           );
         })}
       </div>
+
+      {/* Second Chance Offer inbox — visible on the Wins tab whenever the
+          user has pending offers as the runner-up. */}
+      {activeTab === "wins" && secondChanceOffers.length > 0 && (
+        <div className="mb-6 space-y-3">
+          <p className="text-sm font-bold text-pop-black uppercase tracking-wide">
+            Second Chance Offers
+          </p>
+          {secondChanceOffers.map((offer) => (
+            <SecondChanceInboxCard
+              key={offer.id}
+              offer={offer}
+              onResolved={(offerId) =>
+                setSecondChanceOffers((prev) =>
+                  prev.filter((o) => o.id !== offerId)
+                )
+              }
+            />
+          ))}
+        </div>
+      )}
 
       {/* Content */}
       {isLoading ? (

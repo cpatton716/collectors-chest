@@ -1,8 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@clerk/nextjs/server";
+import { z } from "zod";
 
 import { getUserSubmissions, submitKeyInfo } from "@/lib/keyComicsDb";
+import { validateBody } from "@/lib/validation";
+
+const keyInfoSubmitSchema = z.object({
+  title: z.string().trim().min(1, "Title is required").max(200),
+  issueNumber: z
+    .union([z.string(), z.number()])
+    .transform((v) => String(v))
+    .pipe(z.string().min(1, "Issue number is required").max(50)),
+  publisher: z.string().trim().max(100).optional().nullable(),
+  releaseYear: z
+    .union([z.string(), z.number()])
+    .transform((v) => (v === undefined || v === null ? undefined : String(v)))
+    .optional()
+    .nullable(),
+  suggestedKeyInfo: z
+    .array(z.string().trim().min(1, "Key info entry cannot be empty").max(200))
+    .min(1, "At least one key info entry is required")
+    .max(20),
+  sourceUrl: z.string().trim().url().max(2048).optional().nullable().or(z.literal("")),
+  notes: z.string().trim().max(2000).optional().nullable(),
+});
 
 // POST - Submit a new key info suggestion
 export async function POST(request: NextRequest) {
@@ -13,49 +35,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await request.json();
-    const { title, issueNumber, publisher, releaseYear, suggestedKeyInfo, sourceUrl, notes } = body;
-
-    // Validate required fields
-    if (!title || !issueNumber || !suggestedKeyInfo || !Array.isArray(suggestedKeyInfo)) {
-      return NextResponse.json(
-        { error: "Missing required fields: title, issueNumber, suggestedKeyInfo" },
-        { status: 400 }
-      );
-    }
-
-    if (suggestedKeyInfo.length === 0) {
-      return NextResponse.json(
-        { error: "At least one key info entry is required" },
-        { status: 400 }
-      );
-    }
-
-    // Validate key info entries
-    for (const info of suggestedKeyInfo) {
-      if (typeof info !== "string" || info.trim().length === 0) {
-        return NextResponse.json(
-          { error: "Key info entries must be non-empty strings" },
-          { status: 400 }
-        );
-      }
-      if (info.length > 200) {
-        return NextResponse.json(
-          { error: "Key info entries must be 200 characters or less" },
-          { status: 400 }
-        );
-      }
-    }
+    const rawBody = await request.json().catch(() => null);
+    const validated = validateBody(keyInfoSubmitSchema, rawBody);
+    if (!validated.success) return validated.response;
+    const { title, issueNumber, publisher, releaseYear, suggestedKeyInfo, sourceUrl, notes } =
+      validated.data;
 
     // Submit the suggestion
     const result = await submitKeyInfo(userId, {
       title: title.trim(),
       issueNumber: issueNumber.trim(),
-      publisher: publisher?.trim(),
-      releaseYear: releaseYear ? parseInt(releaseYear, 10) : undefined,
+      publisher: publisher?.trim() || undefined,
+      releaseYear: releaseYear ? parseInt(String(releaseYear), 10) : undefined,
       suggestedKeyInfo: suggestedKeyInfo.map((s: string) => s.trim()),
-      sourceUrl: sourceUrl?.trim(),
-      notes: notes?.trim(),
+      sourceUrl: sourceUrl?.trim() || undefined,
+      notes: notes?.trim() || undefined,
     });
 
     if (!result.success) {

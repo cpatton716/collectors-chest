@@ -1,10 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@clerk/nextjs/server";
+import { z } from "zod";
 
 import { cloneSoldComicToBuyer, createNotification } from "@/lib/auctionDb";
+import { logAuctionAuditEvent } from "@/lib/auditLog";
 import { getProfileByClerkId } from "@/lib/db";
 import { supabaseAdmin } from "@/lib/supabase";
+import { schemas, validateBody, validateParams } from "@/lib/validation";
+
+const paramsSchema = z.object({ id: schemas.uuid });
+
+const markShippedBodySchema = z
+  .object({
+    trackingNumber: z.string().max(100).optional(),
+    trackingCarrier: z.string().max(50).optional(),
+  })
+  .strict();
 
 // POST /api/auctions/[id]/mark-shipped
 // Seller marks a sold+paid listing as shipped. Accepts an optional tracking
@@ -26,16 +38,20 @@ export async function POST(
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
-    const { id: auctionId } = await params;
+    const validatedParams = validateParams(paramsSchema, await params);
+    if (!validatedParams.success) return validatedParams.response;
+    const { id: auctionId } = validatedParams.data;
 
-    const body = await request.json().catch(() => ({}));
+    const rawBody = await request.json().catch(() => ({}));
+    const validatedBody = validateBody(markShippedBodySchema, rawBody);
+    if (!validatedBody.success) return validatedBody.response;
     const trackingNumber =
-      typeof body?.trackingNumber === "string" && body.trackingNumber.trim().length > 0
-        ? body.trackingNumber.trim().slice(0, 100)
+      validatedBody.data.trackingNumber && validatedBody.data.trackingNumber.trim().length > 0
+        ? validatedBody.data.trackingNumber.trim()
         : null;
     const trackingCarrier =
-      typeof body?.trackingCarrier === "string" && body.trackingCarrier.trim().length > 0
-        ? body.trackingCarrier.trim().slice(0, 50)
+      validatedBody.data.trackingCarrier && validatedBody.data.trackingCarrier.trim().length > 0
+        ? validatedBody.data.trackingCarrier.trim()
         : null;
 
     // Fetch the auction. Must be the seller, must be sold+paid, must not already be shipped.
@@ -126,6 +142,16 @@ export async function POST(
       message: trackingNumber
         ? `Tracking: ${trackingCarrier ? trackingCarrier + " " : ""}${trackingNumber}. The comic has been added to your collection.`
         : "The seller marked your comic as shipped. The comic has been added to your collection.",
+    });
+
+    void logAuctionAuditEvent({
+      auctionId,
+      actorProfileId: profile.id,
+      eventType: "shipment_created",
+      eventData: {
+        tracking_number: trackingNumber ?? null,
+        tracking_carrier: trackingCarrier ?? null,
+      },
     });
 
     return NextResponse.json({ success: true });

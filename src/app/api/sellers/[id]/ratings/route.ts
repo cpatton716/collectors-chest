@@ -1,19 +1,35 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@clerk/nextjs/server";
+import { z } from "zod";
 
 import { getSellerProfile, getSellerRatings, submitSellerRating } from "@/lib/auctionDb";
 import { getProfileByClerkId } from "@/lib/db";
+import { schemas, validateBody, validateParams, validateQuery } from "@/lib/validation";
 
 import { RatingType } from "@/types/auction";
+
+const paramsSchema = z.object({ id: schemas.uuid });
+const ratingsQuerySchema = z.object({
+  limit: z.coerce.number().int().positive().max(100).optional().default(20),
+});
+const submitRatingSchema = z.object({
+  auctionId: schemas.uuid,
+  ratingType: z.enum(["positive", "negative"]),
+  comment: z.string().max(500).optional(),
+});
 
 // GET - Get seller ratings
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { id: sellerId } = await params;
+    const rawParams = await params;
+    const paramsResult = validateParams(paramsSchema, rawParams);
+    if (!paramsResult.success) return paramsResult.response;
+    const { id: sellerId } = paramsResult.data;
 
-    const searchParams = request.nextUrl.searchParams;
-    const limit = Number(searchParams.get("limit")) || 20;
+    const queryResult = validateQuery(ratingsQuerySchema, request.nextUrl.searchParams);
+    if (!queryResult.success) return queryResult.response;
+    const { limit } = queryResult.data;
 
     const [profile, ratings] = await Promise.all([
       getSellerProfile(sellerId),
@@ -47,28 +63,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
-    const { id: sellerId } = await params;
-    const body = await request.json();
-    const { auctionId, ratingType, comment } = body;
+    const rawParams = await params;
+    const paramsResult = validateParams(paramsSchema, rawParams);
+    if (!paramsResult.success) return paramsResult.response;
+    const { id: sellerId } = paramsResult.data;
 
-    // Validation
-    if (!auctionId) {
-      return NextResponse.json({ error: "Auction ID is required" }, { status: 400 });
-    }
-
-    if (!ratingType || !["positive", "negative"].includes(ratingType)) {
-      return NextResponse.json(
-        { error: "Rating type must be 'positive' or 'negative'" },
-        { status: 400 }
-      );
-    }
-
-    if (comment && comment.length > 500) {
-      return NextResponse.json(
-        { error: "Comment must be 500 characters or less" },
-        { status: 400 }
-      );
-    }
+    const body = await request.json().catch(() => null);
+    const bodyResult = validateBody(submitRatingSchema, body);
+    if (!bodyResult.success) return bodyResult.response;
+    const { auctionId, ratingType, comment } = bodyResult.data;
 
     const result = await submitSellerRating(profile.id, {
       sellerId,

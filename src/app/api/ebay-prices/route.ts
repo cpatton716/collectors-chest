@@ -25,21 +25,40 @@
  * }
  */
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 
 import { cacheGet, cacheSet, generateEbayPriceCacheKey } from "@/lib/cache";
 import { isBrowseApiConfigured, searchActiveListings, convertBrowseToPriceData } from "@/lib/ebayBrowse";
+import { validateBody, validateQuery } from "@/lib/validation";
 
 import { PriceData } from "@/types/comic";
 
-interface EbayPriceRequest {
-  title: string;
-  issueNumber?: string;
-  grade?: number;
-  isSlabbed?: boolean;
-  isGraded?: boolean; // Legacy field - maps to isSlabbed
-  gradingCompany?: string;
-  year?: string;
-}
+const ebayPricesBodySchema = z.object({
+  title: z.string().trim().min(1, "Title is required").max(200),
+  issueNumber: z
+    .union([z.string(), z.number()])
+    .transform((v) => (v === undefined || v === null ? undefined : String(v)))
+    .optional()
+    .nullable(),
+  grade: z.coerce.number().min(0).max(10).optional().nullable(),
+  isSlabbed: z.boolean().optional(),
+  isGraded: z.boolean().optional(), // Legacy field - maps to isSlabbed
+  gradingCompany: z.string().trim().max(20).optional().nullable(),
+  year: z
+    .union([z.string(), z.number()])
+    .transform((v) => (v === undefined || v === null ? undefined : String(v)))
+    .optional()
+    .nullable(),
+});
+
+const ebayPricesQuerySchema = z.object({
+  title: z.string().trim().min(1, "Title is required").max(200),
+  issueNumber: z.string().trim().max(50).optional(),
+  issue: z.string().trim().max(50).optional(),
+  grade: z.string().trim().optional(),
+  isGraded: z.string().optional(),
+  gradingCompany: z.string().trim().max(20).optional(),
+});
 
 interface EbayPriceResponse {
   success: boolean;
@@ -52,23 +71,12 @@ interface EbayPriceResponse {
 export async function POST(request: NextRequest): Promise<NextResponse<EbayPriceResponse>> {
   try {
     // Parse request body
-    const body = await request.json();
-    const { title, issueNumber, grade, isSlabbed, isGraded, gradingCompany, year } =
-      body as EbayPriceRequest;
-
-    // Validate required fields
-    if (!title || typeof title !== "string" || title.trim().length === 0) {
-      return NextResponse.json(
-        {
-          success: false,
-          data: null,
-          source: "none",
-          cached: false,
-          error: "Title is required",
-        },
-        { status: 400 }
-      );
+    const rawBody = await request.json().catch(() => null);
+    const validated = validateBody(ebayPricesBodySchema, rawBody);
+    if (!validated.success) {
+      return validated.response as unknown as NextResponse<EbayPriceResponse>;
     }
+    const { title, issueNumber, grade, isSlabbed, isGraded, gradingCompany, year } = validated.data;
 
     const cleanTitle = title.trim();
     const cleanIssue = issueNumber?.toString().trim();
@@ -156,35 +164,21 @@ export async function POST(request: NextRequest): Promise<NextResponse<EbayPrice
  * GET endpoint for simple lookups (URL parameters)
  */
 export async function GET(request: NextRequest): Promise<NextResponse<EbayPriceResponse>> {
-  const { searchParams } = new URL(request.url);
-
-  const title = searchParams.get("title");
-  const issueNumber = searchParams.get("issueNumber") || searchParams.get("issue");
-  const grade = searchParams.get("grade");
-  const isGraded = searchParams.get("isGraded") === "true";
-  const gradingCompany = searchParams.get("gradingCompany");
-
-  if (!title) {
-    return NextResponse.json(
-      {
-        success: false,
-        data: null,
-        source: "none",
-        cached: false,
-        error: "Title is required",
-      },
-      { status: 400 }
-    );
+  const validated = validateQuery(ebayPricesQuerySchema, new URL(request.url).searchParams);
+  if (!validated.success) {
+    return validated.response as unknown as NextResponse<EbayPriceResponse>;
   }
+  const { title, issueNumber, issue, grade, isGraded, gradingCompany } = validated.data;
+  const resolvedIssue = issueNumber || issue;
 
   // Create a mock request with the body
   const mockRequest = new NextRequest(request.url, {
     method: "POST",
     body: JSON.stringify({
       title,
-      issueNumber,
+      issueNumber: resolvedIssue,
       grade: grade ? parseFloat(grade) : undefined,
-      isGraded,
+      isGraded: isGraded === "true",
       gradingCompany,
     }),
   });

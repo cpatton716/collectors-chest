@@ -1,9 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@clerk/nextjs/server";
+import { z } from "zod";
 
 import { getProfileByClerkId } from "@/lib/db";
 import { getFollowers } from "@/lib/followDb";
+import { schemas, validateParams, validateQuery } from "@/lib/validation";
+
+const paramsSchema = z.object({ userId: schemas.uuid });
+const querySchema = z.object({
+  limit: z.coerce.number().int().positive().max(100).optional().default(20),
+  offset: z.coerce.number().int().nonnegative().optional().default(0),
+});
 
 interface RouteParams {
   params: Promise<{ userId: string }>;
@@ -12,12 +20,16 @@ interface RouteParams {
 // GET - Get user's followers (paginated)
 export async function GET(request: NextRequest, context: RouteParams) {
   try {
-    const { userId } = await context.params;
+    const rawParams = await context.params;
+    const paramsResult = validateParams(paramsSchema, rawParams);
+    if (!paramsResult.success) return paramsResult.response;
+    const { userId } = paramsResult.data;
 
     // Parse pagination params from query string
     const { searchParams } = new URL(request.url);
-    const limit = Math.min(parseInt(searchParams.get("limit") || "20", 10), 100);
-    const offset = parseInt(searchParams.get("offset") || "0", 10);
+    const queryResult = validateQuery(querySchema, searchParams);
+    if (!queryResult.success) return queryResult.response;
+    const { limit, offset } = queryResult.data;
 
     // Get current user ID if authenticated (for isFollowing flag)
     let currentUserId: string | null = null;

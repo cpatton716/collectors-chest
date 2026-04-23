@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 
 import { getAdminProfile, getProfileById, getUserScanCount, logAdminAction } from "@/lib/adminAuth";
 import { supabaseAdmin } from "@/lib/supabase";
+import { schemas, validateParams } from "@/lib/validation";
+
+const paramsSchema = z.object({ id: schemas.uuid });
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -11,7 +15,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const { id } = await params;
+    const rawParams = await params;
+    const paramsResult = validateParams(paramsSchema, rawParams);
+    if (!paramsResult.success) return paramsResult.response;
+    const { id } = paramsResult.data;
 
     // Get user profile
     const profile = await getProfileById(id);

@@ -1,19 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+
+import { validateBody } from "@/lib/validation";
 
 // Comic Vine API for cover images
 // Note: You'll need a Comic Vine API key for production use
 // For now, we'll use a fallback approach
 
+const coverSearchSchema = z.object({
+  title: z.string().trim().min(1, "Please enter a comic title to search for covers.").max(200),
+  issueNumber: z
+    .union([z.string(), z.number()])
+    .transform((v) => (v === undefined || v === null ? "" : String(v)))
+    .optional()
+    .nullable(),
+  publisher: z.string().trim().max(100).optional().nullable(),
+});
+
 export async function POST(request: NextRequest) {
   try {
-    const { title, issueNumber, publisher } = await request.json();
-
-    if (!title) {
-      return NextResponse.json(
-        { error: "Please enter a comic title to search for covers." },
-        { status: 400 }
-      );
-    }
+    const rawBody = await request.json().catch(() => null);
+    const validated = validateBody(coverSearchSchema, rawBody);
+    if (!validated.success) return validated.response;
+    const { title, issueNumber, publisher } = validated.data;
 
     // Build search query
     const searchQuery =

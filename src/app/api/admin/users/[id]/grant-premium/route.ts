@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 
 import {
   getAdminProfile,
@@ -6,6 +7,13 @@ import {
   grantPremiumAccess,
   logAdminAction,
 } from "@/lib/adminAuth";
+import { schemas, validateBody, validateParams } from "@/lib/validation";
+
+const paramsSchema = z.object({ id: schemas.uuid });
+
+const grantPremiumSchema = z.object({
+  days: z.number().int().positive().max(365).optional(),
+});
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -15,17 +23,20 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const { id } = await params;
+    const rawParams = await params;
+    const paramsResult = validateParams(paramsSchema, rawParams);
+    if (!paramsResult.success) return paramsResult.response;
+    const { id } = paramsResult.data;
 
-    // Parse request body for optional days parameter
-    let days = 30; // Default to 30 days
-    try {
-      const body = await request.json();
-      if (body.days && typeof body.days === "number" && body.days > 0) {
-        days = Math.min(body.days, 365); // Cap at 1 year
+    // Parse optional body. An empty / invalid body is allowed (defaults to 30 days).
+    let days = 30;
+    const rawBody = await request.json().catch(() => null);
+    if (rawBody !== null) {
+      const validated = validateBody(grantPremiumSchema, rawBody);
+      if (!validated.success) return validated.response;
+      if (validated.data.days !== undefined) {
+        days = validated.data.days;
       }
-    } catch {
-      // No body or invalid JSON, use default
     }
 
     // Verify user exists

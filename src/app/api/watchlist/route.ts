@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@clerk/nextjs/server";
+import { z } from "zod";
 
 import { isUserSuspended } from "@/lib/adminAuth";
 import { addToWatchlist, getUserWatchlist, removeFromWatchlist } from "@/lib/auctionDb";
 import { getProfileByClerkId } from "@/lib/db";
+import { schemas, validateBody } from "@/lib/validation";
+
+const watchlistSchema = z.object({
+  auctionId: schemas.uuid,
+});
 
 // GET - Get user's watchlist
 export async function GET() {
@@ -47,12 +53,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
-    const body = await request.json();
-    const { auctionId } = body;
-
-    if (!auctionId) {
-      return NextResponse.json({ error: "Auction ID is required" }, { status: 400 });
-    }
+    const body = await request.json().catch(() => null);
+    const validated = validateBody(watchlistSchema, body);
+    if (!validated.success) return validated.response;
+    const { auctionId } = validated.data;
 
     await addToWatchlist(profile.id, auctionId);
 
@@ -82,12 +86,10 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
-    const body = await request.json();
-    const { auctionId } = body;
-
-    if (!auctionId) {
-      return NextResponse.json({ error: "Auction ID is required" }, { status: 400 });
-    }
+    const body = await request.json().catch(() => null);
+    const validated = validateBody(watchlistSchema, body);
+    if (!validated.success) return validated.response;
+    const { auctionId } = validated.data;
 
     await removeFromWatchlist(profile.id, auctionId);
 

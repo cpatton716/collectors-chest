@@ -1,7 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 
 import { getAdminProfile } from "@/lib/adminAuth";
 import { createKeyComic, searchKeyComics } from "@/lib/keyComicsDb";
+import { validateBody, validateQuery } from "@/lib/validation";
+
+const listQuerySchema = z.object({
+  search: z.string().max(200).optional(),
+  source: z.string().max(50).optional(),
+  page: z.coerce.number().int().positive().optional().default(1),
+  limit: z.coerce.number().int().positive().max(100).optional().default(25),
+});
+
+const createSchema = z.object({
+  title: z.string().min(1).max(500),
+  issueNumber: z.string().min(1).max(50),
+  publisher: z.string().max(200).optional().nullable(),
+  keyInfo: z.array(z.string().min(1).max(500)).min(1, "At least one key info entry is required").max(50),
+});
 
 // GET - Search/list key_comics entries
 export async function GET(request: NextRequest) {
@@ -12,10 +28,9 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const search = searchParams.get("search") || undefined;
-    const source = searchParams.get("source") || undefined;
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "25");
+    const queryResult = validateQuery(listQuerySchema, searchParams);
+    if (!queryResult.success) return queryResult.response;
+    const { search, source, page, limit } = queryResult.data;
 
     const result = await searchKeyComics({ search, source, page, limit });
 
@@ -43,17 +58,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const body = await request.json();
-    const { title, issueNumber, publisher, keyInfo } = body;
+    const body = await request.json().catch(() => null);
+    const validated = validateBody(createSchema, body);
+    if (!validated.success) return validated.response;
+    const { title, issueNumber, publisher, keyInfo } = validated.data;
 
-    if (!title || !issueNumber || !keyInfo || keyInfo.length === 0) {
-      return NextResponse.json(
-        { error: "Title, issue number, and at least one key info entry are required" },
-        { status: 400 }
-      );
-    }
-
-    const result = await createKeyComic({ title, issueNumber, publisher, keyInfo });
+    const result = await createKeyComic({ title, issueNumber, publisher: publisher ?? undefined, keyInfo });
 
     if (!result.success) {
       return NextResponse.json({ error: result.error }, { status: 400 });

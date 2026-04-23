@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { getAdminProfile } from "@/lib/adminAuth";
 import {
   getPendingCovers,
@@ -7,6 +8,17 @@ import {
 } from "@/lib/coverImageDb";
 import { supabaseAdmin } from "@/lib/supabase";
 import { recordContribution } from "@/lib/creatorCreditsDb";
+import { schemas, validateBody, validateQuery } from "@/lib/validation";
+
+const listQuerySchema = z.object({
+  page: z.coerce.number().int().positive().optional().default(1),
+  limit: z.coerce.number().int().positive().max(100).optional().default(20),
+});
+
+const coverActionSchema = z.object({
+  coverId: schemas.uuid,
+  action: z.enum(["approve", "reject"]),
+});
 
 // GET — fetch pending covers for admin review
 export async function GET(request: NextRequest) {
@@ -16,8 +28,9 @@ export async function GET(request: NextRequest) {
   }
 
   const { searchParams } = new URL(request.url);
-  const page = parseInt(searchParams.get("page") || "1");
-  const limit = parseInt(searchParams.get("limit") || "20");
+  const queryResult = validateQuery(listQuerySchema, searchParams);
+  if (!queryResult.success) return queryResult.response;
+  const { page, limit } = queryResult.data;
 
   try {
     const { covers, total } = await getPendingCovers(page, limit);
@@ -39,15 +52,10 @@ export async function PATCH(request: NextRequest) {
   }
 
   try {
-    const body = await request.json();
-    const { coverId, action } = body;
-
-    if (!coverId || !["approve", "reject"].includes(action)) {
-      return NextResponse.json(
-        { error: "coverId and action (approve|reject) required" },
-        { status: 400 }
-      );
-    }
+    const body = await request.json().catch(() => null);
+    const validated = validateBody(coverActionSchema, body);
+    if (!validated.success) return validated.response;
+    const { coverId, action } = validated.data;
 
     if (action === "approve") {
       await approveCover(coverId, adminProfile.id);

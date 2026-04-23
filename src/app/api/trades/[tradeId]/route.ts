@@ -1,9 +1,35 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@clerk/nextjs/server";
+import { z } from "zod";
 
 import { getProfileByClerkId } from "@/lib/db";
 import { confirmReceipt, getTradeById, markAsShipped, updateTradeStatus } from "@/lib/tradingDb";
+import { schemas, validateBody, validateParams } from "@/lib/validation";
+
+const paramsSchema = z.object({ tradeId: schemas.uuid });
+
+const tradeStatusEnum = z.enum([
+  "proposed",
+  "accepted",
+  "shipped",
+  "completed",
+  "cancelled",
+  "declined",
+]);
+
+const updateTradeBodySchema = z
+  .object({
+    action: z.enum(["ship", "confirm_receipt"]).optional(),
+    status: tradeStatusEnum.optional(),
+    trackingCarrier: z.enum(["usps", "ups", "fedex", "dhl", "other"]).optional(),
+    trackingNumber: z.string().trim().min(1).max(100).optional(),
+    cancelReason: z.string().max(500).optional(),
+  })
+  .strict()
+  .refine((data) => data.action || data.status, {
+    message: "Either action or status is required",
+  });
 
 // GET - Get trade details
 export async function GET(
@@ -16,7 +42,9 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { tradeId } = await params;
+    const validatedParams = validateParams(paramsSchema, await params);
+    if (!validatedParams.success) return validatedParams.response;
+    const { tradeId } = validatedParams.data;
     const profile = await getProfileByClerkId(userId);
     if (!profile) {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
@@ -45,14 +73,18 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { tradeId } = await params;
+    const validatedParams = validateParams(paramsSchema, await params);
+    if (!validatedParams.success) return validatedParams.response;
+    const { tradeId } = validatedParams.data;
     const profile = await getProfileByClerkId(userId);
     if (!profile) {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
-    const body = await request.json();
-    const { action, status, trackingCarrier, trackingNumber, cancelReason } = body;
+    const rawBody = await request.json().catch(() => null);
+    const validatedBody = validateBody(updateTradeBodySchema, rawBody);
+    if (!validatedBody.success) return validatedBody.response;
+    const { action, status, trackingCarrier, trackingNumber, cancelReason } = validatedBody.data;
 
     let trade;
 

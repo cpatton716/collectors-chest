@@ -1,8 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { Redis } from "@upstash/redis";
+import { z } from "zod";
 import { MODEL_LIGHTWEIGHT } from "@/lib/models";
 import { getCommunityCovers } from "@/lib/coverImageDb";
+import { validateBody } from "@/lib/validation";
+
+const coverCandidatesSchema = z.object({
+  title: z.string().trim().min(1, "Title is required").max(200),
+  issueNumber: z
+    .union([z.string(), z.number()])
+    .transform((v) => String(v))
+    .pipe(z.string().min(1, "Issue number is required").max(50)),
+  publisher: z.string().trim().max(100).optional().nullable(),
+  releaseYear: z
+    .union([z.string(), z.number()])
+    .transform((v) => (v === undefined || v === null ? undefined : String(v)))
+    .optional()
+    .nullable(),
+});
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -58,15 +74,10 @@ ${context}`,
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { title, issueNumber, publisher, releaseYear } = body;
-
-    if (!title || !issueNumber) {
-      return NextResponse.json(
-        { error: "title and issueNumber are required" },
-        { status: 400 }
-      );
-    }
+    const rawBody = await request.json().catch(() => null);
+    const validated = validateBody(coverCandidatesSchema, rawBody);
+    if (!validated.success) return validated.response;
+    const { title, issueNumber, publisher, releaseYear } = validated.data;
 
     // Step 1: Check community database
     const communityUrl = await getCommunityCovers(title, issueNumber);
@@ -82,8 +93,8 @@ export async function POST(request: NextRequest) {
     const searchQuery = await generateSearchQuery(
       title,
       issueNumber,
-      publisher,
-      releaseYear
+      publisher ?? undefined,
+      releaseYear ?? undefined
     );
 
     // No external image search API available. Relies on community covers + Open Library fallback.

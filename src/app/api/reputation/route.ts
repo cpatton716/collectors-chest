@@ -1,8 +1,15 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 
 import { getProfileByClerkId } from "@/lib/db";
 import { getUserCreatorProfile, getUserFeedback } from "@/lib/creatorCreditsDb";
+import { validateQuery } from "@/lib/validation";
+
+const reputationQuerySchema = z.object({
+  includeFeedback: z.enum(["true", "false"]).optional(),
+  feedbackLimit: z.coerce.number().int().min(1).max(100).optional(),
+});
 
 // GET - Get current user's full reputation
 export async function GET(request: NextRequest) {
@@ -17,9 +24,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
-    const searchParams = request.nextUrl.searchParams;
-    const includeFeedback = searchParams.get("includeFeedback") === "true";
-    const feedbackLimit = parseInt(searchParams.get("feedbackLimit") || "5");
+    const validatedQuery = validateQuery(reputationQuerySchema, request.nextUrl.searchParams);
+    if (!validatedQuery.success) return validatedQuery.response;
+    const includeFeedback = validatedQuery.data.includeFeedback === "true";
+    const feedbackLimit = validatedQuery.data.feedbackLimit ?? 5;
 
     const reputation = await getUserCreatorProfile(profile.id);
 

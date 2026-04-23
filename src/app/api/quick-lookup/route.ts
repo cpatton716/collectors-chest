@@ -1,12 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import Anthropic from "@anthropic-ai/sdk";
+import { z } from "zod";
 
 import { getComicMetadata, saveComicMetadata } from "@/lib/db";
 import { MODEL_PRIMARY } from "@/lib/models";
 import { normalizeTitle, normalizeIssueNumber } from "@/lib/normalizeTitle";
 import { recordScanAnalytics, estimateScanCostCents } from "@/lib/analyticsServer";
 import { checkRateLimit, getRateLimitIdentifier, rateLimiters } from "@/lib/rateLimit";
+import { validateBody } from "@/lib/validation";
+
+const quickLookupSchema = z.object({
+  barcode: z
+    .string()
+    .trim()
+    .min(8, "Barcode must be at least 8 digits")
+    .max(17, "Barcode is too long")
+    .regex(/^[\d\s-]+$/, "Barcode must contain only digits"),
+});
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -49,17 +60,10 @@ export async function POST(request: NextRequest) {
     );
     if (!rateLimitSuccess) return rateLimitResponse;
 
-    const { barcode } = await request.json();
-
-    if (!barcode) {
-      return NextResponse.json(
-        {
-          error:
-            "No barcode was detected. Please try scanning again with the barcode clearly visible.",
-        },
-        { status: 400 }
-      );
-    }
+    const rawBody = await request.json().catch(() => null);
+    const validated = validateBody(quickLookupSchema, rawBody);
+    if (!validated.success) return validated.response;
+    const { barcode } = validated.data;
 
     // Step 1: Look up comic details from Comic Vine
     let comicDetails: {

@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 
 import { getAdminProfile, logAdminAction } from "@/lib/adminAuth";
 import { supabaseAdmin } from "@/lib/supabase";
+import { schemas, validateBody, validateParams } from "@/lib/validation";
 
-const VALID_STATUSES = ["pending", "reviewed", "actioned", "dismissed"] as const;
+const paramsSchema = z.object({ reportId: schemas.uuid });
+
+const patchSchema = z.object({
+  status: z.enum(["pending", "reviewed", "actioned", "dismissed"]),
+  adminNotes: z.string().max(2000).optional(),
+});
 
 export async function PATCH(
   request: NextRequest,
@@ -15,13 +22,15 @@ export async function PATCH(
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const { reportId } = await params;
-    const body = await request.json();
-    const { status, adminNotes } = body;
+    const rawParams = await params;
+    const paramsResult = validateParams(paramsSchema, rawParams);
+    if (!paramsResult.success) return paramsResult.response;
+    const { reportId } = paramsResult.data;
 
-    if (!status || !VALID_STATUSES.includes(status)) {
-      return NextResponse.json({ error: "Invalid status" }, { status: 400 });
-    }
+    const body = await request.json().catch(() => null);
+    const validated = validateBody(patchSchema, body);
+    if (!validated.success) return validated.response;
+    const { status, adminNotes } = validated.data;
 
     const { data, error } = await supabaseAdmin
       .from("message_reports")

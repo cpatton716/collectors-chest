@@ -34,7 +34,16 @@ export type NotificationType =
   | "new_listing_from_followed"
   // Community contribution types
   | "key_info_approved"
-  | "key_info_rejected";
+  | "key_info_rejected"
+  // Second Chance Offer
+  | "second_chance_available"
+  | "second_chance_offered"
+  | "second_chance_accepted"
+  | "second_chance_declined"
+  | "second_chance_expired"
+  // Payment-miss strike system
+  | "payment_missed_warning"
+  | "payment_missed_flagged";
 
 export type OfferStatus =
   | "pending"
@@ -595,4 +604,88 @@ export function isWithinPaymentReminderWindow(
   }
   const reminderWindowMs = PAYMENT_REMINDER_WINDOW_HOURS * 60 * 60 * 1000;
   return msUntilDeadline <= reminderWindowMs;
+}
+
+// ============================================================================
+// SECOND CHANCE OFFER TYPES
+// ============================================================================
+
+export type SecondChanceOfferStatus = "pending" | "accepted" | "declined" | "expired";
+
+export interface SecondChanceOffer {
+  id: string;
+  auctionId: string;
+  runnerUpProfileId: string;
+  offerPrice: number;
+  status: SecondChanceOfferStatus;
+  expiresAt: string;
+  acceptedAt: string | null;
+  declinedAt: string | null;
+  createdAt: string;
+}
+
+/**
+ * The runner-up accept window matches the original 48h payment window — lets
+ * a seller's cancelled auction cycle finish in the same elapsed time.
+ */
+export const SECOND_CHANCE_WINDOW_HOURS = PAYMENT_WINDOW_HOURS;
+
+/**
+ * Compute the 48-hour expiration for a freshly created second-chance offer.
+ * Pure helper so route handlers and tests can share a single source of truth.
+ */
+export function calculateSecondChanceOfferExpiration(fromDate: Date = new Date()): Date {
+  const expiresAt = new Date(fromDate.getTime());
+  expiresAt.setHours(expiresAt.getHours() + SECOND_CHANCE_WINDOW_HOURS);
+  return expiresAt;
+}
+
+// ============================================================================
+// PAYMENT MISS / STRIKE HELPERS
+// ============================================================================
+
+/**
+ * Rolling window (days) used when counting payment-miss strikes.
+ * 2 or more misses inside this window → user is flagged + bid-restricted.
+ */
+export const PAYMENT_MISS_WINDOW_DAYS = 90;
+
+/**
+ * Minimum strike count (including the current miss) that flips the user to
+ * "flagged". First miss is a warning only; second within the window flags.
+ */
+export const PAYMENT_MISS_STRIKE_THRESHOLD = 2;
+
+/**
+ * Returns true when `timestamp` falls inside the rolling strike window.
+ * Pure — takes `now` for deterministic tests.
+ */
+export function isWithinStrikeWindow(
+  timestamp: Date,
+  now: Date = new Date(),
+  windowDays: number = PAYMENT_MISS_WINDOW_DAYS
+): boolean {
+  const windowMs = windowDays * 24 * 60 * 60 * 1000;
+  const diff = now.getTime() - timestamp.getTime();
+  return diff >= 0 && diff <= windowMs;
+}
+
+/**
+ * Decide whether the strike threshold has been met given the timestamps of
+ * prior `auction_payment_expired` audit-log events for this user PLUS the
+ * current miss. All timestamps should be within the window to count.
+ *
+ * Pure — no DB access.
+ */
+export function shouldFlagForPaymentMisses(
+  pastMissTimestamps: Date[],
+  currentMissAt: Date = new Date(),
+  windowDays: number = PAYMENT_MISS_WINDOW_DAYS,
+  threshold: number = PAYMENT_MISS_STRIKE_THRESHOLD
+): boolean {
+  const inWindow = pastMissTimestamps.filter((t) =>
+    isWithinStrikeWindow(t, currentMissAt, windowDays)
+  );
+  // +1 for the current miss
+  return inWindow.length + 1 >= threshold;
 }

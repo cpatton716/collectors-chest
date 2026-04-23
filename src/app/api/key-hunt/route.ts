@@ -1,12 +1,54 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@clerk/nextjs/server";
+import { z } from "zod";
 
 import { createClient } from "@supabase/supabase-js";
+import { schemas, validateBody, validateQuery } from "@/lib/validation";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+const createKeyHuntSchema = z.object({
+  title: z.string().trim().min(1, "Title is required").max(200),
+  issueNumber: z
+    .union([z.string(), z.number()])
+    .transform((v) => String(v))
+    .pipe(z.string().min(1, "Issue number is required").max(50)),
+  publisher: z.string().trim().max(100).optional().nullable(),
+  releaseYear: z
+    .union([z.string(), z.number()])
+    .transform((v) => (v === undefined || v === null ? null : String(v)))
+    .optional()
+    .nullable(),
+  coverImageUrl: z.string().url().max(2048).optional().nullable(),
+  keyInfo: z.array(z.string().max(500)).max(20).optional(),
+  targetPriceLow: z.number().nonnegative().max(1_000_000).optional().nullable(),
+  targetPriceHigh: z.number().nonnegative().max(1_000_000).optional().nullable(),
+  currentPriceLow: z.number().nonnegative().max(1_000_000).optional().nullable(),
+  currentPriceMid: z.number().nonnegative().max(1_000_000).optional().nullable(),
+  currentPriceHigh: z.number().nonnegative().max(1_000_000).optional().nullable(),
+  notes: z.string().max(2000).optional().nullable(),
+  priority: z.number().int().min(1).max(10).optional(),
+  addedFrom: z.string().trim().max(50).optional(),
+  notifyPriceDrop: z.boolean().optional(),
+  notifyThreshold: z.number().nonnegative().max(1_000_000).optional().nullable(),
+});
+
+const updateKeyHuntSchema = z.object({
+  id: schemas.uuid,
+  targetPriceLow: z.number().nonnegative().max(1_000_000).optional().nullable(),
+  targetPriceHigh: z.number().nonnegative().max(1_000_000).optional().nullable(),
+  notes: z.string().max(2000).optional().nullable(),
+  priority: z.number().int().min(1).max(10).optional(),
+  notifyPriceDrop: z.boolean().optional(),
+  notifyThreshold: z.number().nonnegative().max(1_000_000).optional().nullable(),
+});
+
+const deleteKeyHuntQuerySchema = z.object({
+  id: schemas.uuid,
+});
 
 export interface KeyHuntItem {
   id: string;
@@ -122,7 +164,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await request.json();
+    const rawBody = await request.json().catch(() => null);
+    const validated = validateBody(createKeyHuntSchema, rawBody);
+    if (!validated.success) return validated.response;
     const {
       title,
       issueNumber,
@@ -140,12 +184,7 @@ export async function POST(request: NextRequest) {
       addedFrom = "manual",
       notifyPriceDrop = false,
       notifyThreshold,
-    } = body;
-
-    // Validate required fields
-    if (!title || !issueNumber) {
-      return NextResponse.json({ error: "Title and issue number are required" }, { status: 400 });
-    }
+    } = validated.data;
 
     const titleNormalized = title
       .toLowerCase()
@@ -221,12 +260,9 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { searchParams } = new URL(request.url);
-    const itemId = searchParams.get("id");
-
-    if (!itemId) {
-      return NextResponse.json({ error: "Item ID is required" }, { status: 400 });
-    }
+    const validated = validateQuery(deleteKeyHuntQuerySchema, new URL(request.url).searchParams);
+    if (!validated.success) return validated.response;
+    const { id: itemId } = validated.data;
 
     const { error } = await supabase
       .from("key_hunt_lists")
@@ -257,12 +293,10 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await request.json();
-    const { id, ...updates } = body;
-
-    if (!id) {
-      return NextResponse.json({ error: "Item ID is required" }, { status: 400 });
-    }
+    const rawBody = await request.json().catch(() => null);
+    const validated = validateBody(updateKeyHuntSchema, rawBody);
+    if (!validated.success) return validated.response;
+    const { id, ...updates } = validated.data;
 
     // Build update object with snake_case keys
     const dbUpdates: Record<string, unknown> = {};

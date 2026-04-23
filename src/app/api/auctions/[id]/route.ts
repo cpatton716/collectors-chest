@@ -1,14 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@clerk/nextjs/server";
+import { z } from "zod";
 
 import { cancelAuction, getAuction, updateAuction } from "@/lib/auctionDb";
 import { getProfileByClerkId } from "@/lib/db";
+import { schemas, validateBody, validateParams, validateQuery } from "@/lib/validation";
+
+const idParamsSchema = z.object({ id: schemas.uuid });
+
+const updateAuctionBodySchema = z
+  .object({
+    buyItNowPrice: z.number().positive().max(1_000_000).nullable().optional(),
+    description: z.string().max(5000).optional(),
+    detailImages: z.array(z.string().max(2048)).max(4).optional(),
+  })
+  .strict();
+
+const cancelAuctionQuerySchema = z.object({
+  reason: z.enum(["changed_mind", "sold_elsewhere", "price_too_low", "other"]).optional(),
+});
 
 // GET - Get single auction
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { id } = await params;
+    const validatedParams = validateParams(idParamsSchema, await params);
+    if (!validatedParams.success) return validatedParams.response;
+    const { id } = validatedParams.data;
 
     // Optional: get user ID for watchlist/bid status
     let userId: string | undefined;
@@ -48,16 +66,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
-    const { id } = await params;
-    const body = await request.json();
-    const { buyItNowPrice, description, detailImages } = body;
+    const validatedParams = validateParams(idParamsSchema, await params);
+    if (!validatedParams.success) return validatedParams.response;
+    const { id } = validatedParams.data;
 
-    // Validate detail images if provided
-    if (detailImages !== undefined) {
-      if (!Array.isArray(detailImages) || detailImages.length > 4) {
-        return NextResponse.json({ error: "Maximum 4 detail images allowed" }, { status: 400 });
-      }
-    }
+    const rawBody = await request.json().catch(() => null);
+    const validatedBody = validateBody(updateAuctionBodySchema, rawBody);
+    if (!validatedBody.success) return validatedBody.response;
+    const { buyItNowPrice, description, detailImages } = validatedBody.data;
 
     await updateAuction(id, profile.id, {
       buyItNowPrice,
@@ -88,16 +104,15 @@ export async function DELETE(
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
-    const { id } = await params;
+    const validatedParams = validateParams(idParamsSchema, await params);
+    if (!validatedParams.success) return validatedParams.response;
+    const { id } = validatedParams.data;
 
     // Get reason from query params (optional)
     const { searchParams } = new URL(request.url);
-    const reason = searchParams.get("reason") as
-      | "changed_mind"
-      | "sold_elsewhere"
-      | "price_too_low"
-      | "other"
-      | null;
+    const validatedQuery = validateQuery(cancelAuctionQuerySchema, searchParams);
+    if (!validatedQuery.success) return validatedQuery.response;
+    const reason = validatedQuery.data.reason;
 
     const result = await cancelAuction(id, profile.id, reason || undefined);
 

@@ -13,9 +13,12 @@ import {
   NotificationType,
   Offer,
   OfferStatus,
+  PAYMENT_MISS_WINDOW_DAYS,
   PAYMENT_REMINDER_WINDOW_HOURS,
+  PAYMENT_MISS_STRIKE_THRESHOLD,
   PlaceBidResult,
   RespondToOfferInput,
+  SecondChanceOffer,
   SellerProfile,
   SellerRating,
   SubmitRatingInput,
@@ -23,12 +26,24 @@ import {
   WatchlistItem,
   calculateMinimumBid,
   calculatePaymentDeadline,
+  calculateSecondChanceOfferExpiration,
   calculateSellerReputation,
   getBidIncrement,
 } from "@/types/auction";
 import { CollectionItem, ConditionLabel, PriceData } from "@/types/comic";
 
-import { sendNotificationEmail, getProfileForEmail, getListingComicData } from "./email";
+import {
+  sendNotificationEmail,
+  sendNotificationEmailsBatch,
+  getProfileForEmail,
+  getListingComicData,
+} from "./email";
+import { mapWithConcurrency } from "./concurrency";
+import {
+  AuditEventInput,
+  logAuctionAuditEvent,
+  logAuctionAuditEvents,
+} from "./auditLog";
 import { buildBuyerComicClone, SellerComicRow } from "./cloneSoldComic";
 import { createFeedbackReminders } from "./creatorCreditsDb";
 import { getAllFollowerIds } from "./followDb";
@@ -131,6 +146,21 @@ export async function createAuction(sellerId: string, input: CreateAuctionInput)
     ).catch((err) => console.error("[auctionDb] Failed to notify followers:", err));
   }
 
+  // Audit trail — fire-and-forget, never blocks the creation path.
+  void logAuctionAuditEvent({
+    auctionId: data.id,
+    actorProfileId: sellerId,
+    eventType: "auction_created",
+    eventData: {
+      listingType,
+      startingPrice: input.startingPrice,
+      buyItNowPrice: input.buyItNowPrice ?? null,
+      durationDays: input.durationDays,
+      auctionEndTime: endTime.toISOString(),
+      scheduled: !!input.startDate,
+    },
+  });
+
   return transformDbAuction(data);
 }
 
@@ -208,6 +238,20 @@ export async function createFixedPriceListing(
       comicData.cover_image_url || undefined
     ).catch((err) => console.error("[auctionDb] Failed to notify followers:", err));
   }
+
+  // Audit trail — fire-and-forget.
+  void logAuctionAuditEvent({
+    auctionId: data.id,
+    actorProfileId: sellerId,
+    eventType: "auction_created",
+    eventData: {
+      listingType: "fixed_price",
+      price: input.price,
+      acceptsOffers: input.acceptsOffers || false,
+      minOfferAmount: input.minOfferAmount ?? null,
+      expiresAt: expiresAt.toISOString(),
+    },
+  });
 
   return transformDbAuction(data);
 }
@@ -520,6 +564,18 @@ export async function cancelAuction(
     return { success: false, error: error.message };
   }
 
+  // Audit trail — fire-and-forget.
+  void logAuctionAuditEvent({
+    auctionId,
+    actorProfileId: sellerId,
+    eventType: "auction_cancelled",
+    eventData: {
+      reason: reason || null,
+      listingType: auction.listing_type,
+      cancelledBy: "seller",
+    },
+  });
+
   return { success: true };
 }
 
@@ -680,6 +736,22 @@ export async function placeBid(
       .update({ max_bid: maxBid, updated_at: new Date().toISOString() })
       .eq("id", currentWinningBid.id);
 
+    // Audit trail — fire-and-forget. Proxy max increased without a new bid row.
+    void logAuctionAuditEvent({
+      auctionId,
+      actorProfileId: bidderId,
+      eventType: "bid_placed",
+      eventData: {
+        bidAmount: auction.current_bid,
+        maxBid,
+        previousMaxBid: currentWinningBid.max_bid,
+        isHighBidder: true,
+        isProxy: true,
+        proxyMaxIncrease: true,
+        bidderNumber,
+      },
+    });
+
     return {
       success: true,
       message: "Max bid updated successfully",
@@ -799,6 +871,24 @@ export async function placeBid(
     await createNotification(auction.seller_id, "new_bid_received", auctionId);
   }
 
+  // Audit trail — fire-and-forget. Records amount and whether this was a
+  // proxy bid (maxBid != displayed bid) so admins can reconstruct auction
+  // history during disputes.
+  void logAuctionAuditEvent({
+    auctionId,
+    actorProfileId: bidderId,
+    eventType: "bid_placed",
+    eventData: {
+      bidAmount: bidAmountToRecord,
+      maxBid,
+      currentBid: newCurrentBid,
+      isHighBidder,
+      isProxy: maxBid > newCurrentBid,
+      bidderNumber,
+      outbidUserId,
+    },
+  });
+
   return {
     success: true,
     message: isHighBidder ? "You are the high bidder!" : "You have been outbid",
@@ -896,6 +986,31 @@ export async function executeBuyItNow(
 
   // Create feedback reminders for both parties
   await createFeedbackReminders("auction", auctionId, buyerId, auction.seller_id);
+
+  // Audit trail — Buy It Now ends the listing and designates a winner.
+  // Log auction_ended + bid_won as a compact pair.
+  void logAuctionAuditEvents([
+    {
+      auctionId,
+      actorProfileId: buyerId,
+      eventType: "auction_ended",
+      eventData: {
+        via: "buy_it_now",
+        winningBid: auction.buy_it_now_price,
+        winnerId: buyerId,
+        paymentDeadline: paymentDeadline.toISOString(),
+      },
+    },
+    {
+      auctionId,
+      actorProfileId: buyerId,
+      eventType: "bid_won",
+      eventData: {
+        via: "buy_it_now",
+        winningBid: auction.buy_it_now_price,
+      },
+    },
+  ]);
 
   return { success: true };
 }
@@ -1147,6 +1262,19 @@ export async function createOffer(
     }
   })();
 
+  // Audit trail — fire-and-forget.
+  void logAuctionAuditEvent({
+    auctionId: input.listingId,
+    offerId: data.id,
+    actorProfileId: buyerId,
+    eventType: "offer_created",
+    eventData: {
+      amount: input.amount,
+      roundNumber: 1,
+      expiresAt: expiresAt.toISOString(),
+    },
+  });
+
   return { success: true, offer: transformOffer(data) };
 }
 
@@ -1226,6 +1354,19 @@ export async function respondToOffer(
     // Create feedback reminders for both parties (offer acceptance is a "sale")
     await createFeedbackReminders("sale", offer.listing_id, offer.buyer_id, sellerId);
 
+    // Audit trail — fire-and-forget.
+    void logAuctionAuditEvent({
+      auctionId: offer.listing_id,
+      offerId: input.offerId,
+      actorProfileId: sellerId,
+      eventType: "offer_accepted",
+      eventData: {
+        amount: offer.amount,
+        roundNumber: offer.round_number,
+        acceptedBy: "seller",
+      },
+    });
+
     return { success: true };
   }
 
@@ -1260,6 +1401,19 @@ export async function respondToOffer(
         }).catch((err) => console.error("[Email] offer_rejected failed:", err));
       }
     })();
+
+    // Audit trail — fire-and-forget.
+    void logAuctionAuditEvent({
+      auctionId: offer.listing_id,
+      offerId: input.offerId,
+      actorProfileId: sellerId,
+      eventType: "offer_rejected",
+      eventData: {
+        amount: offer.amount,
+        roundNumber: offer.round_number,
+        rejectedBy: "seller",
+      },
+    });
 
     return { success: true };
   }
@@ -1320,6 +1474,21 @@ export async function respondToOffer(
         }).catch((err) => console.error("[Email] offer_countered failed:", err));
       }
     })();
+
+    // Audit trail — fire-and-forget.
+    void logAuctionAuditEvent({
+      auctionId: offer.listing_id,
+      offerId: input.offerId,
+      actorProfileId: sellerId,
+      eventType: "offer_countered",
+      eventData: {
+        originalAmount: offer.amount,
+        counterAmount: input.counterAmount,
+        roundNumber: offer.round_number + 1,
+        counteredBy: "seller",
+        expiresAt: newExpiresAt.toISOString(),
+      },
+    });
 
     return { success: true, offer: transformOffer(updatedOffer) };
   }
@@ -1400,6 +1569,20 @@ export async function respondToCounterOffer(
     // Create feedback reminders for both parties (counter-offer acceptance is a "sale")
     await createFeedbackReminders("sale", offer.listing_id, buyerId, offer.seller_id);
 
+    // Audit trail — fire-and-forget.
+    void logAuctionAuditEvent({
+      auctionId: offer.listing_id,
+      offerId,
+      actorProfileId: buyerId,
+      eventType: "offer_accepted",
+      eventData: {
+        amount: offer.counter_amount,
+        roundNumber: offer.round_number,
+        acceptedBy: "buyer",
+        counterOffer: true,
+      },
+    });
+
     return { success: true };
   }
 
@@ -1434,6 +1617,20 @@ export async function respondToCounterOffer(
         }).catch((err) => console.error("[Email] offer_rejected (counter) failed:", err));
       }
     })();
+
+    // Audit trail — fire-and-forget.
+    void logAuctionAuditEvent({
+      auctionId: offer.listing_id,
+      offerId,
+      actorProfileId: buyerId,
+      eventType: "offer_rejected",
+      eventData: {
+        amount: offer.counter_amount ?? offer.amount,
+        roundNumber: offer.round_number,
+        rejectedBy: "buyer",
+        counterOffer: true,
+      },
+    });
 
     return { success: true };
   }
@@ -1533,6 +1730,15 @@ export async function createNotification(
     // Community contribution notifications
     key_info_approved: "Key info approved!",
     key_info_rejected: "Key info not accepted",
+    // Second Chance Offer
+    second_chance_available: "You can offer to the runner-up",
+    second_chance_offered: "Second chance offer received!",
+    second_chance_accepted: "Runner-up accepted your offer",
+    second_chance_declined: "Runner-up declined your offer",
+    second_chance_expired: "Runner-up didn't respond in time",
+    // Payment-miss strike system
+    payment_missed_warning: "Missed payment window",
+    payment_missed_flagged: "Bidding temporarily restricted",
   };
 
   const messages: Record<NotificationType, string> = {
@@ -1562,6 +1768,15 @@ export async function createNotification(
     // Community contribution messages
     key_info_approved: "Your key info suggestion has been approved and added to the database. Thank you for contributing!",
     key_info_rejected: "Your key info suggestion was reviewed but not accepted. Thank you for contributing!",
+    // Second Chance Offer
+    second_chance_available: "The winner didn't pay. You can offer the item to the runner-up at their last bid.",
+    second_chance_offered: "Good news — the seller has offered this comic to you at your last bid. You have 48 hours to accept or decline.",
+    second_chance_accepted: "The runner-up accepted your second-chance offer. Payment is pending.",
+    second_chance_declined: "The runner-up declined your second-chance offer. You can re-list the item.",
+    second_chance_expired: "The runner-up didn't respond within 48 hours. You can re-list the item.",
+    // Payment-miss strike system
+    payment_missed_warning: "You missed a 48-hour payment window. This is a friendly warning — next time may restrict bidding.",
+    payment_missed_flagged: "Your bidding privileges are temporarily restricted due to multiple missed payments. Contact support to appeal.",
   };
 
   await supabaseAdmin.from("notifications").insert({
@@ -1798,6 +2013,21 @@ export async function submitSellerRating(
     return { success: false, error: error.message };
   }
 
+  // Audit trail — buyer feedback marks the auction transaction as complete
+  // from an audit standpoint (separate from the 7-day auto-complete sweep
+  // which is not yet implemented — will be added under auction_completed
+  // when that cron is built).
+  void logAuctionAuditEvent({
+    auctionId: input.auctionId,
+    actorProfileId: buyerId,
+    eventType: "auction_completed",
+    eventData: {
+      via: "buyer_feedback",
+      ratingType: input.ratingType,
+      sellerId: input.sellerId,
+    },
+  });
+
   return { success: true };
 }
 
@@ -1877,6 +2107,9 @@ export async function processEndedAuctions(): Promise<{
 }> {
   const errors: string[] = [];
   let processed = 0;
+  // Audit events accumulated across the batch. Flushed once at end to keep
+  // this out of the per-auction hot path.
+  const auditEvents: AuditEventInput[] = [];
 
   // Get all active auctions that have ended
   const { data: endedAuctions, error } = await supabase
@@ -2001,6 +2234,12 @@ export async function processEndedAuctions(): Promise<{
         for (const bidderId of losingBidders) {
           await createNotification(bidderId, "bid_auction_lost", auction.id);
           alreadyNotified.add(bidderId);
+          auditEvents.push({
+            auctionId: auction.id,
+            actorProfileId: bidderId,
+            eventType: "bid_lost",
+            eventData: { winningBid: winningBid.bid_amount },
+          });
         }
 
         // Notify watchers (excluding winner, seller, and anyone already
@@ -2020,9 +2259,41 @@ export async function processEndedAuctions(): Promise<{
 
         // Create feedback reminders for both parties
         await createFeedbackReminders("auction", auction.id, winnerId, auction.seller_id);
+
+        // Audit trail — queue auction_ended + bid_won, flushed at end.
+        auditEvents.push({
+          auctionId: auction.id,
+          actorProfileId: null,
+          eventType: "auction_ended",
+          eventData: {
+            via: "cron_natural_end",
+            winnerId,
+            winningBid: winningBid.bid_amount,
+            paymentDeadline: paymentDeadline.toISOString(),
+          },
+        });
+        auditEvents.push({
+          auctionId: auction.id,
+          actorProfileId: winnerId,
+          eventType: "bid_won",
+          eventData: {
+            winningBid: winningBid.bid_amount,
+          },
+        });
       } else {
         // No bids, just end it (admin: cron has no user context)
         await supabaseAdmin.from("auctions").update({ status: "ended" }).eq("id", auction.id);
+
+        // Audit trail — no-bid auction expires as listing_expired.
+        auditEvents.push({
+          auctionId: auction.id,
+          actorProfileId: null,
+          eventType: "listing_expired",
+          eventData: {
+            via: "cron_natural_end",
+            reason: "no_bids",
+          },
+        });
       }
 
       processed++;
@@ -2030,6 +2301,9 @@ export async function processEndedAuctions(): Promise<{
       errors.push(`Auction ${auction.id}: ${e instanceof Error ? e.message : "Unknown error"}`);
     }
   }
+
+  // Fire-and-forget batch audit flush — never blocks cron completion.
+  void logAuctionAuditEvents(auditEvents);
 
   return { processed, errors };
 }
@@ -2235,6 +2509,17 @@ export async function expireOffers(): Promise<{ expired: number; errors: string[
     return { expired: 0, errors };
   }
 
+  // Audit trail — batch all offer_expired events.
+  void logAuctionAuditEvents(
+    expiredOffers.map((offer) => ({
+      auctionId: offer.listing_id,
+      offerId: offer.id,
+      actorProfileId: null,
+      eventType: "offer_expired" as const,
+      eventData: { amount: offer.amount },
+    }))
+  );
+
   // Create notifications for expired offers
   for (const offer of expiredOffers) {
     try {
@@ -2367,6 +2652,17 @@ export async function expireListings(): Promise<{
     return { expired: 0, expiring: expiringCount, errors };
   }
 
+  // Audit trail — batch listing_expired events for fixed-price listings
+  // that timed out after 30 days.
+  void logAuctionAuditEvents(
+    expiredListings.map((listing) => ({
+      auctionId: listing.id,
+      actorProfileId: null,
+      eventType: "listing_expired" as const,
+      eventData: { reason: "fixed_price_30_day_expiry" },
+    }))
+  );
+
   // Create notifications for expired listings
   for (const listing of expiredListings) {
     try {
@@ -2402,6 +2698,12 @@ export async function expireListings(): Promise<{
 // ============================================================================
 // PAYMENT DEADLINE ENFORCEMENT (Gaps 1 + 3)
 // ============================================================================
+
+/**
+ * Max parallel profile/comic-data lookups when preparing batched emails.
+ * Keeps Supabase under 5 concurrent reads per cron tick.
+ */
+const EMAIL_PREP_CONCURRENCY = 5;
 //
 // Two cron passes work together to enforce the 48-hour payment window:
 //
@@ -2468,11 +2770,28 @@ export async function sendPaymentReminders(): Promise<{
 
     let skipped = 0;
 
+    // Phase 1: Conditional UPDATE per auction (race-safe). Must stay serial
+    // so each auction is claimed atomically before we commit to sending.
+    // We collect claimed auctions here and fan out notifications/emails
+    // after the loop.
+    const claimed: Array<{
+      id: string;
+      winner_id: string;
+      winning_bid: number | null;
+      payment_deadline: string;
+    }> = [];
+
     for (const auction of candidates) {
       try {
         if (!auction.winner_id) {
           // Defensive: payment_status=pending on status=ended should imply a
           // winner, but skip gracefully if the DB is in a weird state.
+          skipped++;
+          continue;
+        }
+
+        if (!auction.payment_deadline) {
+          // Can't send a reminder without a deadline.
           skipped++;
           continue;
         }
@@ -2500,66 +2819,13 @@ export async function sendPaymentReminders(): Promise<{
           continue;
         }
 
-        // In-app notification to winner.
-        try {
-          await createNotification(
-            auction.winner_id,
-            "payment_reminder",
-            auction.id
-          );
-        } catch (notifyErr) {
-          errors.push(
-            `Auction ${auction.id}: notification failed ${String(notifyErr)}`
-          );
-        }
-
-        // Email to winner (fire-and-forget inside try/catch).
-        try {
-          const [winnerProfile, comicData] = await Promise.all([
-            getProfileForEmail(auction.winner_id),
-            getListingComicData(auction.id),
-          ]);
-
-          if (winnerProfile?.email && comicData && auction.payment_deadline) {
-            const baseUrl =
-              process.env.NEXT_PUBLIC_APP_URL || "https://collectors-chest.com";
-            const deadlineDate = new Date(auction.payment_deadline);
-            const hoursRemaining = Math.max(
-              0,
-              Math.round(
-                (deadlineDate.getTime() - new Date().getTime()) /
-                  (60 * 60 * 1000)
-              )
-            );
-            sendNotificationEmail({
-              to: winnerProfile.email,
-              type: "payment_reminder",
-              data: {
-                recipientName: winnerProfile.displayName ?? "there",
-                comicTitle: comicData.comicTitle,
-                issueNumber: comicData.issueNumber,
-                finalPrice:
-                  auction.winning_bid != null
-                    ? Number(auction.winning_bid)
-                    : comicData.price,
-                paymentDeadline: deadlineDate.toLocaleString("en-US", {
-                  dateStyle: "long",
-                  timeStyle: "short",
-                }),
-                hoursRemaining,
-                listingUrl: `${baseUrl}/shop?listing=${auction.id}`,
-                transactionsUrl: `${baseUrl}/transactions?tab=wins`,
-              },
-            }).catch((err) =>
-              console.error("[Email] payment_reminder failed:", err)
-            );
-          }
-        } catch (emailErr) {
-          errors.push(
-            `Auction ${auction.id}: email setup failed ${String(emailErr)}`
-          );
-        }
-
+        claimed.push({
+          id: auction.id,
+          winner_id: auction.winner_id,
+          winning_bid:
+            auction.winning_bid != null ? Number(auction.winning_bid) : null,
+          payment_deadline: auction.payment_deadline,
+        });
         reminded++;
       } catch (loopErr) {
         errors.push(
@@ -2570,8 +2836,109 @@ export async function sendPaymentReminders(): Promise<{
       }
     }
 
+    // Phase 2: Batch-insert in-app notifications (one Supabase round-trip).
+    let notificationsInserted = 0;
+    if (claimed.length > 0) {
+      const notificationRows = claimed.map((a) => ({
+        user_id: a.winner_id,
+        type: "payment_reminder" as const,
+        title: "Payment reminder",
+        message: "Payment is due soon for your won auction.",
+        auction_id: a.id,
+        offer_id: null,
+      }));
+
+      const { error: notifError } = await supabaseAdmin
+        .from("notifications")
+        .insert(notificationRows);
+
+      if (notifError) {
+        errors.push(`Batch notification insert failed: ${notifError.message}`);
+        console.error(
+          "[sendPaymentReminders] batch notification insert error:",
+          notifError
+        );
+      } else {
+        notificationsInserted = notificationRows.length;
+      }
+    }
+
+    // Phase 3: Build email params in parallel (bounded), then send via
+    // Resend batch API.
+    let emailsSent = 0;
+    let emailBatches = 0;
+    if (claimed.length > 0) {
+      const baseUrl =
+        process.env.NEXT_PUBLIC_APP_URL || "https://collectors-chest.com";
+
+      const emailParamsOrNull = await mapWithConcurrency(
+        claimed,
+        EMAIL_PREP_CONCURRENCY,
+        async (a) => {
+          try {
+            const [winnerProfile, comicData] = await Promise.all([
+              getProfileForEmail(a.winner_id),
+              getListingComicData(a.id),
+            ]);
+
+            if (!winnerProfile?.email || !comicData) {
+              return null;
+            }
+
+            const deadlineDate = new Date(a.payment_deadline);
+            const hoursRemaining = Math.max(
+              0,
+              Math.round(
+                (deadlineDate.getTime() - new Date().getTime()) /
+                  (60 * 60 * 1000)
+              )
+            );
+
+            return {
+              to: winnerProfile.email,
+              type: "payment_reminder" as const,
+              data: {
+                recipientName: winnerProfile.displayName ?? "there",
+                comicTitle: comicData.comicTitle,
+                issueNumber: comicData.issueNumber,
+                finalPrice:
+                  a.winning_bid != null ? a.winning_bid : comicData.price,
+                paymentDeadline: deadlineDate.toLocaleString("en-US", {
+                  dateStyle: "long",
+                  timeStyle: "short",
+                }),
+                hoursRemaining,
+                listingUrl: `${baseUrl}/shop?listing=${a.id}`,
+                transactionsUrl: `${baseUrl}/transactions?tab=wins`,
+              },
+            };
+          } catch (err) {
+            errors.push(
+              `Auction ${a.id}: email prep failed ${String(err)}`
+            );
+            return null;
+          }
+        }
+      );
+
+      const emailParams = emailParamsOrNull.filter(
+        (p): p is NonNullable<typeof p> => p != null
+      );
+
+      if (emailParams.length > 0) {
+        const result = await sendNotificationEmailsBatch(emailParams);
+        emailsSent = result.sent;
+        emailBatches = result.batches;
+        for (const e of result.errors) errors.push(e);
+      }
+    }
+
     console.warn(
-      `[sendPaymentReminders] processed ${reminded}, skipped ${skipped}, errors ${errors.length}`
+      `[sendPaymentReminders] processed ${reminded}, skipped ${skipped}, ` +
+        `sent ${notificationsInserted} notifications in ${
+          notificationsInserted > 0 ? 1 : 0
+        } batch, sent ${emailsSent} emails across ${emailBatches} batches, ` +
+        `errors ${errors.length}`
     );
     return { reminded, errors };
   } catch (topLevelErr) {
@@ -2628,6 +2995,15 @@ export async function expireUnpaidAuctions(): Promise<{
 
     let skipped = 0;
 
+    // Phase 1: Conditional UPDATE per auction (race-safe). Must stay serial
+    // so each auction is claimed atomically before we commit side effects.
+    const claimed: Array<{
+      id: string;
+      seller_id: string;
+      winner_id: string | null;
+      winning_bid: number | null;
+    }> = [];
+
     for (const auction of candidates) {
       try {
         // Conditional UPDATE: only flip if still in the pre-expiry state.
@@ -2658,98 +3034,13 @@ export async function expireUnpaidAuctions(): Promise<{
           continue;
         }
 
-        // Notify both parties. Wrap each send so one failure doesn't
-        // cascade and block the remaining auctions in the loop.
-        if (auction.winner_id) {
-          try {
-            await createNotification(
-              auction.winner_id,
-              "auction_payment_expired",
-              auction.id
-            );
-          } catch (err) {
-            errors.push(
-              `Auction ${auction.id}: winner notify failed ${String(err)}`
-            );
-          }
-        }
-
-        try {
-          await createNotification(
-            auction.seller_id,
-            "auction_payment_expired_seller",
-            auction.id
-          );
-        } catch (err) {
-          errors.push(
-            `Auction ${auction.id}: seller notify failed ${String(err)}`
-          );
-        }
-
-        // Emails — fire-and-forget per party.
-        try {
-          const [winnerProfile, sellerProfile, comicData] = await Promise.all([
-            auction.winner_id
-              ? getProfileForEmail(auction.winner_id)
-              : Promise.resolve(null),
-            getProfileForEmail(auction.seller_id),
-            getListingComicData(auction.id),
-          ]);
-
-          const baseUrl =
-            process.env.NEXT_PUBLIC_APP_URL || "https://collectors-chest.com";
-
-          if (comicData) {
-            if (winnerProfile?.email) {
-              sendNotificationEmail({
-                to: winnerProfile.email,
-                type: "auction_payment_expired",
-                data: {
-                  recipientName: winnerProfile.displayName ?? "there",
-                  comicTitle: comicData.comicTitle,
-                  issueNumber: comicData.issueNumber,
-                  finalPrice:
-                    auction.winning_bid != null
-                      ? Number(auction.winning_bid)
-                      : comicData.price,
-                  listingUrl: `${baseUrl}/shop`,
-                },
-              }).catch((err) =>
-                console.error(
-                  "[Email] auction_payment_expired (buyer) failed:",
-                  err
-                )
-              );
-            }
-
-            if (sellerProfile?.email) {
-              sendNotificationEmail({
-                to: sellerProfile.email,
-                type: "auction_payment_expired_seller",
-                data: {
-                  recipientName: sellerProfile.displayName ?? "there",
-                  comicTitle: comicData.comicTitle,
-                  issueNumber: comicData.issueNumber,
-                  finalPrice:
-                    auction.winning_bid != null
-                      ? Number(auction.winning_bid)
-                      : comicData.price,
-                  listingUrl: `${baseUrl}/collection`,
-                },
-              }).catch((err) =>
-                console.error(
-                  "[Email] auction_payment_expired_seller failed:",
-                  err
-                )
-              );
-            }
-          }
-        } catch (emailErr) {
-          errors.push(
-            `Auction ${auction.id}: email setup failed ${String(emailErr)}`
-          );
-        }
-
+        claimed.push({
+          id: auction.id,
+          seller_id: auction.seller_id,
+          winner_id: auction.winner_id ?? null,
+          winning_bid:
+            auction.winning_bid != null ? Number(auction.winning_bid) : null,
+        });
         expired++;
       } catch (loopErr) {
         errors.push(
@@ -2760,8 +3051,192 @@ export async function expireUnpaidAuctions(): Promise<{
       }
     }
 
+    // Audit trail — batch auction_payment_expired events for all claimed
+    // auctions. Fire-and-forget so it never blocks the cron's user-visible
+    // notifications/emails.
+    if (claimed.length > 0) {
+      void logAuctionAuditEvents(
+        claimed.map((a) => ({
+          auctionId: a.id,
+          actorProfileId: null,
+          eventType: "auction_payment_expired" as const,
+          eventData: {
+            winnerId: a.winner_id,
+            winningBid: a.winning_bid,
+          },
+        }))
+      );
+    }
+
+    // Phase 2: Batch-insert notifications for BOTH parties in a single
+    // Supabase round-trip.
+    let notificationsInserted = 0;
+    if (claimed.length > 0) {
+      const notificationRows: Array<{
+        user_id: string;
+        type:
+          | "auction_payment_expired"
+          | "auction_payment_expired_seller";
+        title: string;
+        message: string;
+        auction_id: string;
+        offer_id: null;
+      }> = [];
+
+      for (const a of claimed) {
+        if (a.winner_id) {
+          notificationRows.push({
+            user_id: a.winner_id,
+            type: "auction_payment_expired",
+            title: "Auction cancelled — payment window expired",
+            message:
+              "Your payment window has expired. The auction has been cancelled.",
+            auction_id: a.id,
+            offer_id: null,
+          });
+        }
+        notificationRows.push({
+          user_id: a.seller_id,
+          type: "auction_payment_expired_seller",
+          title: "Buyer did not pay in time",
+          message:
+            "The winning bidder did not pay within the 48-hour window. The auction has been cancelled and you may re-list the comic.",
+          auction_id: a.id,
+          offer_id: null,
+        });
+      }
+
+      if (notificationRows.length > 0) {
+        const { error: notifError } = await supabaseAdmin
+          .from("notifications")
+          .insert(notificationRows);
+
+        if (notifError) {
+          errors.push(
+            `Batch notification insert failed: ${notifError.message}`
+          );
+          console.error(
+            "[expireUnpaidAuctions] batch notification insert error:",
+            notifError
+          );
+        } else {
+          notificationsInserted = notificationRows.length;
+        }
+      }
+    }
+
+    // Phase 3: Prep email params in parallel (bounded), then send via
+    // Resend batch API. Up to two emails per auction (buyer + seller).
+    let emailsSent = 0;
+    let emailBatches = 0;
+    if (claimed.length > 0) {
+      const baseUrl =
+        process.env.NEXT_PUBLIC_APP_URL || "https://collectors-chest.com";
+
+      type EmailParam = Parameters<typeof sendNotificationEmailsBatch>[0][number];
+
+      const perAuctionEmails = await mapWithConcurrency(
+        claimed,
+        EMAIL_PREP_CONCURRENCY,
+        async (a): Promise<EmailParam[]> => {
+          try {
+            const [winnerProfile, sellerProfile, comicData] = await Promise.all([
+              a.winner_id
+                ? getProfileForEmail(a.winner_id)
+                : Promise.resolve(null),
+              getProfileForEmail(a.seller_id),
+              getListingComicData(a.id),
+            ]);
+
+            if (!comicData) return [];
+
+            const finalPrice =
+              a.winning_bid != null ? a.winning_bid : comicData.price;
+
+            const out: EmailParam[] = [];
+
+            if (winnerProfile?.email) {
+              out.push({
+                to: winnerProfile.email,
+                type: "auction_payment_expired",
+                data: {
+                  recipientName: winnerProfile.displayName ?? "there",
+                  comicTitle: comicData.comicTitle,
+                  issueNumber: comicData.issueNumber,
+                  finalPrice,
+                  listingUrl: `${baseUrl}/shop`,
+                },
+              });
+            }
+
+            if (sellerProfile?.email) {
+              out.push({
+                to: sellerProfile.email,
+                type: "auction_payment_expired_seller",
+                data: {
+                  recipientName: sellerProfile.displayName ?? "there",
+                  comicTitle: comicData.comicTitle,
+                  issueNumber: comicData.issueNumber,
+                  finalPrice,
+                  listingUrl: `${baseUrl}/collection`,
+                },
+              });
+            }
+
+            return out;
+          } catch (err) {
+            errors.push(
+              `Auction ${a.id}: email prep failed ${String(err)}`
+            );
+            return [];
+          }
+        }
+      );
+
+      const emailParams = perAuctionEmails.flat();
+
+      if (emailParams.length > 0) {
+        const result = await sendNotificationEmailsBatch(emailParams);
+        emailsSent = result.sent;
+        emailBatches = result.batches;
+        for (const e of result.errors) errors.push(e);
+      }
+    }
+
+    // Phase 4: Per-claimed-auction side effects — runner-up discovery +
+    // payment-miss strike handling. Best-effort: side-effect failures must
+    // never roll back the auction cancellation itself.
+    if (claimed.length > 0) {
+      for (const a of claimed) {
+        try {
+          await handleRunnerUpForExpiredAuction(a.id, a.seller_id);
+        } catch (err) {
+          errors.push(
+            `Auction ${a.id}: runner-up lookup failed ${String(err)}`
+          );
+        }
+        if (a.winner_id) {
+          try {
+            await recordPaymentMissStrike(
+              a.winner_id,
+              a.id,
+              a.winning_bid ?? null
+            );
+          } catch (err) {
+            errors.push(
+              `Auction ${a.id}: strike handling failed ${String(err)}`
+            );
+          }
+        }
+      }
+    }
+
     console.warn(
-      `[expireUnpaidAuctions] processed ${expired}, skipped ${skipped}, errors ${errors.length}`
+      `[expireUnpaidAuctions] processed ${expired}, skipped ${skipped}, ` +
+        `sent ${notificationsInserted} notifications in ${
+          notificationsInserted > 0 ? 1 : 0
+        } batch, sent ${emailsSent} emails across ${emailBatches} batches, ` +
+        `errors ${errors.length}`
     );
     return { expired, errors };
   } catch (topLevelErr) {
@@ -2771,4 +3246,793 @@ export async function expireUnpaidAuctions(): Promise<{
     console.error("[expireUnpaidAuctions] top-level failure:", topLevelErr);
     return { expired, errors };
   }
+}
+
+// ============================================================================
+// SECOND CHANCE OFFERS + PAYMENT-MISS STRIKE SYSTEM
+// ----------------------------------------------------------------------------
+// Added April 23, 2026. These helpers run after expireUnpaidAuctions flips
+// an auction to "cancelled":
+//   1. handleRunnerUpForExpiredAuction — finds runner-up, notifies seller
+//      that they can trigger a Second Chance Offer.
+//   2. recordPaymentMissStrike — increments the missed-payment counter on
+//      the no-pay winner, warns on first offense, flags on second within
+//      the rolling 90-day window.
+//   3. createSecondChanceOffer — seller calls this to re-offer to the
+//      runner-up at their last actual bid price. 48-hour window.
+//   4. respondToSecondChanceOffer — runner-up accepts or declines.
+//   5. expireSecondChanceOffers — cron pass that flips unanswered
+//      second-chance offers to "expired" and notifies the seller.
+// ============================================================================
+
+function transformDbSecondChanceOffer(
+  row: Record<string, unknown>
+): SecondChanceOffer {
+  return {
+    id: row.id as string,
+    auctionId: row.auction_id as string,
+    runnerUpProfileId: row.runner_up_profile_id as string,
+    offerPrice: Number(row.offer_price),
+    status: row.status as SecondChanceOffer["status"],
+    expiresAt: row.expires_at as string,
+    acceptedAt: (row.accepted_at as string | null) ?? null,
+    declinedAt: (row.declined_at as string | null) ?? null,
+    createdAt: row.created_at as string,
+  };
+}
+
+/**
+ * Find the runner-up bidder for a cancelled auction and notify the seller
+ * they can initiate a Second Chance Offer. Idempotent: if an offer was
+ * already created (e.g., cron re-ran) it won't double-notify.
+ *
+ * "Runner-up" is the next-highest unique bidder by bid_amount (last actual
+ * bid, NOT max_bid), excluding the missed-payment winner.
+ */
+async function handleRunnerUpForExpiredAuction(
+  auctionId: string,
+  sellerId: string
+): Promise<void> {
+  // Skip if we've already created / notified about a second chance offer.
+  const { data: existingOffer } = await supabaseAdmin
+    .from("second_chance_offers")
+    .select("id")
+    .eq("auction_id", auctionId)
+    .limit(1)
+    .maybeSingle();
+  if (existingOffer) return;
+
+  // Get all bids for this auction, ordered by the actual bid amount desc so
+  // the top row is the winner and the next distinct bidder is our runner-up.
+  const { data: bids } = await supabaseAdmin
+    .from("bids")
+    .select("bidder_id, bid_amount, created_at")
+    .eq("auction_id", auctionId)
+    .order("bid_amount", { ascending: false })
+    .order("created_at", { ascending: true });
+
+  if (!bids || bids.length < 2) {
+    // No runner-up (single bidder, or no bids).
+    return;
+  }
+
+  // The first row is the winner. Find the first row with a different bidder.
+  const winnerBidderId = bids[0].bidder_id as string;
+  const runnerUpRow = bids.find(
+    (b) => (b.bidder_id as string) !== winnerBidderId
+  );
+  if (!runnerUpRow) return;
+
+  const runnerUpLastBid = Number(runnerUpRow.bid_amount);
+
+  // Create the in-app notification for the seller.
+  await createNotification(
+    sellerId,
+    "second_chance_available",
+    auctionId,
+    undefined,
+    {
+      message: `The winning bidder didn't pay. You can offer this comic to the runner-up at their last bid of $${runnerUpLastBid.toFixed(2)}.`,
+    }
+  );
+
+  // Send the seller email with a deep-link that triggers the offer.
+  const [sellerProfile, comicData] = await Promise.all([
+    getProfileForEmail(sellerId),
+    getListingComicData(auctionId),
+  ]);
+
+  if (sellerProfile?.email && comicData) {
+    const baseUrl =
+      process.env.NEXT_PUBLIC_APP_URL || "https://collectors-chest.com";
+    await sendNotificationEmail({
+      to: sellerProfile.email,
+      type: "second_chance_available",
+      data: {
+        recipientName: sellerProfile.displayName ?? "there",
+        comicTitle: comicData.comicTitle,
+        issueNumber: comicData.issueNumber,
+        runnerUpLastBid,
+        offerUrl: `${baseUrl}/shop?listing=${auctionId}`,
+      },
+    });
+  }
+}
+
+/**
+ * Increment the missed-payment counter on a bidder's profile and apply the
+ * strike system:
+ *   1st offense → warning email only (no flag).
+ *   2nd offense within the rolling 90-day window → bid restriction + admin
+ *   review notification + `user_flagged` audit entry.
+ *
+ * Best-effort. Never throws into the caller.
+ */
+async function recordPaymentMissStrike(
+  bidderId: string,
+  auctionId: string,
+  winningBid: number | null
+): Promise<void> {
+  // Increment the counter atomically. Supabase doesn't have a native "UPDATE
+  // ... RETURNING" expression helper, so we do it in two steps.
+  const { data: current } = await supabaseAdmin
+    .from("profiles")
+    .select("payment_missed_count, bid_restricted_at")
+    .eq("id", bidderId)
+    .single();
+
+  const nextCount = ((current?.payment_missed_count as number) || 0) + 1;
+  const nowIso = new Date().toISOString();
+
+  const { error: updateError } = await supabaseAdmin
+    .from("profiles")
+    .update({
+      payment_missed_count: nextCount,
+      payment_missed_at: nowIso,
+    })
+    .eq("id", bidderId);
+
+  if (updateError) {
+    console.error("[recordPaymentMissStrike] update failed:", updateError);
+    return;
+  }
+
+  const baseUrl =
+    process.env.NEXT_PUBLIC_APP_URL || "https://collectors-chest.com";
+
+  // Look up prior auction_payment_expired audit events for this bidder
+  // within the rolling window. The current expireUnpaidAuctions pass logs
+  // its event fire-and-forget — depending on timing, that row may or may
+  // not be visible yet, so we count it explicitly via `+1` below and only
+  // treat rows with an older timestamp as "prior" here.
+  const windowStart = new Date(
+    Date.now() - PAYMENT_MISS_WINDOW_DAYS * 24 * 60 * 60 * 1000
+  ).toISOString();
+
+  const { count: priorStrikesRaw } = await supabaseAdmin
+    .from("auction_audit_log")
+    .select("id", { count: "exact", head: true })
+    .eq("actor_profile_id", bidderId)
+    .eq("event_type", "auction_payment_expired")
+    .gte("created_at", windowStart);
+
+  const priorStrikes = priorStrikesRaw ?? 0;
+  // +1 for the current miss (it may or may not be in the audit log yet).
+  const totalStrikesInWindow = priorStrikes + 1;
+
+  const comicData = await getListingComicData(auctionId).catch(() => null);
+  const bidderProfile = await getProfileForEmail(bidderId).catch(() => null);
+
+  if (totalStrikesInWindow < PAYMENT_MISS_STRIKE_THRESHOLD) {
+    // First offense (inside the window) → warning only.
+    await createNotification(bidderId, "payment_missed_warning", auctionId);
+    if (bidderProfile?.email && comicData) {
+      await sendNotificationEmail({
+        to: bidderProfile.email,
+        type: "payment_missed_warning",
+        data: {
+          recipientName: bidderProfile.displayName ?? "there",
+          comicTitle: comicData.comicTitle,
+          issueNumber: comicData.issueNumber,
+          finalPrice: winningBid != null ? winningBid : comicData.price,
+          shopUrl: `${baseUrl}/shop`,
+        },
+      });
+    }
+    return;
+  }
+
+  // Threshold reached — flag the user. Idempotent: only apply if not already
+  // restricted.
+  if (!(current?.bid_restricted_at as string | null)) {
+    const reason = `Missed ${totalStrikesInWindow} payment deadlines in the last ${PAYMENT_MISS_WINDOW_DAYS} days`;
+    const { error: flagError } = await supabaseAdmin
+      .from("profiles")
+      .update({
+        bid_restricted_at: nowIso,
+        bid_restricted_reason: reason,
+      })
+      .eq("id", bidderId)
+      .is("bid_restricted_at", null);
+
+    if (flagError) {
+      console.error("[recordPaymentMissStrike] flag failed:", flagError);
+      return;
+    }
+
+    // Audit trail.
+    void logAuctionAuditEvent({
+      auctionId,
+      actorProfileId: bidderId,
+      eventType: "user_flagged",
+      eventData: {
+        reason,
+        strikesInWindow: totalStrikesInWindow,
+        windowDays: PAYMENT_MISS_WINDOW_DAYS,
+      },
+    });
+
+    // Notify the user.
+    await createNotification(bidderId, "payment_missed_flagged", auctionId);
+    if (bidderProfile?.email) {
+      await sendNotificationEmail({
+        to: bidderProfile.email,
+        type: "payment_missed_flagged",
+        data: {
+          recipientName: bidderProfile.displayName ?? "there",
+          strikeCount: totalStrikesInWindow,
+          windowDays: PAYMENT_MISS_WINDOW_DAYS,
+          reason,
+          supportUrl: `${baseUrl}/contact`,
+        },
+      });
+    }
+
+    // Notify admins via an admin-broadcast. Fan-in row insert so one audit
+    // log entry per flagged user surfaces in every admin's notification
+    // feed.
+    try {
+      const { data: admins } = await supabaseAdmin
+        .from("profiles")
+        .select("id")
+        .eq("is_admin", true);
+
+      if (admins && admins.length > 0) {
+        const adminNotifications = admins.map((admin) => ({
+          user_id: admin.id as string,
+          type: "payment_missed_flagged" as const,
+          title: "User flagged — admin review needed",
+          message: `A user has been auto-flagged for ${totalStrikesInWindow} missed payments in ${PAYMENT_MISS_WINDOW_DAYS} days.`,
+          auction_id: auctionId,
+          offer_id: null,
+        }));
+        await supabaseAdmin.from("notifications").insert(adminNotifications);
+      }
+    } catch (err) {
+      console.error(
+        "[recordPaymentMissStrike] admin notification failed:",
+        err
+      );
+    }
+
+    // Reputation hit: insert a system-generated negative rating. Uses a
+    // null-safe path — if seller_ratings insert fails (e.g., unique buyer+auction
+    // constraint from an earlier run), we swallow the error.
+    try {
+      await supabaseAdmin.from("seller_ratings").insert({
+        seller_id: bidderId, // flag the bidder's reputation specifically
+        buyer_id: bidderId, // system self-rating: using same id is intentional — see COMMENT
+        auction_id: auctionId,
+        rating_type: "negative",
+        comment: `System flag: ${reason}.`,
+      });
+    } catch (err) {
+      console.error(
+        "[recordPaymentMissStrike] reputation penalty failed:",
+        err
+      );
+    }
+  }
+}
+
+/**
+ * Seller-initiated. Creates a Second Chance Offer for the runner-up at
+ * their last actual bid price. 48-hour window. Notifies the runner-up.
+ *
+ * Guardrails:
+ *   - Caller must be the auction's seller.
+ *   - Auction must be `cancelled` with `payment_expired_at` set.
+ *   - Must actually have a runner-up (different from the no-pay winner).
+ *   - Idempotent: returns the existing offer if one already exists for
+ *     this auction.
+ */
+export async function createSecondChanceOffer(
+  auctionId: string,
+  sellerId: string
+): Promise<
+  | { success: true; offer: SecondChanceOffer }
+  | { success: false; error: string }
+> {
+  // Verify caller is the seller + auction is in the expected state.
+  const { data: auction } = await supabase
+    .from("auctions")
+    .select("id, seller_id, status, payment_expired_at, winner_id")
+    .eq("id", auctionId)
+    .single();
+
+  if (!auction) {
+    return { success: false, error: "Auction not found" };
+  }
+  if ((auction.seller_id as string) !== sellerId) {
+    return { success: false, error: "Only the seller can trigger this" };
+  }
+  if (auction.status !== "cancelled" || !auction.payment_expired_at) {
+    return {
+      success: false,
+      error: "Second-chance offers require a cancelled/unpaid auction",
+    };
+  }
+
+  // Idempotent: return existing offer if one already exists.
+  const { data: existing } = await supabaseAdmin
+    .from("second_chance_offers")
+    .select("*")
+    .eq("auction_id", auctionId)
+    .limit(1)
+    .maybeSingle();
+
+  if (existing) {
+    return {
+      success: true,
+      offer: transformDbSecondChanceOffer(existing),
+    };
+  }
+
+  // Find runner-up.
+  const { data: bids } = await supabaseAdmin
+    .from("bids")
+    .select("bidder_id, bid_amount, created_at")
+    .eq("auction_id", auctionId)
+    .order("bid_amount", { ascending: false })
+    .order("created_at", { ascending: true });
+
+  if (!bids || bids.length < 2) {
+    return { success: false, error: "No runner-up bidder to offer to" };
+  }
+
+  const winnerBidderId = bids[0].bidder_id as string;
+  const runnerUpRow = bids.find(
+    (b) => (b.bidder_id as string) !== winnerBidderId
+  );
+  if (!runnerUpRow) {
+    return { success: false, error: "No runner-up bidder to offer to" };
+  }
+
+  const runnerUpId = runnerUpRow.bidder_id as string;
+  const offerPrice = Number(runnerUpRow.bid_amount);
+  const expiresAt = calculateSecondChanceOfferExpiration().toISOString();
+
+  const { data: inserted, error: insertError } = await supabaseAdmin
+    .from("second_chance_offers")
+    .insert({
+      auction_id: auctionId,
+      runner_up_profile_id: runnerUpId,
+      offer_price: offerPrice,
+      status: "pending",
+      expires_at: expiresAt,
+    })
+    .select()
+    .single();
+
+  if (insertError || !inserted) {
+    return {
+      success: false,
+      error: insertError?.message ?? "Failed to create offer",
+    };
+  }
+
+  // Audit trail.
+  void logAuctionAuditEvent({
+    auctionId,
+    actorProfileId: sellerId,
+    eventType: "offer_created",
+    eventData: {
+      kind: "second_chance",
+      runnerUpId,
+      offerPrice,
+      expiresAt,
+    },
+  });
+
+  // Notify the runner-up in-app + email.
+  const [runnerUpProfile, comicData] = await Promise.all([
+    getProfileForEmail(runnerUpId),
+    getListingComicData(auctionId),
+  ]);
+
+  const baseUrl =
+    process.env.NEXT_PUBLIC_APP_URL || "https://collectors-chest.com";
+
+  await createNotification(
+    runnerUpId,
+    "second_chance_offered",
+    auctionId,
+    undefined,
+    {
+      message: `You've been offered this comic at your last bid of $${offerPrice.toFixed(
+        2
+      )}. Accept within 48 hours.`,
+    }
+  );
+
+  if (runnerUpProfile?.email && comicData) {
+    await sendNotificationEmail({
+      to: runnerUpProfile.email,
+      type: "second_chance_offered",
+      data: {
+        recipientName: runnerUpProfile.displayName ?? "there",
+        comicTitle: comicData.comicTitle,
+        issueNumber: comicData.issueNumber,
+        offerPrice,
+        expiresAt: new Date(expiresAt).toLocaleString("en-US", {
+          dateStyle: "long",
+          timeStyle: "short",
+        }),
+        responseUrl: `${baseUrl}/transactions?tab=wins`,
+      },
+    });
+  }
+
+  return { success: true, offer: transformDbSecondChanceOffer(inserted) };
+}
+
+/**
+ * Runner-up accepts or declines a Second Chance Offer.
+ * Race-safe via conditional UPDATE on `status='pending' AND expires_at > now()`.
+ *
+ * On accept: flips the underlying auction back to the pre-cancellation
+ * buyer-owes-payment state with the new winner + 48h deadline.
+ */
+export async function respondToSecondChanceOffer(
+  offerId: string,
+  bidderId: string,
+  action: "accept" | "decline"
+): Promise<
+  | { success: true; offer: SecondChanceOffer }
+  | { success: false; error: string }
+> {
+  const { data: offer } = await supabaseAdmin
+    .from("second_chance_offers")
+    .select("*")
+    .eq("id", offerId)
+    .single();
+
+  if (!offer) {
+    return { success: false, error: "Offer not found" };
+  }
+  if ((offer.runner_up_profile_id as string) !== bidderId) {
+    return { success: false, error: "Only the runner-up can respond" };
+  }
+  if (offer.status !== "pending") {
+    return { success: false, error: `Offer is ${offer.status}` };
+  }
+
+  const nowIso = new Date().toISOString();
+
+  if (action === "accept") {
+    const paymentDeadline = calculatePaymentDeadline(new Date()).toISOString();
+
+    // Conditional UPDATE — bail cleanly if another request already moved it.
+    const { data: updated, error: updateError } = await supabaseAdmin
+      .from("second_chance_offers")
+      .update({
+        status: "accepted",
+        accepted_at: nowIso,
+      })
+      .eq("id", offerId)
+      .eq("status", "pending")
+      .gt("expires_at", nowIso)
+      .select()
+      .single();
+
+    if (updateError || !updated) {
+      return {
+        success: false,
+        error: "Offer could not be accepted (expired or already responded)",
+      };
+    }
+
+    // Re-open the auction for payment by the new buyer.
+    const { error: auctionError } = await supabaseAdmin
+      .from("auctions")
+      .update({
+        status: "ended",
+        winner_id: bidderId,
+        winning_bid: offer.offer_price,
+        payment_status: "pending",
+        payment_deadline: paymentDeadline,
+        payment_expired_at: null,
+        updated_at: nowIso,
+      })
+      .eq("id", offer.auction_id);
+
+    if (auctionError) {
+      console.error(
+        "[respondToSecondChanceOffer] auction re-open failed:",
+        auctionError
+      );
+      // We've already accepted the offer — return success but surface the
+      // warning in logs. This keeps the offer consistent; admin can fix up.
+    }
+
+    // Audit.
+    void logAuctionAuditEvent({
+      auctionId: offer.auction_id as string,
+      actorProfileId: bidderId,
+      eventType: "offer_accepted",
+      eventData: {
+        kind: "second_chance",
+        offerPrice: offer.offer_price,
+      },
+    });
+
+    // Notify the seller.
+    const { data: auctionRow } = await supabase
+      .from("auctions")
+      .select("seller_id")
+      .eq("id", offer.auction_id)
+      .single();
+
+    if (auctionRow?.seller_id) {
+      const sellerId = auctionRow.seller_id as string;
+      await createNotification(
+        sellerId,
+        "second_chance_accepted",
+        offer.auction_id as string
+      );
+
+      const [sellerProfile, comicData] = await Promise.all([
+        getProfileForEmail(sellerId),
+        getListingComicData(offer.auction_id as string),
+      ]);
+      const baseUrl =
+        process.env.NEXT_PUBLIC_APP_URL || "https://collectors-chest.com";
+      if (sellerProfile?.email && comicData) {
+        await sendNotificationEmail({
+          to: sellerProfile.email,
+          type: "second_chance_accepted",
+          data: {
+            recipientName: sellerProfile.displayName ?? "there",
+            comicTitle: comicData.comicTitle,
+            issueNumber: comicData.issueNumber,
+            offerPrice: Number(offer.offer_price),
+            listingUrl: `${baseUrl}/shop?listing=${offer.auction_id}`,
+          },
+        });
+      }
+    }
+
+    return { success: true, offer: transformDbSecondChanceOffer(updated) };
+  }
+
+  // action === "decline"
+  const { data: updated, error: updateError } = await supabaseAdmin
+    .from("second_chance_offers")
+    .update({
+      status: "declined",
+      declined_at: nowIso,
+    })
+    .eq("id", offerId)
+    .eq("status", "pending")
+    .gt("expires_at", nowIso)
+    .select()
+    .single();
+
+  if (updateError || !updated) {
+    return {
+      success: false,
+      error: "Offer could not be declined (expired or already responded)",
+    };
+  }
+
+  void logAuctionAuditEvent({
+    auctionId: offer.auction_id as string,
+    actorProfileId: bidderId,
+    eventType: "offer_rejected",
+    eventData: {
+      kind: "second_chance",
+    },
+  });
+
+  // Notify the seller.
+  const { data: auctionRow } = await supabase
+    .from("auctions")
+    .select("seller_id")
+    .eq("id", offer.auction_id)
+    .single();
+
+  if (auctionRow?.seller_id) {
+    const sellerId = auctionRow.seller_id as string;
+    await createNotification(
+      sellerId,
+      "second_chance_declined",
+      offer.auction_id as string
+    );
+    const [sellerProfile, comicData] = await Promise.all([
+      getProfileForEmail(sellerId),
+      getListingComicData(offer.auction_id as string),
+    ]);
+    const baseUrl =
+      process.env.NEXT_PUBLIC_APP_URL || "https://collectors-chest.com";
+    if (sellerProfile?.email && comicData) {
+      await sendNotificationEmail({
+        to: sellerProfile.email,
+        type: "second_chance_declined",
+        data: {
+          recipientName: sellerProfile.displayName ?? "there",
+          comicTitle: comicData.comicTitle,
+          issueNumber: comicData.issueNumber,
+          offerPrice: Number(offer.offer_price),
+          listingUrl: `${baseUrl}/collection`,
+        },
+      });
+    }
+  }
+
+  return { success: true, offer: transformDbSecondChanceOffer(updated) };
+}
+
+/**
+ * Cron pass — expire any Second Chance Offer whose 48-hour window has
+ * elapsed without a response. Notifies the seller so they know they can
+ * re-list.
+ *
+ * Race-safe: conditional UPDATE on the pre-expiry state. Fire-and-forget
+ * email/notification failures are surfaced in `errors[]`.
+ */
+export async function expireSecondChanceOffers(): Promise<{
+  expired: number;
+  errors: string[];
+}> {
+  const errors: string[] = [];
+  let expired = 0;
+
+  try {
+    const now = new Date();
+    const { data: candidates, error: fetchError } = await supabaseAdmin
+      .from("second_chance_offers")
+      .select("id, auction_id, runner_up_profile_id, offer_price")
+      .eq("status", "pending")
+      .lt("expires_at", now.toISOString());
+
+    if (fetchError) {
+      errors.push(`Failed to fetch offers: ${fetchError.message}`);
+      return { expired: 0, errors };
+    }
+
+    if (!candidates || candidates.length === 0) {
+      return { expired: 0, errors };
+    }
+
+    for (const offer of candidates) {
+      try {
+        const nowIso = new Date().toISOString();
+        const { data: updatedRow, error: updateError } = await supabaseAdmin
+          .from("second_chance_offers")
+          .update({ status: "expired" })
+          .eq("id", offer.id)
+          .eq("status", "pending")
+          .select("id, auction_id, offer_price")
+          .single();
+
+        if (updateError || !updatedRow) {
+          continue; // Someone beat us to it or it was resolved.
+        }
+
+        expired++;
+
+        // Audit.
+        void logAuctionAuditEvent({
+          auctionId: offer.auction_id as string,
+          actorProfileId: null,
+          eventType: "offer_expired",
+          eventData: {
+            kind: "second_chance",
+            offerPrice: offer.offer_price,
+            expiredAt: nowIso,
+          },
+        });
+
+        // Notify seller.
+        const { data: auctionRow } = await supabase
+          .from("auctions")
+          .select("seller_id")
+          .eq("id", offer.auction_id)
+          .single();
+
+        if (auctionRow?.seller_id) {
+          const sellerId = auctionRow.seller_id as string;
+          await createNotification(
+            sellerId,
+            "second_chance_expired",
+            offer.auction_id as string
+          );
+          const [sellerProfile, comicData] = await Promise.all([
+            getProfileForEmail(sellerId),
+            getListingComicData(offer.auction_id as string),
+          ]);
+          const baseUrl =
+            process.env.NEXT_PUBLIC_APP_URL || "https://collectors-chest.com";
+          if (sellerProfile?.email && comicData) {
+            await sendNotificationEmail({
+              to: sellerProfile.email,
+              type: "second_chance_expired",
+              data: {
+                recipientName: sellerProfile.displayName ?? "there",
+                comicTitle: comicData.comicTitle,
+                issueNumber: comicData.issueNumber,
+                offerPrice: Number(offer.offer_price),
+                listingUrl: `${baseUrl}/collection`,
+              },
+            });
+          }
+        }
+      } catch (loopErr) {
+        errors.push(
+          `Offer ${offer.id}: ${
+            loopErr instanceof Error ? loopErr.message : "unknown error"
+          }`
+        );
+      }
+    }
+
+    console.warn(
+      `[expireSecondChanceOffers] expired ${expired}, errors ${errors.length}`
+    );
+    return { expired, errors };
+  } catch (topLevelErr) {
+    errors.push(`expireSecondChanceOffers top-level: ${String(topLevelErr)}`);
+    return { expired, errors };
+  }
+}
+
+/**
+ * Read a pending Second Chance Offer for a runner-up (if any exists) —
+ * used by the /transactions UI to render the inbox card.
+ */
+export async function getPendingSecondChanceOffersForRunnerUp(
+  profileId: string
+): Promise<
+  Array<
+    SecondChanceOffer & {
+      comicTitle: string;
+      issueNumber: string;
+      coverImageUrl: string | null;
+    }
+  >
+> {
+  const { data } = await supabaseAdmin
+    .from("second_chance_offers")
+    .select(
+      "id, auction_id, runner_up_profile_id, offer_price, status, expires_at, accepted_at, declined_at, created_at, auctions!inner(comics!auctions_comic_id_fkey(title, issue_number, cover_image_url))"
+    )
+    .eq("runner_up_profile_id", profileId)
+    .eq("status", "pending")
+    .gt("expires_at", new Date().toISOString())
+    .order("created_at", { ascending: false });
+
+  if (!data) return [];
+
+  return data.map((row: Record<string, unknown>) => {
+    const base = transformDbSecondChanceOffer(row);
+    const comic =
+      (row.auctions as { comics?: Record<string, unknown> } | null)?.comics ??
+      null;
+    return {
+      ...base,
+      comicTitle: (comic?.title as string | undefined) ?? "Unknown",
+      issueNumber: (comic?.issue_number as string | undefined) ?? "",
+      coverImageUrl: (comic?.cover_image_url as string | null) ?? null,
+    };
+  });
 }

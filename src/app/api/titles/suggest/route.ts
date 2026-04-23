@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import Anthropic from "@anthropic-ai/sdk";
+import { z } from "zod";
 
 import { cacheGet, cacheSet } from "@/lib/cache";
 import { MODEL_LIGHTWEIGHT } from "@/lib/models";
+import { validateBody } from "@/lib/validation";
+
+const titleSuggestSchema = z.object({
+  query: z.string().trim().min(1).max(200),
+});
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -17,9 +23,12 @@ export interface TitleSuggestion {
 
 export async function POST(request: NextRequest) {
   try {
-    const { query } = await request.json();
+    const rawBody = await request.json().catch(() => null);
+    const validated = validateBody(titleSuggestSchema, rawBody);
+    if (!validated.success) return validated.response;
+    const { query } = validated.data;
 
-    if (!query || query.length < 2) {
+    if (query.length < 2) {
       return NextResponse.json({ suggestions: [] });
     }
 

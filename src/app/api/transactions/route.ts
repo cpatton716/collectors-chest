@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@clerk/nextjs/server";
+import { z } from "zod";
 
 import { getProfileByClerkId } from "@/lib/db";
 import { supabase } from "@/lib/supabase";
+import { validateQuery } from "@/lib/validation";
+
+const transactionQuerySchema = z.object({
+  type: z.enum(["purchases", "wins", "bids", "offers"]),
+});
 
 // Transaction row shape returned to the client. Kept small + flat so the
 // Transactions page can render without additional lookups.
@@ -44,10 +50,6 @@ export interface OfferRow {
   offerCreatedAt: string;
   listing: TransactionRow;
 }
-
-type TransactionType = "purchases" | "wins" | "bids" | "offers";
-
-const VALID_TYPES: TransactionType[] = ["purchases", "wins", "bids", "offers"];
 
 // Shape up an auctions row (with joined comic + seller) into the flat TransactionRow.
 function toTransactionRow(row: Record<string, unknown>): TransactionRow {
@@ -106,13 +108,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
-    const typeParam = request.nextUrl.searchParams.get("type") as TransactionType | null;
-    if (!typeParam || !VALID_TYPES.includes(typeParam)) {
-      return NextResponse.json(
-        { error: `type query param must be one of: ${VALID_TYPES.join(", ")}` },
-        { status: 400 }
-      );
-    }
+    const validatedQuery = validateQuery(transactionQuerySchema, request.nextUrl.searchParams);
+    if (!validatedQuery.success) return validatedQuery.response;
+    const typeParam = validatedQuery.data.type;
 
     switch (typeParam) {
       case "purchases": {

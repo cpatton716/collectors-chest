@@ -1,10 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@clerk/nextjs/server";
+import { z } from "zod";
 
 import { getProfileByClerkId } from "@/lib/db";
 import { supabase } from "@/lib/supabase";
 import { triggerMatchFinding } from "@/lib/tradingDb";
+import { schemas, validateBody, validateParams } from "@/lib/validation";
+
+const forTradeParamsSchema = z.object({
+  id: schemas.uuid,
+});
+
+const forTradeBodySchema = z.object({
+  forTrade: z.boolean(),
+});
 
 // PATCH - Toggle for_trade status
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -14,8 +24,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id } = await params;
-    const { forTrade } = await request.json();
+    const rawParams = await params;
+    const paramsValidated = validateParams(forTradeParamsSchema, rawParams);
+    if (!paramsValidated.success) return paramsValidated.response;
+    const { id } = paramsValidated.data;
+
+    const rawBody = await request.json().catch(() => null);
+    const bodyValidated = validateBody(forTradeBodySchema, rawBody);
+    if (!bodyValidated.success) return bodyValidated.response;
+    const { forTrade } = bodyValidated.data;
 
     const profile = await getProfileByClerkId(userId);
     if (!profile) {

@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@clerk/nextjs/server";
+import { z } from "zod";
 
 import { isUserSuspended } from "@/lib/adminAuth";
+import { validateBody } from "@/lib/validation";
 import { executeWithFallback, executeSlabDetection, executeSlabDetailExtraction, getRemainingBudget, getProviders } from "@/lib/aiProvider";
 import { hasCompleteSlabData } from "@/lib/metadataCache";
 import { normalizeGradingCompany, parseKeyComments, mergeKeyComments, parseArtComments } from "@/lib/certHelpers";
@@ -22,7 +24,6 @@ import { isBrowseApiConfigured, searchActiveListings, convertBrowseToPriceData, 
 import { ComicMetadata, mergeMetadataIntoDetails, buildMetadataSavePayload } from "@/lib/metadataCache";
 import { runCoverPipeline } from "@/lib/coverValidation";
 import { lookupKeyInfo } from "@/lib/keyComicsDatabase";
-import { verifyWithMetron, MetronVerifyResult } from "@/lib/metronVerify";
 import { estimateScanCostCents, trackScanServer, recordScanAnalytics } from "@/lib/analyticsServer";
 import { harvestCoverFromScan } from "@/lib/coverHarvest";
 import { supabaseAdmin } from "@/lib/supabase";
@@ -40,6 +41,25 @@ import {
 } from "@/lib/uploadLimits";
 
 import { PriceData } from "@/types/comic";
+
+const SUPPORTED_MEDIA_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
+type SupportedMediaType = (typeof SUPPORTED_MEDIA_TYPES)[number];
+
+const analyzeSchema = z
+  .object({
+    image: z.string().min(1, "Image data required"),
+    mediaType: z.string().min(1).max(100).optional(),
+    scanType: z.enum(["auto", "barcode", "cover", "cert"]).optional(),
+    guestMode: z.boolean().optional(),
+  })
+  .passthrough();
+
+function normalizeMediaType(raw: string | undefined): SupportedMediaType {
+  if (raw && (SUPPORTED_MEDIA_TYPES as readonly string[]).includes(raw)) {
+    return raw as SupportedMediaType;
+  }
+  return "image/jpeg";
+}
 
 // Parsed barcode components (UPC-A with optional 5-digit add-on)
 interface ParsedBarcode {
@@ -77,10 +97,9 @@ interface ComicDetails {
   barcodeNumber?: string | null; // UPC barcode if visible in image (legacy field)
   barcode?: { raw: string; confidence: "high" | "medium" | "low"; parsed?: ParsedBarcode } | null; // Enhanced barcode detection
   dataSource?: "barcode" | "ai" | "cache"; // Track where primary data came from
-  coverImageUrl?: string | null; // Cover image URL (e.g. from Metron or pipeline)
-  coverSource?: string | null; // Where the cover came from (metron, community, ebay, etc.)
+  coverImageUrl?: string | null; // Cover image URL (e.g. from the cover pipeline)
+  coverSource?: string | null; // Where the cover came from (community, ebay, openlibrary, etc.)
   coverValidated?: boolean; // Whether the cover has been validated
-  metronId?: string | null; // Metron database ID for cross-reference
   // Cover harvesting fields (internal — stripped before sending to client)
   coverHarvestable?: boolean;
   coverCropCoordinates?: { x: number; y: number; width: number; height: number };
@@ -217,9 +236,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const { image, mediaType } = await request.json();
-
-    if (!image) {
+    const rawBody = await request.json().catch(() => null);
+    const validated = validateBody(analyzeSchema, rawBody);
+    if (!validated.success) {
       // Release the reserved scan slot — the request is invalid, don't charge the user
       if (profileId && scanSlotReserved) {
         releaseScanSlot(profileId, scanSlotUsedPurchased).catch((err) => {
@@ -227,11 +246,9 @@ export async function POST(request: NextRequest) {
         });
         scanSlotReserved = false;
       }
-      return NextResponse.json(
-        { error: "No image was received. Please try uploading your photo again." },
-        { status: 400 }
-      );
+      return validated.response;
     }
+    const { image, mediaType } = validated.data;
 
     // Enforce max decoded image size (10MB). Fast-reject the base64 string
     // before decoding if it can't possibly fit — base64 encoding inflates
@@ -324,7 +341,7 @@ export async function POST(request: NextRequest) {
           fallbackUsed: slabFallbackUsed,
         } = await executeSlabDetection(
           base64Data,
-          mediaType || "image/jpeg",
+          normalizeMediaType(mediaType),
           slabBudget,
           aiProviders
         );
@@ -477,7 +494,7 @@ export async function POST(request: NextRequest) {
                     provider: detailProvider,
                   } = await executeSlabDetailExtraction(
                     base64Data,
-                    mediaType || "image/jpeg",
+                    normalizeMediaType(mediaType),
                     { skipCreators, skipBarcode, remainingBudgetMs: detailBudget },
                     aiProviders
                   );
@@ -560,7 +577,7 @@ export async function POST(request: NextRequest) {
         fallbackReason: imageFallbackReason,
       } = await executeWithFallback(
         (provider, signal) =>
-          provider.analyzeImage({ base64Data, mediaType: mediaType || "image/jpeg" }, { signal }),
+          provider.analyzeImage({ base64Data, mediaType: normalizeMediaType(mediaType) }, { signal }),
         call1Timeout,
         call1FallbackTimeout,
         "imageAnalysis",
@@ -611,7 +628,7 @@ export async function POST(request: NextRequest) {
             const fallbackTimeout = Math.min(10_000, fallbackBudget);
             const fallbackSignal = AbortSignal.timeout(fallbackTimeout);
             const fallbackResult = await fallbackProvider.analyzeImage(
-              { base64Data, mediaType: mediaType || "image/jpeg" },
+              { base64Data, mediaType: normalizeMediaType(mediaType) },
               { signal: fallbackSignal }
             );
             aiCallsMade++;
@@ -862,16 +879,6 @@ export async function POST(request: NextRequest) {
     }
 
     // ============================================
-    // Metron Verification (non-blocking, fire-and-settle alongside cache lookup)
-    // ============================================
-    let metronPromise: Promise<PromiseSettledResult<MetronVerifyResult>> | null = null;
-    if (comicDetails.title && comicDetails.issueNumber) {
-      metronPromise = Promise.allSettled([
-        verifyWithMetron(comicDetails.title, comicDetails.issueNumber),
-      ]).then((results) => results[0]);
-    }
-
-    // ============================================
     // Metadata Cache Lookup (dual-layer: Redis → Supabase)
     // Skip if cert-first path already did its own cache lookup
     // ============================================
@@ -1057,36 +1064,8 @@ export async function POST(request: NextRequest) {
     // Scan count was already incremented atomically via reserveScanSlot() at the start
 
     // ============================================
-    // Metron Verification Merge (non-blocking result)
-    // ============================================
-    if (metronPromise) {
-      try {
-        const settled = await metronPromise;
-        if (settled.status === "fulfilled" && settled.value.verified) {
-          const metronResult = settled.value;
-          // Boost confidence if Metron verified the comic
-          if (metronResult.confidence_boost && comicDetails.confidence !== "high") {
-            comicDetails.confidence = "high";
-          }
-          // Use Metron cover image if we don't have one
-          if (metronResult.cover_image && !comicDetails.coverImageUrl) {
-            comicDetails.coverImageUrl = metronResult.cover_image;
-            comicDetails.coverSource = "metron";
-            comicDetails.coverValidated = false; // Flagged for validation on next lookup
-          }
-          // Store Metron ID for future reference
-          if (metronResult.metron_id) {
-            comicDetails.metronId = metronResult.metron_id;
-          }
-        }
-      } catch {
-        // Metron merge failed — proceed silently
-      }
-    }
-
-    // ============================================
-    // Cover Image Pipeline Fallback
-    // If no cover from Metron, try the pipeline with eBay listing images
+    // Cover Image Pipeline
+    // Runs the cover pipeline with eBay listing images and Open Library
     // ============================================
     if (!comicDetails.coverImageUrl && comicDetails.title && comicDetails.issueNumber) {
       try {

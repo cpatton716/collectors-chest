@@ -1,11 +1,38 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@clerk/nextjs/server";
+import { z } from "zod";
 
 import { getProfileByClerkId } from "@/lib/db";
 import { createTrade, getUserTrades } from "@/lib/tradingDb";
+import { schemas, validateBody, validateQuery } from "@/lib/validation";
 
-import { CreateTradeInput, TradeStatus } from "@/types/trade";
+import { TradeStatus } from "@/types/trade";
+
+const tradeStatusEnum = z.enum([
+  "proposed",
+  "accepted",
+  "shipped",
+  "completed",
+  "cancelled",
+  "declined",
+]);
+
+const listTradesQuerySchema = z.object({
+  status: z
+    .string()
+    .optional()
+    .transform((v) => (v ? v.split(",") : undefined))
+    .pipe(z.array(tradeStatusEnum).max(10).optional()),
+});
+
+const createTradeBodySchema = z
+  .object({
+    recipientId: schemas.uuid,
+    myComicIds: z.array(schemas.uuid).min(1).max(50),
+    theirComicIds: z.array(schemas.uuid).min(1).max(50),
+  })
+  .strict();
 
 // GET - Get user's trades
 export async function GET(request: NextRequest) {
@@ -21,8 +48,9 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const statusParam = searchParams.get("status");
-    const status = statusParam ? (statusParam.split(",") as TradeStatus[]) : undefined;
+    const validatedQuery = validateQuery(listTradesQuerySchema, searchParams);
+    if (!validatedQuery.success) return validatedQuery.response;
+    const status = validatedQuery.data.status as TradeStatus[] | undefined;
 
     const trades = await getUserTrades(profile.id, status);
 
@@ -54,15 +82,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body: CreateTradeInput = await request.json();
+    const rawBody = await request.json().catch(() => null);
+    const validatedBody = validateBody(createTradeBodySchema, rawBody);
+    if (!validatedBody.success) return validatedBody.response;
+    const body = validatedBody.data;
 
-    // Validation
-    if (!body.recipientId) {
-      return NextResponse.json({ error: "Recipient required" }, { status: 400 });
-    }
-    if (!body.myComicIds?.length || !body.theirComicIds?.length) {
-      return NextResponse.json({ error: "Must include comics from both parties" }, { status: 400 });
-    }
     if (body.recipientId === profile.id) {
       return NextResponse.json({ error: "Cannot trade with yourself" }, { status: 400 });
     }

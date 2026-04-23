@@ -1,7 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { z } from "zod";
+
 import { getAdminProfile, getProfileById, logAdminAction } from "@/lib/adminAuth";
 import { supabaseAdmin } from "@/lib/supabase";
+import { schemas, validateBody } from "@/lib/validation";
+
+const resetTrialBodySchema = z
+  .object({
+    targetUserId: schemas.uuid,
+  })
+  .strict();
 
 /**
  * POST - Reset trial status (ADMIN ONLY)
@@ -19,12 +28,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    const body = await request.json();
-    const { targetUserId } = body;
-
-    if (!targetUserId) {
-      return NextResponse.json({ error: "targetUserId is required" }, { status: 400 });
-    }
+    const rawBody = await request.json().catch(() => null);
+    const validatedBody = validateBody(resetTrialBodySchema, rawBody);
+    if (!validatedBody.success) return validatedBody.response;
+    const { targetUserId } = validatedBody.data;
 
     // Verify target user exists
     const targetProfile = await getProfileById(targetUserId);

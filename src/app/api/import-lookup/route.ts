@@ -1,11 +1,28 @@
 import { NextResponse } from "next/server";
 
 import Anthropic from "@anthropic-ai/sdk";
+import { z } from "zod";
 
 import { getComicMetadata, saveComicMetadata } from "@/lib/db";
 import { MODEL_PRIMARY } from "@/lib/models";
 import { normalizeTitle, normalizeIssueNumber } from "@/lib/normalizeTitle";
 import { recordScanAnalytics, estimateScanCostCents } from "@/lib/analyticsServer";
+import { validateBody } from "@/lib/validation";
+
+const importLookupSchema = z.object({
+  title: z.string().trim().min(1, "Title is required").max(200),
+  issueNumber: z
+    .union([z.string(), z.number()])
+    .transform((v) => String(v))
+    .pipe(z.string().min(1, "Issue number is required").max(50)),
+  variant: z.string().trim().max(100).optional().nullable(),
+  publisher: z.string().trim().max(100).optional().nullable(),
+  releaseYear: z
+    .union([z.string(), z.number()])
+    .transform((v) => (v === undefined || v === null ? null : String(v)))
+    .optional()
+    .nullable(),
+});
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -15,14 +32,10 @@ export async function POST(request: Request) {
   const startTime = Date.now();
 
   try {
-    const { title, issueNumber, variant, publisher, releaseYear } = await request.json();
-
-    if (!title || !issueNumber) {
-      return NextResponse.json(
-        { error: "Both title and issue number are needed to look up comic details." },
-        { status: 400 }
-      );
-    }
+    const rawBody = await request.json().catch(() => null);
+    const validated = validateBody(importLookupSchema, rawBody);
+    if (!validated.success) return validated.response;
+    const { title, issueNumber, variant, publisher, releaseYear } = validated.data;
 
     const normalizedTitle = normalizeTitle(title);
     const normalizedIssue = normalizeIssueNumber(issueNumber.toString());

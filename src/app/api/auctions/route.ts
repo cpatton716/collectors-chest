@@ -1,35 +1,83 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@clerk/nextjs/server";
+import { z } from "zod";
 
 import { isUserSuspended } from "@/lib/adminAuth";
 import { createAuction, createFixedPriceListing, getActiveAuctions } from "@/lib/auctionDb";
 import { ensureComicInSupabase, getProfileByClerkId } from "@/lib/db";
+import type { CollectionItem } from "@/types/comic";
 import { getFollowingIds } from "@/lib/followDb";
 import { supabaseAdmin } from "@/lib/supabase";
+import { schemas, validateBody, validateQuery } from "@/lib/validation";
 
 import {
   AuctionFilters,
-  AuctionSortBy,
-  ListingType,
   MIN_FIXED_PRICE,
   MIN_STARTING_PRICE,
 } from "@/types/auction";
 
+const listingTypeEnum = z.enum(["auction", "fixed_price"]);
+const sortByEnum = z.enum([
+  "ending_soonest",
+  "ending_latest",
+  "price_low",
+  "price_high",
+  "most_bids",
+  "newest",
+]);
+
+const listAuctionsQuerySchema = z.object({
+  listingType: listingTypeEnum.optional(),
+  sellerId: z
+    .string()
+    .refine((v) => v === "me" || z.string().uuid().safeParse(v).success, {
+      message: "Must be 'me' or a valid UUID",
+    })
+    .optional(),
+  minPrice: z.coerce.number().nonnegative().optional(),
+  maxPrice: z.coerce.number().nonnegative().optional(),
+  hasBuyItNow: z.enum(["true", "false"]).optional(),
+  endingSoon: z.enum(["true", "false"]).optional(),
+  followingOnly: z.enum(["true", "false"]).optional(),
+  sortBy: sortByEnum.optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional(),
+  offset: z.coerce.number().int().min(0).optional(),
+});
+
+const createListingBodySchema = z
+  .object({
+    comicId: schemas.uuid,
+    comicData: z.unknown().optional(),
+    listingType: listingTypeEnum.optional(),
+    startingPrice: z.number().nonnegative().max(1_000_000).optional(),
+    price: z.number().nonnegative().max(1_000_000).optional(),
+    buyItNowPrice: z.number().positive().max(1_000_000).nullable().optional(),
+    durationDays: z.number().int().min(1).max(14).optional(),
+    shippingCost: z.number().nonnegative().max(10_000),
+    detailImages: z.array(z.string().max(2048)).max(4).optional(),
+    description: z.string().max(5000).optional(),
+    acceptsOffers: z.boolean().optional(),
+    minOfferAmount: z.number().nonnegative().max(1_000_000).optional(),
+    startDate: z.string().datetime({ offset: true }).optional(),
+  })
+  .strict();
+
 // GET - List active auctions/listings with filters
 export async function GET(request: NextRequest) {
   try {
-    const searchParams = request.nextUrl.searchParams;
+    const validated = validateQuery(listAuctionsQuerySchema, request.nextUrl.searchParams);
+    if (!validated.success) return validated.response;
+    const query = validated.data;
 
     // Parse filters
     const filters: AuctionFilters = {};
-    if (searchParams.get("listingType")) {
-      filters.listingType = searchParams.get("listingType") as ListingType;
+    if (query.listingType) {
+      filters.listingType = query.listingType;
     }
-    if (searchParams.get("sellerId")) {
-      const sellerIdParam = searchParams.get("sellerId")!;
+    if (query.sellerId) {
       // Handle "me" to get current user's listings
-      if (sellerIdParam === "me") {
+      if (query.sellerId === "me") {
         const { userId } = await auth();
         if (userId) {
           const profile = await getProfileByClerkId(userId);
@@ -38,32 +86,32 @@ export async function GET(request: NextRequest) {
           }
         }
       } else {
-        filters.sellerId = sellerIdParam;
+        filters.sellerId = query.sellerId;
       }
     }
-    if (searchParams.get("minPrice")) {
-      filters.minPrice = Number(searchParams.get("minPrice"));
+    if (query.minPrice !== undefined) {
+      filters.minPrice = query.minPrice;
     }
-    if (searchParams.get("maxPrice")) {
-      filters.maxPrice = Number(searchParams.get("maxPrice"));
+    if (query.maxPrice !== undefined) {
+      filters.maxPrice = query.maxPrice;
     }
-    if (searchParams.get("hasBuyItNow") === "true") {
+    if (query.hasBuyItNow === "true") {
       filters.hasBuyItNow = true;
     }
-    if (searchParams.get("endingSoon") === "true") {
+    if (query.endingSoon === "true") {
       filters.endingSoon = true;
     }
 
     // Parse sorting - default to "newest" for fixed_price, "ending_soonest" for auctions
     const defaultSort = filters.listingType === "fixed_price" ? "newest" : "ending_soonest";
-    const sortBy = (searchParams.get("sortBy") || defaultSort) as AuctionSortBy;
+    const sortBy = query.sortBy || defaultSort;
 
     // Parse pagination
-    const limit = Number(searchParams.get("limit")) || 50;
-    const offset = Number(searchParams.get("offset")) || 0;
+    const limit = query.limit ?? 50;
+    const offset = query.offset ?? 0;
 
     // Parse followingOnly filter
-    const followingOnly = searchParams.get("followingOnly") === "true";
+    const followingOnly = query.followingOnly === "true";
     let followedSellerIds: string[] | undefined;
 
     if (followingOnly) {
@@ -140,7 +188,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
+    const rawBody = await request.json().catch(() => null);
+    const validatedBody = validateBody(createListingBodySchema, rawBody);
+    if (!validatedBody.success) return validatedBody.response;
     const {
       comicId,
       comicData, // Full comic data from localStorage
@@ -157,27 +207,12 @@ export async function POST(request: NextRequest) {
       minOfferAmount,
       // Scheduled auction support
       startDate,
-    } = body;
+    } = validatedBody.data;
 
-    // Common validation
-    if (!comicId) {
-      return NextResponse.json({ error: "Comic ID is required" }, { status: 400 });
-    }
-
-    // Ensure comic exists in Supabase (sync from localStorage if needed)
+    // Ensure comic exists in Supabase (sync from localStorage if needed).
+    // Zod validated structural shape only — helper does deeper validation.
     if (comicData) {
-      await ensureComicInSupabase(profile.id, comicData);
-    }
-
-    if (typeof shippingCost !== "number" || shippingCost < 0) {
-      return NextResponse.json(
-        { error: "Shipping cost must be a positive number" },
-        { status: 400 }
-      );
-    }
-
-    if (detailImages && (!Array.isArray(detailImages) || detailImages.length > 4)) {
-      return NextResponse.json({ error: "Maximum 4 detail images allowed" }, { status: 400 });
+      await ensureComicInSupabase(profile.id, comicData as CollectionItem);
     }
 
     // Handle fixed-price listing

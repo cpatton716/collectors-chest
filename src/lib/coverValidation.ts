@@ -20,7 +20,6 @@ export interface CoverPipelineResult {
     | "community"
     | "ebay"
     | "openlibrary"
-    | "metron"
     | "comicvine"
     | null;
   validated: boolean;

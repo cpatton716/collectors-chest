@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
+import { z } from "zod";
 import { supabaseAdmin } from "@/lib/supabase";
 
 const stripe = process.env.STRIPE_SECRET_KEY
@@ -8,15 +9,28 @@ const stripe = process.env.STRIPE_SECRET_KEY
     })
   : null;
 
+// Stripe Connect account IDs follow `acct_XXXX...` format (not a UUID).
+const onboardingReturnQuerySchema = z.object({
+  account_id: z
+    .string()
+    .trim()
+    .min(1)
+    .max(255)
+    .regex(/^acct_[A-Za-z0-9]+$/, "Must be a valid Stripe account ID"),
+});
+
 export async function GET(req: NextRequest) {
   if (!stripe) {
     return NextResponse.redirect(new URL("/profile?connect=error", req.url));
   }
 
-  const accountId = req.nextUrl.searchParams.get("account_id");
-  if (!accountId) {
+  const parsed = onboardingReturnQuerySchema.safeParse(
+    Object.fromEntries(req.nextUrl.searchParams.entries())
+  );
+  if (!parsed.success) {
     return NextResponse.redirect(new URL("/profile?connect=error", req.url));
   }
+  const accountId = parsed.data.account_id;
 
   try {
     const account = await stripe.accounts.retrieve(accountId);

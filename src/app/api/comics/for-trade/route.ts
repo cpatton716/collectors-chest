@@ -1,17 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@clerk/nextjs/server";
+import { z } from "zod";
 
 import { getProfileByClerkId } from "@/lib/db";
 import { supabase } from "@/lib/supabase";
+import { schemas, validateQuery } from "@/lib/validation";
+
+const forTradeQuerySchema = z.object({
+  userId: schemas.uuid.optional(),
+});
 
 // GET - Get for-trade comics (own or another user's)
 export async function GET(request: NextRequest) {
   try {
     const { userId: clerkUserId } = await auth();
 
-    const { searchParams } = new URL(request.url);
-    const targetUserId = searchParams.get("userId");
+    const validated = validateQuery(forTradeQuerySchema, new URL(request.url).searchParams);
+    if (!validated.success) return validated.response;
+    const { userId: targetUserId } = validated.data;
 
     let profileId: string;
 

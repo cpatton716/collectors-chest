@@ -1,12 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import Anthropic from "@anthropic-ai/sdk";
+import { z } from "zod";
 
 import { cacheGet, cacheSet, generateComicMetadataCacheKey } from "@/lib/cache";
 import { getComicMetadata, incrementComicLookupCount, saveComicMetadata } from "@/lib/db";
 import { MODEL_PRIMARY } from "@/lib/models";
 import { normalizeTitle, normalizeIssueNumber } from "@/lib/normalizeTitle";
 import { recordScanAnalytics, estimateScanCostCents } from "@/lib/analyticsServer";
+import { validateBody } from "@/lib/validation";
+
+const comicLookupSchema = z.object({
+  title: z.string().trim().min(1, "Title is required").max(200),
+  issueNumber: z
+    .union([z.string(), z.number()])
+    .transform((v) => (v === undefined || v === null ? "" : String(v)))
+    .optional(),
+  lookupType: z.enum(["full", "publisher"]).optional(),
+});
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -28,14 +39,10 @@ export async function POST(request: NextRequest) {
   let aiCallsMade = 0;
 
   try {
-    const { title, issueNumber, lookupType } = await request.json();
-
-    if (!title) {
-      return NextResponse.json(
-        { error: "Please enter a comic title to look up." },
-        { status: 400 }
-      );
-    }
+    const rawBody = await request.json().catch(() => null);
+    const validated = validateBody(comicLookupSchema, rawBody);
+    if (!validated.success) return validated.response;
+    const { title, issueNumber, lookupType } = validated.data;
 
     const normalizedTitle = normalizeTitle(title);
     const normalizedIssue = normalizeIssueNumber(issueNumber || "");

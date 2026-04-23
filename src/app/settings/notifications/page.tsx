@@ -6,13 +6,28 @@ import Link from "next/link";
 
 import { useUser } from "@clerk/nextjs";
 
-import { AlertCircle, ArrowLeft, Bell, Check, Loader2, Mail, Smartphone } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowLeft,
+  Bell,
+  Check,
+  Lock,
+  Loader2,
+  Mail,
+  Megaphone,
+  ShoppingBag,
+  Smartphone,
+  Users,
+} from "lucide-react";
 
 import { useToast } from "@/components/Toast";
 
 interface NotificationSettings {
   msgPushEnabled: boolean;
   msgEmailEnabled: boolean;
+  emailPrefMarketplace: boolean;
+  emailPrefSocial: boolean;
+  emailPrefMarketing: boolean;
 }
 
 export default function NotificationSettingsPage() {
@@ -25,6 +40,9 @@ export default function NotificationSettingsPage() {
   const [settings, setSettings] = useState<NotificationSettings>({
     msgPushEnabled: true,
     msgEmailEnabled: true,
+    emailPrefMarketplace: true,
+    emailPrefSocial: true,
+    emailPrefMarketing: true,
   });
 
   // Fetch settings on mount
@@ -39,6 +57,9 @@ export default function NotificationSettingsPage() {
         setSettings({
           msgPushEnabled: data.msgPushEnabled ?? true,
           msgEmailEnabled: data.msgEmailEnabled ?? true,
+          emailPrefMarketplace: data.emailPrefMarketplace ?? true,
+          emailPrefSocial: data.emailPrefSocial ?? true,
+          emailPrefMarketing: data.emailPrefMarketing ?? true,
         });
       } catch (err) {
         console.error("Failed to load notification settings:", err);
@@ -172,7 +193,7 @@ export default function NotificationSettingsPage() {
           </div>
         </div>
 
-        {/* Email Notifications */}
+        {/* Email Notifications (messaging-specific toggle) */}
         <div className="p-6">
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-start gap-3">
@@ -180,7 +201,7 @@ export default function NotificationSettingsPage() {
                 <Mail className="w-5 h-5 text-pop-white" />
               </div>
               <div>
-                <h3 className="font-comic text-pop-black">EMAIL NOTIFICATIONS</h3>
+                <h3 className="font-comic text-pop-black">MESSAGE EMAIL ALERTS</h3>
                 <p className="text-sm font-body text-pop-black/70 mt-0.5">
                   Receive email alerts for new messages when you&apos;re offline
                 </p>
@@ -190,6 +211,100 @@ export default function NotificationSettingsPage() {
               enabled={settings.msgEmailEnabled}
               onChange={(value) => updateSetting("msgEmailEnabled", value)}
               loading={saving === "msgEmailEnabled"}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* ─── Email Category Preferences ─── */}
+      <div className="mt-8 mb-4">
+        <h2 className="text-xl font-comic text-pop-black">EMAIL NOTIFICATION PREFERENCES</h2>
+        <p className="text-sm font-body text-pop-black/70 mt-1">
+          Choose which categories of emails you want to receive
+        </p>
+      </div>
+
+      <div className="bg-pop-white border-3 border-pop-black shadow-[4px_4px_0px_#000]">
+        {/* Transactional — always on */}
+        <div className="p-6 border-b-3 border-pop-black bg-pop-cream/40">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-pop-black border-2 border-pop-black">
+                <Lock className="w-5 h-5 text-pop-white" />
+              </div>
+              <div>
+                <h3 className="font-comic text-pop-black">TRANSACTIONAL</h3>
+                <p className="text-sm font-body text-pop-black/70 mt-0.5">
+                  Always on — payment confirmations, shipping updates, and account security.
+                </p>
+              </div>
+            </div>
+            <ToggleSwitch enabled={true} onChange={() => {}} loading={false} disabled />
+          </div>
+        </div>
+
+        {/* Marketplace */}
+        <div className="p-6 border-b-3 border-pop-black">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-pop-blue border-2 border-pop-black">
+                <ShoppingBag className="w-5 h-5 text-pop-white" />
+              </div>
+              <div>
+                <h3 className="font-comic text-pop-black">MARKETPLACE</h3>
+                <p className="text-sm font-body text-pop-black/70 mt-0.5">
+                  Bids, offers, second-chance offers, feedback requests, watchlist auctions ending.
+                </p>
+              </div>
+            </div>
+            <ToggleSwitch
+              enabled={settings.emailPrefMarketplace}
+              onChange={(value) => updateSetting("emailPrefMarketplace", value)}
+              loading={saving === "emailPrefMarketplace"}
+            />
+          </div>
+        </div>
+
+        {/* Social */}
+        <div className="p-6 border-b-3 border-pop-black">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-pop-green border-2 border-pop-black">
+                <Users className="w-5 h-5 text-pop-white" />
+              </div>
+              <div>
+                <h3 className="font-comic text-pop-black">SOCIAL</h3>
+                <p className="text-sm font-body text-pop-black/70 mt-0.5">
+                  New followers, direct messages, mentions.
+                </p>
+              </div>
+            </div>
+            <ToggleSwitch
+              enabled={settings.emailPrefSocial}
+              onChange={(value) => updateSetting("emailPrefSocial", value)}
+              loading={saving === "emailPrefSocial"}
+            />
+          </div>
+        </div>
+
+        {/* Marketing */}
+        <div className="p-6">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-pop-yellow border-2 border-pop-black">
+                <Megaphone className="w-5 h-5 text-pop-black" />
+              </div>
+              <div>
+                <h3 className="font-comic text-pop-black">MARKETING</h3>
+                <p className="text-sm font-body text-pop-black/70 mt-0.5">
+                  Product updates, tips, promotions, newsletter.
+                </p>
+              </div>
+            </div>
+            <ToggleSwitch
+              enabled={settings.emailPrefMarketing}
+              onChange={(value) => updateSetting("emailPrefMarketing", value)}
+              loading={saving === "emailPrefMarketing"}
             />
           </div>
         </div>
@@ -208,20 +323,22 @@ interface ToggleSwitchProps {
   enabled: boolean;
   onChange: (value: boolean) => void;
   loading?: boolean;
+  disabled?: boolean;
 }
 
-function ToggleSwitch({ enabled, onChange, loading }: ToggleSwitchProps) {
+function ToggleSwitch({ enabled, onChange, loading, disabled }: ToggleSwitchProps) {
   return (
     <button
       type="button"
-      onClick={() => onChange(!enabled)}
-      disabled={loading}
-      className={`relative inline-flex h-8 w-14 flex-shrink-0 cursor-pointer border-3 border-pop-black transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
-        enabled ? "bg-pop-green" : "bg-pop-cream"
-      }`}
+      onClick={() => !disabled && onChange(!enabled)}
+      disabled={loading || disabled}
+      className={`relative inline-flex h-8 w-14 flex-shrink-0 border-3 border-pop-black transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed ${
+        !disabled ? "cursor-pointer" : ""
+      } ${enabled ? "bg-pop-green" : "bg-pop-cream"}`}
       style={{ boxShadow: "2px 2px 0px #000" }}
       role="switch"
       aria-checked={enabled}
+      aria-disabled={disabled}
     >
       <span className="sr-only">Toggle notification</span>
       <span

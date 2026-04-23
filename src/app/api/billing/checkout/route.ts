@@ -1,12 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@clerk/nextjs/server";
+import { z } from "zod";
 
 import Stripe from "stripe";
 
 import { isUserSuspended } from "@/lib/adminAuth";
 import { getOrCreateProfile } from "@/lib/db";
 import { getSubscriptionStatus, hasUsedTrial, setStripeCustomerId } from "@/lib/subscription";
+import { validateBody } from "@/lib/validation";
+
+const billingCheckoutBodySchema = z
+  .object({
+    priceType: z.enum(["monthly", "annual", "scan_pack"]),
+    withTrial: z.boolean().optional(),
+    promoTrial: z.boolean().optional(),
+  })
+  .strict();
 
 // Initialize Stripe
 const stripe = process.env.STRIPE_SECRET_KEY
@@ -56,19 +66,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
-    const body = await request.json();
-    const { priceType, withTrial = false, promoTrial = false } = body as {
-      priceType: PriceType;
-      withTrial?: boolean;
-      promoTrial?: boolean;
-    };
-
-    if (!priceType || !["monthly", "annual", "scan_pack"].includes(priceType)) {
-      return NextResponse.json(
-        { error: "Invalid price type. Use: monthly, annual, or scan_pack" },
-        { status: 400 }
-      );
-    }
+    const rawBody = await request.json().catch(() => null);
+    const validatedBody = validateBody(billingCheckoutBodySchema, rawBody);
+    if (!validatedBody.success) return validatedBody.response;
+    const { priceType, withTrial = false, promoTrial = false } = validatedBody.data;
 
     const effectivePriceType = promoTrial ? "monthly" : priceType;
 

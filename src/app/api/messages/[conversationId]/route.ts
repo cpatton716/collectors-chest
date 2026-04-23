@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@clerk/nextjs/server";
+import { z } from "zod";
 
 import { getProfileByClerkId } from "@/lib/db";
 import { getConversationMessages } from "@/lib/messagingDb";
+import { schemas, validateParams } from "@/lib/validation";
+
+const paramsSchema = z.object({ conversationId: schemas.uuid });
 
 // GET - Get messages for a specific conversation
 export async function GET(
@@ -21,7 +25,10 @@ export async function GET(
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
-    const { conversationId } = await params;
+    const rawParams = await params;
+    const paramsResult = validateParams(paramsSchema, rawParams);
+    if (!paramsResult.success) return paramsResult.response;
+    const { conversationId } = paramsResult.data;
 
     const result = await getConversationMessages(conversationId, profile.id);
 

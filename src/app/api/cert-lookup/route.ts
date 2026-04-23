@@ -1,19 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 
 import { lookupCertification } from "@/lib/certLookup";
+import { validateBody } from "@/lib/validation";
+
+const certLookupSchema = z.object({
+  certNumber: z
+    .string()
+    .trim()
+    .min(1, "Certification number is required")
+    .max(20, "Certification number is too long"),
+  gradingCompany: z
+    .string()
+    .trim()
+    .min(1, "Grading company is required")
+    .max(20),
+});
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { certNumber, gradingCompany } = body;
-
-    if (!certNumber) {
-      return NextResponse.json({ error: "Certification number is required" }, { status: 400 });
-    }
-
-    if (!gradingCompany) {
-      return NextResponse.json({ error: "Grading company is required" }, { status: 400 });
-    }
+    const body = await request.json().catch(() => null);
+    const validated = validateBody(certLookupSchema, body);
+    if (!validated.success) return validated.response;
+    const { certNumber, gradingCompany } = validated.data;
 
     const result = await lookupCertification(gradingCompany, certNumber);
 
