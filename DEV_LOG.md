@@ -6,12 +6,86 @@ This log tracks session-by-session progress on Collectors Chest.
 
 ## Changes Since Last Deploy
 
-**Last Deploy:** 2026-04-23 (Session 38) — commit `8b4a9eb` pushed to main, Netlify auto-deploy triggered. Prior deploy was `782e6fd` (Session 37, 2026-04-22).
+**Last Deploy:** 2026-04-23 (Session 39) — commit `14037e1` pushed to main, Netlify auto-deploy triggered. Prior deploy was `8b4a9eb` (Session 38, same day).
 **Sessions Since Last Deploy:** 0
-**Deploy Readiness:** Deploying — Session 38 payment deadline enforcement, Seller Onboarding page, Clerk webhook fix, marketplace policy updates, and pre-launch cleanup live on collectors-chest.com. Real-money Stripe Connect test on deck post-deploy.
+**Deploy Readiness:** Deploying — Session 39 pre-beta hardening batch (Zod validation sweep, audit log, Second Chance Offer, Payment-Miss Strike System, Email Notification Preferences, and more) live on collectors-chest.com. Four migrations applied to production Supabase prior to deploy.
 
 ### Changes Since Last Deploy:
-- Session 38 patches deployed at end of session. See Session 38 entry below for full detail.
+- Session 39 patches deployed at end of session. See Session 39 entry below for full detail.
+
+---
+
+## Apr 23, 2026 - Session 39: Pre-Beta Hardening Batch — Zod Sweep, Audit Log, Second Chance Offer, Strike System, Notification Prefs
+
+### Summary
+- User's target: go live in private beta on Sunday April 26, 2026. Goal for today's second session: clear as many remaining pre-launch BACKLOG items as possible in a single deploy-ready bundle. 10 distinct features shipped across 9 subagent runs, plus several cleanup/audit items. Full deploy bundle landed at commit `14037e1`.
+- Largest single item: Zod validation sweep across 82 API routes (marketplace, user/social/admin, content/scan/lookup). New shared helper `src/lib/validation.ts` with `validateBody`/`validateQuery`/`validateParams` and standardized `{error, details:[{field, issue}]}` error shape, HTTP 400 on validation failure. Routes now reject malformed input before any logic runs — catches UUID format, enum values, length caps, nested shapes.
+- Shipped full payment-deadline enforcement suite started in Session 38: `expireUnpaidAuctions` and `sendPaymentReminders` were functional, this session added (1) Second Chance Offer flow for seller to re-offer to runner-up, (2) Payment-Miss Strike System with warning-on-first-offense and flag-at-2-strikes-in-90-days, (3) cron batching via Resend `batch.send()` + concurrency cap for scale.
+- Filled the long-flagged audit gap: new `auction_audit_log` table, helper library, 17 wire-ups across auction/offer/payment/shipment lifecycle, admin-only RLS, Stripe webhook integration. Admins can now query a complete transaction log for dispute resolution + debugging.
+- New Email Notification Preferences system: 4-category toggles on `/settings/notifications` (Transactional locked always-on, Marketplace/Social/Marketing togglable). Gates `sendNotificationEmail` + batch variant, full category coverage for all 27 notification email types.
+- CC ↔ Clerk username sync-on-write: when a user sets their CC username, Clerk's username is also updated via Backend API. Graceful degradation if Clerk fails (Supabase remains source of truth).
+- Defensive cleanup: Metron integration fully removed (decision from Apr 22). Cover harvest aspect-ratio guard (new `coverCropValidator.ts`) rejects AI crops outside 0.55-0.85 w/h range before they pollute the cover cache. ScreenshotPlaceholder soft-match for filename typos.
+
+### Features Shipped (10)
+
+1. **Zod Validation Sweep — 82 routes** across three scope groups:
+   - Marketplace + money (31 routes): auctions, offers, listings, checkout, billing, connect, trades, transactions, feedback, reputation
+   - User + social + admin (32 routes): username, users, sellers, follows, messages, notifications, settings, age-verification, waitlist, email-capture, watchlist, sharing, location, admin/*
+   - Content + scan + lookup (19 routes): analyze, barcode-lookup, cert-lookup, comic-lookup, quick-lookup, import-lookup, con-mode-lookup, key-hunt, cover-*, comics, ebay-prices, titles
+   - Shared helper at `src/lib/validation.ts` with `validateBody`/`validateQuery`/`validateParams`, `schemas.uuid`/`email`/`url`/`trimmedString`/`positiveInt`/`nonNegativeNumber`
+   - Standard error shape; HTTP 400 on invalid; `.strict()` used on settings to reject unknown fields
+
+2. **Auction Audit Log** — new `auction_audit_log` table (admin-read RLS, service-role insert), `auction_audit_event_type` enum covering 20 event types (auction lifecycle + bid + offer + payment + shipment), `src/lib/auditLog.ts` with fire-and-forget single + batch variants, 17 wire-ups across `auctionDb.ts`, `mark-shipped` route, and Stripe webhook. 15 unit tests.
+
+3. **Second Chance Offer (Seller-Initiated)** — when auction expires unpaid and runner-up exists, seller gets email + in-app notification with "Offer to runner-up" CTA. Runner-up has 48h to accept at their last actual bid price. No cascade (if declined/ignored, offer ends). New routes, UI components (`SecondChanceOfferButton`, `SecondChanceInboxCard`), cron pass `expireSecondChanceOffers`, 5 new email templates, 7 new notification types.
+
+4. **Payment-Miss Strike System** — first offense logged + warning email sent ("Please pay on time"), 2 strikes within 90 days triggers flag: bid restriction applied at bid placement route, reputation hit via system-inserted negative rating (idempotent on unique constraint), `payment_missed_flagged` email to user, admin notification. New `/api/admin/flagged-users` endpoint. New `user_flagged` audit event type.
+
+5. **Email Notification Preferences** — per-category toggles (Transactional locked / Marketplace / Social / Marketing). `NOTIFICATION_CATEGORY_MAP` covers all 27 notification email types + forward-compat for Second Chance + Strike. `sendNotificationEmail` + `sendNotificationEmailsBatch` gate on preferences with skipped-count reporting. GET/PATCH `/api/settings/notifications` extended, UI at `/settings/notifications`. 49 unit tests.
+
+6. **Payment-Expiry Cron Batching** — `src/lib/concurrency.ts` with `mapWithConcurrency` helper. `sendPaymentReminders` + `expireUnpaidAuctions` refactored into three-phase pattern: serial race-safe UPDATE → batched Supabase notification insert → Resend `batch.send()` (50 emails/batch) + mapWithConcurrency(5) for email prep. Handles 50+ expirations per cron tick without timeout or rate-limit issues. 13 unit tests.
+
+7. **Cover Harvest Aspect-Ratio Guard** — new `src/lib/coverCropValidator.ts` validates AI-returned crop coordinates produce comic-book aspect ratio (0.55–0.85 w/h). Out-of-range crops logged + skipped so they don't pollute the cover cache. Wired at the top of `harvestCoverFromScan`. 16 unit tests.
+
+8. **CC ↔ Clerk Username Sync-on-Write** — POST and DELETE on `/api/username` now call Clerk Backend API after successful Supabase update. Graceful failure (Clerk errors logged but don't fail the request).
+
+9. **Metron Integration Removed** — `src/lib/metronVerify.ts` + test deleted, references pruned from `src/app/api/analyze/route.ts` and `src/lib/coverValidation.ts`. `.env.local` entries left for user to clean manually.
+
+10. **ScreenshotPlaceholder Soft-Match** — prefix fallback when exact filename doesn't match (e.g. `09-stripe-success.png` matches even if file is named `09-success.png`). Module-scope directory cache with dev-server hot-reload bypass.
+
+### Key Files Created
+- `src/lib/validation.ts`, `src/lib/auditLog.ts`, `src/lib/concurrency.ts`, `src/lib/coverCropValidator.ts`, `src/lib/notificationPreferences.ts`
+- `src/components/auction/SecondChanceOfferButton.tsx`, `SecondChanceInboxCard.tsx`
+- `src/app/api/admin/flagged-users/route.ts`, `src/app/api/auctions/[id]/second-chance/route.ts`, `src/app/api/second-chance-offers/[id]/route.ts`, `src/app/api/second-chance-offers/route.ts`
+- `src/types/notificationPreferences.ts`
+- 4 test files (auditLog, concurrency, coverCropValidator, notificationPreferences, secondChance)
+
+### Migrations Applied (to production Supabase before deploy)
+- `20260423_auction_audit_log.sql` — new table + enum + indexes + RLS
+- `20260423_notification_preferences.sql` — 3 boolean columns on profiles
+- `20260423_second_chance_offers.sql` — new table + indexes + RLS
+- `20260423_payment_miss_tracking.sql` — 4 profile columns + `user_flagged` enum value + notification CHECK constraint fix (bonus — resolved pre-existing drift where 4 notification types were inserted in code but not on the allowlist)
+
+### Dependencies Added
+- `zod` (runtime) — for API route validation schemas
+
+### Tests
+- Before session 39: 620
+- After session 39: **730** (+110)
+- All suites passing, 0 TS errors, 0 lint errors, build clean, smoke test passes
+
+### Issues Encountered
+- **Parallel agent coordination around `src/lib/email.ts`.** Both Second Chance + Strike agent and Email Notification Preferences agent needed to modify email.ts. Resolved by strict instructions: Email Prefs agent adds preference-check wrapper only (no template changes), Second Chance agent appends new templates in a clearly-labeled section at the end of the file. No conflicts observed post-merge.
+- **Pre-existing notification CHECK constraint drift.** Discovered by the Second Chance agent while adding new notification types: the `valid_notification_type` CHECK constraint on `notifications` table was missing 4 types that were already being inserted in code (`auction_payment_expired`, `auction_payment_expired_seller`, `bid_auction_lost`, `new_bid_received`). Silent because Postgres wasn't rejecting them (column width permitted, constraint was either loose or the inserts were bypassing somehow). Payment-miss migration now updates the constraint to include everything. Worth a follow-up investigation for whether any inserts were silently failing on affected types in production — BACKLOG.
+- **UserId/CLERK regex friction surfaced earlier today.** Supabase `profiles.username` enforces `^[a-z0-9_]{3,20}$`; Clerk allows more (including dashes). Webhook sanitizer added today handles this for inbound sync; the new sync-on-write path handles outbound direction. BACKLOG item for aligning Clerk dashboard username rules still open.
+
+### Where We Left Off
+- Session 39 code deploy shipped at `14037e1`, Netlify auto-deploy building. User to validate deploy by loading production site after build completes (~3 min).
+- Real-money Stripe Connect live-mode test still on deck — user will schedule when ready. Can happen any time; the platform is now production-ready.
+- Sunday April 26 is the private-beta launch target.
+- CAPTCHA for guest scan limit: queued pending user setup of hCaptcha account (will run at scans 4-5 only).
+- CGC cert lookup (ZenRows): queued pending user setup of paid ZenRows plan. Unblocks 3 other BACKLOG items (Optimize Scan Pipeline, Signature Detection, Top Comics Cache) the moment it lands.
+- BACKLOG items still open but not pre-launch critical: Apple Developer enrollment (1-3 week window), Strengthen Input Validation was closed by Zod sweep, remaining items are medium/low post-launch.
 
 ---
 
