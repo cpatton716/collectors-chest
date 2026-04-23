@@ -172,7 +172,7 @@ For ad-hoc use during development:
 **Fixed Costs:**
 | Item | Cost | Billing Cycle |
 |------|------|---------------|
-| Netlify Personal Plan | $9/mo | 13th of each month |
+| Netlify Personal Plan | $9.54/mo | 13th of each month |
 | ~~GoCollect Pro~~ | ~~$89/yr~~ | Cancelled — API program discontinued (Feb 2026) |
 | Domain (collectors-chest.com) | $13.99/yr | Renews Jan 13, 2027 ($16.99) |
 

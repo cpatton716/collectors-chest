@@ -22,6 +22,7 @@ import {
   MoreHorizontal,
   Shield,
   ShoppingBag,
+  Wallet,
   X,
 } from "lucide-react";
 
@@ -157,6 +158,7 @@ export function MobileNav() {
   // Guest drawer items (all redirect to sign-in)
   const guestDrawerItems: DrawerItem[] = [
     { href: "/sign-in?redirect=/messages", icon: MessageSquare, label: "Messages", requiresAuth: true },
+    { href: "/sign-in?redirect=/transactions", icon: Wallet, label: "Transactions", requiresAuth: true },
     { href: "/sign-in?redirect=/my-auctions", icon: Gavel, label: "My Listings", requiresAuth: true },
     { href: "/sign-in?redirect=/trades", icon: ArrowLeftRight, label: "Trades", requiresAuth: true },
     { href: "/sign-in?redirect=/stats", icon: BarChart3, label: "Stats", requiresAuth: true },
@@ -166,6 +168,7 @@ export function MobileNav() {
   // Registered drawer items
   const registeredDrawerItems: DrawerItem[] = [
     { href: "/messages", icon: MessageSquare, label: "Messages" },
+    { href: "/transactions", icon: Wallet, label: "Transactions" },
     { href: "/sales", icon: DollarSign, label: "Sales" },
     { href: "/trades", icon: ArrowLeftRight, label: "Trades" },
     { href: "/collection", icon: Layers, label: "Lists" },

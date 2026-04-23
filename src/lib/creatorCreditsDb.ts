@@ -42,8 +42,7 @@ interface FeedbackRow {
   updated_at: string | null;
   // Joined fields from profiles
   reviewer?: {
-    first_name: string | null;
-    last_name: string | null;
+    display_name: string | null;
     username: string | null;
   };
 }
@@ -70,10 +69,7 @@ interface ContributionRow {
  * Transform database row to TransactionFeedback type
  */
 export function transformFeedback(row: FeedbackRow): TransactionFeedback {
-  const reviewerName =
-    row.reviewer?.first_name && row.reviewer?.last_name
-      ? `${row.reviewer.first_name} ${row.reviewer.last_name}`
-      : row.reviewer?.first_name || row.reviewer?.last_name || undefined;
+  const reviewerName = row.reviewer?.display_name || row.reviewer?.username || undefined;
 
   return {
     id: row.id,
@@ -190,7 +186,7 @@ export async function submitFeedback(
     .select(
       `
       *,
-      reviewer:profiles!reviewer_id(first_name, last_name, username)
+      reviewer:profiles!reviewer_id(display_name, username)
     `
     )
     .single();
@@ -286,7 +282,7 @@ export async function updateFeedback(
     .select(
       `
       *,
-      reviewer:profiles!reviewer_id(first_name, last_name, username)
+      reviewer:profiles!reviewer_id(display_name, username)
     `
     )
     .single();
@@ -340,7 +336,7 @@ export async function addSellerResponse(
     .select(
       `
       *,
-      reviewer:profiles!reviewer_id(first_name, last_name, username)
+      reviewer:profiles!reviewer_id(display_name, username)
     `
     )
     .single();
@@ -377,7 +373,7 @@ export async function getUserFeedback(
     .select(
       `
       *,
-      reviewer:profiles!reviewer_id(first_name, last_name, username)
+      reviewer:profiles!reviewer_id(display_name, username)
     `
     )
     .eq("reviewee_id", userId)
@@ -408,7 +404,7 @@ export async function getTransactionFeedback(
     .select(
       `
       *,
-      reviewer:profiles!reviewer_id(first_name, last_name, username)
+      reviewer:profiles!reviewer_id(display_name, username)
     `
     )
     .eq("transaction_id", transactionId)
@@ -505,9 +501,12 @@ async function checkAuctionFeedbackEligibility(
     return { canLeaveFeedback: false, reason: "Wait until item is shipped to leave feedback" };
   }
 
-  // Buyer can leave feedback after completion OR 7 days after auction ended
+  // Buyer can leave feedback once the seller has shipped (Option A) OR the
+  // transaction is marked completed OR 7 days have passed since the auction
+  // ended (fallback if the seller ghosts). Mirrors checkSaleFeedbackEligibility
+  // so auction + Buy Now behave identically.
   if (isBuyer) {
-    if (auction.completed_at || auction.status === "completed") {
+    if (auction.shipped_at || auction.completed_at || auction.status === "completed") {
       return { canLeaveFeedback: true };
     }
 
@@ -540,9 +539,12 @@ async function checkSaleFeedbackEligibility(
   userId: string,
   listingId: string
 ): Promise<FeedbackEligibility> {
+  // Buy Now sales live in the `auctions` table with listing_type='fixed_price'.
+  // The legacy implementation queried a phantom `listings` table that never
+  // existed — always returned "Listing not found" → feedback button never rendered.
   const { data: listing, error } = await supabaseAdmin
-    .from("listings")
-    .select("seller_id, buyer_id, status, shipped_at, completed_at, sold_at")
+    .from("auctions")
+    .select("seller_id, winner_id, status, shipped_at, completed_at, end_time")
     .eq("id", listingId)
     .single();
 
@@ -551,7 +553,7 @@ async function checkSaleFeedbackEligibility(
   }
 
   const isSeller = listing.seller_id === userId;
-  const isBuyer = listing.buyer_id === userId;
+  const isBuyer = listing.winner_id === userId;
 
   if (!isSeller && !isBuyer) {
     return { canLeaveFeedback: false, reason: "Not a participant in this sale" };
@@ -565,14 +567,16 @@ async function checkSaleFeedbackEligibility(
     return { canLeaveFeedback: false, reason: "Wait until item is shipped to leave feedback" };
   }
 
-  // Buyer can leave feedback after completion OR 7 days after sale
+  // Buyer can leave feedback once the seller has shipped (Option A) OR the
+  // transaction is marked completed OR 7 days have passed since the sale
+  // closed (fallback if the seller ghosts).
   if (isBuyer) {
-    if (listing.completed_at || listing.status === "completed") {
+    if (listing.shipped_at || listing.completed_at || listing.status === "completed") {
       return { canLeaveFeedback: true };
     }
 
-    if (listing.sold_at) {
-      const soldDate = new Date(listing.sold_at);
+    if (listing.end_time) {
+      const soldDate = new Date(listing.end_time);
       const now = new Date();
       const daysSinceSold = (now.getTime() - soldDate.getTime()) / (1000 * 60 * 60 * 24);
 

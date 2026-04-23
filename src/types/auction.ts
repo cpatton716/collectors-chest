@@ -12,6 +12,8 @@ export type NotificationType =
   | "outbid"
   | "won"
   | "ended"
+  | "bid_auction_lost"
+  | "new_bid_received"
   | "payment_reminder"
   | "rating_request"
   | "auction_sold"
@@ -78,6 +80,11 @@ export interface Auction {
   // Payment
   paymentStatus: PaymentStatus | null;
   paymentDeadline: string | null;
+
+  // Shipping (Option A — self-reported tracking; Option B adds carrier validation)
+  shippedAt: string | null;
+  trackingNumber: string | null;
+  trackingCarrier: string | null;
 
   // Offer support (for fixed_price listings)
   acceptsOffers: boolean;
@@ -321,47 +328,75 @@ export type ListingSortBy = "price_low" | "price_high" | "newest";
 // ============================================================================
 
 /**
- * Calculate minimum bid based on tiered increments
- * - Under $100: $1 increment
- * - $100-$999: $5 increment
- * - $1000+: $25 increment
+ * Calculate minimum bid. All bids increment by $1.
  */
-export function calculateMinimumBid(currentBid: number | null, startingPrice: number): number {
-  const basePrice = currentBid ?? startingPrice;
+// ============================================================================
+// LISTING STATUS HELPERS
+// ============================================================================
+//
+// The `status` column has historical overlap across Buy Now and Auction flows
+// (Buy Now -> "sold" on payment; Auctions -> "ended" at auction end with winner,
+// then "sold" on payment). These helpers centralize the "is this listing past
+// the active stage?" / "is it completed?" / "is it pending payment?" checks so
+// new consumers don't hand-roll `(status === "sold" || status === "ended")`.
 
+/**
+ * The listing is past the active/biddable stage: sold, ended (auction
+ * closed with or without winner), or cancelled.
+ */
+export function isListingFinalized(status: AuctionStatus): boolean {
+  return status === "sold" || status === "ended" || status === "cancelled";
+}
+
+/**
+ * The listing has a completed sale — a winner was selected AND payment
+ * has cleared. Used to gate feedback + "you purchased this" UI.
+ *
+ * Implemented as a type predicate so consumers that narrow with it can
+ * treat `winnerId` as non-null inside the branch.
+ */
+export function isListingCompleted<
+  T extends { status: AuctionStatus; winnerId?: string | null; paymentStatus?: string | null }
+>(listing: T): listing is T & { winnerId: string } {
+  return (
+    (listing.status === "sold" || listing.status === "ended") &&
+    !!listing.winnerId &&
+    listing.paymentStatus !== "pending"
+  );
+}
+
+/**
+ * The listing has a winner picked but payment has not cleared yet.
+ * Used to show "Complete Payment" CTA + PaymentButton.
+ */
+export function isListingPendingPayment<
+  T extends { status: AuctionStatus; winnerId?: string | null; paymentStatus?: string | null }
+>(listing: T): listing is T & { winnerId: string } {
+  return (
+    (listing.status === "sold" || listing.status === "ended") &&
+    !!listing.winnerId &&
+    listing.paymentStatus === "pending"
+  );
+}
+
+export function calculateMinimumBid(currentBid: number | null, startingPrice: number): number {
   // If no current bid, minimum is starting price
   if (currentBid === null) {
     return startingPrice;
   }
-
-  // Tiered bid increments
-  let increment: number;
-  if (basePrice < 100) {
-    increment = 1;
-  } else if (basePrice < 1000) {
-    increment = 5;
-  } else {
-    increment = 25;
-  }
-
-  return basePrice + increment;
+  return currentBid + 1;
 }
 
 /**
- * Get the bid increment for a given price level
+ * Get the bid increment for a given price level.
+ * All bids use a flat $1 increment.
  */
-export function getBidIncrement(currentPrice: number): number {
-  if (currentPrice < 100) {
-    return 1;
-  } else if (currentPrice < 1000) {
-    return 5;
-  } else {
-    return 25;
-  }
+export function getBidIncrement(_currentPrice: number): number {
+  return 1;
 }
 
 /**
- * Validate that a bid amount follows the tiered increment rules
+ * Validate that a bid amount follows the increment rules
  */
 export function isValidBidAmount(
   bidAmount: number,

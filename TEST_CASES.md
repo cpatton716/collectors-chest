@@ -1645,4 +1645,61 @@ If you encounter bugs or unexpected behavior:
 | Gmail rendering | View in Gmail | No clipping, styles render properly | Pending |
 | No broken images | Check all emails | No broken image icons | Pending |
 
-*Last Updated: April 6, 2026*
+### Auction Flow E2E (Apr 22, 2026)
+
+**Scope:** Full auction path from listing creation through feedback, validated in localhost + Stripe sandbox with 3 test accounts (Session 37).
+
+| Test Case | Steps | Expected Result | Status |
+|-----------|-------|-----------------|--------|
+| Bid increment is $1 | Place bids at any price level (e.g., $10, $200, $2000) | Prefill and increment always $1, regardless of tier | Completed |
+| Raise your own max bid | As high bidder, reopen bid form | Label reads "Raise your max bid"; prefill is currentMax + 1 | Completed |
+| Buy It Now hidden when exceeded | Bid above BIN price, reopen listing | Buy It Now button is not rendered | Completed |
+| Buy It Now hidden for seller | As seller, view own listing | No Buy It Now button visible | Completed |
+| Friendly DB error message | As bidder, submit maxBid ≤ current max | Red-pill "Your max bid must be at least the current bid plus the increment" — no raw Postgres errors | Completed |
+| Outbid email sends | Bidder A places high bid, Bidder B bids higher | Bidder A receives outbid email in inbox; Resend dashboard shows delivered | Completed |
+| Auction end processes idempotently | Trigger `/api/cron/process-auctions` twice | Second call skips (logs "already finalized"); no duplicate notifications or emails | Completed |
+| Auction won email | As winner, after auction ends | Receive `auction_won` email with final price, payment deadline, Transactions deep link | Completed |
+| Auction sold email | As seller, after auction ends | Receive `auction_sold` email with buyer info and final price | Completed |
+| Bid auction lost email | As losing bidder (not winner) | Receive `bid_auction_lost` email + in-app notification | Completed |
+| Payment flow from won notification | Click "Congratulations! You won!" notification | Opens listing modal with Complete Payment CTA → Stripe Checkout → success redirect to /transactions?tab=wins | Completed |
+| Mark as shipped flow | As seller on paid-unshipped auction, fill carrier + tracking, submit | `shipped_at` set; buyer receives shipped notification; comic cloned to buyer's collection | Completed |
+| Feedback eligibility unlocks on ship | As buyer, after seller marks shipped | "Leave Feedback" button renders in listing modal | Completed |
+| Submit feedback | Choose Positive/Negative, optional comment, Submit | Inserts row; refresh shows "Feedback submitted on {date}" instead of button | Completed |
+| Seller reputation badge | View seller info in modal after feedback | Shows patton+test2 (100%) with shield icon | Completed |
+
+### Notification Routing (Apr 22, 2026)
+
+| Test Case | Steps | Expected Result | Status |
+|-----------|-------|-----------------|--------|
+| "You won!" click | Click notification in bell | Opens listing modal via router.push('/shop?listing=<id>') | Completed |
+| "Item sold!" click (seller) | Click notification | Opens listing modal; seller sees MarkAsShippedForm if paid-unshipped | Completed |
+| "Payment received" click (seller) | Click notification | Opens listing modal | Completed |
+| "Shipped" click (buyer) | Click notification | Opens listing modal; buyer sees tracking details + Leave Feedback if eligible | Completed |
+| "Leave Feedback" click (rating_request) | Click notification | Opens listing modal with feedback form focus — `?leave-feedback=true` query param | Completed |
+| No duplicate notifications | End auction via cron once | Single win + single sold notification (idempotency guard) | Completed |
+
+### Transactions Page (Apr 22, 2026)
+
+**Location:** Nav → Wallet icon → Transactions
+
+| Test Case | Steps | Expected Result | Status |
+|-----------|-------|-----------------|--------|
+| Tab: Wins | Navigate with `tab=wins` | Lists auctions where user is winner, with status pills | Completed |
+| Tab: Purchases | Navigate with `tab=purchases` | Lists Buy Now purchases | Completed |
+| Tab: Bids | Navigate with `tab=bids` | Lists most-recent bid per auction with bidAmount + isWinning | Completed |
+| Tab: Offers | Navigate with `tab=offers` | Lists user's submitted offers | Completed |
+| Status pill: Awaiting Shipment | Paid but not shipped | Pill shows "Awaiting Shipment" | Completed |
+| Status pill: Shipped | `shipped_at` set | Pill shows "Shipped" with tracking | Completed |
+| Status pill: Pending Payment | Winner, payment pending | Pill shows "Pending Payment" with Complete Payment CTA | Completed |
+| Deep link after Stripe success | After paying, redirect URL | Lands on /transactions?tab=(purchases|wins)&purchased=<id> | Completed |
+
+### Clerk Profile Email Sync (Apr 22, 2026)
+
+| Test Case | Steps | Expected Result | Status |
+|-----------|-------|-----------------|--------|
+| New user via email sign-up | Create account with email/password | Webhook creates profile row with email populated | Pending |
+| New user via Google OAuth | Sign in with Google | Webhook creates profile row with Google email populated | Pending |
+| User changes primary email in Clerk | Update email in Clerk-hosted profile | `user.updated` webhook syncs new email to profiles.email | Pending |
+| Pre-existing null-email profile | Lazy `getOrCreateProfile` call with email | Existing profile row backfilled with email | Pending |
+
+*Last Updated: April 22, 2026*

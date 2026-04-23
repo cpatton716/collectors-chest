@@ -21,12 +21,13 @@ import { useFeedbackEligibility } from "@/hooks/useFeedbackEligibility";
 
 import { LeaveFeedbackButton } from "@/components/creatorCredits";
 
-import { Auction, formatPrice } from "@/types/auction";
+import { Auction, formatPrice, isListingCompleted, isListingPendingPayment } from "@/types/auction";
 
 import { AlertCircle } from "lucide-react";
 
 import { ComicImage } from "../ComicImage";
 import { LocationBadge } from "../LocationBadge";
+import { MarkAsShippedForm } from "./MarkAsShippedForm";
 import { MessageButton } from "../messaging/MessageButton";
 import { AuctionCountdown } from "./AuctionCountdown";
 import { BidForm } from "./BidForm";
@@ -58,10 +59,10 @@ export function AuctionDetailModal({
   const [actionError, setActionError] = useState<string | null>(null);
 
   // Check feedback eligibility for sold auctions
-  const isAuctionCompleted = auction?.status === "sold" && auction?.winnerId;
+  const completed = auction ? isListingCompleted(auction) : false;
   const { eligibility } = useFeedbackEligibility(
-    isAuctionCompleted ? auction.id : undefined,
-    isAuctionCompleted ? "auction" : undefined
+    completed && auction ? auction.id : undefined,
+    completed ? "auction" : undefined
   );
 
   useEffect(() => {
@@ -455,10 +456,7 @@ export function AuctionDetailModal({
                 )}
 
                 {/* Winner payment-pending: show PaymentButton for auction winner */}
-                {(auction.status === "ended" || auction.status === "sold") &&
-                  auction.winnerId &&
-                  auction.paymentStatus === "pending" &&
-                  !auction.isSeller && (
+                {isListingPendingPayment(auction) && !auction.isSeller && (
                     <div className="mt-6 pt-4 border-t space-y-3">
                       <div className="flex items-center justify-center gap-2 py-3 bg-amber-50 text-amber-800 rounded-xl border border-amber-200">
                         <AlertCircle className="w-5 h-5" />
@@ -475,9 +473,7 @@ export function AuctionDetailModal({
                   )}
 
                 {/* Sold Status with Feedback */}
-                {(auction.status === "sold" ||
-                  (auction.status === "ended" && auction.paymentStatus !== "pending")) &&
-                  auction.winnerId && (
+                {isListingCompleted(auction) && (
                   <div className="mt-6 pt-4 border-t">
                     <div className="flex items-center gap-2 mb-3">
                       <Trophy className="w-5 h-5 text-amber-500" />
@@ -488,6 +484,34 @@ export function AuctionDetailModal({
                     <p className="text-sm text-gray-600 mb-3">
                       Final price: <span className="font-bold">{formatPrice(auction.winningBid)}</span>
                     </p>
+
+                    {/* Shipping state */}
+                    {auction.paymentStatus === "paid" && !auction.shippedAt && auction.isSeller && (
+                      <MarkAsShippedForm listingId={auction.id} onShipped={loadAuction} />
+                    )}
+                    {auction.paymentStatus === "paid" && !auction.shippedAt && !auction.isSeller && (
+                      <div className="flex items-center gap-2 py-2 px-3 mb-3 bg-amber-50 text-amber-800 rounded-lg border border-amber-200 text-sm">
+                        <Package className="w-4 h-4" />
+                        <span>Awaiting shipment from the seller.</span>
+                      </div>
+                    )}
+                    {auction.shippedAt && (
+                      <div className="flex items-start gap-2 py-2 px-3 mb-3 bg-green-50 text-green-800 rounded-lg border border-green-200 text-sm">
+                        <Package className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                        <div>
+                          <div className="font-semibold">Shipped</div>
+                          {auction.trackingNumber ? (
+                            <div className="text-xs mt-1">
+                              {auction.trackingCarrier ? `${auction.trackingCarrier} · ` : ""}
+                              Tracking: {auction.trackingNumber}
+                            </div>
+                          ) : (
+                            <div className="text-xs mt-1">No tracking number provided.</div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                     {eligibility?.canLeaveFeedback && (
                       <div className="flex items-center gap-2">
                         <LeaveFeedbackButton

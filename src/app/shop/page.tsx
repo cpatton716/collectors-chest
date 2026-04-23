@@ -90,24 +90,59 @@ function ShopPageContent() {
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<ShopTab>("buy-now");
 
-  // Handle URL params for tab and listing selection
+  // Handle URL params for tab and listing selection.
+  // When a listing id is in the URL, route the modal based on the listing's
+  // canonical listing_type (fetched from the API), not the URL tab param —
+  // otherwise /shop?tab=buy-now&listing=<auctionId> renders an auction inside
+  // the Buy Now modal. The URL tab still controls the browse-tab selection.
   useEffect(() => {
     const tabParam = searchParams.get("tab");
     const listingParam = searchParams.get("listing");
 
-    if (tabParam === "auctions") {
-      setActiveTab("auctions");
-      if (listingParam) {
-        setSelectedAuctionId(listingParam);
-      }
-    } else if (tabParam === "for-trade") {
-      setActiveTab("for-trade");
-    } else if (tabParam === "buy-now" || !tabParam) {
-      setActiveTab("buy-now");
-      if (listingParam) {
-        setSelectedListingId(listingParam);
-      }
+    const activateTabFromParam = () => {
+      if (tabParam === "auctions") setActiveTab("auctions");
+      else if (tabParam === "for-trade") setActiveTab("for-trade");
+      else setActiveTab("buy-now");
+    };
+
+    if (!listingParam) {
+      activateTabFromParam();
+      return;
     }
+
+    // Fetch the listing and route the modal by its real type.
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/auctions/${listingParam}`);
+        if (cancelled) return;
+        if (res.ok) {
+          const { auction } = await res.json();
+          // getAuction returns camelCase (listingType), not snake_case.
+          const actualType = auction?.listingType;
+          if (actualType === "auction") {
+            setActiveTab("auctions");
+            setSelectedAuctionId(listingParam);
+            return;
+          }
+          if (actualType === "fixed_price") {
+            setActiveTab("buy-now");
+            setSelectedListingId(listingParam);
+            return;
+          }
+        }
+      } catch {
+        // fall through to tab-param behavior
+      }
+      if (cancelled) return;
+      activateTabFromParam();
+      if (tabParam === "auctions") setSelectedAuctionId(listingParam);
+      else setSelectedListingId(listingParam);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [searchParams]);
 
   // Auctions state

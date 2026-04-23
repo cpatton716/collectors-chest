@@ -63,6 +63,42 @@ interface TrialExpiringEmailData {
   trialEndsAt: string;
 }
 
+interface MarketplaceTransactionEmailData {
+  buyerName: string;
+  sellerName: string;
+  comicTitle: string;
+  issueNumber: string;
+  variant?: string | null;
+  salePrice: number;
+  shippingCost?: number;
+  total: number;
+  transactionType: "buy_now" | "auction";
+  listingUrl: string;
+  // Shipping address not yet surfaced (needs Shipping Tracking feature — BACKLOG).
+  // For now these emails tell both parties a sale is complete; shipping details
+  // will be added once the tracking flow ships.
+}
+
+interface BidActivityEmailData {
+  recipientName: string;
+  comicTitle: string;
+  issueNumber: string;
+  currentBid: number;
+  yourMaxBid?: number;
+  listingUrl: string;
+  endsIn?: string;
+}
+
+interface AuctionEndEmailData {
+  recipientName: string;
+  comicTitle: string;
+  issueNumber: string;
+  finalPrice: number;
+  listingUrl: string;
+  paymentDeadline?: string; // for winner emails
+  transactionsUrl?: string; // for winner: deep-link to Transactions page
+}
+
 function formatPrice(amount: number): string {
   return `$${amount.toFixed(2)}`;
 }
@@ -84,6 +120,11 @@ export const EMAIL_SOUND_EFFECTS: Record<NotificationEmailType, string> = {
   message_received: "BAM!",
   feedback_reminder: "PSST!",
   new_listing_from_followed: "HOT!",
+  purchase_confirmation: "CHA-CHING!",
+  item_sold: "SOLD!",
+  outbid: "OUCH!",
+  auction_won: "WINNER!",
+  auction_sold: "SOLD!",
 };
 
 export function emailHeader(_soundEffect: string): string {
@@ -131,11 +172,18 @@ export async function getProfileForEmail(
 export async function getListingComicData(
   listingId: string
 ): Promise<{ comicTitle: string; issueNumber: string; price: number } | null> {
-  const { data } = await supabaseAdmin
+  // Qualify FK path to disambiguate from sold_via_auction_id (added in the
+  // comic sold-tracking migration). Without the explicit hint, PostgREST
+  // throws PGRST201 because auctions now has two FK paths to comics.
+  const { data, error } = await supabaseAdmin
     .from("auctions")
-    .select("starting_price, comics!inner(title, issue_number)")
+    .select("starting_price, comics!auctions_comic_id_fkey(title, issue_number)")
     .eq("id", listingId)
     .single();
+  if (error) {
+    console.error(`[getListingComicData] Supabase error for ${listingId}:`, error);
+    return null;
+  }
   if (!data) return null;
   const comic = (data as any).comics;
   return {
@@ -488,6 +536,147 @@ function trialExpiringTemplate(data: TrialExpiringEmailData): EmailTemplate {
 }
 
 // ============================================================================
+// MARKETPLACE TRANSACTION TEMPLATES
+// ============================================================================
+
+function purchaseConfirmationTemplate(data: MarketplaceTransactionEmailData): EmailTemplate {
+  const variantSuffix = data.variant ? ` (${data.variant})` : "";
+  const shippingLine = data.shippingCost && data.shippingCost > 0
+    ? `<tr><td style="padding: 4px 0; color: #555;">Shipping</td><td style="padding: 4px 0; text-align: right; color: #555;">${formatPrice(data.shippingCost)}</td></tr>`
+    : "";
+  const flowLabel = data.transactionType === "buy_now" ? "Buy Now purchase" : "Auction win";
+  return {
+    subject: `Purchase confirmation — ${data.comicTitle} #${data.issueNumber}`,
+    html: `
+      <div style="max-width: 600px; margin: 0 auto; font-family: 'Segoe UI', Arial, sans-serif; background: #ffffff;">
+        ${emailHeader(EMAIL_SOUND_EFFECTS.purchase_confirmation)}
+        <div style="padding: 32px 24px;">
+          <h2 style="font-size: 22px; font-weight: 900; color: #000; margin: 0 0 16px;">Your purchase is confirmed!</h2>
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 16px;">Hi ${data.buyerName || "there"} — thanks for your ${flowLabel} from <strong>${data.sellerName}</strong>. The comic has been added to your collection.</p>
+          <div style="background: #F5F9FF; border: 2px solid #0066FF; border-radius: 8px; padding: 16px 20px; margin: 0 0 24px;">
+            <p style="font-size: 18px; font-weight: bold; color: #000; margin: 0 0 12px;">${data.comicTitle} #${data.issueNumber}${variantSuffix}</p>
+            <table cellpadding="0" cellspacing="0" border="0" style="width: 100%; font-size: 14px;">
+              <tr><td style="padding: 4px 0; color: #555;">Item</td><td style="padding: 4px 0; text-align: right; color: #555;">${formatPrice(data.salePrice)}</td></tr>
+              ${shippingLine}
+              <tr><td style="padding: 8px 0 4px; border-top: 1px solid #ddd; font-weight: bold; color: #000;">Total paid</td><td style="padding: 8px 0 4px; border-top: 1px solid #ddd; text-align: right; font-weight: bold; color: #000;">${formatPrice(data.total)}</td></tr>
+            </table>
+          </div>
+          <p style="font-size: 14px; color: #555; line-height: 1.6; margin: 0 0 24px;">Your seller will arrange shipping and send you tracking details once the comic is on its way.</p>
+          <div style="text-align: center; margin: 24px 0;">
+            <a href="${data.listingUrl}" style="display: inline-block; background: #0066FF; color: #ffffff; font-weight: 900; padding: 14px 36px; border: 3px solid #000; border-radius: 8px; text-decoration: none; text-transform: uppercase; letter-spacing: 1px; box-shadow: 4px 4px 0 #000;">VIEW PURCHASE →</a>
+          </div>
+        </div>
+        ${emailFooter()}
+      </div>
+    `,
+    text: `Purchase confirmed!\n\nHi ${data.buyerName || "there"} — thanks for your ${flowLabel} from ${data.sellerName}.\n\n${data.comicTitle} #${data.issueNumber}${variantSuffix}\nItem: ${formatPrice(data.salePrice)}${data.shippingCost && data.shippingCost > 0 ? `\nShipping: ${formatPrice(data.shippingCost)}` : ""}\nTotal paid: ${formatPrice(data.total)}\n\nYour seller will arrange shipping and send tracking details.\n\nView purchase: ${data.listingUrl}\n\nScan comics. Track value. Collect smarter.\nTwisted Jester LLC · collectors-chest.com`,
+  };
+}
+
+function itemSoldTemplate(data: MarketplaceTransactionEmailData): EmailTemplate {
+  const variantSuffix = data.variant ? ` (${data.variant})` : "";
+  const flowLabel = data.transactionType === "buy_now" ? "Buy Now purchase" : "auction win";
+  return {
+    subject: `Item sold — ${data.comicTitle} #${data.issueNumber}`,
+    html: `
+      <div style="max-width: 600px; margin: 0 auto; font-family: 'Segoe UI', Arial, sans-serif; background: #ffffff;">
+        ${emailHeader(EMAIL_SOUND_EFFECTS.item_sold)}
+        <div style="padding: 32px 24px;">
+          <h2 style="font-size: 22px; font-weight: 900; color: #000; margin: 0 0 16px;">Your item sold!</h2>
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 16px;">Hi ${data.sellerName || "there"} — <strong>${data.buyerName}</strong> completed a ${flowLabel} and payment has been captured. Time to ship!</p>
+          <div style="background: #EFFAF0; border: 2px solid #00CC66; border-radius: 8px; padding: 16px 20px; margin: 0 0 24px;">
+            <p style="font-size: 18px; font-weight: bold; color: #000; margin: 0 0 12px;">${data.comicTitle} #${data.issueNumber}${variantSuffix}</p>
+            <p style="font-size: 14px; color: #333; margin: 0 0 4px;">Sale price: <strong>${formatPrice(data.salePrice)}</strong></p>
+            <p style="font-size: 14px; color: #333; margin: 0;">Total received (pre-fees): <strong>${formatPrice(data.total)}</strong></p>
+          </div>
+          <p style="font-size: 14px; color: #555; line-height: 1.6; margin: 0 0 24px;">Funds are on their way to your Stripe account. Please ship the item promptly and add tracking once you have it so the buyer stays informed.</p>
+          <div style="text-align: center; margin: 24px 0;">
+            <a href="${data.listingUrl}" style="display: inline-block; background: #00CC66; color: #000000; font-weight: 900; padding: 14px 36px; border: 3px solid #000; border-radius: 8px; text-decoration: none; text-transform: uppercase; letter-spacing: 1px; box-shadow: 4px 4px 0 #000;">VIEW SALE →</a>
+          </div>
+        </div>
+        ${emailFooter()}
+      </div>
+    `,
+    text: `Your item sold!\n\nHi ${data.sellerName || "there"} — ${data.buyerName} completed a ${flowLabel} and payment has been captured.\n\n${data.comicTitle} #${data.issueNumber}${variantSuffix}\nSale price: ${formatPrice(data.salePrice)}\nTotal received (pre-fees): ${formatPrice(data.total)}\n\nFunds are on their way to your Stripe account. Ship the item promptly and add tracking once you have it.\n\nView sale: ${data.listingUrl}\n\nScan comics. Track value. Collect smarter.\nTwisted Jester LLC · collectors-chest.com`,
+  };
+}
+
+// ============================================================================
+// BID / AUCTION ACTIVITY TEMPLATES
+// ============================================================================
+
+function outbidTemplate(data: BidActivityEmailData): EmailTemplate {
+  const endsLine = data.endsIn ? `<p style="font-size: 14px; color: #b45309; margin: 0 0 12px;">Auction ends in <strong>${data.endsIn}</strong>.</p>` : "";
+  return {
+    subject: `You've been outbid on ${data.comicTitle} #${data.issueNumber}`,
+    html: `
+      <div style="max-width: 600px; margin: 0 auto; font-family: 'Segoe UI', Arial, sans-serif; background: #ffffff;">
+        ${emailHeader(EMAIL_SOUND_EFFECTS.outbid)}
+        <div style="padding: 32px 24px;">
+          <h2 style="font-size: 22px; font-weight: 900; color: #000; margin: 0 0 16px;">You've been outbid</h2>
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;">Hi ${data.recipientName || "there"} — another bidder has topped your bid on <strong>${data.comicTitle} #${data.issueNumber}</strong>.</p>
+          <p style="font-size: 15px; color: #555; margin: 0 0 8px;">Current bid: <strong>${formatPrice(data.currentBid)}</strong></p>
+          ${endsLine}
+          <div style="text-align: center; margin: 24px 0;">
+            <a href="${data.listingUrl}" style="display: inline-block; background: #0066FF; color: #ffffff; font-weight: 900; padding: 14px 36px; border: 3px solid #000; border-radius: 8px; text-decoration: none; text-transform: uppercase; letter-spacing: 1px; box-shadow: 4px 4px 0 #000;">PLACE A NEW BID →</a>
+          </div>
+        </div>
+        ${emailFooter()}
+      </div>
+    `,
+    text: `You've been outbid!\n\nAnother bidder topped your bid on ${data.comicTitle} #${data.issueNumber}.\nCurrent bid: ${formatPrice(data.currentBid)}\n${data.endsIn ? `Auction ends in ${data.endsIn}\n` : ""}\nPlace a new bid: ${data.listingUrl}\n\nScan comics. Track value. Collect smarter.\nTwisted Jester LLC · collectors-chest.com`,
+  };
+}
+
+function auctionWonTemplate(data: AuctionEndEmailData): EmailTemplate {
+  const deadlineLine = data.paymentDeadline
+    ? `<p style="font-size: 14px; color: #b45309; margin: 0 0 16px;">Complete payment by <strong>${data.paymentDeadline}</strong> to secure your win.</p>`
+    : "";
+  const payUrl = data.transactionsUrl || data.listingUrl;
+  return {
+    subject: `Congratulations — you won ${data.comicTitle} #${data.issueNumber}!`,
+    html: `
+      <div style="max-width: 600px; margin: 0 auto; font-family: 'Segoe UI', Arial, sans-serif; background: #ffffff;">
+        ${emailHeader(EMAIL_SOUND_EFFECTS.auction_won)}
+        <div style="padding: 32px 24px;">
+          <h2 style="font-size: 22px; font-weight: 900; color: #000; margin: 0 0 16px;">Congratulations — you won!</h2>
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;">Hi ${data.recipientName || "there"} — your bid on <strong>${data.comicTitle} #${data.issueNumber}</strong> was the winner.</p>
+          <p style="font-size: 15px; color: #555; margin: 0 0 12px;">Final price: <strong>${formatPrice(data.finalPrice)}</strong></p>
+          ${deadlineLine}
+          <div style="text-align: center; margin: 24px 0;">
+            <a href="${payUrl}" style="display: inline-block; background: #00CC66; color: #000000; font-weight: 900; padding: 14px 36px; border: 3px solid #000; border-radius: 8px; text-decoration: none; text-transform: uppercase; letter-spacing: 1px; box-shadow: 4px 4px 0 #000;">COMPLETE PAYMENT →</a>
+          </div>
+        </div>
+        ${emailFooter()}
+      </div>
+    `,
+    text: `Congratulations — you won!\n\nYou won the auction for ${data.comicTitle} #${data.issueNumber}.\nFinal price: ${formatPrice(data.finalPrice)}\n${data.paymentDeadline ? `Complete payment by ${data.paymentDeadline} to secure your win.\n` : ""}\nComplete payment: ${payUrl}\n\nScan comics. Track value. Collect smarter.\nTwisted Jester LLC · collectors-chest.com`,
+  };
+}
+
+function auctionSoldTemplate(data: AuctionEndEmailData): EmailTemplate {
+  return {
+    subject: `Your auction ended — ${data.comicTitle} #${data.issueNumber} sold for ${formatPrice(data.finalPrice)}`,
+    html: `
+      <div style="max-width: 600px; margin: 0 auto; font-family: 'Segoe UI', Arial, sans-serif; background: #ffffff;">
+        ${emailHeader(EMAIL_SOUND_EFFECTS.auction_sold)}
+        <div style="padding: 32px 24px;">
+          <h2 style="font-size: 22px; font-weight: 900; color: #000; margin: 0 0 16px;">Your auction sold!</h2>
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;">Hi ${data.recipientName || "there"} — your auction for <strong>${data.comicTitle} #${data.issueNumber}</strong> closed with a winning bidder.</p>
+          <p style="font-size: 15px; color: #555; margin: 0 0 12px;">Final price: <strong>${formatPrice(data.finalPrice)}</strong></p>
+          <p style="font-size: 14px; color: #555; line-height: 1.6; margin: 0 0 24px;">We'll notify you again when the buyer completes payment. At that point, please ship the item promptly.</p>
+          <div style="text-align: center; margin: 24px 0;">
+            <a href="${data.listingUrl}" style="display: inline-block; background: #0066FF; color: #ffffff; font-weight: 900; padding: 14px 36px; border: 3px solid #000; border-radius: 8px; text-decoration: none; text-transform: uppercase; letter-spacing: 1px; box-shadow: 4px 4px 0 #000;">VIEW SALE →</a>
+          </div>
+        </div>
+        ${emailFooter()}
+      </div>
+    `,
+    text: `Your auction sold!\n\n${data.comicTitle} #${data.issueNumber} closed with a winning bidder.\nFinal price: ${formatPrice(data.finalPrice)}\n\nWe'll notify you again when the buyer completes payment. Ship the item promptly after that.\n\nView sale: ${data.listingUrl}\n\nScan comics. Track value. Collect smarter.\nTwisted Jester LLC · collectors-chest.com`,
+  };
+}
+
+// ============================================================================
 // SEND EMAIL FUNCTION
 // ============================================================================
 
@@ -503,7 +692,12 @@ export type NotificationEmailType =
   | "feedback_reminder"
   | "new_listing_from_followed"
   | "welcome"
-  | "trial_expiring";
+  | "trial_expiring"
+  | "purchase_confirmation"
+  | "item_sold"
+  | "outbid"
+  | "auction_won"
+  | "auction_sold";
 
 interface SendNotificationEmailParams {
   to: string;
@@ -515,7 +709,10 @@ interface SendNotificationEmailParams {
     | FeedbackEmailData
     | NewListingEmailData
     | WelcomeEmailData
-    | TrialExpiringEmailData;
+    | TrialExpiringEmailData
+    | MarketplaceTransactionEmailData
+    | BidActivityEmailData
+    | AuctionEndEmailData;
 }
 
 export async function sendNotificationEmail({
@@ -567,6 +764,21 @@ export async function sendNotificationEmail({
     case "trial_expiring":
       template = trialExpiringTemplate(data as TrialExpiringEmailData);
       break;
+    case "purchase_confirmation":
+      template = purchaseConfirmationTemplate(data as MarketplaceTransactionEmailData);
+      break;
+    case "item_sold":
+      template = itemSoldTemplate(data as MarketplaceTransactionEmailData);
+      break;
+    case "outbid":
+      template = outbidTemplate(data as BidActivityEmailData);
+      break;
+    case "auction_won":
+      template = auctionWonTemplate(data as AuctionEndEmailData);
+      break;
+    case "auction_sold":
+      template = auctionSoldTemplate(data as AuctionEndEmailData);
+      break;
     default:
       return { success: false, error: `Unknown email type: ${type}` };
   }
@@ -592,4 +804,12 @@ export async function sendNotificationEmail({
   }
 }
 
-export type { FeedbackEmailData, NewListingEmailData, WelcomeEmailData, TrialExpiringEmailData };
+export type {
+  FeedbackEmailData,
+  NewListingEmailData,
+  WelcomeEmailData,
+  TrialExpiringEmailData,
+  MarketplaceTransactionEmailData,
+  BidActivityEmailData,
+  AuctionEndEmailData,
+};

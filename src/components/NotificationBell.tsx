@@ -2,20 +2,47 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { useRouter } from "next/navigation";
+
 import { Bell, Check, Clock, DollarSign, Gavel, Star, Trophy, X } from "lucide-react";
 
 import { Notification, NotificationType } from "@/types/auction";
+
+// Derive the deep-link destination for a notification from its type + auctionId.
+// Keeps logic centralized so new notification types only need one line here.
+function deriveNotificationHref(notification: Notification): string | null {
+  if (!notification.auctionId) return null;
+  const base = `/shop?listing=${notification.auctionId}`;
+  switch (notification.type) {
+    case "rating_request":
+      return `${base}&leave-feedback=true`;
+    default:
+      return base;
+  }
+}
 
 interface NotificationBellProps {
   className?: string;
 }
 
 export function NotificationBell({ className = "" }: NotificationBellProps) {
+  const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+
+  const handleNotificationClick = (notification: Notification) => {
+    if (!notification.isRead) {
+      markAsRead(notification.id);
+    }
+    const href = deriveNotificationHref(notification);
+    if (href) {
+      setIsOpen(false);
+      router.push(href);
+    }
+  };
 
   useEffect(() => {
     loadUnreadCount();
@@ -182,7 +209,7 @@ export function NotificationBell({ className = "" }: NotificationBellProps) {
                 {notifications.map((notification) => (
                   <div
                     key={notification.id}
-                    onClick={() => !notification.isRead && markAsRead(notification.id)}
+                    onClick={() => handleNotificationClick(notification)}
                     className={`flex items-start gap-3 px-4 py-3 hover:bg-gray-50 cursor-pointer ${
                       !notification.isRead ? "bg-blue-50" : ""
                     }`}

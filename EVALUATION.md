@@ -2,7 +2,7 @@
 
 > Launch readiness scorecard. See `BACKLOG.md` for open work items and `DEV_LOG.md` for session history.
 
-*Last Updated: April 21, 2026*
+*Last Updated: April 22, 2026*
 
 ---
 
@@ -38,16 +38,14 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 
 | Item | Status | Notes |
 |------|--------|-------|
-| Test payment flows end-to-end | ❌ Untested | Auction bids, Buy Now, subscription billing |
-| Test Stripe Connect seller flow | ⚠️ Test mode validated end-to-end Apr 21, 2026 — real-money test pending | Seller onboarding, sandbox purchase, verify fee split, test payout to seller bank |
-| Generate QR code for /join/trial | ⚠️ Needed | URL ready, need to print on business cards |
-| Database backup strategy | ⚠️ Planned | **Upgrade to Supabase Pro ($25/mo) before opening registration** - daily backups + 7-day retention |
+| Test payment flows end-to-end | ✅ Validated Apr 22, 2026 | Auction + Buy Now E2E in localhost/sandbox. Real-money test still pending after deploy. |
+| Test Stripe Connect seller flow | ⚠️ Test mode validated end-to-end Apr 21–22, 2026 — real-money test pending | Seller onboarding, sandbox purchase, fee split, auction + Buy Now paths all validated. Real payout to seller bank still pending. |
+| Generate QR code for /join/trial | ✅ Handed off | Third party vendor producing the QR + business cards |
+| Database backup strategy | ⚠️ Planned (Post-Launch) | Upgrade to Supabase Pro ($25/mo) when warranted by user growth — not a launch blocker. Interim: manual pg_dump before destructive migrations. See BACKLOG Pending Enhancements. |
 
 ### Medium Priority
 
-| Item | Status | Notes |
-|------|--------|-------|
-| Enable live Hottest Books API | ⚠️ Static | `USE_STATIC_LIST = true` in production |
+_(No open Medium items. Hottest Books was removed from scope Apr 22, 2026 — see BACKLOG "Remove Hottest Books Feature" for the code cleanup task.)_
 
 ---
 
@@ -218,7 +216,7 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 | Anthropic API | Pay-per-use | Variable | ~$0.015 per scan (Claude Haiku) |
 | Supabase | Free | $0 | 500MB DB, 1GB storage |
 | Clerk | Free | $0 | Up to 10K MAU |
-| Netlify | Free | $0 | 300 build minutes/month |
+| Netlify | Personal Plan | $9.54 | Hosting + domain + DNS (billed 13th) |
 | Stripe | Standard | 2.9% + $0.30 | Per transaction |
 | eBay API | Free | $0 | Rate limited |
 | Upstash Redis | Free | $0 | 10K commands/day |

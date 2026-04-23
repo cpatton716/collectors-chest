@@ -27,6 +27,7 @@ import {
 import { CollectionItem, ConditionLabel, PriceData } from "@/types/comic";
 
 import { sendNotificationEmail, getProfileForEmail, getListingComicData } from "./email";
+import { buildBuyerComicClone, SellerComicRow } from "./cloneSoldComic";
 import { createFeedbackReminders } from "./creatorCreditsDb";
 import { getAllFollowerIds } from "./followDb";
 import { filterCustomKeyInfoForPublic } from "./keyInfoHelpers";
@@ -218,7 +219,7 @@ export async function getAuction(auctionId: string, userId?: string): Promise<Au
     .select(
       `
       *,
-      comics(*),
+      comics!auctions_comic_id_fkey(*),
       profiles!auctions_seller_id_fkey(id, display_name, public_display_name, email, positive_ratings, negative_ratings, seller_since, username, display_preference, location_city, location_state, location_country, location_privacy)
     `
     )
@@ -274,7 +275,7 @@ export async function getActiveAuctions(
   let query = supabase.from("auctions").select(
     `
       *,
-      comics(*)
+      comics!auctions_comic_id_fkey(*)
     `,
     { count: "exact" }
   );
@@ -380,7 +381,7 @@ export async function getSellerAuctions(sellerId: string, status?: string): Prom
     .select(
       `
       *,
-      comics(*)
+      comics!auctions_comic_id_fkey(*)
     `
     )
     .eq("seller_id", sellerId)
@@ -406,7 +407,7 @@ export async function getWonAuctions(userId: string): Promise<Auction[]> {
     .select(
       `
       *,
-      comics(*)
+      comics!auctions_comic_id_fkey(*)
     `
     )
     .eq("winner_id", userId)
@@ -712,13 +713,20 @@ export async function placeBid(
     }
   }
 
+  // For a losing bid, bid_amount must equal the bidder's own max (not the
+  // auto-incremented display amount `newCurrentBid`) — otherwise the DB
+  // `valid_max_bid` check constraint (max_bid >= bid_amount) rejects the
+  // insert, since newCurrentBid = maxBid + increment > maxBid. The auction's
+  // current_bid column still tracks the display amount separately.
+  const bidAmountToRecord = isHighBidder ? newCurrentBid : maxBid;
+
   // Create new bid (admin: buyers lack RLS insert permission on bids table)
   const { data: newBid, error: bidError } = await supabaseAdmin
     .from("bids")
     .insert({
       auction_id: auctionId,
       bidder_id: bidderId,
-      bid_amount: newCurrentBid,
+      bid_amount: bidAmountToRecord,
       max_bid: maxBid,
       bidder_number: bidderNumber,
       is_winning: isHighBidder,
@@ -727,7 +735,17 @@ export async function placeBid(
     .single();
 
   if (bidError) {
-    return { success: false, message: bidError.message };
+    // Translate common DB constraint errors into user-friendly messages.
+    // Raw Postgres strings (e.g. "new row for relation …violates check
+    // constraint …") should never reach the UI.
+    let friendly = "Something went wrong placing your bid. Please try again.";
+    if (bidError.message?.includes("valid_max_bid")) {
+      friendly = "Your max bid must be at least the current bid plus the increment.";
+    } else if (bidError.message?.includes("row-level security")) {
+      friendly = "You don't have permission to bid on this auction.";
+    }
+    console.error("[placeBid] DB error:", bidError);
+    return { success: false, message: friendly };
   }
 
   // Update auction
@@ -739,9 +757,44 @@ export async function placeBid(
     })
     .eq("id", auctionId);
 
-  // Send outbid notification
+  // Send outbid notification + email
   if (outbidUserId) {
     await createNotification(outbidUserId, "outbid", auctionId);
+
+    try {
+      const [outbidProfile, comicData] = await Promise.all([
+        getProfileForEmail(outbidUserId),
+        getListingComicData(auctionId),
+      ]);
+      if (!outbidProfile?.email) {
+        console.warn(`[Email] outbid skipped — no email on profile ${outbidUserId}`);
+      } else if (!comicData) {
+        console.warn(`[Email] outbid skipped — no comic data for auction ${auctionId}`);
+      } else {
+        const result = await sendNotificationEmail({
+          to: outbidProfile.email,
+          type: "outbid",
+          data: {
+            recipientName: outbidProfile.displayName ?? "there",
+            comicTitle: comicData.comicTitle,
+            issueNumber: comicData.issueNumber,
+            currentBid: newCurrentBid,
+            listingUrl: `${process.env.NEXT_PUBLIC_APP_URL || "https://collectors-chest.com"}/shop?listing=${auctionId}`,
+          },
+        });
+        if (!result.success) {
+          console.error(`[Email] outbid to ${outbidProfile.email} failed:`, result.error);
+        }
+      }
+    } catch (err) {
+      console.error("[Email] outbid unexpected error:", err);
+    }
+  }
+
+  // Notify seller of new bid activity (in-app only; no email).
+  // No throttle yet — file as follow-up if volume becomes a nuisance.
+  if (auction.seller_id !== bidderId) {
+    await createNotification(auction.seller_id, "new_bid_received", auctionId);
   }
 
   return {
@@ -846,67 +899,80 @@ export async function executeBuyItNow(
   return { success: true };
 }
 
+// ============================================================================
+// MARKETPLACE FULFILLMENT (post-payment ownership transfer)
+// ============================================================================
+
+// `buildBuyerComicClone` and `SellerComicRow` live in ./cloneSoldComic (pure
+// helpers, no Supabase/Resend deps) so unit tests can exercise them without
+// booting the full DB stack.
+
 /**
- * Purchase a fixed-price listing
+ * Transfer ownership of a sold comic: insert a new row for the buyer and
+ * mark the seller's original row as sold (read-only in their sold history).
+ *
+ * Uses supabaseAdmin throughout — writes span two users' rows, RLS would
+ * reject partial operations. Safe to use in webhook / cron context where the
+ * caller is already authenticated at the API boundary.
+ *
+ * Idempotency: if the seller's row already has a `sold_at` timestamp, this
+ * is a repeated webhook delivery and we skip to avoid duplicate clones.
  */
-export async function purchaseFixedPriceListing(
-  listingId: string,
-  buyerId: string
-): Promise<{ success: boolean; error?: string }> {
-  const { data: listing } = await supabase
-    .from("auctions")
+export async function cloneSoldComicToBuyer(params: {
+  sellerComicId: string;
+  buyerId: string;
+  salePrice: number;
+  auctionId: string;
+}): Promise<{ success: boolean; buyerComicId?: string; skipped?: boolean; error?: string }> {
+  const { sellerComicId, buyerId, salePrice, auctionId } = params;
+
+  // Fetch the seller's row
+  const { data: seller, error: fetchError } = await supabaseAdmin
+    .from("comics")
     .select("*")
-    .eq("id", listingId)
-    .eq("status", "active")
-    .eq("listing_type", "fixed_price")
+    .eq("id", sellerComicId)
     .single();
 
-  if (!listing) {
-    return { success: false, error: "Listing not found or no longer available" };
+  if (fetchError || !seller) {
+    return { success: false, error: `Seller's comic row not found: ${fetchError?.message}` };
   }
 
-  if (listing.seller_id === buyerId) {
-    return { success: false, error: "You cannot buy your own item" };
+  // Idempotency: if already sold, webhook is repeating — skip.
+  if (seller.sold_at) {
+    return { success: true, skipped: true };
   }
 
-  // Complete the purchase
-  const paymentDeadline = new Date();
-  paymentDeadline.setHours(paymentDeadline.getHours() + 48);
+  // Insert buyer's clone
+  const clonePayload = buildBuyerComicClone(seller as SellerComicRow, buyerId, salePrice);
+  const { data: buyerRow, error: insertError } = await supabaseAdmin
+    .from("comics")
+    .insert(clonePayload)
+    .select("id")
+    .single();
 
-  // Use supabaseAdmin: the buyer doesn't have RLS permission to update the seller's auction row,
-  // so a regular-client update would silently fail (no error, 0 rows affected).
-  // Auth has already been verified at the API layer before this function is called.
-  const { error } = await supabaseAdmin
-    .from("auctions")
+  if (insertError || !buyerRow) {
+    return { success: false, error: `Failed to clone comic for buyer: ${insertError?.message}` };
+  }
+
+  // Mark seller's original row as sold (read-only going forward)
+  const { error: markError } = await supabaseAdmin
+    .from("comics")
     .update({
-      status: "sold",
-      winner_id: buyerId,
-      winning_bid: listing.starting_price, // The fixed price
-      payment_status: "pending",
-      payment_deadline: paymentDeadline.toISOString(),
+      sold_at: new Date().toISOString(),
+      sold_to_profile_id: buyerId,
+      sold_via_auction_id: auctionId,
+      for_sale: false,
     })
-    .eq("id", listingId);
+    .eq("id", sellerComicId);
 
-  if (error) {
-    return { success: false, error: error.message };
+  if (markError) {
+    // Clone succeeded but seller-row mark failed. Log, don't roll back —
+    // buyer has their comic, worst case seller's row is editable until next
+    // reconciliation. Better than denying the buyer their purchase.
+    console.error("[cloneSoldComicToBuyer] Clone succeeded but failed to mark seller row sold:", markError);
   }
 
-  // Notify seller (Buy Now — not an auction, use fixed-price copy)
-  await createNotification(listing.seller_id, "auction_sold", listingId, undefined, {
-    title: "Your item sold!",
-    message: "A buyer completed a Buy Now purchase. Payment will be collected shortly.",
-  });
-
-  // Notify buyer (Buy Now — not an auction, use fixed-price copy)
-  await createNotification(buyerId, "won", listingId, undefined, {
-    title: "Purchase reserved!",
-    message: "Your Buy Now purchase is reserved. Complete payment to finalize the sale.",
-  });
-
-  // Create feedback reminders for both parties (fixed_price uses "sale" transaction type)
-  await createFeedbackReminders("sale", listingId, buyerId, listing.seller_id);
-
-  return { success: true };
+  return { success: true, buyerComicId: buyerRow.id };
 }
 
 // ============================================================================
@@ -950,7 +1016,7 @@ export async function getUserWatchlist(userId: string): Promise<WatchlistItem[]>
     .select(
       `
       *,
-      auctions(*, comics(*))
+      auctions(*, comics!auctions_comic_id_fkey(*))
     `
     )
     .eq("user_id", userId)
@@ -1445,6 +1511,8 @@ export async function createNotification(
     outbid: "You've been outbid!",
     won: "Congratulations! You won!",
     ended: "Auction ended",
+    bid_auction_lost: "Auction ended — you didn't win",
+    new_bid_received: "New bid on your auction",
     payment_reminder: "Payment reminder",
     rating_request: "Leave feedback",
     auction_sold: "Your item sold!",
@@ -1470,6 +1538,8 @@ export async function createNotification(
     outbid: "Someone has placed a higher bid on an auction you're watching.",
     won: "You've won an auction! Complete payment within 48 hours.",
     ended: "An auction you were watching has ended.",
+    bid_auction_lost: "An auction you bid on has ended with another winner.",
+    new_bid_received: "A bidder placed a new bid on one of your auctions.",
     payment_reminder: "Payment is due soon for your won auction.",
     rating_request: "Please leave feedback for your recent purchase.",
     auction_sold: "Your auction has ended with a winning bidder!",
@@ -1831,8 +1901,14 @@ export async function processEndedAuctions(): Promise<{
         const paymentDeadline = new Date();
         paymentDeadline.setHours(paymentDeadline.getHours() + 48);
 
-        // supabaseAdmin: cron runs with no user context; anon client would be blocked by RLS
-        await supabaseAdmin
+        // Idempotent guard: only transition from 'active' to 'ended'. If the
+        // row is already in a finalized state (ended/sold/cancelled) because
+        // this cron job already ran — or the auction row was tampered with —
+        // skip notifications + emails. The extra `.eq("status", "active")`
+        // makes the UPDATE a no-op when the row has already moved on, and
+        // `.select()` lets us detect that via row count.
+        // supabaseAdmin: cron runs with no user context; anon client would be blocked by RLS.
+        const { data: updatedRows } = await supabaseAdmin
           .from("auctions")
           .update({
             status: "ended",
@@ -1840,29 +1916,108 @@ export async function processEndedAuctions(): Promise<{
             winning_bid: winningBid.bid_amount,
             payment_status: "pending",
             payment_deadline: paymentDeadline.toISOString(),
+            ended_at: new Date().toISOString(),
           })
-          .eq("id", auction.id);
+          .eq("id", auction.id)
+          .eq("status", "active")
+          .select("id");
 
-        // Notify winner
-        await createNotification(winningBid.bidder_id, "won", auction.id);
+        if (!updatedRows || updatedRows.length === 0) {
+          // Another concurrent run already ended this auction — don't re-notify.
+          console.warn(`[processEndedAuctions] Skipping ${auction.id}: already finalized.`);
+          continue;
+        }
 
-        // Notify seller
+        const winnerId = winningBid.bidder_id;
+
+        // Notify winner (in-app) + send auction_won email
+        await createNotification(winnerId, "won", auction.id);
+
+        // Notify seller (in-app) + send auction_sold email
         await createNotification(auction.seller_id, "auction_sold", auction.id);
 
-        // Notify watchers
+        // Fire-and-forget emails for winner + seller
+        (async () => {
+          const [winnerProfile, sellerProfile, comicData] = await Promise.all([
+            getProfileForEmail(winnerId),
+            getProfileForEmail(auction.seller_id),
+            getListingComicData(auction.id),
+          ]);
+          if (!comicData) return;
+          const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://collectors-chest.com";
+          const listingUrl = `${baseUrl}/shop?listing=${auction.id}`;
+          const finalPrice = winningBid.bid_amount;
+
+          if (winnerProfile?.email) {
+            sendNotificationEmail({
+              to: winnerProfile.email,
+              type: "auction_won",
+              data: {
+                recipientName: winnerProfile.displayName ?? "there",
+                comicTitle: comicData.comicTitle,
+                issueNumber: comicData.issueNumber,
+                finalPrice,
+                listingUrl,
+                paymentDeadline: paymentDeadline.toLocaleString("en-US", { dateStyle: "long", timeStyle: "short" }),
+                transactionsUrl: `${baseUrl}/transactions?tab=wins`,
+              },
+            }).catch((err) => console.error("[Email] auction_won failed:", err));
+          }
+
+          if (sellerProfile?.email) {
+            sendNotificationEmail({
+              to: sellerProfile.email,
+              type: "auction_sold",
+              data: {
+                recipientName: sellerProfile.displayName ?? "there",
+                comicTitle: comicData.comicTitle,
+                issueNumber: comicData.issueNumber,
+                finalPrice,
+                listingUrl,
+              },
+            }).catch((err) => console.error("[Email] auction_sold failed:", err));
+          }
+        })();
+
+        // Notify losing bidders (distinct bidders excluding the winner).
+        // Do this BEFORE the watcher loop so we can de-dupe — a bidder who
+        // also watchlisted the auction gets the more specific
+        // `bid_auction_lost` notification, not the generic `ended`.
+        const alreadyNotified = new Set<string>();
+        const { data: losingBidRows } = await supabase
+          .from("bids")
+          .select("bidder_id")
+          .eq("auction_id", auction.id)
+          .neq("bidder_id", winnerId);
+
+        const losingBidders = new Set<string>();
+        for (const row of losingBidRows || []) {
+          if (row.bidder_id !== auction.seller_id) {
+            losingBidders.add(row.bidder_id as string);
+          }
+        }
+        for (const bidderId of losingBidders) {
+          await createNotification(bidderId, "bid_auction_lost", auction.id);
+          alreadyNotified.add(bidderId);
+        }
+
+        // Notify watchers (excluding winner, seller, and anyone already
+        // notified as a losing bidder)
         const { data: watchers } = await supabase
           .from("auction_watchlist")
           .select("user_id")
           .eq("auction_id", auction.id);
 
         for (const watcher of watchers || []) {
-          if (watcher.user_id !== winningBid.bidder_id && watcher.user_id !== auction.seller_id) {
-            await createNotification(watcher.user_id, "ended", auction.id);
-          }
+          const uid = watcher.user_id as string;
+          if (uid === winnerId) continue;
+          if (uid === auction.seller_id) continue;
+          if (alreadyNotified.has(uid)) continue;
+          await createNotification(uid, "ended", auction.id);
         }
 
         // Create feedback reminders for both parties
-        await createFeedbackReminders("auction", auction.id, winningBid.bidder_id, auction.seller_id);
+        await createFeedbackReminders("auction", auction.id, winnerId, auction.seller_id);
       } else {
         // No bids, just end it (admin: cron has no user context)
         await supabaseAdmin.from("auctions").update({ status: "ended" }).eq("id", auction.id);
@@ -1904,6 +2059,9 @@ function transformDbAuction(data: Record<string, unknown>): Auction {
     bidCount: Number(data.bid_count || 0),
     paymentStatus: (data.payment_status as Auction["paymentStatus"]) || null,
     paymentDeadline: (data.payment_deadline as string) || null,
+    shippedAt: (data.shipped_at as string) || null,
+    trackingNumber: (data.tracking_number as string) || null,
+    trackingCarrier: (data.tracking_carrier as string) || null,
     acceptsOffers: (data.accepts_offers as boolean) || false,
     minOfferAmount: data.min_offer_amount ? Number(data.min_offer_amount) : null,
     expiresAt: (data.expires_at as string) || null,
@@ -2044,15 +2202,11 @@ function transformDbBid(data: Record<string, unknown>): Bid {
 export async function expireOffers(): Promise<{ expired: number; errors: string[] }> {
   const errors: string[] = [];
 
-  // Get offers that need to expire with related data for emails
+  // Get offers that need to expire. Comic data is fetched separately via
+  // getListingComicData() below when building email payloads, so no join needed here.
   const { data: expiredOffers, error: fetchError } = await supabase
     .from("offers")
-    .select(
-      `
-      id, buyer_id, seller_id, listing_id, amount, status,
-      auctions!inner(id, comic_id, collection_items!inner(id, comic))
-    `
-    )
+    .select("id, buyer_id, seller_id, listing_id, amount, status")
     .eq("status", "pending")
     .lt("expires_at", new Date().toISOString());
 

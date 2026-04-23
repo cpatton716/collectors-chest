@@ -56,14 +56,31 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
-  // Handle the user.created event — send welcome email
+  // Handle the user.created event — upsert profile + send welcome email.
+  // Upserting here (rather than relying on lazy getOrCreateProfile) guarantees
+  // every new user — including social sign-ins — gets their email synced into
+  // profiles.email from day one. Without this, social-OAuth users could hit a
+  // server route that calls getOrCreateProfile(userId) before any client-side
+  // component passes the email, creating a profile with email=null.
   if (event.type === "user.created") {
+    const clerkUserId = event.data.id;
     const { email_addresses, primary_email_address_id } = event.data;
 
     // Find the primary email address
     const primaryEmail = email_addresses?.find(
       (e) => e.id === primary_email_address_id
     )?.email_address;
+
+    try {
+      await supabase
+        .from("profiles")
+        .upsert(
+          { clerk_user_id: clerkUserId, email: primaryEmail ?? null },
+          { onConflict: "clerk_user_id" }
+        );
+    } catch (err) {
+      console.error("[Webhook] Failed to upsert profile for new user:", err);
+    }
 
     if (primaryEmail) {
       const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://collectors-chest.com";
@@ -76,6 +93,30 @@ export async function POST(req: Request) {
       }).catch((err) => {
         console.error("[Webhook] Failed to send welcome email:", err);
       });
+    }
+
+    return NextResponse.json({ received: true });
+  }
+
+  // Handle user.updated — sync email changes back to profiles.email so older
+  // profiles created without email, or users who add a primary email later,
+  // stay in sync.
+  if (event.type === "user.updated") {
+    const clerkUserId = event.data.id;
+    const { email_addresses, primary_email_address_id } = event.data;
+    const primaryEmail = email_addresses?.find(
+      (e) => e.id === primary_email_address_id
+    )?.email_address;
+
+    if (primaryEmail) {
+      try {
+        await supabase
+          .from("profiles")
+          .update({ email: primaryEmail })
+          .eq("clerk_user_id", clerkUserId);
+      } catch (err) {
+        console.error("[Webhook] Failed to sync email on user.updated:", err);
+      }
     }
 
     return NextResponse.json({ received: true });

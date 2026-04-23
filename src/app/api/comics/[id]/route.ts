@@ -23,6 +23,25 @@ export async function DELETE(
 
     const { id } = await params;
 
+    // Guard: sold comics live in the seller's read-only sold history.
+    const { data: soldRow } = await supabase
+      .from("comics")
+      .select("sold_at")
+      .eq("id", id)
+      .eq("user_id", profile.id)
+      .single();
+
+    if (soldRow?.sold_at) {
+      return NextResponse.json(
+        {
+          error: "comic_sold",
+          message:
+            "This comic has been sold and is part of your sold history. It cannot be deleted.",
+        },
+        { status: 409 }
+      );
+    }
+
     // Check for active shop listings before deletion
     const { data: activeListing } = await supabase
       .from("auctions")

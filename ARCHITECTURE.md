@@ -2,7 +2,7 @@
 
 > **Comprehensive map of pages, features, and service dependencies**
 
-*Last Updated: April 21, 2026 — Session 36 (Stripe Connect Marketplace + Buy Now payment flow wired end-to-end — PaymentButton integration, RLS silent-fail patches in purchaseFixedPriceListing/placeBid/processEndedAuctions)*
+*Last Updated: April 22, 2026 — Session 37 (Feedback eligible on `shipped`, Clerk `user.created`/`user.updated` upsert profile+email, idempotent `processEndedAuctions`, flat $1 bid increment, `getListingComicData` FK-qualified join)*
 
 ---
 
@@ -148,13 +148,13 @@ Manage comic trades with three tabs:
 | Feature | Services | Notes |
 |---------|----------|-------|
 | Create Auction | 🗄️ 🔐 | From collection comics; ListInShopModal gates on Stripe Connect status |
-| Place Bid | 🗄️ 🔐 🔴 | Rate limited, proxy bidding |
+| Place Bid | 🗄️ 🔐 🔴 | Rate limited, proxy bidding; flat $1 increment across all price tiers |
 | Buy It Now | 🗄️ 💰 | Instant purchase option via PaymentButton in ListingDetailModal |
 | Auction Payment | 💰 🗄️ | PaymentButton in AuctionDetailModal for winning bidders |
 | Payment Processing | 💰 🗄️ | Stripe Connect checkout with destination charges (fee split to seller) |
 | Seller Ratings | 🗄️ 🔐 | Positive/negative reviews (part of Creator Credits system) |
 | Notifications | 🗄️ | Outbid, won, sold alerts |
-| Auction End Processing | 🗄️ | Cron job marks completed |
+| Auction End Processing | 🗄️ | Cron job marks completed; idempotent via conditional `UPDATE ... WHERE status='active'` + row-count check (no duplicate win/sold notifications on repeat cron runs) |
 
 ---
 
@@ -236,6 +236,7 @@ Manage comic trades with three tabs:
 |---------|----------|-------|
 | Sign In | 🔐 | Google + Apple social login |
 | Sign Up (Waitlist) | 🔐 📧 | Currently captures email only |
+| Profile Sync (Clerk → Supabase) | 🔐 🗄️ | Clerk `user.created` webhook upserts `profiles` row with email at account creation (replaces lazy `getOrCreateProfile`); `user.updated` webhook syncs email changes |
 | Custom Profile Page | 🗄️ 🔐 | Replaced Clerk's UserProfile |
 | Username System | 🗄️ 🔐 | Customizable display name with validation |
 | Display Preferences | 🗄️ | Username vs real name preference |
@@ -539,7 +540,7 @@ All other routes are public (unauthenticated access allowed). Individual API rou
 | `/api/reputation` | GET | Get current user's reputation | 🗄️ 🔐 |
 | `/api/reputation/[userId]` | GET | Get user's reputation profile | 🗄️ |
 | `/api/feedback` | GET/POST | List/create transaction feedback | 🗄️ 🔐 |
-| `/api/feedback/eligibility` | GET | Check if user can leave feedback | 🗄️ 🔐 |
+| `/api/feedback/eligibility` | GET | Check if user can leave feedback (eligible once seller marks auction `shipped`; previously required `completed_at` or 7-day window) | 🗄️ 🔐 |
 | `/api/feedback/[id]` | GET/PATCH | Get/update feedback | 🗄️ 🔐 |
 | `/api/feedback/[id]/respond` | POST | Seller responds to feedback | 🗄️ 🔐 |
 
@@ -609,7 +610,7 @@ All other routes are public (unauthenticated access allowed). Individual API rou
 
 | Route | Trigger | Purpose | Services |
 |-------|---------|---------|----------|
-| `/api/webhooks/clerk` | User deleted | Cascade delete user data | 🔐 🗄️ |
+| `/api/webhooks/clerk` | `user.created` / `user.updated` / `user.deleted` | **Created:** upserts `profiles` row (Clerk user ID + email captured at account creation, fixes NULL-email social sign-ins that used to rely on lazy `getOrCreateProfile`). **Updated:** syncs email changes to `profiles`. **Deleted:** cascade delete user data. | 🔐 🗄️ |
 | `/api/webhooks/stripe` | Payment events | Auction payments, subscriptions | 💰 🗄️ |
 
 **Stripe webhook — subscription handling notes:**
@@ -779,6 +780,8 @@ Modal renders amber "Payment required" banner + PaymentButton
 **Auction entry:**
 ```
 Cron /api/cron/process-auctions (every 5 min) → processEndedAuctions (supabaseAdmin)
+  - Idempotent: conditional UPDATE ... WHERE status='active' + row-count check
+  - Repeat cron calls on same auction are no-ops (no duplicate notifications)
          ↓
 Auction row: status="ended", winner_id=highest bidder, payment_status="pending"
 Notifications: seller "Your item sold!", winner "You won!"
@@ -914,7 +917,7 @@ Seller's Stripe Express Dashboard shows incoming transfer on 2-5 day payout sche
 | `src/lib/gradePrice.ts` | Grade-based price calculation logic |
 | `src/lib/csvExport.ts` | CSV export generation |
 | `src/lib/csvHelpers.ts` | CSV parsing and import helpers |
-| `src/lib/email.ts` | Email sending via Resend |
+| `src/lib/email.ts` | Email sending via Resend; `getListingComicData()` uses FK-qualified PostgREST join `comics!auctions_comic_id_fkey(...)` to disambiguate from the second comics FK (`sold_via_auction_id`) added in the sold-tracking migration |
 | `src/lib/rateLimit.ts` | Upstash Redis rate limiting helpers |
 | `src/lib/storage.ts` | Supabase storage helpers |
 | `src/lib/supabase.ts` | Supabase client initialization |

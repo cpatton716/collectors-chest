@@ -14,7 +14,16 @@ export async function getOrCreateProfile(clerkUserId: string, email?: string) {
     .eq("clerk_user_id", clerkUserId)
     .single();
 
-  if (existing) return existing;
+  if (existing) {
+    // Backfill email on older profiles that slipped through with email=null
+    // (e.g., created before the Clerk webhook sync landed, or via a server
+    // API route that didn't have access to the Clerk user object).
+    if (!existing.email && email) {
+      await supabase.from("profiles").update({ email }).eq("id", existing.id);
+      existing.email = email;
+    }
+    return existing;
+  }
 
   // Create new profile
   const { data: newProfile, error } = await supabase
@@ -86,6 +95,9 @@ export async function invalidateProfileCache(clerkUserId: string): Promise<void>
 
 // Comics
 export async function getUserComics(profileId: string): Promise<CollectionItem[]> {
+  // Exclude sold comics from the active collection view — they live in the
+  // user's sold history (/sales page) and should not clutter the main
+  // collection. See BACKLOG bug #6.
   const { data, error } = await supabase
     .from("comics")
     .select(
@@ -96,6 +108,7 @@ export async function getUserComics(profileId: string): Promise<CollectionItem[]
     )
     .eq("user_id", profileId)
     .is("deleted_at", null)
+    .is("sold_at", null)
     .order("date_added", { ascending: false });
 
   if (error) throw error;
@@ -174,7 +187,28 @@ export async function ensureComicInSupabase(
   return data.id;
 }
 
+export class ComicSoldError extends Error {
+  code = "comic_sold";
+  constructor(message = "This comic has been sold and is now read-only in your sold history.") {
+    super(message);
+    this.name = "ComicSoldError";
+  }
+}
+
 export async function updateComic(comicId: string, updates: Partial<CollectionItem>) {
+  // Guard: sold comics live in the seller's read-only sold history.
+  // See BACKLOG "Marketplace UX / Purchase Flow Cleanup" bug #6 — seller's
+  // original row is preserved for their history but cannot be edited after sale.
+  const { data: existing } = await supabase
+    .from("comics")
+    .select("sold_at")
+    .eq("id", comicId)
+    .single();
+
+  if (existing?.sold_at) {
+    throw new ComicSoldError();
+  }
+
   const dbUpdates: Record<string, unknown> = {};
 
   if (updates.comic) {

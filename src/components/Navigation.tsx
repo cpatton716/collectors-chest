@@ -28,6 +28,7 @@ import {
   MoreHorizontal,
   Shield,
   ShoppingBag,
+  Wallet,
   X,
 } from "lucide-react";
 
@@ -244,6 +245,7 @@ export function Navigation() {
   // Guest "More" dropdown - all redirect to sign-in
   const guestSecondaryLinks = [
     { href: "/sign-in?redirect=/messages", label: "Messages", icon: MessageSquare },
+    { href: "/sign-in?redirect=/transactions", label: "Transactions", icon: Wallet },
     { href: "/sign-in?redirect=/my-auctions", label: "My Listings", icon: Gavel },
     { href: "/sign-in?redirect=/trades", label: "Trades", icon: ArrowLeftRight },
     { href: "/sign-in?redirect=/stats", label: "Stats", icon: BarChart3 },
@@ -261,6 +263,7 @@ export function Navigation() {
   // Registered user "More" dropdown
   const registeredSecondaryLinks = [
     { href: "/messages", label: "Messages", icon: MessageSquare, showBadge: true },
+    { href: "/transactions", label: "Transactions", icon: Wallet },
     { href: "/sales", label: "Sales", icon: DollarSign },
     { href: "/trades", label: "Trades", icon: ArrowLeftRight },
     { href: "/following", label: "Following", icon: UserCheck },

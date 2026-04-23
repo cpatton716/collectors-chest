@@ -10,7 +10,6 @@ import { useAuth } from "@clerk/nextjs";
 import {
   AlertCircle,
   AlertTriangle,
-  Check,
   CheckCircle,
   ChevronLeft,
   ChevronRight,
@@ -30,9 +29,10 @@ import { LocationBadge } from "@/components/LocationBadge";
 import { MessageButton } from "@/components/messaging/MessageButton";
 import { LeaveFeedbackButton } from "@/components/creatorCredits";
 
-import { Auction, formatPrice } from "@/types/auction";
+import { Auction, formatPrice, isListingCompleted, isListingPendingPayment } from "@/types/auction";
 
 import { ComicImage } from "../ComicImage";
+import { MarkAsShippedForm } from "./MarkAsShippedForm";
 import { PaymentButton } from "./PaymentButton";
 import { SellerBadge } from "./SellerBadge";
 import { WatchlistButton } from "./WatchlistButton";
@@ -57,17 +57,16 @@ export function ListingDetailModal({
   const [isLoading, setIsLoading] = useState(true);
   const [isPurchasing, setIsPurchasing] = useState(false);
   const [purchaseError, setPurchaseError] = useState<string | null>(null);
-  const [purchaseSuccess, setPurchaseSuccess] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [showActionConfirm, setShowActionConfirm] = useState<SellerAction | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
   // Check feedback eligibility for sold listings
-  const isListingCompleted = listing?.status === "sold" && listing?.winnerId;
+  const completed = listing ? isListingCompleted(listing) : false;
   const { eligibility } = useFeedbackEligibility(
-    isListingCompleted ? listing.id : undefined,
-    isListingCompleted ? "sale" : undefined
+    completed && listing ? listing.id : undefined,
+    completed ? "sale" : undefined
   );
 
   useEffect(() => {
@@ -75,7 +74,6 @@ export function ListingDetailModal({
       loadListing();
       setSelectedImageIndex(0);
       setPurchaseError(null);
-      setPurchaseSuccess(false);
     }
   }, [isOpen, listingId]);
 
@@ -94,6 +92,9 @@ export function ListingDetailModal({
     }
   };
 
+  // Buy Now: direct-to-Stripe-Checkout. No intermediate "reserve" state —
+  // the listing stays active until the Stripe webhook confirms payment and
+  // marks it sold. See BACKLOG bug #1 for flow design rationale.
   const handlePurchase = async () => {
     if (!isSignedIn) {
       setPurchaseError("Please sign in to make a purchase");
@@ -104,23 +105,28 @@ export function ListingDetailModal({
     setPurchaseError(null);
 
     try {
-      const response = await fetch(`/api/listings/${listingId}/purchase`, {
+      const response = await fetch("/api/checkout", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ listingId }),
       });
 
       const data = await response.json();
 
-      if (response.ok) {
-        setPurchaseSuccess(true);
-        onListingUpdated?.();
-        // Refetch so listing.paymentStatus reflects the new "pending" state,
-        // which drives the PaymentButton render.
-        await loadListing();
-      } else {
-        setPurchaseError(data.error || "Failed to complete purchase");
+      if (response.ok && data.url) {
+        // Redirect to Stripe Checkout. On success, Stripe redirects to
+        // /collection?purchase=success; on cancel, back to /shop?listing=<id>.
+        window.location.href = data.url;
+        return;
       }
-    } catch (error) {
-      setPurchaseError("Failed to complete purchase. Please try again.");
+
+      if (data.error === "AGE_VERIFICATION_REQUIRED") {
+        setPurchaseError(data.message || "You must confirm you are 18+ to use the marketplace.");
+      } else {
+        setPurchaseError(data.error || "Failed to start checkout");
+      }
+    } catch {
+      setPurchaseError("Failed to start checkout. Please try again.");
     } finally {
       setIsPurchasing(false);
     }
@@ -367,24 +373,7 @@ export function ListingDetailModal({
 
                 {/* Purchase Button */}
                 <div className="space-y-3">
-                  {purchaseSuccess && listing.paymentStatus === "pending" && !listing.isSeller ? (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-center gap-2 py-3 bg-amber-50 text-amber-800 rounded-xl border border-amber-200">
-                        <Check className="w-5 h-5" />
-                        <span className="font-semibold">Item reserved — complete payment to finish</span>
-                      </div>
-                      <PaymentButton
-                        auctionId={listing.id}
-                        amount={listing.winningBid || listing.startingPrice}
-                        shippingCost={listing.shippingCost || 0}
-                      />
-                    </div>
-                  ) : purchaseSuccess ? (
-                    <div className="flex items-center justify-center gap-2 py-4 bg-green-100 text-green-700 rounded-xl">
-                      <Check className="w-5 h-5" />
-                      <span className="font-semibold">Purchase Complete!</span>
-                    </div>
-                  ) : (listing.status === "sold" || listing.status === "ended") && listing.winnerId && listing.paymentStatus === "pending" && !listing.isSeller ? (
+                  {isListingPendingPayment(listing) && !listing.isSeller ? (
                     <div className="space-y-3">
                       <div className="flex items-center justify-center gap-2 py-3 bg-amber-50 text-amber-800 rounded-xl border border-amber-200">
                         <AlertCircle className="w-5 h-5" />
@@ -396,7 +385,7 @@ export function ListingDetailModal({
                         shippingCost={listing.shippingCost || 0}
                       />
                     </div>
-                  ) : (listing.status === "sold" || listing.status === "ended") && listing.winnerId ? (
+                  ) : isListingCompleted(listing) ? (
                     <div className="space-y-3">
                       <div className="flex items-center gap-2 py-4 bg-gray-100 text-gray-700 rounded-xl justify-center">
                         <Trophy className="w-5 h-5 text-amber-500" />
@@ -404,6 +393,34 @@ export function ListingDetailModal({
                           {listing.isSeller ? "Sold!" : "You purchased this item!"}
                         </span>
                       </div>
+
+                      {/* Shipping state: unshipped vs shipped */}
+                      {!listing.shippedAt && listing.isSeller && (
+                        <MarkAsShippedForm listingId={listing.id} onShipped={loadListing} />
+                      )}
+                      {!listing.shippedAt && !listing.isSeller && (
+                        <div className="flex items-center gap-2 py-3 px-4 bg-amber-50 text-amber-800 rounded-lg border border-amber-200 text-sm">
+                          <Package className="w-4 h-4" />
+                          <span>Awaiting shipment from the seller.</span>
+                        </div>
+                      )}
+                      {listing.shippedAt && (
+                        <div className="flex items-start gap-2 py-3 px-4 bg-green-50 text-green-800 rounded-lg border border-green-200 text-sm">
+                          <Package className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                          <div>
+                            <div className="font-semibold">Shipped</div>
+                            {listing.trackingNumber ? (
+                              <div className="text-xs mt-1">
+                                {listing.trackingCarrier ? `${listing.trackingCarrier} · ` : ""}
+                                Tracking: {listing.trackingNumber}
+                              </div>
+                            ) : (
+                              <div className="text-xs mt-1">No tracking number provided.</div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
                       {eligibility?.canLeaveFeedback && (
                         <div className="flex justify-center">
                           <LeaveFeedbackButton
@@ -427,6 +444,10 @@ export function ListingDetailModal({
                         </p>
                       )}
                     </div>
+                  ) : listing.status === "active" && listing.isSeller ? (
+                    // Seller viewing their own active listing — no Buy Now.
+                    // Seller controls (Mark as Sold / Pull off the Shelf) render below.
+                    null
                   ) : listing.status === "active" ? (
                     <button
                       onClick={handlePurchase}
@@ -584,3 +605,4 @@ export function ListingDetailModal({
     </div>
   );
 }
+

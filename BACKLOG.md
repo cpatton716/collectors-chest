@@ -3,7 +3,7 @@
 ## Pre-Launch — Critical / High Priority
 
 ### Fix CGC Cert Lookup Cloudflare 403 Errors
-**Priority:** High
+**Priority:** High (Pre-Launch Blocker — required for Beta)
 **Status:** Pending — ZenRows validated, awaiting cost review
 **Added:** Apr 5, 2026
 **Updated:** Apr 7, 2026
@@ -30,7 +30,7 @@ CGC website (`cgccomics.com/certlookup/`) is blocking cert lookups with Cloudfla
 ---
 
 ### Optimize Scan Pipeline for Slabbed Comics (Cert-First)
-**Priority:** High
+**Priority:** High (Pre-Launch Blocker — required for Beta)
 **Status:** Implemented (Apr 5, 2026) — effectiveness limited by CGC Cloudflare 403
 **Added:** Apr 5, 2026
 
@@ -57,127 +57,15 @@ Pipeline is running end-to-end (7 covers harvested in production), but the AI is
 
 ---
 
-### Marketplace UX / Purchase Flow Cleanup (5 bugs found during Apr 21 testing)
-**Priority:** High (Pre-Launch Blocker)
-**Status:** Pending (1 of 5 temporarily patched; rest open)
-**Added:** Apr 21, 2026
-
-During Stripe Connect Phase 7e testing (Buy Now purchase flow with test accounts), five issues surfaced that collectively make the marketplace unfit for public launch:
-
-**1. Buy Now flow never triggers Stripe Checkout** 🔴 Critical
-   - `POST /api/listings/[id]/purchase` only marks the listing as `status: sold, payment_status: pending` — no Stripe Checkout Session is created
-   - The `PaymentButton` component exists (`src/components/auction/PaymentButton.tsx`) and properly calls `/api/checkout` which creates destination-charge sessions, but it was NOT rendered anywhere in the UI before Apr 21
-   - **Temp patch (Apr 21):** added conditional PaymentButton render to `ListingDetailModal.tsx` when viewer is the buyer and payment is pending. Unblocks testing but doesn't address the broader flow
-   - **RLS silent-fail bug also fixed Apr 21:** `purchaseFixedPriceListing` in `auctionDb.ts:876` used the regular `supabase` client for the status update, which the buyer didn't have RLS permission to execute. Update silently failed with no error; API returned success; UI showed "Purchase Complete" but DB was unchanged. Fixed by switching to `supabaseAdmin` (auth is already verified at the API layer).
-   - **Proper fix:** Restructure Buy Now to go directly to Stripe Checkout on click (no intermediate "reserve" state), matching the typical e-commerce pattern. Users shouldn't need to click Buy Now, then hunt for a Pay Now button.
-   - **Alternative (if reserve-first pattern is intentional):** Show a clear "Complete Payment" CTA on the buyer's home or notifications page, and auto-redirect them there after the initial claim.
-   - **Audit needed:** scan the rest of `auctionDb.ts` and other server-side DB modules for similar `supabase.from(...).update(...)` patterns where the acting user wouldn't have RLS permission — these are all silent-failure landmines.
-
-**2. "Purchase Complete!" shown when payment is pending** 🔴 Critical
-   - `ListingDetailModal.tsx:369` hardcodes a green checkmark "Purchase Complete!" after `POST /api/listings/[id]/purchase` succeeds — but payment hasn't happened yet
-   - Misleading to buyers; makes it unclear whether they need to take further action
-   - **Temp patch (Apr 21):** added paymentStatus check to show "Item reserved — complete payment" with amber styling + PaymentButton when paymentStatus is pending
-   - **Proper fix:** tied to #1 — if Buy Now goes straight to Stripe Checkout, this UI state goes away entirely
-
-**3. Notifications use generic "auction" language for Buy Now purchases** 🟡 Medium
-   - `src/lib/auctionDb.ts:1461, 1465`: the `won` type says "You've won an auction!" and `auction_sold` says "Your auction has ended with a winning bidder!"
-   - Both are used for Buy Now purchases too (`purchaseFixedPriceListing` at lines 892, 895), causing the copy to lie about the listing type
-   - **Fix:** either add separate notification types (e.g., `buy_now_purchased`, `item_sold_fixed_price`) OR parametrize the existing types to check the listing's `listing_type` and render conditional copy
-
-**4. Books don't transfer between collections after purchase** 🟡 Medium
-   - When a buyer completes a purchase, the comic still shows in the seller's collection; there's no "pending purchases" state visible to the buyer
-   - Expected behavior: *after payment confirms* (not after claim), the comic should move from seller's "active" collection to "sold history" and into buyer's "pending delivery" → eventually "owned collection"
-   - Pre-payment state needs a placeholder — e.g., buyer sees "Pending delivery" card with payment/tracking status
-   - Ties into webhook handling — `checkout.session.completed` handler must update ownership, not `purchase` endpoint
-
-**5. Age verification modal copy is hard to read** 🟢 Low
-   - `AgeVerificationModal.tsx:60-64`: all-caps comic font inside a yellow box with low contrast
-   - Change to normal body font, proper sentence case, lighter visual weight. Keep the legal attestation but make it readable.
-
-**6. Comic ownership does not transfer to buyer's collection after payment** 🔴 Critical
-   - After `checkout.session.completed` fires, `handleAuctionPayment` in `src/app/api/webhooks/stripe/route.ts:164+` updates auction `payment_status = paid` and inserts a `sales` row for the seller, but never transfers comic ownership to the buyer
-   - Result: buyer pays, money moves, but the comic stays in the seller's collection indefinitely
-   - **Design question to resolve:** should we (a) update the comic row's owner (loses seller's collection history), (b) duplicate the comic row for buyer (preserves history, duplicates data), or (c) use a separate `owned_comics` junction table (cleanest but requires schema changes)?
-   - Option (b) is likely the right call — preserves seller's "sold history" view AND gives buyer a fresh comic they can edit/grade/resell later
-   - Files: `src/app/api/webhooks/stripe/route.ts` handleAuctionPayment, plus whatever schema is needed for cloning comic data with new owner
-
-**7. Feedback notification has no deep-link** 🟡 Medium
-   - `rating_request` notification is created for completed transactions, but notifications currently render as plain text — clicking them does nothing
-   - User cannot figure out where to leave feedback
-   - Fix: every notification should have a target URL (`href` column on notifications table, or derive from `auction_id`/`offer_id`). UI should wrap text in a `<Link>` or route on click
-   - For `rating_request` specifically, link to the listing detail modal with the feedback form expanded: `/shop?listing=<id>&leave-feedback=true` (or similar)
-
-**8. Checkout success_url redirected buyer to /my-auctions (seller-view)** 🟡 Medium
-   - **Temp patch (Apr 21):** changed `checkout/route.ts:124` to `/collection?purchase=success&auction=<id>` and `cancel_url` to `/shop?listing=<id>&payment=cancelled`
-   - **Proper fix:** once the `/transactions` page exists (see separate backlog item), redirect there instead
-
-**9. URL `?tab=buy-now` param overrides listing type in modal** 🟡 Medium
-   - When the shop page URL has `?tab=buy-now`, the ListingDetailModal renders listings with Buy Now UI regardless of their actual `listing_type`. Auctions appear as fixed-price listings with a "Buy Now for $X" button that would fail on click (self-sale guard stops sellers from clicking their own).
-   - Reproduction: seller navigates to their own auction listing via a link that carries `tab=buy-now` (probably from the buy-now tab of some listing-browse view).
-   - **Root cause:** the modal's rendering logic trusts the URL tab parameter instead of the listing's canonical `listing_type` field.
-   - **Fix:** in `ListingDetailModal` (or wherever the tab-aware render decision lives), key the UI off `listing.listing_type` ("auction" / "fixed_price") rather than URL params. URL `tab` should only control which tab is selected on the browse page, not individual modal rendering.
-
-**10. Another RLS silent-fail in `placeBid`** 🔴 Critical
-   - `src/lib/auctionDb.ts` `placeBid` used the regular `supabase` client for the bid INSERT and all bid/auction UPDATEs. Buyers don't have RLS insert permission on the `bids` table, so Supabase rejected with `"new row violates row-level security policy for table \"bids\""`.
-   - **Patched Apr 21:** 4 writes switched to `supabaseAdmin` (bid update for same-bidder max, mark-not-winning update, auction current_bid update, bid insert, auction bid_count update).
-   - **Confirms the "Audit needed" line in bug #1:** *all* `supabase.from(...).update/insert/delete` calls in server-side DB modules need an audit for RLS issues. Add to the audit checklist; don't rely on catching these one-at-a-time via manual testing.
-
-**11. RLS silent-fail in `processEndedAuctions` (cron processor)** 🔴 Critical
-   - `src/lib/auctionDb.ts` `processEndedAuctions` line 1834 and 1867 used regular `supabase` client for UPDATEs to set `status: "ended"` and populate winner fields. Cron has no user context (anon role), so RLS silently rejected the updates.
-   - **Observable symptom:** cron returned `processed: 1` with no errors, but the auction remained `status: active` with `winner_id: null`. The "processed" count only reflected that the loop iterated over the auction, not that the update succeeded.
-   - **Patched Apr 21:** switched both updates to `supabaseAdmin`. Also reinforces the RLS audit priority — every cron/webhook/server-side handler is prone to this pattern.
-
-**14. No transactional emails sent for marketplace transactions** 🟡 Medium (Pre-Launch)
-   - After a successful purchase (Buy Now or auction win + payment), neither buyer nor seller receives a transactional email
-   - In-app notifications fire correctly but email is silent — Resend integration exists (see DEV_LOG welcome-email work) but no marketplace transaction emails are wired
-   - Missing emails:
-     - Buyer: "Purchase confirmation" — comic, amount paid, shipping address, seller info, payment receipt/link
-     - Seller: "Item sold" — what sold, payment received, shipping address, reminder to ship + add tracking (tied to shipping-tracking feature)
-     - Both: "Payment received" (optional — covered by sold/purchased emails)
-     - Future (after shipping feature): "Tracking added", "Item shipped", "Delivered"
-   - Add to `src/lib/email/` (wherever Resend templates live) + hook into `handleCheckoutCompleted` / `handleAuctionPayment` in `webhooks/stripe/route.ts`
-   - Respect user email preferences (`notification_preferences` if that exists)
-
-**16. Sales History rows show clickable cursor but don't respond to click** 🟢 Low (Post-Launch OK)
-   - `/sales` page (Sales History): hovering a row in the sold-items table shows the pointer cursor, implying clickability, but clicking does nothing
-   - Users will naturally expect a click to either (a) open a detail view of the sale, or (b) navigate to the sold listing / comic page
-   - Fix: either remove the `cursor: pointer` styling OR wire up a proper onClick handler (e.g., open a SaleDetailModal showing sale price, fees, buyer, shipping info, tracking status). A detail view would be ideal once Transactions and Shipping Tracking features exist.
-   - Files: wherever the Sales table is rendered (likely `src/app/sales/page.tsx` or a component under `src/components/`)
-
-**15. Duplicate notifications possible from cron re-processing (now mitigated)** 🟢 Low
-   - During Apr 21 testing, the winner received 3 duplicate "You won!" notifications and the seller received 3 "Your auction has ended" notifications. Root cause: while the `processEndedAuctions` RLS bug (#11) was still live, the cron was idempotent in loop iteration but not in side effects — each run sent new notifications without checking if the auction was already processed.
-   - **Already largely fixed by bug #11 patch:** once status transitions to `"ended"` via `supabaseAdmin`, the next cron run's `.eq("status", "active")` filter excludes the row. No duplicate processing.
-   - **Residual risk:** race conditions between concurrent cron runs (Netlify Scheduled Functions typically don't overlap, but not guaranteed). Add defensive check at start of auction processing loop: SELECT status again under row-lock or with optimistic concurrency before sending notifications.
-   - Also consider: deduplicate notifications in the DB (unique constraint on `user_id + type + auction_id` for `won` / `auction_sold` types) so future bugs can't spam users.
-
-**13. Auction vs Buy Now use different post-sale `status` values** 🟡 Medium
-   - Buy Now (`purchaseFixedPriceListing`) → `status: "sold"`
-   - Auction (`processEndedAuctions`) → `status: "ended"`
-   - Both set `payment_status: "pending"`, but the divergent `status` value means UI conditionals that check `status === "sold"` break for auctions. Found via ListingDetailModal showing "This listing is no longer available" for auction winners on Apr 21 testing.
-   - **Patched (Apr 21):** ListingDetailModal conditionals now check `(status === "sold" || status === "ended")`.
-   - **Proper fix:** normalize to a single value — e.g., `status: "sold"` universally once payment is pending, and `status: "ended"` only for unsold-expired auctions (no winner). Requires schema migration + update all consumers. OR consider splitting: add `listing_state: "active" | "sold_pending_payment" | "paid_pending_shipment" | "shipped" | "delivered" | "cancelled"` as a clean state machine separate from the legacy `status` field.
-
-**12. `expireOffers` broken relationship error** 🟡 Medium
-   - Every cron run produces: `"Failed to fetch expired offers: Could not find a relationship between 'auctions' and 'collection_items' in the schema cache"`.
-   - Appears to be a stale or invalid Supabase join definition in `expireOffers` — either the relationship was renamed/dropped or the function is querying a column that doesn't exist on `collection_items`.
-   - Not blocking auction processing (the cron continues past this error), but spams error logs and means no offers will ever auto-expire.
-   - Fix: inspect `expireOffers` in `auctionDb.ts`, verify the join path against the current schema, either repair the join or refactor to multiple separate queries.
-
-**Files involved:**
-- `src/app/api/listings/[id]/purchase/route.ts` — rethink flow (see #1)
-- `src/components/auction/ListingDetailModal.tsx` — lines 366-403 temp-patched
-- `src/components/auction/PaymentButton.tsx` — fine as-is
-- `src/lib/auctionDb.ts` — lines 852-901 (`purchaseFixedPriceListing`), 1459-1482 (notification templates)
-- `src/components/AgeVerificationModal.tsx` — lines 60-64
-- `src/app/api/webhooks/stripe/route.ts` — `checkout.session.completed` handler (verify it flips payment_status and triggers collection transfer)
-
----
-
 ### Shipping Tracking for Sold Items (payment gated on validated tracking)
-**Priority:** High (Post-Launch — add soon after MVP opens)
-**Status:** Pending
+**Priority:** High (Pre-Launch Blocker — required for Full Launch, NOT Beta)
+**Status:** Pending — Option A shipped Apr 22, 2026; Option B (this item) is the full carrier-validated flow
 **Added:** Apr 21, 2026
-**Updated:** Apr 21, 2026
+**Updated:** Apr 22, 2026
+
+**Option A shipped (Apr 22, 2026):** Seller self-reports tracking via "Mark as Shipped" form. Ownership transfer now gates on shipment (not payment). Tracking number + carrier are optional, not validated. This is ENOUGH for Beta where testers are trusted, but NOT for Full Launch where real users can ghost on shipping.
+
+**Option B (this item) — required for Full Launch:** Carrier-validated tracking, funds held until validation, auto-refund on 7-day ghost.
 
 After a marketplace sale completes, the seller has no way to record shipping tracking information and the buyer has no way to see shipment status. User: "We need to add a way for the seller to add tracking information to the sale and then alert the buyer when tracking information has been added."
 
@@ -236,32 +124,6 @@ After a marketplace sale completes, the seller has no way to record shipping tra
 
 ---
 
-### "Transactions" Page for Buyers (Purchases + Bids)
-**Priority:** High (Pre-Launch Blocker — currently NO way for buyers to see pending purchases)
-**Status:** Pending
-**Added:** Apr 21, 2026
-
-During Apr 21 Stripe Connect testing, user discovered that **buyers have no place to see items they've purchased but not yet paid for**. The `/my-auctions` page is the seller's view of their own listings. There's no buyer-side equivalent.
-
-User's exact ask: *"We need to have a menu in the more dropdown that is specific to transactions or purchases. Let's just use transactions for now, but give them a list of anything they bought and/or bid on."*
-
-**Proposed scope:**
-- New page: `src/app/transactions/page.tsx`
-- Tabs: **Purchases** (Buy Now items), **Auction Wins**, **Active Bids**, **Offers Made**
-- Each entry shows: comic image, title, seller, price, status (Pending Payment / Paid / Shipped / Completed), action CTA
-- Pending-payment entries get a prominent **"Complete Payment"** button that opens the listing modal (or directly to PaymentButton / Stripe Checkout)
-- Add `{ href: "/transactions", label: "Transactions", icon: Wallet }` to both `registeredSecondaryLinks` in `Navigation.tsx` (desktop More dropdown) and `registeredDrawerItems` in `MobileNav.tsx` (mobile drawer)
-- Mirror link for guests: `"/sign-in?redirect=/transactions"` in `guestSecondaryLinks` / `guestDrawerItems`
-
-**Backend:**
-- New API route `GET /api/transactions?type=purchases|wins|bids|offers` that returns the current user's transactions
-- Filter `auctions` table by `winner_id = current_user_id` for purchases/wins; filter `bids` table for active bids; filter `offers` for offers made
-- Keep this fast: it'll be in the nav drop and many users will click it reflexively
-
-**Related deep-link:** notifications that mention "You've won / Your item sold / Payment required" should deep-link directly to the relevant listing modal (e.g., `/transactions?listing=<id>` or `/shop?listing=<id>`). Currently notifications are dead-ends.
-
----
-
 ### Validate `account.updated` Webhook Handler in Production
 **Priority:** Medium (Pre-Launch)
 **Status:** Pending
@@ -276,29 +138,6 @@ During Session 36 Stripe Connect testing, the `account.updated` webhook handler 
 - **In production:** after enabling Connect in live mode, confirm `account.updated` is in the list of events subscribed to the production webhook endpoint. Trigger a test change on a seller account and verify DB update.
 
 **Files:** `src/app/api/webhooks/stripe/route.ts:113-123`
-
----
-
-### Enable Stripe Connect in Live Mode
-**Priority:** High (Pre-Launch)
-**Status:** In Progress — sandbox walkthrough underway (Apr 21, 2026)
-**Added:** Apr 6, 2026
-**Updated:** Apr 21, 2026
-
-Stripe Connect setup in test/sandbox mode is actively being walked through. Once sandbox walkthrough is complete and end-to-end Phase 7 testing passes, repeat the same wizard in Live mode and deploy.
-
-**Session 36 progress (Apr 21, 2026):**
-1. ✅ Stripe account identity verification cleared
-2. ✅ Created `docs/stripe-connect-setup.md` with 8-phase walkthrough
-3. ✅ Corrected "Platform" → "Marketplace" business model selection (destination charges + `transfers` capability = Marketplace, not Platform)
-4. 🟡 Currently walking through integration choices wizard
-5. ❌ Not yet: Phases 2-4 (platform profile, Express settings, branding) in test mode
-6. ❌ Not yet: Phase 7 end-to-end localhost test
-7. ❌ Not yet: repeat for Live mode
-
-**Blocked discovery (Apr 21):** Initial "Set up seller payments" call returned `You can only create new accounts if you've signed up for Connect` — confirmed Connect enablement and test-mode dashboard walkthrough are required before the code paths work.
-
-**Reference:** Full step-by-step in `docs/stripe-connect-setup.md`.
 
 ---
 
@@ -399,19 +238,227 @@ Build a dedicated help/tutorial page that walks new sellers through the Stripe C
 
 ---
 
-### Launch Tracker Review
-**Priority:** High (Pre-Launch)
-**Status:** Pending
-**Added:** Mar 11, 2026
-**Source:** Partner Meeting (Session 19)
-**Target:** Week of April 20, 2026 (partner meeting April 22). Supabase Pro upgrade due by April 23.
+### Payment Deadline Enforcement Test
+**Priority:** High (Pre-Launch Blocker)
+**Status:** Pending — bundle with real-money Stripe Connect test
+**Added:** Apr 22, 2026
 
-Conduct a comprehensive review of launch readiness. Assess feature completeness, UX polish, performance, and outstanding bugs to determine a launch timeline.
+Auction payment deadline logic exists in the codebase but has never been exercised end-to-end. Session 36 validated payment *success* flows but did NOT test what happens when a winning bidder misses the payment deadline. Per EVALUATION.md § 3: *"Payment deadline enforcement — ⚠️ Unclear — logic in place but untested."*
+
+**User direction (Apr 22, 2026):** *"Should be tested along with real money test. Please make sure the test cases account for this."*
+
+**Test scenarios to add to TEST_CASES.md:**
+1. Winning bidder never pays — verify auction auto-cancels after the deadline
+2. Payment attempted after deadline — verify logic correctly rejects or flags the attempt
+3. Second-highest bidder fallback (if supported) — verify deadline-miss triggers the promotion path
+4. Notifications fire — buyer reminder before deadline, seller cancellation alert after
+
+**Implementation sanity-check:** audit `src/lib/auctionDb.ts` and auction cron handlers for the deadline code path before running live tests.
+
+**Related:** real-money Stripe Connect live-mode test; EVALUATION § 3 Auction Issues & Gaps.
+
+---
+
+### Request Size Limits on Image Uploads
+**Priority:** Medium (Pre-Launch Blocker)
+**Status:** Pending
+**Added:** Apr 22, 2026
+
+Image upload endpoints (scans, covers, profile avatars) currently have no enforced upper size limit on the server side. A malicious or buggy client could POST oversized payloads, leading to OOM, elevated Anthropic API costs on oversized scan inputs, or bloated Supabase Storage bills. EVALUATION.md § 2 Security Recommendations flagged this.
+
+**Scope:**
+- Add per-request max-size enforcement at the API route layer for all image upload endpoints (`/api/analyze`, `/api/covers/upload`, profile avatar, any other multipart or base64 image sinks)
+- Reasonable limit: **10MB per image** (typical phone photos are 2-5MB; gives headroom without abuse)
+- Return HTTP 413 Payload Too Large on exceed, with a user-friendly error message
+- Add matching client-side pre-validation to prevent wasted upload attempts
+
+**Files to touch:** every API route that handles multipart/form-data or base64 image payloads. Grep `request.formData()` or `request.json()` with image fields as a starting point.
+
+---
+
+### Remove "Hottest Books" Feature (Codebase Cleanup)
+**Priority:** Medium (Pre-Launch Cleanup)
+**Status:** Pending
+**Added:** Apr 22, 2026
+
+Decision (Apr 22, 2026): do not move forward with the Hottest Books feature at all. Remove all references from the codebase and docs.
+
+**Scope:**
+- Audit codebase for all Hottest Books references (components, API routes, constants like `USE_STATIC_LIST`, feature flags, hooks)
+- Remove homepage Hottest Books section and any standalone `/hottest-books` page
+- Remove associated API routes (e.g., `/api/hottest-books` if present)
+- Remove stale constants and flags
+- Clean up imports, unit tests, documentation mentions
+- EVALUATION.md § 0 Medium Priority row already removed Apr 22, 2026
+
+**Verification:**
+- `grep -ri "hottest" src/` should return zero functional hits (may still appear in unrelated contexts — audit each)
+- `npm run check:full` must pass (typecheck + lint + build)
+- Spot-check the app: homepage, navigation, any known entry points
+
+---
+
+### Strengthen Input Validation Across API Endpoints
+**Priority:** Medium (Pre-Launch Blocker — required for Beta)
+**Status:** Pending
+**Added:** Apr 22, 2026
+
+Auction routes have schema validation; most other API routes accept request bodies with minimal server-side validation. EVALUATION § 2 Security Recommendations flagged this as defense-in-depth against malformed data, stored XSS, and injection attempts.
+
+**User direction (Apr 22, 2026):** Yes — launch blocker.
+
+**Scope:**
+- Systematic sweep of all `src/app/api/**/route.ts` endpoints
+- Add Zod (or equivalent) schema validation at the top of each handler
+- Validate: type, length, format, enum values, required/optional fields
+- Standardize error response shape (HTTP 400 with field-specific error messages)
+- Prioritize routes accepting free-text, file paths, or URLs (highest injection risk)
+
+**Effort:** 3-5 days.
+
+**Related:** Request Size Limits on Image Uploads (sibling blocker); general API hardening.
+
+---
+
+### CAPTCHA for Guest Scan Limit
+**Priority:** Medium (Pre-Launch Blocker — required for Full Launch, NOT Beta)
+**Status:** Pending — defer until Beta → Full Launch transition
+**Added:** Apr 22, 2026
+
+Guests get 5 free scans tracked in localStorage; clearing localStorage / using incognito bypasses the limit. Each scan costs ~$0.015 in Anthropic API — a bad actor in a loop burns real money. Upstash IP-based rate limiting is live and sufficient for Beta, but abuse risk escalates when public registration opens.
+
+**User direction (Apr 22, 2026):** *"Yes, but not for Beta Launch."*
+
+**Scope:**
+- Integrate hCaptcha (recommended — privacy-friendly, GDPR-compliant) or reCAPTCHA v3 free tier
+- Challenge trigger: first scan attempt AND at scan-limit wall
+- Server-side token verification at the scan endpoint
+- Respect existing Upstash rate limit (don't double-gate)
+
+**Effort:** 1-2 days.
+
+---
+
+### Audit Logging for Auction Transactions
+**Priority:** Medium (Pre-Launch Blocker — required for Full Launch, NOT Beta)
+**Status:** Pending — defer until Beta → Full Launch transition
+**Added:** Apr 22, 2026
+
+Immutable backend audit log of every auction state change (bid placed, auction ended, payment captured, transfer created, dispute filed) for compliance, fraud investigation, and debugging. **NOTE:** This is NOT the user-facing transaction history — that's the separate "Transactions Page for Buyers" item (already a Beta Pre-Launch Blocker).
+
+**User direction (Apr 22, 2026):** *"Yes, but not for Beta Launch."*
+
+**Scope:**
+- New `auction_audit_log` table: id, event_type, auction_id, user_id, actor_type (user/cron/webhook), payload JSON, created_at
+- Instrument every state-change function in `src/lib/auctionDb.ts` to append log rows
+- Admin-only viewer at `/admin/audit/auctions` — filter by auction / user / date / event type
+- RLS: admin-only read; no update/delete permissions from any client
+- Logs are immutable — no updates to existing rows
+
+**Effort:** 2-3 days.
+
+**Related:** Transactions Page for Buyers (user-facing, separate item); Fraud Detection (feeds off audit log).
+
+---
+
+### Pre-populate Top Comics Cache (ZenRows Scrape — Marvel + DC)
+**Priority:** Medium (Pre-Launch Blocker — required for Full Launch, NOT Beta)
+**Status:** Pending — defer until Beta → Full Launch transition
+**Added:** Apr 22, 2026
+
+Our AI cover scan pipeline costs ~$0.015/scan. Most scans target popular issues from major publishers. Pre-seeding the `comic_metadata` + `cover_images` tables with the top Marvel + DC catalogs *before* Full Launch skips AI calls for those scans entirely — significant cost reduction at scale.
+
+**User direction (Apr 22, 2026):** *"Yes, but not for Beta Launch. Would like to go ZenRows scraping approach for both Marvel & DC. I'll look into a similar approach for Image and other publishers."*
+
+**Approach:**
+- Use ZenRows (already in consideration for CGC cert lookup — shared subscription amortizes cost)
+- **Phase 1:** scrape Marvel.com catalog (supersedes existing "Scrape Marvel.com for Cover Images (ZenRows)" backlog item)
+- **Phase 2:** scrape DC.com catalog
+- **Phase 3 (user follow-up research):** evaluate Image Comics, Dark Horse, and other major publishers
+- ETL: normalize scraped metadata into our schema, download + store cover images to Supabase Storage, populate `comic_metadata` and `cover_images`
+- One-time batch job; optional periodic re-scrape for new releases (ties into Follow List feature — reuses the release-date data)
+
+**Effort:** 3-5 days scripting per publisher + content review.
+
+**Scale win:** Marvel + DC represent ~70% of typical collector scans — pre-seeding those alone cuts AI costs sharply at Full-Launch volume.
+
+**Related:** Existing "Scrape Marvel.com for Cover Images (ZenRows)" entry — consolidate into this; Follow List (reuses release-date data).
+
+---
+
+### Remove Metron Integration from Codebase
+**Priority:** Low (Pre-Launch Cleanup)
+**Status:** Pending
+**Added:** Apr 22, 2026
+
+**User direction (Apr 22, 2026):** *"Remove all reference and or mention of Metron. We've looked at their stuff and it was junk. Very unreliable. Unless we know for sure they've improved the quality of their API or you have a strong reason to keep them in the mix, I vote we continue to disregard them in all future contexts that we've already explored their ability to support."*
+
+**Code surface to remove:**
+- `src/lib/metronVerify.ts` — verification helper
+- `src/lib/__tests__/metronVerify.test.ts` — tests
+- Metron usage in `src/app/api/analyze/route.ts` (verification pass)
+- Metron usage in `src/lib/coverValidation.ts`
+- `METRON_USERNAME` / `METRON_PASSWORD` env vars (.env.local + Netlify)
+- `CLAUDE.md` Services & Infrastructure table — Metron row
+- Historical spec docs in `docs/engineering-specs/` and `docs/plans/` — leave as-is (historical record, not future-facing)
+
+**Verification:**
+- `grep -ri "metron" src/` should return zero functional hits
+- `npm run check:full` must pass (typecheck + lint + build)
+- Confirm cover validation + AI analyze pipeline still works without Metron verification pass
+
+**Consideration:** If the AI-only pipeline loses meaningful precision without Metron verification, evaluate an alternative (or accept the precision delta). Baseline test: compare scan accuracy before vs after removal on a 50-book sample.
+
+---
+
+### Email Notification Preferences / Opt-Out System
+**Priority:** Medium (Pre-Launch Blocker — required for Full Launch, NOT Beta)
+**Status:** Pending — defer until Beta → Full Launch transition
+**Added:** Apr 22, 2026
+
+No email opt-out mechanism exists today — every notification email fires unconditionally. Safe while users are test accounts / small private beta, but **required before public launch** for CAN-SPAM / GDPR compliance on notification-style emails (outbid, won, new listing from followed, feedback reminder, etc.). Strictly transactional emails (purchase confirmation, payment receipt) can always send, but users must be able to silence the rest.
+
+**Scope:**
+- New `notification_preferences` JSON column on `profiles` table (migration):
+  - `{ outbid: true, auction_won: true, auction_sold: true, new_listing_from_followed: true, feedback_reminder: true, offer_received: true, offer_status: true, ... }`
+  - Default all to `true` for existing users (backwards-compatible)
+- Update every call site in `src/lib/auctionDb.ts` and webhook where `sendNotificationEmail(...)` is invoked:
+  - Fetch recipient's preferences first
+  - Skip send if the corresponding preference is `false`
+  - **Always-send categories** (no opt-out): `purchase_confirmation`, `item_sold`, `welcome`, `trial_expiring`
+- Settings UI: new section on `/settings` or Profile page listing each notification type with a toggle
+- Unsubscribe link in every non-transactional email footer — routes to `/settings?tab=notifications` (deep-link)
+- Optional: one-click unsubscribe per type via signed token URL (RFC 8058 compliant — Gmail/Apple increasingly require this)
+
+**Schema migration sketch:**
+```sql
+ALTER TABLE profiles ADD COLUMN notification_preferences JSONB DEFAULT '{
+  "outbid": true,
+  "auction_won": true,
+  "auction_sold": true,
+  "new_listing_from_followed": true,
+  "feedback_reminder": true,
+  "offer_received": true,
+  "offer_status_change": true,
+  "payment_reminder": true
+}'::jsonb;
+```
+
+**Files expected:**
+- Migration for `notification_preferences` column
+- `src/lib/notificationPreferences.ts` — helper to check prefs before send
+- `src/lib/email.ts` — wrap `sendNotificationEmail` with preference check OR have every caller check
+- Settings UI component + API route for reading/updating preferences
+- Unsubscribe footer partial in email templates
+
+**Effort:** 3-5 days.
+
+**Related:** Marketplace Notification & Email Coverage Gaps (below — those new emails must respect these preferences from day one).
 
 ---
 
 ### Signature Detection on Cached Scan Path
-**Priority:** High (Pre-Launch)
+**Priority:** High (Pre-Launch Blocker — required for Beta)
 **Status:** Implemented — effectiveness limited by CGC Cloudflare 403
 **Added:** Apr 6, 2026
 **Updated:** Apr 7, 2026
@@ -420,39 +467,480 @@ When cert lookups work (CBCS/PGX now, CGC after ZenRows fix), signature data com
 
 ---
 
-### Apple Sign-In & Native iOS/Android Apps
-**Priority:** High (Pre-Launch)
-**Status:** Brainstorming — design in progress (Apr 20, 2026)
+### Sign in with Apple + Apple Developer Program Enrollment
+**Priority:** Medium (Pre-Launch — not a strict blocker; unblocks iOS downstream)
+**Status:** Pending — prerequisite for iOS Native App
 **Added:** Apr 6, 2026
-**Updated:** Apr 20, 2026
+**Updated:** Apr 22, 2026
 
-Bundled effort: Apple Developer Program enrollment ($99/yr) unlocks both Sign in with Apple and native iOS distribution. Building native apps for iOS + Android is a meaningful acquisition-channel play; break-even math shows native only needs to grow the user base ~4% to offset Apple's 15% Small Business Program cut (see `docs/native-app-iap-analysis.xlsx`). IAP strategy leaning toward Option A (Apple IAP on iOS + Stripe on Android/Web).
+Apple Developer Program enrollment ($99/yr) unlocks two capabilities: **Sign in with Apple** (web-ready, no native app needed) and native iOS distribution (tracked as a separate item). This entry covers the prerequisite enrollment + the web-only Apple Sign-In integration.
 
 **Steps:**
-1. Enroll in Apple Developer Program ($99/yr) + Google Play Developer ($25 one-time)
-2. Create App IDs, configure Sign in with Apple, replace Clerk's shared Apple OAuth credentials
-3. Finalize IAP strategy (Option A vs B vs product-split); review model with partner
-4. Choose wrapper approach (Capacitor recommended — reuses Next.js/PWA codebase) — design doc pending
-5. Implement StoreKit + Play Billing + receipt validation / entitlement sync with Stripe
-6. App Store and Play Store submissions (icons, screenshots, privacy policy, review responses)
+1. Enroll in Apple Developer Program ($99/yr) — identity verification can take days to weeks
+2. Create App ID + Services ID for Sign in with Apple
+3. Configure domain + return URLs in the Apple portal
+4. Replace Clerk's shared Apple OAuth credentials with our own
+5. Test sign-up + sign-in flows across iOS Safari + desktop browsers
 
-**Blocked on:** IAP strategy decision (partner meeting week of Apr 20), Apple Developer Program enrollment.
+**Why Pre-Launch but not strict blocker:** Clerk's shared Apple OAuth works today for dev/testing. Replacing with our own before Full Launch is best practice (removes dependency on shared credentials that could change upstream), and Developer Program enrollment is the prerequisite for iOS anyway.
 
-**Related:** "Native App Wrapper" (consolidated into this item), "Native App: Cover Image Search via Default Browser" (low-priority UX polish for once wrappers ship).
+**Effort:** 1-2 days of engineering once Developer Program is approved; enrollment itself may take 1-3 weeks for identity verification.
+
+**Related:** iOS Native App (Apple App Store) — hard-blocked on this item.
 
 ---
 
-### Native App Wrapper
-**Priority:** High (Pre-Launch)
-**Status:** Consolidated into "Apple Sign-In & Native iOS/Android Apps"
-**Added:** Mar 18, 2026
-**Updated:** Apr 20, 2026
+### iOS Native App (Apple App Store)
+**Priority:** High (Pre-Launch Blocker — required for Full Launch, NOT Beta)
+**Status:** Pending — brainstorming / design in progress
+**Added:** Apr 6, 2026
+**Updated:** Apr 22, 2026
 
-Originally a standalone ask to hide the browser URL bar via a PWA or native shell (feedback item #16 — browser URL bar showing on public collection). Now rolled into the full native-apps initiative above, which delivers the same UX improvement plus App Store distribution.
+**User direction (Apr 22, 2026):** Full Public Launch WILL ship with an iOS native app. This is a Full Launch Blocker — Beta can proceed without it.
+
+Native iOS app via Capacitor wrapping our existing Next.js/PWA codebase. Distributed via Apple App Store. Removes the browser URL bar (prior feedback item #16), unlocks App Store discoverability, enables iOS push notifications (PWA on iOS has weak push support).
+
+**Break-even math:** Native iOS only needs to grow the user base ~4% via App Store discovery to offset Apple's 15% Small Business Program cut (see `docs/native-app-iap-analysis.xlsx`). IAP strategy leaning toward Option A (Apple IAP on iOS + Stripe on Web).
+
+**Steps:**
+1. Finalize IAP strategy (Option A vs B vs product-split — partner meeting discussion)
+2. Choose wrapper approach (Capacitor recommended — reuses Next.js/PWA codebase)
+3. Create iOS App ID + App Store Connect listing (icons, screenshots, privacy policy, age rating)
+4. Implement StoreKit receipt validation + entitlement sync with Stripe subscriptions
+5. Beta test via TestFlight
+6. App Store submission + review (typical 1-7 days, sometimes longer)
+
+**Blocked on:**
+- Sign in with Apple + Apple Developer Program Enrollment (separate BACKLOG item)
+- IAP strategy decision (partner meeting)
+
+**Timeline note:** Apple App Store review can take 1-7 days; factor into Full Launch scheduling.
+
+**Related:** Sign in with Apple (prerequisite); Android Native App (Pending Enhancements — parallel codebase but Post-Launch); Native App Cover Image Search (low-priority polish for once app ships).
 
 ---
 
 ## Pending Enhancements
+
+### Android Native App (Google Play Store)
+**Priority:** Medium (Post-Launch)
+**Status:** Pending
+**Added:** Apr 6, 2026
+**Updated:** Apr 22, 2026
+
+**User direction (Apr 22, 2026):** Full Public Launch will ship *without* an Android native app. Web PWA is sufficient for Android users at launch (Chrome PWA support is strong — push, install-to-homescreen, offline all work). Android app is a fast-follow after launch, not a blocker.
+
+Android Play Store app built from the same Capacitor project as iOS. Google Play Developer account is $25 one-time; review is typically hours to 2 days (much faster than Apple).
+
+**Why Post-Launch:**
+- Android users can use the PWA via Chrome immediately — no distribution gap
+- iOS users *need* the native app because iOS Safari PWA support is weaker (no push notifications)
+- Capacitor lets us share the codebase, so Android shipping work is incremental (~2-3 days) once iOS is built
+
+**Steps:**
+1. Google Play Developer enrollment ($25 one-time)
+2. Build Android artifact from the Capacitor project (shares codebase with iOS)
+3. Create Play Store listing (reuse iOS screenshots where possible)
+4. Implement Play Billing + receipt validation (parallel to StoreKit on iOS)
+5. Internal testing track → production rollout
+
+**Effort:** ~2-3 days once iOS native app foundation is built.
+
+**Related:** iOS Native App (shares Capacitor codebase); IAP strategy applies equally here.
+
+---
+
+### Auction History / Analytics for Sellers
+**Priority:** Medium-High (Post-Launch)
+**Status:** Pending
+**Added:** Apr 22, 2026
+
+Sellers have no dashboard for auction performance — total sales, fees paid, sell-through rate, avg sale price, top-performing listings, busiest day/week. Matters more as sellers list more items: without analytics, they can't optimize pricing or listing strategy, and can't easily pull data for taxes.
+
+**Scope:**
+- New `/seller-analytics` page (or tab under My Auctions)
+- Metrics: total sales ($ and count), total fees paid, avg sale price, sell-through rate, top category, busiest day/week
+- Time-window selector: 7d / 30d / 90d / all-time
+- CSV export for tax + record-keeping
+- Chart library — reuse whatever we pick for Sales Trend Graphs
+
+**Prerequisite:** "Transactions Page for Buyers" (already in BACKLOG, Pre-Launch Blocker) — analytics builds on the same data model.
+
+---
+
+### Sales Trend Graphs
+**Priority:** Medium (Post-Launch)
+**Status:** Pending
+**Added:** Apr 22, 2026
+
+Competitor CovrPrice differentiates on multi-source price trend graphs. Adding sales trend visualization (individual comic value over time, category-level trends) to comic detail pages + collection dashboard closes that competitive gap.
+
+**Scope:**
+- Time-series data: capture eBay sales/prices with timestamps (partial data may already exist in `eBay_price_cache`)
+- Pick lightweight chart library — Recharts is the obvious fit for our Next.js stack
+- Comic detail page: price history over 6 / 12 / 24 months
+- Collection dashboard: total collection value trend
+- Integrates with Price Alerts (if added) — plot the user's target threshold on the trend
+
+**Related:** Price Alerts (future Post-Launch); durable eBay price cache (BACKLOG Medium).
+
+---
+
+### Link `/sales` History Rows to Their Listing Modal
+**Priority:** Medium (Post-Launch)
+**Status:** Pending
+**Added:** Apr 22, 2026
+
+On the `/sales` (Sales History) page, clicking a row does nothing on desktop — the existing click handler only surfaces details on mobile (`md:hidden` card). Sellers have no way from here to reach the listing's "Mark as Shipped" flow or tracking details — they have to navigate to `/my-auctions` or find the listing via the notification bell.
+
+**Fix scope:**
+1. **Schema migration:** add `auction_id UUID NULL REFERENCES auctions(id) ON DELETE SET NULL` to `sales` table (plus an index)
+2. **Webhook:** `handleMarketplacePayment` includes `auction_id` on the `sales` row insert
+3. **Backfill:** one-time migration to match existing sales rows to their auctions by `user_id + buyer_id + sale_price + approximate date` (best effort; fine if some stay null)
+4. **Sales page:** make each row a `<Link>` to `/shop?listing=<auction_id>` — opens the listing modal where seller can Mark as Shipped / view tracking / leave feedback
+5. Consider also a "Pending Shipments" section at top of `/sales` highlighting paid-but-unshipped rows with inline "Ship it" CTA
+
+**Files:**
+- `supabase/migrations/…_sales_auction_id.sql`
+- `src/app/api/webhooks/stripe/route.ts` — sales insert
+- `src/app/sales/page.tsx` — row rendering + possible Pending Shipments section
+
+**Effort:** 1-2 days.
+
+---
+
+### Hydration Mismatch on "Ask the Professor" Button
+**Priority:** Low (Post-Launch)
+**Status:** Pending — non-fatal ("Recoverable Error")
+**Added:** Apr 22, 2026
+
+React logs a hydration error on initial page load: the server-rendered `<button aria-label="Ask the Professor">` has `className="p-2 bg-pop-blue …"` but the client render adds a leading `mr-4`:
+
+- Server: `p-2 bg-pop-blue border-2 border-pop-black shadow-comic-sm hover:shadow-comi…`
+- Client: `p-2 mr-4 bg-pop-blue border-2 border-pop-black shadow-comic-sm hover:shadow…`
+
+Non-fatal — the tree just re-renders on the client — but it's a sign of SSR/client drift. Likely culprit: a conditional className tied to Clerk's `isSignedIn` (which is always false on the server but resolves true on the client), or a responsive class applied by a parent that reads `window` before first paint.
+
+**Files to investigate:**
+- `src/components/Navigation.tsx` — the button lives here (line ~395). The only existing conditional is `hidden sm:inline-flex` vs `inline-flex`, which wouldn't add `mr-4`. Something else must be injecting it.
+- Possibly a wrapper, a global stylesheet collision, or a browser extension (Grammarly etc. has been known to inject attributes).
+
+**Fix approach:** stabilize the rendered HTML between server + client. Either key the button off a `mounted` state (render `null` until mounted) or move the layout class to a non-Clerk-gated context.
+
+**Repro:** load any page in dev mode with React error overlay enabled — the error surfaces immediately on first load.
+
+---
+
+### Stripe Webhook: Send Resend Email on Failed Payment
+**Priority:** Low (Post-Launch)
+**Status:** Pending
+**Added:** Apr 22, 2026
+
+Existing TODO at `src/app/api/webhooks/stripe/route.ts:505` — when a Stripe payment fails (invoice.payment_failed / payment_intent.payment_failed), we log the event but do not notify the user via email. Buyers who had a card decline, expired card, or other payment issue get no heads-up and can silently drop off.
+
+**Scope:**
+- In the failed-payment webhook handler, look up the user's email (via Clerk or profile)
+- Send a Resend transactional email: "Your payment for <listing title> could not be processed" with the reason (if Stripe provides it), a retry link, and support contact info
+- Respect `notification_preferences` once that system ships (this is borderline transactional so probably always-send)
+- Consider also sending an in-app notification for real-time visibility
+
+**Files:**
+- `src/app/api/webhooks/stripe/route.ts` — remove the TODO at line ~505, wire in the Resend send
+- `src/lib/email/` — new template for failed-payment notification
+
+---
+
+### Re-engagement Email Drip Campaign
+**Priority:** Medium (Post-Launch)
+**Status:** Pending
+**Added:** Apr 22, 2026
+
+No re-engagement email flow exists today for users who register but go inactive. Resend is integrated for transactional email (welcome, verification, purchase confirmations) but no drip campaigns for inactive or underutilizing users.
+
+**Proposed sequences:**
+- Day 3 post-signup if no scans: "Hey, you haven't scanned yet — here's a tip"
+- Day 7: "What you're missing — here's what free users get"
+- Day 14: monthly-value recap / first-scan nudge
+- Weekly digest for users with watchlists: "3 items you're watching had activity this week"
+- 30-day inactivity re-engagement
+
+**Files:** build on existing `src/lib/email/` templates; add a scheduled Netlify function for batch sends; respect `notification_preferences`.
+
+---
+
+### Haptic Feedback on Mobile
+**Priority:** Medium (Post-Launch — **escalate to Pre-Launch if Option A is confirmed trivial**)
+**Status:** Pending
+**Added:** Apr 22, 2026
+
+iOS/Android haptic feedback on key interactions (scan success, milestone hit, bid placed, payment complete) adds polish to mobile UX. User direction (Apr 22, 2026): *"No, but if it's super easy, it'd be a great add-value for launch."*
+
+**Two implementation paths:**
+
+**Option A — Web Vibration API (trivial; ~1 hour of work):**
+- `navigator.vibrate(100)` at key success events in the web/PWA app
+- Limited device support — works on Android Chrome; **does NOT work on iOS Safari** (Apple does not support the Vibration API)
+- Deploy as progressive enhancement — silently no-ops on unsupported browsers; zero risk
+
+**Option B — Native Haptics via Capacitor (waits for native apps):**
+- Capacitor `Haptics` plugin in the iOS/Android wrappers (see "Apple Sign-In & Native iOS/Android Apps" BACKLOG entry)
+- Full iOS + Android support, proper tactile feedback (not just vibration)
+- Blocked on native app initiative
+
+**Recommendation:** ship Option A pre-launch as a no-cost polish for Android users. Revisit Option B when native apps land.
+
+**Scope (Option A):**
+- Add `navigator.vibrate()` calls at: scan success, collection add, bid placed, outbid, payment complete, milestone hit
+- Device settings already honored automatically by the API
+- No UI changes
+
+---
+
+### Upgrade Supabase to Pro Tier ($25/mo) — Enable Daily Backups
+**Priority:** Medium-High (Post-Launch)
+**Status:** Pending — monitor and upgrade when warranted
+**Added:** Apr 22, 2026
+**Updated:** Apr 22, 2026
+
+Current DB is on Supabase Free tier with NO automated backups. A single bad migration or corruption event has no recovery path. Upgrading to Pro unlocks daily backups + 7-day retention, 8GB DB, and 250GB bandwidth.
+
+**Decision (Apr 22, 2026):** Not a launch blocker. Monitor guest activity and user growth; upgrade when the risk profile justifies the $25/mo (e.g., ~500 users, or sooner if data loss risk materializes). Until then, rely on manual pg_dump exports before risky schema changes.
+
+**Acceptance criteria:**
+- Project on Supabase Pro tier ($25/mo billed)
+- Daily backups visible in dashboard
+- Restore procedure documented in `docs/runbooks/` or similar
+- Update `CLAUDE.md` Services table (Supabase row: "Pro" not "Free")
+- Update `COST_PROJECTIONS.md` Scenario 1 once triggered
+
+**Interim mitigation:** Take a manual pg_dump before any destructive schema migration on production (e.g., dropping/renaming columns, table splits).
+
+---
+
+### Expand Test Coverage (Bid Logic, Auth, Payment Webhooks)
+**Priority:** Medium-High (Post-Launch, ongoing)
+**Status:** Pending
+**Added:** Apr 22, 2026
+
+Current test suite: **584 passing tests** (per EVALUATION § 1). Known coverage gaps — proxy bidding logic, Clerk auth flows, Stripe webhook handlers. Session 36 RLS silent-failures slipped past because no integration tests exercised the buyer / cron path end-to-end.
+
+**User direction (Apr 22, 2026):** *"NO, but quick follow. How do we validate that the current Test Cases is accurate in regards to the applications current feature set?"*
+
+**Scope (ongoing):**
+- Baseline coverage sweep — 3-5 days to add tests for the three target areas (proxy bidding, auth flows, Stripe webhooks)
+- Ongoing — write tests as we touch code; enforce via `npm run check:full` pre-commit
+
+**Quick-follow sub-task — TEST_CASES.md audit vs current feature set:**
+1. Generate a feature inventory: list every user-facing feature (ARCHITECTURE.md + grep sweep of `src/app` routes + key `src/components`)
+2. Cross-reference each feature against TEST_CASES.md — flag features missing documented test coverage
+3. Cross-reference each TEST_CASES.md entry against the code — flag tests for features that no longer exist (stale)
+4. Produce a delta report: missing coverage + stale tests
+5. Refresh TEST_CASES.md to match the current feature set before new test cases are added
+
+**Effort:** Audit 1 day. Baseline coverage sweep 3-5 days. Ongoing thereafter.
+
+---
+
+### Fraud Detection for Bidding Patterns
+**Priority:** Medium (Post-Launch)
+**Status:** Pending
+**Added:** Apr 22, 2026
+
+Detect shill bidding (seller bidding on own auction via alt account), coordinated buyer collusion, bid manipulation (rapid sniping from new accounts), high-value wins by brand-new accounts. Existing `placeBid` has a self-bid guard but is trivially bypassed with alt accounts.
+
+**MVP rules (ship first):**
+- Block bids from accounts <7 days old on auctions over $X (configurable threshold)
+- Alert admin on auction wins by accounts <14 days old
+- Flag repeated max-bid patterns that smell like shilling (same bidder repeatedly pushing to just below the leader's max)
+- All suspicious patterns log to audit system (ties into "Audit Logging for Auction Transactions")
+
+**Future (reactive):**
+- Build out detection as actual fraud patterns emerge in production — no speculative pre-building
+- Consider Stripe Radar or Sift integration if transaction volume warrants
+
+**Effort:** MVP 2-3 days; ongoing as patterns emerge.
+
+**Related:** Audit Logging for Auction Transactions (feeds this system).
+
+---
+
+### Price Alerts
+**Priority:** Medium (Post-Launch)
+**Status:** Pending
+**Added:** Apr 22, 2026
+
+Users set a target price on a watchlist item (e.g., *"Notify me when NM copies of ASM #300 drop below $500"*). System polls prices and fires a notification when the threshold is crossed. Competitive differentiator — Key Collector ($3.99/mo) and CovrPrice ($5/mo) both paywall this. CLZ doesn't have it.
+
+**Recommendation:** gate behind Premium subscription — matches competitor pricing strategy, creates a clear upsell.
+
+**Scope:**
+- New `price_alerts` table: user_id, comic_id, target_price, condition (NM / CGC 9.x / etc.), triggered_at, created_at
+- Cron job: poll latest prices vs user thresholds, fire notifications when crossed
+- New notification type: `price_alert_triggered`
+- UI: bell icon on comic detail → "Alert me when price drops below $X"
+- Integration with Sales Trend Graphs — plot user's target threshold on the trend line
+
+**Prerequisites:** Durable eBay Price Cache (BACKLOG Medium); existing notification system.
+
+**Effort:** 3-5 days.
+
+---
+
+### Follow List (Series Following + Release Notifications) — "Effort B"
+**Priority:** Medium (Post-Launch)
+**Status:** Pending
+**Added:** Apr 22, 2026
+
+Users flag series they're actively collecting. System tracks upcoming release dates and notifies when new issues drop. Key feature for collectors.
+
+**User direction (Apr 22, 2026):** *"Definitely want to keep effort B. That is going to be key for collectors, which is what we're focusing on."*
+
+**Important terminology:** Competitors (CLZ, Key Collector) call this "pull list," which conflicts with traditional comic-shop pull lists (customer subscription at a physical shop). **Our product terminology: "Follow List."** The shop-integration ask is tracked as a separate item — "Pull List Integration with Local Comic Shops (Effort A)" — Post-Launch Low priority.
+
+**Scope:**
+- New `user_series_follows` table: user_id, series_title, publisher, auto_add_to_watchlist (bool), notify_on_release (bool)
+- "Follow series" button on comic detail / series detail page
+- Release-date source: reuse scraping pipeline from "Pre-populate Top Comics Cache — ZenRows Marvel + DC" (ties together)
+- New notification type: `new_issue_released`
+- Weekly digest option: "3 issues from your followed series released this week"
+
+**Effort:** 4-6 days.
+
+**Related:** Pre-populate Top Comics Cache (data source — release dates come from same scrape); Pull List Integration (Effort A — separate ask, shop-facing).
+
+---
+
+### Demo Collection / Sample-Data Mode
+**Priority:** Medium (Post-Launch)
+**Status:** Pending
+**Added:** Apr 22, 2026
+
+Guests can explore the app with a pre-populated sample collection (~12 iconic comics) — `/demo` route or "Demo mode" toggle. Lowers friction for cold visitors who don't have a comic in hand. EVALUATION § 4 Gaps flagged this.
+
+**Scope:**
+- Curate sample collection: 12 iconic comics (Detective #27, Amazing Fantasy #15, X-Men #1, etc.) with real cover art + realistic pricing
+- Static sample JSON file committed to repo
+- Toggle: "View demo collection" on landing page → loads sample into localStorage (guest flow)
+- Clear visual indicator: "Demo Mode — Sample Data"
+- CTA to convert: "Ready to scan your own? Create an account."
+
+**Effort:** 1-2 days.
+
+---
+
+### Batch Scanning (Rapid-Fire Scan Mode)
+**Priority:** Medium (Post-Launch)
+**Status:** Pending
+**Added:** Apr 22, 2026
+
+Scan a stack of comics in rapid succession without tapping "Scan another" between each. Massive UX win for users cataloging large existing collections.
+
+**Two implementation paths:**
+
+**Option A — Auto-capture loop (recommended):**
+- Camera stays active after each scan
+- Cover-change detection triggers next capture (computer vision comparison of current frame vs previous)
+- User tap to review/confirm each result, or "fast mode" skips review
+
+**Option B — Batch queue:**
+- User pans camera over a stack; app captures frames continuously
+- Process frames in a background job (async AI calls)
+- User reviews and commits results in a batch UI
+
+**Recommendation:** Option A — faster to build, simpler UX. Option B is more powerful but significantly harder (robust cover-detection from arbitrary pan frames, async processing, review UX).
+
+**Effort:** 5-7 days (Option A); 10+ days (Option B).
+
+---
+
+### Pull List Integration with Local Comic Shops ("Effort A")
+**Priority:** Low (Post-Launch)
+**Status:** Pending
+**Added:** Apr 22, 2026
+
+Traditional comic-shop pull list integration — users subscribe to a local shop's pull list (or browse / transfer between shops) via Collectors Chest. Shops receive a weekly pull list of comics to hold for each customer; customers get reminders + shop location info.
+
+**User direction (Apr 22, 2026):** *"I do know a few local shops that I might be able to integrate and get users subscribed to their pull list."*
+
+**Note:** WE ARE NOT A SHOP — but we could play the aggregation / marketplace role between shops and collectors.
+
+**Scope (if pursued):**
+- Shop onboarding flow (opt-in shop registration)
+- User subscribes to shop's pull list with preferred series
+- Weekly automated pull list export for shops (email or POS integration — TBD)
+- Notification when new issue lands on customer's pull list
+- Shop discovery / directory
+
+**Effort:** High — significant product work. Multi-party coordination (shops have opinions, POS integrations may be needed).
+
+**Related:** Follow List (Effort B — separate, in-app-only; already filed as Medium).
+
+---
+
+### Testimonials / Social Proof on Homepage
+**Priority:** Low (Post-Launch)
+**Status:** Pending — defer until 50+ engaged real users
+**Added:** Apr 22, 2026
+
+User quotes/reviews on homepage build trust for cold visitors. Currently in private beta with few users — need real engagement data + authentic quotes before adding the section. Placeholder or fake quotes are a trust-killer if discovered.
+
+**Scope (when ready):**
+- Solicit quotes from 5-10 engaged users (beta testers + early adopters)
+- Homepage section with rotating testimonials
+- Optional: link to public collection page of the testimonial author (social proof + link value)
+
+**Effort:** 1 day (content + UI) once real quotes are in hand.
+
+---
+
+### Marketplace Dispute & Refund Workflow
+**Priority:** Medium (Post-Launch)
+**Status:** Pending
+**Added:** Apr 22, 2026
+
+No formal dispute resolution or refund workflow exists for marketplace transactions. Per Stripe Connect platform responsibility (acknowledged Apr 21, 2026 during Connect setup), Collectors Chest handles first-line support for refunds and chargebacks — we need the tooling to back that commitment.
+
+**Scope:**
+- Buyer-initiated dispute / refund request UI (on transaction detail page)
+- Admin-facing queue to review, approve, or deny disputes
+- Stripe refund / transfer-reversal wiring via platform account
+- Notification to both buyer and seller on dispute status changes
+- Audit log for all dispute actions
+- Defined refund policy (full vs partial, timeframe e.g. 14 days from delivery)
+- Gate the dispute window on delivery (ties to Shipping Tracking feature)
+
+**Files expected:**
+- New `src/app/api/disputes/route.ts` (create / update / list)
+- New `src/app/transactions/[id]/dispute/page.tsx` (buyer UI)
+- New `src/app/admin/disputes/page.tsx` (admin queue)
+- Stripe refund logic in `src/lib/stripeConnect.ts` or equivalent
+- New notification types: `dispute_filed`, `dispute_resolved_buyer`, `dispute_resolved_seller`
+
+**Related:** Marketplace Policy Gaps (Pre-Launch — covers policy language); Shipping Tracking (gates dispute window on delivery).
+
+---
+
+### Auction Sniping Protection (Auto-Extend on Late Bids)
+**Priority:** Medium (Post-Launch)
+**Status:** Pending
+**Added:** Apr 22, 2026
+
+eBay-style auction sniping — bidders placing winning bids in the final seconds — is not prevented today. Competitors like eBay extend auctions when a bid arrives near the end to keep auctions fair and encourage higher final prices.
+
+**Proposed behavior:**
+- If a bid arrives within the last N minutes of an auction (e.g., last 5 min), auto-extend `ends_at` by N minutes
+- Cap at a max extension count or time (e.g., no extensions after N hours beyond original end) to prevent runaway auctions
+- Display "auction extended!" indicator in UI for active bidders / watchers
+- Fire notification to watchers when auction is extended
+
+**Files expected:**
+- `src/lib/auctionDb.ts` `placeBid` — add extension logic after successful bid insert
+- `src/components/auction/AuctionDetailModal.tsx` — show extended status
+- Schema: add `original_ends_at` (immutable, for display) alongside mutable `ends_at`
+
+**Related:** existing `processEndedAuctions` cron (no change expected); watchlist notifications.
+
+---
 
 ### Customizable Initial Message
 **Priority:** Low
@@ -484,7 +972,6 @@ Re-enable dedicated barcode scanning feature once the crowd-sourced barcode cata
 **Context:**
 The dedicated barcode scanner was removed on Feb 4, 2026 because:
 - Comic Vine API returns garbage data for UPC queries (1.1M wildcard results)
-- Metron.cloud has exact UPC matching but server was down
 - No reliable external barcode → comic mapping API exists
 
 **Current Approach:**

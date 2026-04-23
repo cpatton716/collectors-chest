@@ -2,7 +2,7 @@
 
 > Reference document for spec doc creation. Each feature below should get its own detailed spec document through individual review sessions.
 >
-> **Last Updated:** April 21, 2026 — Session 36
+> **Last Updated:** April 22, 2026 — Session 37
 
 ---
 
@@ -132,7 +132,20 @@ Two listing types: timed auction (1-14 days, proxy bidding) and fixed-price (30-
 - **Contextual notification copy:** `createNotification` accepts optional `{title, message}` overrides, so Buy Now purchases show Buy-Now-specific copy instead of inheriting the default auction-completion text.
 - **Checkout success redirect** fixed from `/my-auctions` (seller view) to `/collection` (buyer view) — the buyer is the one completing the checkout.
 
-**Key files:** `src/lib/auctionDb.ts`, `src/app/api/auctions/`, `src/app/api/offers/`, `src/app/api/connect/`, `src/app/api/checkout/route.ts`, `src/app/api/webhooks/stripe/route.ts`, `src/components/auction/ListingDetailModal.tsx`, `src/components/auction/AuctionDetailModal.tsx`, `src/components/auction/PaymentButton.tsx`, `docs/stripe-connect-setup.md`
+**Session 37 changes (April 22, 2026):**
+- **Flat $1 bid increment across all price tiers.** `getBidIncrement()` now returns $1 regardless of price (previously tiered $1/$5/$25). Simplifies bidding UX for casual users.
+- **Buy It Now auto-hides when bid exceeds BIN price.** Prevents buyers paying more than current leading bid. Also hidden when viewer is the seller.
+- **Idempotent `processEndedAuctions`:** conditional `UPDATE ... WHERE status='active'` with row-count check. Repeat cron calls on same auction are no-ops — no duplicate win/sold notifications or emails.
+- **`getListingComicData` FK-qualified embed.** `sold_via_auction_id` FK added in the sold-tracking migration created a second auctions↔comics FK path, breaking unqualified PostgREST embeds with PGRST201. All embeds now use `comics!auctions_comic_id_fkey(...)`. This was silently dropping every outbid/auction_won/auction_sold email.
+- **Awaited outbid email send** (`placeBid`) replaced fire-and-forget IIFE. Errors now logged; no more silent drops on serverless.
+- **Auction buyer feedback eligibility** unlocks on `shipped_at` (matches `checkSaleFeedbackEligibility`). Previously buyer had to wait for `completed_at` or 7 days.
+- **`submitFeedback` join fix:** all `.select` calls referenced non-existent `first_name, last_name` — changed to `display_name, username`. Insert was succeeding; the returning join was failing silently as "Failed to submit feedback."
+- **New `/transactions` page + API** — tabbed buyer view (Wins / Purchases / Bids / Offers) with status pills (Awaiting Shipment / Shipped / Pending Payment / Paid).
+- **Mark-as-shipped flow** — `POST /api/auctions/[id]/mark-shipped` sets `shipped_at`, clones the comic to the buyer's collection, fires shipped notification. Ownership transfer is gated on shipping, not on payment.
+- **Auction-end email templates** — `auction_won`, `auction_sold`, `bid_auction_lost` (new types); all deliver correctly after FK fix.
+- **Friendly DB error translation** — `placeBid` maps `valid_max_bid` and RLS errors to user-facing messages instead of surfacing raw Postgres strings.
+
+**Key files:** `src/lib/auctionDb.ts`, `src/app/api/auctions/`, `src/app/api/offers/`, `src/app/api/connect/`, `src/app/api/checkout/route.ts`, `src/app/api/transactions/route.ts`, `src/app/api/auctions/[id]/mark-shipped/route.ts`, `src/app/api/webhooks/stripe/route.ts`, `src/app/transactions/page.tsx`, `src/components/auction/ListingDetailModal.tsx`, `src/components/auction/AuctionDetailModal.tsx`, `src/components/auction/PaymentButton.tsx`, `src/components/auction/BidForm.tsx`, `src/components/auction/MarkAsShippedForm.tsx`, `src/lib/cloneSoldComic.ts`, `src/types/auction.ts`, `docs/stripe-connect-setup.md`
 
 ---
 
@@ -159,6 +172,8 @@ Unidirectional follows with denormalized counts on `profiles`. New listing trigg
 
 ## 15. Seller Reputation & Feedback Engine
 Binary ratings (positive/negative) per transaction (sale/auction/trade). 7-day edit window, 48-hour seller response window (negative only). Creator Credits for community contributions (key info, cover images). Reputation tiers: Hero (95%+, 5+ reviews), Villain (<50%), Neutral.
+
+**Eligibility rules (Session 37 update):** Both sale and auction buyer eligibility unlock on `shipped_at` (seller-reported tracking). Fallback: 7 days after sale/auction end if seller never marks shipped. Seller eligibility unlocks immediately on ship-or-completed.
 
 **Key files:** `src/lib/creatorCreditsDb.ts`, `src/app/api/feedback/`, `src/app/api/reputation/`
 

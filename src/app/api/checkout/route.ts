@@ -16,10 +16,12 @@ const stripe = process.env.STRIPE_SECRET_KEY
     })
   : null;
 
-// POST - Create checkout session for auction payment
+// POST - Create Stripe Checkout session for marketplace payment.
+// Accepts EITHER `{ auctionId }` (auction winner flow) OR `{ listingId }` (Buy Now flow).
+// Both paths validate the caller, the seller's Connect readiness, and return a Stripe
+// session URL. The caller redirects the browser to that URL.
 export async function POST(request: NextRequest) {
   try {
-    // Check if Stripe is configured
     if (!stripe) {
       return NextResponse.json({ error: "Payment system not configured" }, { status: 503 });
     }
@@ -34,70 +36,112 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
-    // Age verification gate
+    // Age verification gate (applies to all marketplace purchases)
     if (!profile.age_confirmed_at) {
       return NextResponse.json(
-        { error: "AGE_VERIFICATION_REQUIRED", message: "You must confirm you are 18+ to use the marketplace." },
+        {
+          error: "AGE_VERIFICATION_REQUIRED",
+          message: "You must confirm you are 18+ to use the marketplace.",
+        },
         { status: 403 }
       );
     }
 
     const body = await request.json();
-    const { auctionId } = body;
+    const { auctionId, listingId } = body;
 
-    if (!auctionId) {
-      return NextResponse.json({ error: "Auction ID is required" }, { status: 400 });
-    }
+    // listingId (Buy Now) takes precedence. auctionId is the legacy auction-winner path.
+    const targetId: string | undefined = listingId || auctionId;
+    const isBuyNow = !!listingId;
 
-    // Get auction details
-    const auction = await getAuction(auctionId);
-    if (!auction) {
-      return NextResponse.json({ error: "Auction not found" }, { status: 404 });
-    }
-
-    // Verify user is the winner
-    if (auction.winnerId !== profile.id) {
+    if (!targetId) {
       return NextResponse.json(
-        { error: "You are not the winner of this auction" },
-        { status: 403 }
+        { error: "auctionId or listingId is required" },
+        { status: 400 }
       );
     }
 
-    // Check payment status
-    if (auction.paymentStatus !== "pending") {
-      return NextResponse.json({ error: "This auction is not awaiting payment" }, { status: 400 });
+    const listing = await getAuction(targetId);
+    if (!listing) {
+      return NextResponse.json({ error: "Listing not found" }, { status: 404 });
+    }
+
+    // Buy Now validation: must be an active fixed_price listing, buyer != seller
+    if (isBuyNow) {
+      if (listing.listingType !== "fixed_price") {
+        return NextResponse.json(
+          { error: "This endpoint requires a fixed-price listing" },
+          { status: 400 }
+        );
+      }
+      if (listing.status !== "active") {
+        return NextResponse.json(
+          { error: "This listing is no longer available" },
+          { status: 400 }
+        );
+      }
+      if (listing.sellerId === profile.id) {
+        return NextResponse.json(
+          { error: "You cannot buy your own listing" },
+          { status: 400 }
+        );
+      }
+    } else {
+      // Auction winner validation (legacy path)
+      if (listing.winnerId !== profile.id) {
+        return NextResponse.json(
+          { error: "You are not the winner of this auction" },
+          { status: 403 }
+        );
+      }
+      if (listing.paymentStatus !== "pending") {
+        return NextResponse.json(
+          { error: "This auction is not awaiting payment" },
+          { status: 400 }
+        );
+      }
     }
 
     // Fetch seller's Connect account
     const { data: sellerProfile } = await supabaseAdmin
       .from("profiles")
       .select("stripe_connect_account_id, stripe_connect_onboarding_complete")
-      .eq("id", auction.sellerId)
+      .eq("id", listing.sellerId)
       .single();
 
-    if (!sellerProfile?.stripe_connect_account_id || !sellerProfile.stripe_connect_onboarding_complete) {
+    if (
+      !sellerProfile?.stripe_connect_account_id ||
+      !sellerProfile.stripe_connect_onboarding_complete
+    ) {
       return NextResponse.json(
         { error: "Seller has not completed payment setup" },
         { status: 400 }
       );
     }
 
-    // Fetch platform fee percent from the auction row
-    const { data: auctionRow } = await supabaseAdmin
+    // Fetch platform fee percent from the listing row
+    const { data: listingRow } = await supabaseAdmin
       .from("auctions")
       .select("platform_fee_percent")
-      .eq("id", auctionId)
+      .eq("id", targetId)
       .single();
 
-    // Calculate total (winning bid + shipping)
-    const total = (auction.winningBid || 0) + (auction.shippingCost || 0);
+    // Calculate total price:
+    // - Buy Now: starting_price is the fixed price
+    // - Auction: winningBid is the winning bid amount
+    const basePrice = isBuyNow
+      ? (listing.startingPrice || 0)
+      : (listing.winningBid || 0);
+    const total = basePrice + (listing.shippingCost || 0);
     const totalCents = Math.round(total * 100);
     const { sellerAmount } = calculateDestinationAmount(
       totalCents,
-      auctionRow?.platform_fee_percent || 8
+      listingRow?.platform_fee_percent || 8
     );
 
-    // Create Stripe checkout session
+    // Create Stripe checkout session.
+    // Metadata carries full context so the webhook can dispatch to the right
+    // handler without re-querying the DB first.
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       line_items: [
@@ -105,11 +149,11 @@ export async function POST(request: NextRequest) {
           price_data: {
             currency: "usd",
             product_data: {
-              name: `${auction.comic?.comic?.title || "Comic"} #${auction.comic?.comic?.issueNumber || "?"}`,
-              description: `Auction winner - includes shipping`,
-              images: auction.comic?.coverImageUrl ? [auction.comic.coverImageUrl] : undefined,
+              name: `${listing.comic?.comic?.title || "Comic"} #${listing.comic?.comic?.issueNumber || "?"}`,
+              description: isBuyNow ? "Buy Now purchase - includes shipping" : "Auction winner - includes shipping",
+              images: listing.comic?.coverImageUrl ? [listing.comic.coverImageUrl] : undefined,
             },
-            unit_amount: Math.round(total * 100), // Stripe expects cents
+            unit_amount: totalCents,
           },
           quantity: 1,
         },
@@ -121,15 +165,18 @@ export async function POST(request: NextRequest) {
           amount: sellerAmount,
         },
       },
-      // Redirect buyer to their collection after successful payment — they just bought a comic,
-      // not a listing of their own, so /my-auctions (seller-view) would be confusing.
-      // TODO: replace with /transactions once that page exists (see BACKLOG).
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/collection?purchase=success&auction=${auctionId}`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/shop?listing=${auctionId}&payment=cancelled`,
+      // On success, send the buyer to their Transactions page with the
+      // purchase highlighted. On cancel, back to the listing so they can
+      // retry without losing context.
+      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/transactions?tab=${isBuyNow ? "purchases" : "wins"}&purchased=${targetId}`,
+      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/shop?listing=${targetId}&payment=cancelled`,
       metadata: {
-        auctionId,
+        // Legacy auction metadata (kept for backward-compat with in-flight sessions)
+        auctionId: targetId,
         buyerId: profile.id,
-        sellerId: auction.sellerId,
+        sellerId: listing.sellerId,
+        // New flow indicator
+        listingType: isBuyNow ? "buy_now" : "auction",
       },
     });
 

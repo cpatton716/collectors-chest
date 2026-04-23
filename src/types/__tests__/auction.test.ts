@@ -20,27 +20,16 @@ describe("calculateMinimumBid", () => {
     });
   });
 
-  describe("when current bid is under $100", () => {
-    it("adds $1 increment", () => {
+  describe("when there is a current bid", () => {
+    it("adds a flat $1 increment regardless of price", () => {
       expect(calculateMinimumBid(1, 1)).toBe(2);
       expect(calculateMinimumBid(50, 10)).toBe(51);
       expect(calculateMinimumBid(99, 10)).toBe(100);
-    });
-  });
-
-  describe("when current bid is $100-$999", () => {
-    it("adds $5 increment", () => {
-      expect(calculateMinimumBid(100, 10)).toBe(105);
-      expect(calculateMinimumBid(500, 10)).toBe(505);
-      expect(calculateMinimumBid(999, 10)).toBe(1004);
-    });
-  });
-
-  describe("when current bid is $1000+", () => {
-    it("adds $25 increment", () => {
-      expect(calculateMinimumBid(1000, 10)).toBe(1025);
-      expect(calculateMinimumBid(5000, 10)).toBe(5025);
-      expect(calculateMinimumBid(10000, 10)).toBe(10025);
+      expect(calculateMinimumBid(100, 10)).toBe(101);
+      expect(calculateMinimumBid(500, 10)).toBe(501);
+      expect(calculateMinimumBid(999, 10)).toBe(1000);
+      expect(calculateMinimumBid(1000, 10)).toBe(1001);
+      expect(calculateMinimumBid(10000, 10)).toBe(10001);
     });
   });
 });
@@ -50,22 +39,15 @@ describe("calculateMinimumBid", () => {
 // ============================================================================
 
 describe("getBidIncrement", () => {
-  it("returns $1 for prices under $100", () => {
+  it("returns $1 at every price level", () => {
     expect(getBidIncrement(0)).toBe(1);
     expect(getBidIncrement(50)).toBe(1);
     expect(getBidIncrement(99)).toBe(1);
-  });
-
-  it("returns $5 for prices $100-$999", () => {
-    expect(getBidIncrement(100)).toBe(5);
-    expect(getBidIncrement(500)).toBe(5);
-    expect(getBidIncrement(999)).toBe(5);
-  });
-
-  it("returns $25 for prices $1000+", () => {
-    expect(getBidIncrement(1000)).toBe(25);
-    expect(getBidIncrement(5000)).toBe(25);
-    expect(getBidIncrement(100000)).toBe(25);
+    expect(getBidIncrement(100)).toBe(1);
+    expect(getBidIncrement(500)).toBe(1);
+    expect(getBidIncrement(999)).toBe(1);
+    expect(getBidIncrement(1000)).toBe(1);
+    expect(getBidIncrement(100000)).toBe(1);
   });
 });
 

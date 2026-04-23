@@ -7,11 +7,77 @@ This log tracks session-by-session progress on Collectors Chest.
 ## Changes Since Last Deploy
 
 **Last Deploy:** 2026-04-21 (Session 36)
-**Sessions Since Last Deploy:** 0
-**Deploy Readiness:** Deployed — Session 36 marketplace patches live on collectors-chest.com
+**Sessions Since Last Deploy:** 1
+**Deploy Readiness:** Ready — auction flow fully validated E2E in localhost + Stripe sandbox; no known blockers
 
 ### Changes Since Last Deploy:
-- Session 36 patches were deployed at end of session (Stripe Connect enablement, 7 marketplace bug fixes, UX polish). See Session 36 entry below for full detail.
+- **Session 37 (2026-04-22):** Full auction + marketplace flow validated E2E with 3 test accounts (buyer, seller, 3rd bidder). 9 bug fixes shipped (flat $1 bid increment, Buy It Now auto-hide when bid exceeds BIN, friendly bid error UI, idempotent `processEndedAuctions`, Clerk profile.email sync via `user.created` + `user.updated` webhooks, `getListingComicData` FK disambiguation unblocking outbid/auction-end emails, auction buyer feedback eligibility unlocks on `shipped_at`, `submitFeedback` FK column fix, notification click routing). Plus new features: `/transactions` page for buyers, mark-as-shipped flow with ownership transfer gated on shipping, auction-end email templates (auction_won/auction_sold/bid_auction_lost).
+
+---
+
+## Apr 22, 2026 - Session 37: Auction Flow E2E Testing, 9 Bug Fixes, Transactions Page, Clerk Email Sync
+
+### Summary
+- Ran complete auction + marketplace flow end-to-end in localhost with Stripe sandbox using 3 test accounts (patton+test1 buyer, patton+test2 seller, patton@rovertown.com Google OAuth as 3rd bidder).
+- Shipped "Marketplace UX / Purchase Flow Cleanup" umbrella (16 sub-bugs) and "Transactions Page for Buyers" — both were Beta-Launch blockers and are now complete.
+- Fixed 9 distinct bugs surfaced during E2E testing, most of which were silent failures that would have reached production undetected.
+- Validated every email on the auction path: outbid, auction_won, auction_sold, bid_auction_lost, purchase_confirmation, item_sold, payment_received, shipped, rating_request.
+- Full feedback flow validated: seller marks shipped → buyer gets shipped + rating_request notifications → buyer leaves feedback → seller rating count updates.
+
+### Bug Fixes Shipped (9)
+1. **Flat $1 bid increment** — `src/types/auction.ts` `getBidIncrement` was tiered ($1 / $5 / $25). Now returns $1 at every price level. `calculateMinimumBid` simplified to `currentBid + 1`.
+2. **Buy It Now auto-hides when bid exceeds BIN** — `BidForm.tsx` now hides the button when `(currentBid ?? 0) >= buyItNowPrice` rather than always showing it. Removed the `!isHighBidder` gate.
+3. **Bid error message styling** — Red bg + red-200 border + `font-semibold` + larger icon. Raw DB `valid_max_bid` Postgres errors translated to friendly "Your max bid must be at least the current bid plus the increment."
+4. **`bid_amount` vs `max_bid` integrity** — Losing bids now record `bid_amount = maxBid` (was `newCurrentBid`, which could exceed `max_bid` and fail the DB `valid_max_bid` check constraint).
+5. **`processEndedAuctions` idempotent** — Conditional `UPDATE ... WHERE status='active'` with `.select("id")` row-count check. If 0 rows, skip notifications + emails. Prevents duplicate win/sold notifications if cron fires twice.
+6. **Clerk profile.email NULL on social sign-in** — `/api/webhooks/clerk` `user.created` now upserts profile with email from Clerk payload; new `user.updated` handler syncs email changes. Previously Google-OAuth users ended up with NULL email → silent email delivery skip.
+7. **`getListingComicData` PGRST201** — Added `comics!auctions_comic_id_fkey(...)` qualifier. The `sold_via_auction_id` FK added in the sold-tracking migration created a second FK path that made PostgREST throw on the unqualified embed. This was silently throwing inside the outbid / auction_won / auction_sold try/catch blocks — which is why no auction-path emails had been delivering.
+8. **Auction buyer feedback eligibility** — `checkAuctionFeedbackEligibility` now unlocks for buyer on `shipped_at` (mirrors `checkSaleFeedbackEligibility`). Previously buyer had to wait for `completed_at` or 7 days, so even after shipping the "Leave Feedback" button never showed.
+9. **`submitFeedback` join FK columns** — All five `.select("..., reviewer:profiles!reviewer_id(first_name, last_name, username)")` calls referenced non-existent columns. Changed to `(display_name, username)` to match the actual `profiles` schema. Insert was succeeding; the returning join was failing, which surfaced as "Failed to submit feedback" in the UI.
+
+### Features Completed
+- **`/transactions` page for buyers** — Tabbed view: Wins, Purchases, Bids, Offers. Backed by new `GET /api/transactions?type=...` endpoint with flat `TransactionRow` / `BidRow` / `OfferRow` shapes. "Awaiting Shipment" / "Shipped" / "Pending Payment" / "Paid" pills.
+- **Mark-as-shipped flow with ownership gating** — `POST /api/auctions/[id]/mark-shipped` accepts carrier + tracking, sets `shipped_at`, clones comic row to buyer, fires shipped notification. Inline `<MarkAsShippedForm>` renders in seller's view of the listing modal when `paid && !shipped`.
+- **Auction-end email templates** — `auction_won`, `auction_sold`, `bid_auction_lost` templates + notification types. All use `getListingComicData` and now deliver correctly.
+- **Friendly DB error translation** — `placeBid` translates Supabase `valid_max_bid` and RLS errors to user-facing messages.
+
+### Key Files Modified
+- `src/types/auction.ts` — flat $1 increment, `isListingCompleted` / `isListingPendingPayment` type predicates, `shippedAt` / `trackingNumber` / `trackingCarrier` fields
+- `src/components/auction/BidForm.tsx` — $1 increment, BIN auto-hide, red-pill bid error, min-bid logic for self-raise
+- `src/lib/auctionDb.ts` — idempotent `processEndedAuctions`, outbid email error logging, friendly DB error mapping, FK qualified on 5+ queries
+- `src/lib/email.ts` — `getListingComicData` FK qualified, 5 new templates (purchase_confirmation, item_sold, outbid, auction_won, auction_sold)
+- `src/lib/creatorCreditsDb.ts` — auction buyer eligibility unlocks on `shipped_at`, FK join columns fixed in 5 places, `FeedbackRow` type updated
+- `src/lib/db.ts` — `getOrCreateProfile` self-heals existing profile email if passed
+- `src/app/api/webhooks/clerk/route.ts` — upsert profile on `user.created`, sync email on `user.updated`
+- `src/app/api/transactions/route.ts` — NEW (tabbed transaction fetch)
+- `src/app/transactions/page.tsx` — NEW
+- `src/app/api/auctions/[id]/mark-shipped/route.ts` — NEW
+- `src/components/auction/MarkAsShippedForm.tsx` — NEW
+- `src/components/auction/ListingDetailModal.tsx`, `AuctionDetailModal.tsx` — PaymentButton wiring, MarkAsShippedForm, type predicate usage
+- `src/components/NotificationBell.tsx` — `deriveNotificationHref` helper + click routing via `router.push`
+- `src/components/Navigation.tsx`, `MobileNav.tsx` — Wallet icon + Transactions link
+- `src/app/shop/page.tsx` — `listing` query param routing by `listingType` (not URL tab) — fixes auction-in-BuyNow-modal bug
+- `src/app/api/listings/[id]/purchase/route.ts` — returns HTTP 410 deprecated
+- `src/app/api/checkout/route.ts` — accepts `listingId` or `auctionId`, validates separately, success_url routes to `/transactions`
+- `src/app/api/webhooks/stripe/route.ts` — unified `handleMarketplacePayment`, race-safe refund, FK qualified
+
+### Migrations Applied
+- `supabase/migrations/20260422_comic_sold_tracking.sql` — `sold_at`, `sold_to_profile_id`, `sold_via_auction_id` on comics
+- `supabase/migrations/20260422_shipping_tracking_option_a.sql` — `shipped_at`, `tracking_number`, `tracking_carrier`, `completed_at`, `ended_at` on auctions
+
+### Data Backfills Applied (via Supabase SQL)
+- Backfilled `profiles.email` for user `6411be84-e807-44c5-9c32-89438d9caed0` (Google OAuth patton@rovertown.com) — was NULL, unblocking outbid / win emails for that account.
+
+### Issues Encountered
+- **Stale JS bundle** forced hard refreshes multiple times during testing — Turbopack HMR doesn't always pick up server-code changes. Workflow: kill dev server, `rm -rf .next`, restart.
+- **Supabase FK ambiguity (PGRST201)** after adding `sold_via_auction_id` FK — broke all PostgREST embeds like `comics(title, issue_number)` until qualified with `comics!auctions_comic_id_fkey(...)`. Fixed in 6+ places across `auctionDb.ts`, `email.ts`, `webhooks/stripe/route.ts`, `transactions/route.ts`.
+- **Fire-and-forget email IIFE dropping** in `placeBid` — the outbid email was wrapped in an unawaited async IIFE whose inner errors weren't caught. Converted to awaited call with explicit error log. Would have dropped silently on serverless.
+- **Mystery account with NULL email** (`6411be84`) initially looked like a code bug but turned out to be a second Clerk user created via Google OAuth whose email never synced to Supabase `profiles`. Root cause: Clerk webhook wasn't creating profile rows — profile creation was lazy via `getOrCreateProfile`, which accepts optional email and some server routes didn't pass it.
+
+### Where We Left Off
+- Full auction + marketplace flow validated locally. Ready for production deploy tonight so user can test with real money + real seller identity tomorrow on `collectors-chest.com`.
+- BACKLOG trimmed — "Marketplace UX / Purchase Flow Cleanup" (16 sub-bugs) and "Transactions Page for Buyers" both removed as completed.
+- Deploy is next: `npm run check` + build + smoke test, confirm no new env vars need to be added to Netlify, then push to main.
 
 ---
 

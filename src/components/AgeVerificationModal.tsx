@@ -57,9 +57,13 @@ export default function AgeVerificationModal({
             To {action}, you must confirm that you are at least <strong>18 years old</strong>.
           </p>
 
-          <div className="bg-pop-yellow/20 border-2 border-pop-black rounded-lg p-3">
-            <p className="font-comic text-sm">
-              BY CONFIRMING, YOU ATTEST THAT YOU ARE 18 YEARS OF AGE OR OLDER, AS REQUIRED BY OUR TERMS OF SERVICE.
+          <div className="bg-gray-50 border-l-4 border-pop-blue rounded-r-md p-3">
+            <p className="text-sm text-gray-700 leading-relaxed">
+              By confirming, you attest that you are 18 years of age or older, as required by our{" "}
+              <a href="/terms" className="text-pop-blue underline hover:no-underline">
+                Terms of Service
+              </a>
+              .
             </p>
           </div>
 
