@@ -6,7 +6,7 @@ This log tracks session-by-session progress on Collectors Chest.
 
 ## Changes Since Last Deploy
 
-**Last Deploy:** 2026-04-23 (Session 39, third deploy of the day — pending at commit `[SESSION 39C]`). Prior same-day deploys: `14037e1` (Session 39 pre-beta hardening batch) and `8b4a9eb` (Session 38).
+**Last Deploy:** 2026-04-23 (Session 39, third deploy of the day — pending at commit `4175035`). Prior same-day deploys: `14037e1` (Session 39 pre-beta hardening batch) and `8b4a9eb` (Session 38).
 **Sessions Since Last Deploy:** 0
 **Deploy Readiness:** Deploying — Session 39 follow-up bundle: hCaptcha guest-scan protection (client + siteverify with 5s timeout guard) and BACKLOG reconciliation / doc updates. No new migrations in this deploy.
 
@@ -93,7 +93,7 @@ This log tracks session-by-session progress on Collectors Chest.
 - **UserId/CLERK regex friction surfaced earlier today.** Supabase `profiles.username` enforces `^[a-z0-9_]{3,20}$`; Clerk allows more (including dashes). Webhook sanitizer added today handles this for inbound sync; the new sync-on-write path handles outbound direction. BACKLOG item for aligning Clerk dashboard username rules still open.
 
 ### Where We Left Off
-- **Three deploys shipped today.** Deploy 1 (`8b4a9eb`, Session 38). Deploy 2 (`14037e1`, Session 39 pre-beta hardening batch). Deploy 3 (`[SESSION 39C]`, pending tonight) — hCaptcha guest-scan protection + siteverify timeout guard + BACKLOG reconciliation + doc updates.
+- **Three deploys shipped today.** Deploy 1 (`8b4a9eb`, Session 38). Deploy 2 (`14037e1`, Session 39 pre-beta hardening batch). Deploy 3 (`4175035`, pending tonight) — hCaptcha guest-scan protection + siteverify timeout guard + BACKLOG reconciliation + doc updates.
 - **Real-money Stripe Connect live-mode test still on deck** — user will schedule when ready. Can happen any time; the platform is production-ready.
 - **Sunday April 26 private-beta launch is ON TRACK.** All pre-launch blockers closed. hCaptcha is live on guest scans 4-5; authenticated users never see it. Siteverify timeout guard prevents user lockout during hCaptcha outages.
 - **ZenRows / CGC cert lookup deferred post-launch.** Updated pricing ($49→$69) pushes break-even to ~4,600 slab scans/month, which is unrealistic in private beta. Fallback AI pipeline is adequate. Revisit after 2-4 weeks of real volume. Not a beta-launch blocker.
