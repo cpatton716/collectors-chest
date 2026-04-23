@@ -6,12 +6,80 @@ This log tracks session-by-session progress on Collectors Chest.
 
 ## Changes Since Last Deploy
 
-**Last Deploy:** 2026-04-22 (Session 37) — commit `782e6fd` pushed to main at end of session, Netlify auto-deploy triggered.
+**Last Deploy:** 2026-04-23 (Session 38) — commit `8b4a9eb` pushed to main, Netlify auto-deploy triggered. Prior deploy was `782e6fd` (Session 37, 2026-04-22).
 **Sessions Since Last Deploy:** 0
-**Deploy Readiness:** Deployed — Session 37 auction flow fixes live on collectors-chest.com. Real-money test planned for Apr 23, 2026.
+**Deploy Readiness:** Deploying — Session 38 payment deadline enforcement, Seller Onboarding page, Clerk webhook fix, marketplace policy updates, and pre-launch cleanup live on collectors-chest.com. Real-money Stripe Connect test on deck post-deploy.
 
 ### Changes Since Last Deploy:
-- Session 37 patches were deployed at end of session. See Session 37 entry below for full detail.
+- Session 38 patches deployed at end of session. See Session 38 entry below for full detail.
+
+---
+
+## Apr 23, 2026 - Session 38: Payment Deadline Enforcement, Seller Onboarding Page, 9 Pre-Launch Items
+
+### Summary
+- Shipped 5 of 6 payment-deadline enforcement gaps surfaced in the Session-37 audit: checkout-time deadline guard, live countdown on /transactions, `sendPaymentReminders()` cron pass at T-24h, `expireUnpaidAuctions()` cron pass that transitions stale auctions to cancelled, and `PAYMENT_WINDOW_HOURS` constant cleanup. Gap 4 (second-highest-bidder promotion) deferred to BACKLOG — significant product surface, MVP skip.
+- Built `/seller-onboarding` help page in Lichtenstein style, mobile-first. Nine screenshots captured from the real Stripe Connect onboarding flow validated that the Link-based happy path skips Address + SSN entry entirely; the page was restructured around the real 9-step flow rather than the originally-scoped 8 steps.
+- Closed the Clerk → Supabase username/name sync bug. Webhook previously only synced email; now syncs username (sanitized against `^[a-z0-9_]{3,20}$`), first_name, last_name, and derived display_name on both `user.created` and `user.updated`. Sanitizer ensures an invalid username (e.g. with a dash) doesn't kill the entire upsert.
+- Ran a batch of pre-launch items autonomously via subagent fan-out: marketplace policy gaps in Terms + FAQs (§4.11-4.14 and §10.1 rewrite, 5 new FAQs), Hottest Books feature fully removed (4 files deleted), 10MB image-upload cap + 18 tests, auto-harvest cover AI prompt fix, payment-deadline audit + TEST_CASES.md scenarios.
+- Granted admin to 3 Clerk users via production SQL (`is_admin = TRUE` on `profiles`). Filled a NULL username via direct SQL for `user_3ClOCDQWU8RAM7wmIehSNEcoWl2` (`collector_patton`) after discovering the Clerk regex mismatch with Supabase.
+
+### Bug Fixes Shipped (core)
+1. **Clerk webhook only synced email** (`src/app/api/webhooks/clerk/route.ts`): `user.created` + `user.updated` now upsert username/first_name/last_name/display_name. Sanitizer rejects usernames that would fail the Supabase `profiles.username` CHECK constraint (`^[a-z0-9_]{3,20}$`) so the rest of the upsert still lands. This was the root cause of NULL usernames on two of the three admin accounts.
+2. **Post-deadline payment charge path open** (`src/app/api/checkout/route.ts:97-108`): defensive guard returns HTTP 400 with "The payment window for this auction has expired" when `listing.paymentDeadline < now`. Previously a buyer could pay days or weeks late and the charge succeeded because the route only checked `paymentStatus !== "pending"`.
+3. **No auto-expiry of unpaid auctions** (`src/lib/auctionDb.ts` new `expireUnpaidAuctions()`): cron pass transitions `status='ended' AND payment_status='pending' AND payment_deadline < NOW() AND payment_expired_at IS NULL` to `status='cancelled'`, sets `payment_expired_at = NOW()`, notifies both parties with new email templates. Race-safe via conditional UPDATE `WHERE payment_expired_at IS NULL` with `.select()` row-count check.
+4. **Dead `payment_reminder` notification** (new `sendPaymentReminders()`): fires at T-24h, idempotent via new `payment_reminder_sent_at` column. `payment_reminder` NotificationType was already declared but never emitted.
+5. **Auto-harvest AI prompt color blind-spot** (`src/lib/providers/anthropic.ts`): prompts now enumerate the full grade-label color palette (blue, yellow, purple, green, red) with explicit `(EXCLUDE)` and `(CROP THIS)` markers. Prior prompt said "white/blue" only, which may have caused the AI to fail to recognize yellow/purple/green/red CGC/CBCS labels as labels. Both Anthropic and Gemini providers fixed — Gemini imports the same prompt constants.
+6. **`/api/analyze` scan-slot leak on error branches**: 413 "image too large" and 400 "no image" paths now release the reserved scan slot. Previously users were billed a scan for a malformed request.
+7. **Scan-slot reservation pattern** applied uniformly with the new 10MB upload cap.
+
+### Features Completed
+- **`/seller-onboarding` help page** — 9-step Link-aware walkthrough, ScreenshotPlaceholder auto-swap, troubleshooting as native `<details>`, FAQ link from Navigation.tsx. Support email pulled from Terms (`admin@collectors-chest.com`). Server component, mobile-tested at 375px.
+- **Countdown timer on /transactions** — `<PaymentDeadlineCountdown>` client component renders on pending-payment rows. Live tick every 60s; neutral >24h, orange ≤24h, red ≤6h, red "Expired" at ≤0. Hydration-safe (renders invisible placeholder on SSR, populates in `useEffect`).
+- **Marketplace Terms §4.11-4.14 + §10.1 rewrite** — refunds & chargebacks, seller vetting & restricted products, first-line support (2-day response SLA), risk & fraud notifications, seller remediation / additional information. Closes the pre-launch gaps acknowledged to Stripe during Session 36 Connect setup.
+- **5 new marketplace FAQs** in `Navigation.tsx` `faqs` array (refunds, seller legitimacy, payment problems, restricted accounts, remediation info requests).
+- **10MB image upload cap** (`src/lib/uploadLimits.ts`) — shared helper exports `MAX_IMAGE_UPLOAD_BYTES`, `assertImageSize()`, `base64DecodedByteLength()`. Wired into `/api/analyze` and `/api/messages/upload-image`; client-side pre-validation in `ImageUpload.tsx` and `MessageComposer.tsx`. HTTP 413 responses with clean error shapes.
+- **Hottest Books removal** — `src/app/hottest-books/`, `src/app/api/hottest-books/`, `src/lib/hotBooksData.ts` deleted. Commented-out nav entries in `Navigation.tsx` + `MobileNav.tsx` cleaned up.
+
+### Key Files Modified
+- `src/types/auction.ts` — `PAYMENT_REMINDER_WINDOW_HOURS` const, `calculatePaymentDeadline()`, `isWithinPaymentReminderWindow()`, two new `NotificationType` values (`auction_payment_expired`, `auction_payment_expired_seller`)
+- `src/lib/auctionDb.ts` — new `sendPaymentReminders()`, `expireUnpaidAuctions()`; four hardcoded `48`s replaced with `calculatePaymentDeadline()`; new notification title/message entries
+- `src/lib/email.ts` — three new templates (`payment_reminder`, `auction_payment_expired`, `auction_payment_expired_seller`), new data interfaces, sound effects
+- `src/app/api/cron/process-auctions/route.ts` — pipeline now: `processEndedAuctions → sendPaymentReminders → expireUnpaidAuctions → expireOffers → expireListings`; returns stats for all five passes
+- `src/app/api/checkout/route.ts` — deadline guard on auction path
+- `src/app/api/webhooks/clerk/route.ts` — username/name/display_name sync, regex sanitizer, `buildDisplayName()` helper
+- `src/app/transactions/page.tsx` — countdown integrated into `TransactionCard`
+- `src/components/PaymentDeadlineCountdown.tsx` — NEW
+- `src/app/seller-onboarding/page.tsx` — NEW with `ScreenshotPlaceholder` auto-swap, `StepCard`, `ProTip`, `CriticalCallout`, `TrustCue` inline components
+- `src/app/terms/page.tsx` — §4.11-4.14 added, §10.1 rewritten
+- `src/components/Navigation.tsx` — 6 new FAQ entries (5 marketplace + 1 seller onboarding); Hottest Books nav cleaned
+- `src/components/MobileNav.tsx` — Hottest Books drawer entry cleaned
+- `src/lib/uploadLimits.ts`, `src/lib/__tests__/uploadLimits.test.ts` — NEW
+- `src/lib/providers/anthropic.ts` — three prompt constants updated for slab-cover crop accuracy
+- `TEST_CASES.md`, `TESTING_RESULTS.md` — session 38 entries
+
+### Migrations Applied
+- `supabase/migrations/20260423_payment_reminder_tracking.sql` — adds `payment_reminder_sent_at`, `payment_expired_at` columns on auctions + partial index on `(payment_deadline) WHERE status='ended' AND payment_status='pending'`. Applied to production Supabase **before** deploy per user's manual SQL run.
+
+### Data Backfills Applied (via Supabase SQL)
+- Granted `is_admin = TRUE` to 3 Clerk users: `user_3CjC6Ov6pTXPw2u93VFli8l2vOQ`, `user_3BzGTFOIRnURGTRDO2YfYvnDvVi`, `user_3ClOCDQWU8RAM7wmIehSNEcoWl2`.
+- Set `username = 'collector_patton'` on `user_3ClOCDQWU8RAM7wmIehSNEcoWl2` after discovering Clerk regex mismatch.
+
+### Scripts Added (not yet executed)
+- `scripts/backfill-pricing.ts` — one-time refresh of legacy AI-era bogus pricing. Queries `comics` where `price_data.priceSource != 'ebay'`, calls `/api/ebay-prices` to get fresh eBay-sourced values, updates row or clears if no eBay data available. Dry-run by default (`APPLY=true` required to write). Queued for manual run post-deploy.
+
+### Issues Encountered
+- **Clerk username regex mismatch with Supabase.** Supabase `profiles.username` enforces `^[a-z0-9_]{3,20}$` but Clerk allows dashes. Users who set usernames with dashes at Clerk signup would never have them propagate to Supabase — the webhook upsert hit the CHECK constraint silently. Fixed by adding `sanitizeUsername()` to strip invalid values before upsert so the rest of the fields still land. Follow-up BACKLOG item: align Clerk's username rules with Supabase's so users get a friendly error at signup rather than a silent drop.
+- **Stripe onboarding flow is shorter than spec assumed.** Real capture showed the Link-based path skipped Address + SSN steps (Link verifies both via bank authentication). Page was rewritten from 8 to 9 steps, with the dropped steps replaced by the Link intro + bank search + payout confirmation + Link success. Also reduced time estimate from "5 minutes" to "3-5 minutes" based on actual wall time.
+- **Screenshot naming friction.** User saved two screenshots with old/typo filenames (`01-verify-email-phone.png` and `09-strip-success.png`). `ScreenshotPlaceholder` auto-swap relies on exact match to the expected filename, so both had to be renamed. Consider adding soft matching (e.g. `09-strip*` or suffix tolerance) to the component in a future session if screenshots get refreshed often.
+- **Auto-harvest root cause was likely label color, not prompt ambiguity.** Previously diagnosed as "AI interpreting 'cover' as top of slab." Actual cause more likely: prompt said "white/blue" label but CGC yellow/purple/green and CBCS variants exist — if AI didn't recognize non-white/blue as a grading label, it may have defaulted to cropping the whole slab top. Fixed by enumerating all label colors and adding explicit region tags.
+
+### Where We Left Off
+- Deploy pushed; Netlify auto-deploy building. Once live, real-money Stripe Connect test is on deck.
+- Pricing-backfill script written but not executed — user to run dry-run (`npx tsx scripts/backfill-pricing.ts`) post-deploy to see scope.
+- `account.updated` webhook toggle test outstanding for during the real-money flow.
+- Shipping Tracking Option B (EasyPost + 10-day auto-refund) queued for a dedicated session after real-money validation.
+- BACKLOG items accumulated this session (to be captured at close-up-shop): cover-harvest aspect-ratio guard, Clerk/Supabase username rule alignment, CC↔Clerk username sync-on-write, second-chance-offer for expired auctions, payment-expiry cron batching (Resend rate-limit at scale), `ScreenshotPlaceholder` soft-match, memory correction (`AskProfessor.tsx` doesn't exist — FAQs live in `Navigation.tsx` only).
 
 ---
 
