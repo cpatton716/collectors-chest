@@ -4,6 +4,46 @@ This log tracks session-by-session progress on Collectors Chest.
 
 ---
 
+## Apr 23, 2026 - Session 40b: PROD Testing Feedback Batch — Feedback Flow, FMV Lookup, Email Polish, FAQ
+
+### Summary
+User continued PROD testing post-hotfix: completed a Buy Now purchase end-to-end (Hulk #181 $2 test sale) and worked through the full post-payment flow (payment, Stripe Connect payout, mark-shipped, ownership transfer, email notifications). Surfaced 5 feedback items covering the feedback UI, payout clarity, missing FMV on purchased comics, misleading purchase-confirmation copy, and incomplete outbid email content. All 5 fixed in a single bundle and deployed.
+
+### Features / Fixes Shipped
+
+1. **Feedback flow — right timing + re-fetch bug.** `rating_request` notification was firing from the Stripe webhook (payment completed), but server-side eligibility requires `shipped_at`. Buyer got the prompt, clicked through, found no feedback UI. Moved `rating_request` to the `mark-shipped` route so it fires when the button actually becomes visible. Seller now also gets a `rating_request` at shipment (they can rate the buyer). Separately, `useFeedbackEligibility` hook only re-ran on `transactionId/transactionType` change — added a `refreshKey` arg (caller passes `listing.shippedAt`) so it re-queries when shipment flips eligibility true. Applied to both `ListingDetailModal` and `AuctionDetailModal`.
+
+2. **FMV lookup for comics without price data.** When a buyer-side clone inherits `price_data: null` from a seller who manually added the comic (no scan), the buyer was stuck — the edit form had no value field and no lookup trigger. New `POST /api/comics/[id]/refresh-value` does owner auth + eBay Browse lookup + persists `price_data` and `average_price`. Honors the same 12h Redis cache as `/api/ebay-prices`. UI: blue "Look Up Market Value" CTA card in `ComicDetailModal` when `effectivePriceData?.estimatedValue` is falsy, plus a small "Refresh value" link inside the value card for stale data. Result applies optimistically via local state so the value appears immediately without a reload.
+
+3. **Purchase confirmation email copy.** "The comic has been added to your collection." → "The comic will be added to your collection once the seller marks it as shipped." Matches actual ownership-transfer timing (gates on ship, not payment).
+
+4. **FAQ entry for the buy-ship-transfer flow.** New "What happens after I buy a comic?" entry in `Navigation.tsx`'s Ask the Professor FAQ. Explains: payment → seller notified → ship → comic added to collection → feedback window opens. Sets expectations and gives a plain-English answer for the "why doesn't it show up yet?" question.
+
+5. **Outbid email — added max bid line.** `BidActivityEmailData.yourMaxBid` was already on the interface but the template never rendered it. Added a conditional "Your max bid: $X" line to both HTML and text variants, wired from `currentWinningBid.max_bid` at the `placeBid` call site. Lets bidders know whether their proxy is still in the running.
+
+### User-Facing Clarification (no code change)
+User asked whether seller payout is held until shipping info is provided. Currently no — destination charges transfer to seller's Connect balance on payment. Shipping-gated payout is already tracked in BACKLOG as pre-launch blocker ("Shipping Tracking for Sold Items — payment gated on validated tracking" / Option B). For private beta, trust-based Option A is acceptable; full-launch requires Option B (Stripe separate charges + transfers, EasyPost carrier validation, auto-refund on 7-day ghost).
+
+### Files Modified
+- `src/app/api/webhooks/stripe/route.ts` — removed premature `rating_request`.
+- `src/app/api/auctions/[id]/mark-shipped/route.ts` — added `rating_request` for both buyer + seller.
+- `src/hooks/useFeedbackEligibility.ts` — added `refreshKey` arg.
+- `src/components/auction/ListingDetailModal.tsx` + `AuctionDetailModal.tsx` — pass `shippedAt` as refresh key.
+- `src/app/api/comics/[id]/refresh-value/route.ts` — new endpoint.
+- `src/components/ComicDetailModal.tsx` — Look Up / Refresh value UI + local-state override.
+- `src/lib/email.ts` — purchase copy fix + outbid maxBid render.
+- `src/lib/auctionDb.ts` — pass `yourMaxBid` at outbid call site.
+- `src/components/Navigation.tsx` — new FAQ entry.
+
+### Deploy
+- Pushed to main at commit `e04ee1a` → Netlify auto-deploy.
+
+### Backlog / Follow-ups Captured
+- (Still open from Session 40a) `cover_image_url` source audit — multiple defensive strip points exist, fix at persistence layer.
+- User-requested Option B (shipping-gated payout) remains in BACKLOG as pre-launch blocker.
+
+---
+
 ## Apr 23, 2026 - Session 40: Marketplace PROD Testing — Buy Now 500 Hotfix + Mobile Modal Layout
 
 ### Summary
@@ -39,9 +79,9 @@ User began PROD testing of auction + buy-now flows with three accounts (collecto
 
 ## Changes Since Last Deploy
 
-**Last Deploy:** 2026-04-23 (Session 40 — marketplace hotfix bundle at commit `814ca29`). Same-day prior deploys: `4175035` (Session 39c hCaptcha), `14037e1` (Session 39 pre-beta hardening), `8b4a9eb` (Session 38).
+**Last Deploy:** 2026-04-23 (Session 40b — feedback batch at commit `e04ee1a`). Same-day prior deploys: `814ca29` (Session 40 hotfix), `4175035` (Session 39c hCaptcha), `14037e1` (Session 39 pre-beta hardening), `8b4a9eb` (Session 38).
 **Sessions Since Last Deploy:** 0
-**Deploy Readiness:** Deployed — marketplace prod-testing hotfixes: Buy Now 500 root cause fixed, mobile modal layout fixes. No new migrations, no new env vars.
+**Deploy Readiness:** Deployed — Session 40b PROD testing feedback batch. No new migrations, no new env vars.
 
 ---
 
