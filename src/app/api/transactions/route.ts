@@ -148,7 +148,7 @@ export async function GET(request: NextRequest) {
           .from("bids")
           .select(
             `
-            id, amount, is_winning, created_at, auction_id,
+            id, bid_amount, is_winning, created_at, auction_id,
             auctions!inner(
               id, listing_type, seller_id, status, payment_status, payment_deadline,
               starting_price, current_bid, winning_bid, shipping_cost, end_time, created_at, winner_id,
@@ -174,7 +174,7 @@ export async function GET(request: NextRequest) {
           seen.add(auctionId);
           items.push({
             ...toTransactionRow(auction),
-            bidAmount: row.amount as number,
+            bidAmount: row.bid_amount as number,
             bidTime: row.created_at as string,
             isWinning: (row.is_winning as boolean) || false,
           });

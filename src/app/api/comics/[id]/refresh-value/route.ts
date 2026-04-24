@@ -64,7 +64,7 @@ export async function POST(
     const issueNumber = (comic.issue_number as string | null)?.trim() || undefined;
     if (!title) {
       return NextResponse.json(
-        { error: "Comic is missing a title — cannot look up value" },
+        { error: "Comic is missing a title, cannot look up value" },
         { status: 400 }
       );
     }

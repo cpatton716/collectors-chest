@@ -1708,10 +1708,10 @@ export async function createNotification(
     outbid: "You've been outbid!",
     won: "Congratulations! You won!",
     ended: "Auction ended",
-    bid_auction_lost: "Auction ended — you didn't win",
+    bid_auction_lost: "Auction ended, you didn't win",
     new_bid_received: "New bid on your auction",
     payment_reminder: "Payment reminder",
-    auction_payment_expired: "Auction cancelled — payment window expired",
+    auction_payment_expired: "Auction cancelled: payment window expired",
     auction_payment_expired_seller: "Buyer did not pay in time",
     rating_request: "Leave feedback",
     auction_sold: "Your item sold!",
@@ -1771,12 +1771,12 @@ export async function createNotification(
     key_info_rejected: "Your key info suggestion was reviewed but not accepted. Thank you for contributing!",
     // Second Chance Offer
     second_chance_available: "The winner didn't pay. You can offer the item to the runner-up at their last bid.",
-    second_chance_offered: "Good news — the seller has offered this comic to you at your last bid. You have 48 hours to accept or decline.",
+    second_chance_offered: "Good news: the seller has offered this comic to you at your last bid. You have 48 hours to accept or decline.",
     second_chance_accepted: "The runner-up accepted your second-chance offer. Payment is pending.",
     second_chance_declined: "The runner-up declined your second-chance offer. You can re-list the item.",
     second_chance_expired: "The runner-up didn't respond within 48 hours. You can re-list the item.",
     // Payment-miss strike system
-    payment_missed_warning: "You missed a 48-hour payment window. This is a friendly warning — next time may restrict bidding.",
+    payment_missed_warning: "You missed a 48-hour payment window. This is a friendly warning. Next time may restrict bidding.",
     payment_missed_flagged: "Your bidding privileges are temporarily restricted due to multiple missed payments. Contact support to appeal.",
   };
 
@@ -3089,7 +3089,7 @@ export async function expireUnpaidAuctions(): Promise<{
           notificationRows.push({
             user_id: a.winner_id,
             type: "auction_payment_expired",
-            title: "Auction cancelled — payment window expired",
+            title: "Auction cancelled: payment window expired",
             message:
               "Your payment window has expired. The auction has been cancelled.",
             auction_id: a.id,
@@ -3502,7 +3502,7 @@ async function recordPaymentMissStrike(
         const adminNotifications = admins.map((admin) => ({
           user_id: admin.id as string,
           type: "payment_missed_flagged" as const,
-          title: "User flagged — admin review needed",
+          title: "User flagged: admin review needed",
           message: `A user has been auto-flagged for ${totalStrikesInWindow} missed payments in ${PAYMENT_MISS_WINDOW_DAYS} days.`,
           auction_id: auctionId,
           offer_id: null,

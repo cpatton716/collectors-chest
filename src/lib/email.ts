@@ -506,7 +506,7 @@ function welcomeTemplate(data: WelcomeEmailData): EmailTemplate {
           <!-- Feature: Organize -->
           <table cellpadding="0" cellspacing="0" border="0" width="100%"><tr>
             <td width="50" style="vertical-align: middle;"><table cellpadding="0" cellspacing="0" border="0"><tr><td width="40" height="40" align="center" valign="middle" bgcolor="#00CC66" style="border-radius: 20px; border: 2px solid #000; font-size: 18px; line-height: 40px; text-align: center;">📦</td></tr></table></td>
-            <td style="vertical-align: top; padding-left: 10px;"><div style="font-weight: 700; font-size: 15px; color: #000; margin-bottom: 2px;">Organize Everything</div><div style="font-size: 14px; color: #666; line-height: 1.4;">Custom lists, CSV import, stats, and more — your collection, your way.</div></td>
+            <td style="vertical-align: top; padding-left: 10px;"><div style="font-weight: 700; font-size: 15px; color: #000; margin-bottom: 2px;">Organize Everything</div><div style="font-size: 14px; color: #666; line-height: 1.4;">Custom lists, CSV import, stats, and more, your collection, your way.</div></td>
           </tr></table>
           <!-- Scan allowance -->
           <div style="background: #FFF8E7; border: 3px solid #000; border-radius: 8px; padding: 16px 20px; margin: 24px 0 28px; text-align: center;">
@@ -521,7 +521,7 @@ function welcomeTemplate(data: WelcomeEmailData): EmailTemplate {
         ${emailFooter()}
       </div>
     `,
-    text: `Welcome to Collectors Chest!\n\nHey there, Collector! You're officially part of the crew.\n\nHere's what you can do:\n\n📸 Scan Any Cover — Snap a photo and our AI identifies your comic instantly.\n📊 Track Your Value — See real eBay pricing for every book in your collection.\n🔑 Discover Key Issues — Find out if your books are first appearances, rare variants, or hidden gems.\n📦 Organize Everything — Custom lists, CSV import, stats, and more.\n\n🎯 You get 10 free scans every month!\n\nStart scanning: ${data.collectionUrl}\n\nScan comics. Track value. Collect smarter.\n\nTwisted Jester LLC · collectors-chest.com`,
+    text: `Welcome to Collectors Chest!\n\nHey there, Collector! You're officially part of the crew.\n\nHere's what you can do:\n\n📸 Scan Any Cover: Snap a photo and our AI identifies your comic instantly.\n📊 Track Your Value: See real eBay pricing for every book in your collection.\n🔑 Discover Key Issues: Find out if your books are first appearances, rare variants, or hidden gems.\n📦 Organize Everything: Custom lists, CSV import, stats, and more.\n\n🎯 You get 10 free scans every month!\n\nStart scanning: ${data.collectionUrl}\n\nScan comics. Track value. Collect smarter.\n\nTwisted Jester LLC · collectors-chest.com`,
   };
 }
 
@@ -547,7 +547,7 @@ function trialExpiringTemplate(data: TrialExpiringEmailData): EmailTemplate {
             <div style="font-weight: 900; font-size: 16px; color: #000; margin-bottom: 12px;">What you'll lose when your trial ends:</div>
             <table cellpadding="0" cellspacing="0" border="0" style="width: 100%;">
               <tr><td style="padding: 4px 0; font-size: 14px; color: #333;">❌ Unlimited scans</td></tr>
-              <tr><td style="padding: 4px 0; font-size: 14px; color: #333;">❌ Key Hunt — find valuable issues in your collection</td></tr>
+              <tr><td style="padding: 4px 0; font-size: 14px; color: #333;">❌ Key Hunt: find valuable issues in your collection</td></tr>
               <tr><td style="padding: 4px 0; font-size: 14px; color: #333;">❌ CSV export</td></tr>
               <tr><td style="padding: 4px 0; font-size: 14px; color: #333;">❌ Advanced collection stats &amp; insights</td></tr>
               <tr><td style="padding: 4px 0; font-size: 14px; color: #333;">❌ Priority scan queue</td></tr>
@@ -555,7 +555,7 @@ function trialExpiringTemplate(data: TrialExpiringEmailData): EmailTemplate {
           </div>
           <!-- Pricing -->
           <div style="text-align: center; margin: 0 0 8px;">
-            <div style="font-weight: 900; font-size: 20px; color: #000;">$4.99/month — less than a single comic</div>
+            <div style="font-weight: 900; font-size: 20px; color: #000;">$4.99/month, less than a single comic</div>
           </div>
           <div style="text-align: center; margin: 0 0 28px;">
             <div style="font-size: 14px; color: #00CC66; font-weight: 700;">Save 17% with the annual plan</div>
@@ -569,7 +569,7 @@ function trialExpiringTemplate(data: TrialExpiringEmailData): EmailTemplate {
         ${emailFooter()}
       </div>
     `,
-    text: `Your Collectors Chest trial ends in 3 days\n\nYour premium trial expires on ${data.trialEndsAt}.\n\nWhat you'll lose:\n- Unlimited scans\n- Key Hunt\n- CSV export\n- Advanced collection stats & insights\n- Priority scan queue\n\n$4.99/month — less than a single comic\nSave 17% with the annual plan\n\nSTAY PREMIUM: ${choosePlanUrl}\n\nScan comics. Track value. Collect smarter.\n\nTwisted Jester LLC · collectors-chest.com`,
+    text: `Your Collectors Chest trial ends in 3 days\n\nYour premium trial expires on ${data.trialEndsAt}.\n\nWhat you'll lose:\n- Unlimited scans\n- Key Hunt\n- CSV export\n- Advanced collection stats & insights\n- Priority scan queue\n\n$4.99/month, less than a single comic\nSave 17% with the annual plan\n\nSTAY PREMIUM: ${choosePlanUrl}\n\nScan comics. Track value. Collect smarter.\n\nTwisted Jester LLC · collectors-chest.com`,
   };
 }
 
@@ -584,13 +584,13 @@ function purchaseConfirmationTemplate(data: MarketplaceTransactionEmailData): Em
     : "";
   const flowLabel = data.transactionType === "buy_now" ? "Buy Now purchase" : "Auction win";
   return {
-    subject: `Purchase confirmation — ${data.comicTitle} #${data.issueNumber}`,
+    subject: `Purchase confirmation: ${data.comicTitle} #${data.issueNumber}`,
     html: `
       <div style="max-width: 600px; margin: 0 auto; font-family: 'Segoe UI', Arial, sans-serif; background: #ffffff;">
         ${emailHeader(EMAIL_SOUND_EFFECTS.purchase_confirmation)}
         <div style="padding: 32px 24px;">
           <h2 style="font-size: 22px; font-weight: 900; color: #000; margin: 0 0 16px;">Your purchase is confirmed!</h2>
-          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 16px;">Hi ${data.buyerName || "there"} — thanks for your ${flowLabel} from <strong>${data.sellerName}</strong>. The comic will be added to your collection once the seller marks it as shipped.</p>
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 16px;">Hi ${data.buyerName || "there"}, thanks for your ${flowLabel} from <strong>${data.sellerName}</strong>. The comic will be added to your collection once the seller marks it as shipped.</p>
           <div style="background: #F5F9FF; border: 2px solid #0066FF; border-radius: 8px; padding: 16px 20px; margin: 0 0 24px;">
             <p style="font-size: 18px; font-weight: bold; color: #000; margin: 0 0 12px;">${data.comicTitle} #${data.issueNumber}${variantSuffix}</p>
             <table cellpadding="0" cellspacing="0" border="0" style="width: 100%; font-size: 14px;">
@@ -607,7 +607,7 @@ function purchaseConfirmationTemplate(data: MarketplaceTransactionEmailData): Em
         ${emailFooter()}
       </div>
     `,
-    text: `Purchase confirmed!\n\nHi ${data.buyerName || "there"} — thanks for your ${flowLabel} from ${data.sellerName}.\n\n${data.comicTitle} #${data.issueNumber}${variantSuffix}\nItem: ${formatPrice(data.salePrice)}${data.shippingCost && data.shippingCost > 0 ? `\nShipping: ${formatPrice(data.shippingCost)}` : ""}\nTotal paid: ${formatPrice(data.total)}\n\nYour seller will arrange shipping and send tracking details.\n\nView purchase: ${data.listingUrl}\n\nScan comics. Track value. Collect smarter.\nTwisted Jester LLC · collectors-chest.com`,
+    text: `Purchase confirmed!\n\nHi ${data.buyerName || "there"}, thanks for your ${flowLabel} from ${data.sellerName}.\n\n${data.comicTitle} #${data.issueNumber}${variantSuffix}\nItem: ${formatPrice(data.salePrice)}${data.shippingCost && data.shippingCost > 0 ? `\nShipping: ${formatPrice(data.shippingCost)}` : ""}\nTotal paid: ${formatPrice(data.total)}\n\nYour seller will arrange shipping and send tracking details.\n\nView purchase: ${data.listingUrl}\n\nScan comics. Track value. Collect smarter.\nTwisted Jester LLC · collectors-chest.com`,
   };
 }
 
@@ -615,13 +615,13 @@ function itemSoldTemplate(data: MarketplaceTransactionEmailData): EmailTemplate 
   const variantSuffix = data.variant ? ` (${data.variant})` : "";
   const flowLabel = data.transactionType === "buy_now" ? "Buy Now purchase" : "auction win";
   return {
-    subject: `Item sold — ${data.comicTitle} #${data.issueNumber}`,
+    subject: `Item sold: ${data.comicTitle} #${data.issueNumber}`,
     html: `
       <div style="max-width: 600px; margin: 0 auto; font-family: 'Segoe UI', Arial, sans-serif; background: #ffffff;">
         ${emailHeader(EMAIL_SOUND_EFFECTS.item_sold)}
         <div style="padding: 32px 24px;">
           <h2 style="font-size: 22px; font-weight: 900; color: #000; margin: 0 0 16px;">Your item sold!</h2>
-          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 16px;">Hi ${data.sellerName || "there"} — <strong>${data.buyerName}</strong> completed a ${flowLabel} and payment has been captured. Time to ship!</p>
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 16px;">Hi ${data.sellerName || "there"}, <strong>${data.buyerName}</strong> completed a ${flowLabel} and payment has been captured. Time to ship!</p>
           <div style="background: #EFFAF0; border: 2px solid #00CC66; border-radius: 8px; padding: 16px 20px; margin: 0 0 24px;">
             <p style="font-size: 18px; font-weight: bold; color: #000; margin: 0 0 12px;">${data.comicTitle} #${data.issueNumber}${variantSuffix}</p>
             <p style="font-size: 14px; color: #333; margin: 0 0 4px;">Sale price: <strong>${formatPrice(data.salePrice)}</strong></p>
@@ -635,7 +635,7 @@ function itemSoldTemplate(data: MarketplaceTransactionEmailData): EmailTemplate 
         ${emailFooter()}
       </div>
     `,
-    text: `Your item sold!\n\nHi ${data.sellerName || "there"} — ${data.buyerName} completed a ${flowLabel} and payment has been captured.\n\n${data.comicTitle} #${data.issueNumber}${variantSuffix}\nSale price: ${formatPrice(data.salePrice)}\nTotal received (pre-fees): ${formatPrice(data.total)}\n\nFunds are on their way to your Stripe account. Ship the item promptly and add tracking once you have it.\n\nView sale: ${data.listingUrl}\n\nScan comics. Track value. Collect smarter.\nTwisted Jester LLC · collectors-chest.com`,
+    text: `Your item sold!\n\nHi ${data.sellerName || "there"}, ${data.buyerName} completed a ${flowLabel} and payment has been captured.\n\n${data.comicTitle} #${data.issueNumber}${variantSuffix}\nSale price: ${formatPrice(data.salePrice)}\nTotal received (pre-fees): ${formatPrice(data.total)}\n\nFunds are on their way to your Stripe account. Ship the item promptly and add tracking once you have it.\n\nView sale: ${data.listingUrl}\n\nScan comics. Track value. Collect smarter.\nTwisted Jester LLC · collectors-chest.com`,
   };
 }
 
@@ -658,7 +658,7 @@ function outbidTemplate(data: BidActivityEmailData): EmailTemplate {
         ${emailHeader(EMAIL_SOUND_EFFECTS.outbid)}
         <div style="padding: 32px 24px;">
           <h2 style="font-size: 22px; font-weight: 900; color: #000; margin: 0 0 16px;">You've been outbid</h2>
-          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;">Hi ${data.recipientName || "there"} — another bidder has topped your bid on <strong>${data.comicTitle} #${data.issueNumber}</strong>.</p>
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;">Hi ${data.recipientName || "there"}, another bidder has topped your bid on <strong>${data.comicTitle} #${data.issueNumber}</strong>.</p>
           <p style="font-size: 15px; color: #555; margin: 0 0 8px;">Current bid: <strong>${formatPrice(data.currentBid)}</strong></p>
           ${maxBidHtmlLine}
           ${endsLine}
@@ -679,13 +679,13 @@ function auctionWonTemplate(data: AuctionEndEmailData): EmailTemplate {
     : "";
   const payUrl = data.transactionsUrl || data.listingUrl;
   return {
-    subject: `Congratulations — you won ${data.comicTitle} #${data.issueNumber}!`,
+    subject: `Congratulations, you won ${data.comicTitle} #${data.issueNumber}!`,
     html: `
       <div style="max-width: 600px; margin: 0 auto; font-family: 'Segoe UI', Arial, sans-serif; background: #ffffff;">
         ${emailHeader(EMAIL_SOUND_EFFECTS.auction_won)}
         <div style="padding: 32px 24px;">
-          <h2 style="font-size: 22px; font-weight: 900; color: #000; margin: 0 0 16px;">Congratulations — you won!</h2>
-          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;">Hi ${data.recipientName || "there"} — your bid on <strong>${data.comicTitle} #${data.issueNumber}</strong> was the winner.</p>
+          <h2 style="font-size: 22px; font-weight: 900; color: #000; margin: 0 0 16px;">Congratulations, you won!</h2>
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;">Hi ${data.recipientName || "there"}, your bid on <strong>${data.comicTitle} #${data.issueNumber}</strong> was the winner.</p>
           <p style="font-size: 15px; color: #555; margin: 0 0 12px;">Final price: <strong>${formatPrice(data.finalPrice)}</strong></p>
           ${deadlineLine}
           <div style="text-align: center; margin: 24px 0;">
@@ -695,19 +695,19 @@ function auctionWonTemplate(data: AuctionEndEmailData): EmailTemplate {
         ${emailFooter()}
       </div>
     `,
-    text: `Congratulations — you won!\n\nYou won the auction for ${data.comicTitle} #${data.issueNumber}.\nFinal price: ${formatPrice(data.finalPrice)}\n${data.paymentDeadline ? `Complete payment by ${data.paymentDeadline} to secure your win.\n` : ""}\nComplete payment: ${payUrl}\n\nScan comics. Track value. Collect smarter.\nTwisted Jester LLC · collectors-chest.com`,
+    text: `Congratulations, you won!\n\nYou won the auction for ${data.comicTitle} #${data.issueNumber}.\nFinal price: ${formatPrice(data.finalPrice)}\n${data.paymentDeadline ? `Complete payment by ${data.paymentDeadline} to secure your win.\n` : ""}\nComplete payment: ${payUrl}\n\nScan comics. Track value. Collect smarter.\nTwisted Jester LLC · collectors-chest.com`,
   };
 }
 
 function auctionSoldTemplate(data: AuctionEndEmailData): EmailTemplate {
   return {
-    subject: `Your auction ended — ${data.comicTitle} #${data.issueNumber} sold for ${formatPrice(data.finalPrice)}`,
+    subject: `Your auction ended: ${data.comicTitle} #${data.issueNumber} sold for ${formatPrice(data.finalPrice)}`,
     html: `
       <div style="max-width: 600px; margin: 0 auto; font-family: 'Segoe UI', Arial, sans-serif; background: #ffffff;">
         ${emailHeader(EMAIL_SOUND_EFFECTS.auction_sold)}
         <div style="padding: 32px 24px;">
           <h2 style="font-size: 22px; font-weight: 900; color: #000; margin: 0 0 16px;">Your auction sold!</h2>
-          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;">Hi ${data.recipientName || "there"} — your auction for <strong>${data.comicTitle} #${data.issueNumber}</strong> closed with a winning bidder.</p>
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;">Hi ${data.recipientName || "there"}, your auction for <strong>${data.comicTitle} #${data.issueNumber}</strong> closed with a winning bidder.</p>
           <p style="font-size: 15px; color: #555; margin: 0 0 12px;">Final price: <strong>${formatPrice(data.finalPrice)}</strong></p>
           <p style="font-size: 14px; color: #555; line-height: 1.6; margin: 0 0 24px;">We'll notify you again when the buyer completes payment. At that point, please ship the item promptly.</p>
           <div style="text-align: center; margin: 24px 0;">
@@ -727,13 +727,13 @@ function paymentReminderTemplate(data: PaymentReminderEmailData): EmailTemplate 
       ? "less than 1 hour"
       : `${data.hoursRemaining} hours`;
   return {
-    subject: `Payment due soon — ${data.comicTitle} #${data.issueNumber}`,
+    subject: `Payment due soon: ${data.comicTitle} #${data.issueNumber}`,
     html: `
       <div style="max-width: 600px; margin: 0 auto; font-family: 'Segoe UI', Arial, sans-serif; background: #ffffff;">
         ${emailHeader(EMAIL_SOUND_EFFECTS.payment_reminder)}
         <div style="padding: 32px 24px;">
           <h2 style="font-size: 22px; font-weight: 900; color: #000; margin: 0 0 16px;">Payment Due Soon</h2>
-          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;">Hi ${data.recipientName || "there"} — you have <strong>${hoursLabel}</strong> left to complete payment for your winning bid:</p>
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;">Hi ${data.recipientName || "there"}, you have <strong>${hoursLabel}</strong> left to complete payment for your winning bid:</p>
           <p style="font-size: 18px; font-weight: bold; color: #000; margin: 0 0 8px;">${data.comicTitle} #${data.issueNumber}</p>
           <p style="font-size: 15px; color: #555; margin: 0 0 12px;">Final price: <strong>${formatPrice(data.finalPrice)}</strong></p>
           <p style="font-size: 14px; color: #b45309; margin: 0 0 16px;">Deadline: <strong>${data.paymentDeadline}</strong></p>
@@ -753,17 +753,17 @@ function auctionPaymentExpiredBuyerTemplate(
   data: PaymentExpiredBuyerEmailData
 ): EmailTemplate {
   return {
-    subject: `Payment window closed — ${data.comicTitle} #${data.issueNumber} auction cancelled`,
+    subject: `Payment window closed: ${data.comicTitle} #${data.issueNumber} auction cancelled`,
     html: `
       <div style="max-width: 600px; margin: 0 auto; font-family: 'Segoe UI', Arial, sans-serif; background: #ffffff;">
         ${emailHeader(EMAIL_SOUND_EFFECTS.auction_payment_expired)}
         <div style="padding: 32px 24px;">
           <h2 style="font-size: 22px; font-weight: 900; color: #000; margin: 0 0 16px;">Payment Window Closed</h2>
-          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;">Hi ${data.recipientName || "there"} — your 48-hour payment window for this auction has passed:</p>
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;">Hi ${data.recipientName || "there"}, your 48-hour payment window for this auction has passed:</p>
           <p style="font-size: 18px; font-weight: bold; color: #000; margin: 0 0 8px;">${data.comicTitle} #${data.issueNumber}</p>
           <p style="font-size: 15px; color: #555; margin: 0 0 12px;">Final bid: <strong>${formatPrice(data.finalPrice)}</strong></p>
           <p style="font-size: 14px; color: #555; line-height: 1.6; margin: 0 0 12px;">The auction has been cancelled. <strong>You will not be charged.</strong></p>
-          <p style="font-size: 14px; color: #555; line-height: 1.6; margin: 0 0 24px;">Keep an eye on the shop for similar books — new listings go up every day.</p>
+          <p style="font-size: 14px; color: #555; line-height: 1.6; margin: 0 0 24px;">Keep an eye on the shop for similar books. New listings go up every day.</p>
           <div style="text-align: center; margin: 24px 0;">
             <a href="${data.listingUrl}" style="display: inline-block; background: #0066FF; color: #ffffff; font-weight: 900; padding: 14px 36px; border: 3px solid #000; border-radius: 8px; text-decoration: none; text-transform: uppercase; letter-spacing: 1px; box-shadow: 4px 4px 0 #000;">BROWSE SHOP →</a>
           </div>
@@ -779,13 +779,13 @@ function auctionPaymentExpiredSellerTemplate(
   data: PaymentExpiredSellerEmailData
 ): EmailTemplate {
   return {
-    subject: `Buyer did not pay — ${data.comicTitle} #${data.issueNumber} cancelled, relist ready`,
+    subject: `Buyer did not pay: ${data.comicTitle} #${data.issueNumber} cancelled, relist ready`,
     html: `
       <div style="max-width: 600px; margin: 0 auto; font-family: 'Segoe UI', Arial, sans-serif; background: #ffffff;">
         ${emailHeader(EMAIL_SOUND_EFFECTS.auction_payment_expired_seller)}
         <div style="padding: 32px 24px;">
           <h2 style="font-size: 22px; font-weight: 900; color: #000; margin: 0 0 16px;">Buyer Did Not Pay In Time</h2>
-          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;">Hi ${data.recipientName || "there"} — the winning bidder didn't complete payment within the 48-hour window:</p>
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;">Hi ${data.recipientName || "there"}, the winning bidder didn't complete payment within the 48-hour window:</p>
           <p style="font-size: 18px; font-weight: bold; color: #000; margin: 0 0 8px;">${data.comicTitle} #${data.issueNumber}</p>
           <p style="font-size: 15px; color: #555; margin: 0 0 12px;">Final bid: <strong>${formatPrice(data.finalPrice)}</strong></p>
           <p style="font-size: 14px; color: #555; line-height: 1.6; margin: 0 0 12px;">The auction has been cancelled. The comic is back in your collection and ready to be re-listed.</p>
@@ -1212,20 +1212,20 @@ function secondChanceAvailableTemplate(
   data: SecondChanceSellerAvailableEmailData
 ): EmailTemplate {
   return {
-    subject: `Buyer didn't pay — offer to runner-up for ${formatPrice(data.runnerUpLastBid)}?`,
+    subject: `Buyer didn't pay: offer to runner-up for ${formatPrice(data.runnerUpLastBid)}?`,
     html: `
       <div style="max-width: 600px; margin: 0 auto; font-family: 'Segoe UI', Arial, sans-serif; background: #ffffff;">
         ${emailHeader(EMAIL_SOUND_EFFECTS.second_chance_available)}
         <div style="padding: 32px 24px;">
           <h2 style="font-size: 22px; font-weight: 900; color: #000; margin: 0 0 16px;">Second Chance Available</h2>
-          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;">Hi ${data.recipientName || "there"} — the winning bidder didn't pay in time, but there was a runner-up on your auction:</p>
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;">Hi ${data.recipientName || "there"}, the winning bidder didn't pay in time, but there was a runner-up on your auction:</p>
           <p style="font-size: 18px; font-weight: bold; color: #000; margin: 0 0 8px;">${data.comicTitle} #${data.issueNumber}</p>
           <p style="font-size: 15px; color: #555; margin: 0 0 12px;">Runner-up's last bid: <strong>${formatPrice(data.runnerUpLastBid)}</strong></p>
           <p style="font-size: 14px; color: #555; line-height: 1.6; margin: 0 0 12px;">You can offer the comic to them at their last bid price. They'll have 48 hours to accept or decline.</p>
           <div style="text-align: center; margin: 24px 0;">
             <a href="${data.offerUrl}" style="display: inline-block; background: #0066FF; color: #ffffff; font-weight: 900; padding: 14px 36px; border: 3px solid #000; border-radius: 8px; text-decoration: none; text-transform: uppercase; letter-spacing: 1px; box-shadow: 4px 4px 0 #000;">OFFER TO RUNNER-UP →</a>
           </div>
-          <p style="font-size: 13px; color: #999; line-height: 1.6; margin: 24px 0 0;">No pressure — if you'd rather re-list, just ignore this email.</p>
+          <p style="font-size: 13px; color: #999; line-height: 1.6; margin: 24px 0 0;">No pressure: if you'd rather re-list, just ignore this email.</p>
         </div>
         ${emailFooter()}
       </div>
@@ -1238,13 +1238,13 @@ function secondChanceOfferedTemplate(
   data: SecondChanceRunnerUpEmailData
 ): EmailTemplate {
   return {
-    subject: `Good news — ${data.comicTitle} #${data.issueNumber} is yours for ${formatPrice(data.offerPrice)}`,
+    subject: `Good news: ${data.comicTitle} #${data.issueNumber} is yours for ${formatPrice(data.offerPrice)}`,
     html: `
       <div style="max-width: 600px; margin: 0 auto; font-family: 'Segoe UI', Arial, sans-serif; background: #ffffff;">
         ${emailHeader(EMAIL_SOUND_EFFECTS.second_chance_offered)}
         <div style="padding: 32px 24px;">
           <h2 style="font-size: 22px; font-weight: 900; color: #000; margin: 0 0 16px;">You Got a Second Chance!</h2>
-          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;">Hi ${data.recipientName || "there"} — the original winner didn't pay, and the seller has offered this comic to you at your last bid:</p>
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;">Hi ${data.recipientName || "there"}, the original winner didn't pay, and the seller has offered this comic to you at your last bid:</p>
           <p style="font-size: 18px; font-weight: bold; color: #000; margin: 0 0 8px;">${data.comicTitle} #${data.issueNumber}</p>
           <p style="font-size: 15px; color: #555; margin: 0 0 12px;">Your price: <strong>${formatPrice(data.offerPrice)}</strong></p>
           <p style="font-size: 14px; color: #555; line-height: 1.6; margin: 0 0 12px;">You have until <strong>${data.expiresAt}</strong> (48 hours) to accept or decline.</p>
@@ -1264,13 +1264,13 @@ function secondChanceAcceptedTemplate(
   data: SecondChanceSellerResultEmailData
 ): EmailTemplate {
   return {
-    subject: `Runner-up accepted your second-chance offer — ${data.comicTitle} #${data.issueNumber}`,
+    subject: `Runner-up accepted your second-chance offer: ${data.comicTitle} #${data.issueNumber}`,
     html: `
       <div style="max-width: 600px; margin: 0 auto; font-family: 'Segoe UI', Arial, sans-serif; background: #ffffff;">
         ${emailHeader(EMAIL_SOUND_EFFECTS.second_chance_accepted)}
         <div style="padding: 32px 24px;">
           <h2 style="font-size: 22px; font-weight: 900; color: #000; margin: 0 0 16px;">Runner-Up Accepted!</h2>
-          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;">Hi ${data.recipientName || "there"} — the runner-up accepted your second-chance offer:</p>
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;">Hi ${data.recipientName || "there"}, the runner-up accepted your second-chance offer:</p>
           <p style="font-size: 18px; font-weight: bold; color: #000; margin: 0 0 8px;">${data.comicTitle} #${data.issueNumber}</p>
           <p style="font-size: 15px; color: #555; margin: 0 0 12px;">Sale price: <strong>${formatPrice(data.offerPrice)}</strong></p>
           <p style="font-size: 14px; color: #555; line-height: 1.6; margin: 0 0 24px;">Payment is pending. They have 48 hours to complete checkout.</p>
@@ -1289,13 +1289,13 @@ function secondChanceDeclinedTemplate(
   data: SecondChanceSellerResultEmailData
 ): EmailTemplate {
   return {
-    subject: `Runner-up declined — ${data.comicTitle} #${data.issueNumber}`,
+    subject: `Runner-up declined: ${data.comicTitle} #${data.issueNumber}`,
     html: `
       <div style="max-width: 600px; margin: 0 auto; font-family: 'Segoe UI', Arial, sans-serif; background: #ffffff;">
         ${emailHeader(EMAIL_SOUND_EFFECTS.second_chance_declined)}
         <div style="padding: 32px 24px;">
           <h2 style="font-size: 22px; font-weight: 900; color: #000; margin: 0 0 16px;">Runner-Up Declined</h2>
-          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;">Hi ${data.recipientName || "there"} — the runner-up declined your second-chance offer on:</p>
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;">Hi ${data.recipientName || "there"}, the runner-up declined your second-chance offer on:</p>
           <p style="font-size: 18px; font-weight: bold; color: #000; margin: 0 0 8px;">${data.comicTitle} #${data.issueNumber}</p>
           <p style="font-size: 14px; color: #555; line-height: 1.6; margin: 0 0 24px;">The comic is back in your collection. You can re-list whenever you're ready.</p>
           <div style="text-align: center; margin: 24px 0;">
@@ -1313,15 +1313,15 @@ function secondChanceExpiredTemplate(
   data: SecondChanceSellerResultEmailData
 ): EmailTemplate {
   return {
-    subject: `Second-chance offer expired — ${data.comicTitle} #${data.issueNumber}`,
+    subject: `Second-chance offer expired: ${data.comicTitle} #${data.issueNumber}`,
     html: `
       <div style="max-width: 600px; margin: 0 auto; font-family: 'Segoe UI', Arial, sans-serif; background: #ffffff;">
         ${emailHeader(EMAIL_SOUND_EFFECTS.second_chance_expired)}
         <div style="padding: 32px 24px;">
           <h2 style="font-size: 22px; font-weight: 900; color: #000; margin: 0 0 16px;">Second-Chance Offer Expired</h2>
-          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;">Hi ${data.recipientName || "there"} — the runner-up did not respond within 48 hours for:</p>
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;">Hi ${data.recipientName || "there"}, the runner-up did not respond within 48 hours for:</p>
           <p style="font-size: 18px; font-weight: bold; color: #000; margin: 0 0 8px;">${data.comicTitle} #${data.issueNumber}</p>
-          <p style="font-size: 14px; color: #555; line-height: 1.6; margin: 0 0 24px;">No worries — the comic is back in your collection and ready to be re-listed.</p>
+          <p style="font-size: 14px; color: #555; line-height: 1.6; margin: 0 0 24px;">No worries: the comic is back in your collection and ready to be re-listed.</p>
           <div style="text-align: center; margin: 24px 0;">
             <a href="${data.listingUrl}" style="display: inline-block; background: #0066FF; color: #ffffff; font-weight: 900; padding: 14px 36px; border: 3px solid #000; border-radius: 8px; text-decoration: none; text-transform: uppercase; letter-spacing: 1px; box-shadow: 4px 4px 0 #000;">RE-LIST COMIC →</a>
           </div>
@@ -1343,7 +1343,7 @@ function paymentMissedWarningTemplate(
         ${emailHeader(EMAIL_SOUND_EFFECTS.payment_missed_warning)}
         <div style="padding: 32px 24px;">
           <h2 style="font-size: 22px; font-weight: 900; color: #000; margin: 0 0 16px;">Payment Deadline Missed</h2>
-          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;">Hi ${data.recipientName || "there"} — we noticed you missed the 48-hour payment window for:</p>
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;">Hi ${data.recipientName || "there"}, we noticed you missed the 48-hour payment window for:</p>
           <p style="font-size: 18px; font-weight: bold; color: #000; margin: 0 0 8px;">${data.comicTitle} #${data.issueNumber}</p>
           <p style="font-size: 15px; color: #555; margin: 0 0 12px;">Final bid: <strong>${formatPrice(data.finalPrice)}</strong></p>
           <p style="font-size: 14px; color: #555; line-height: 1.6; margin: 0 0 12px;">That auction was cancelled and <strong>you were not charged</strong>. This is a friendly heads-up, not a strike.</p>
@@ -1355,7 +1355,7 @@ function paymentMissedWarningTemplate(
         ${emailFooter()}
       </div>
     `,
-    text: `Payment deadline missed.\n\nYou missed the 48-hour payment window for ${data.comicTitle} #${data.issueNumber} (${formatPrice(data.finalPrice)}). That auction was cancelled — you were not charged. This is a friendly warning.\n\nIf this happens again within 90 days, new bids on your account may be temporarily restricted.\n\nBrowse the shop: ${data.shopUrl}\n\nScan comics. Track value. Collect smarter.\nTwisted Jester LLC · collectors-chest.com`,
+    text: `Payment deadline missed.\n\nYou missed the 48-hour payment window for ${data.comicTitle} #${data.issueNumber} (${formatPrice(data.finalPrice)}). That auction was cancelled and you were not charged. This is a friendly warning.\n\nIf this happens again within 90 days, new bids on your account may be temporarily restricted.\n\nBrowse the shop: ${data.shopUrl}\n\nScan comics. Track value. Collect smarter.\nTwisted Jester LLC · collectors-chest.com`,
   };
 }
 
@@ -1369,9 +1369,9 @@ function paymentMissedFlaggedTemplate(
         ${emailHeader(EMAIL_SOUND_EFFECTS.payment_missed_flagged)}
         <div style="padding: 32px 24px;">
           <h2 style="font-size: 22px; font-weight: 900; color: #000; margin: 0 0 16px;">Bidding Restricted</h2>
-          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;">Hi ${data.recipientName || "there"} — we've temporarily restricted new bids on your account.</p>
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;">Hi ${data.recipientName || "there"}, we've temporarily restricted new bids on your account.</p>
           <p style="font-size: 14px; color: #555; line-height: 1.6; margin: 0 0 12px;">Our system flagged ${data.strikeCount} missed payment deadline(s) within the last ${data.windowDays} days. Reason on file: <em>${data.reason}</em>.</p>
-          <p style="font-size: 14px; color: #555; line-height: 1.6; margin: 0 0 12px;">You can still browse, buy-it-now, and sell — only bidding on new auctions is paused while an admin reviews your account.</p>
+          <p style="font-size: 14px; color: #555; line-height: 1.6; margin: 0 0 12px;">You can still browse, buy-it-now, and sell. Only bidding on new auctions is paused while an admin reviews your account.</p>
           <p style="font-size: 14px; color: #555; line-height: 1.6; margin: 0 0 24px;">If you think this is a mistake or you'd like to appeal, reach out to support and we'll take another look.</p>
           <div style="text-align: center; margin: 24px 0;">
             <a href="${data.supportUrl}" style="display: inline-block; background: #0066FF; color: #ffffff; font-weight: 900; padding: 14px 36px; border: 3px solid #000; border-radius: 8px; text-decoration: none; text-transform: uppercase; letter-spacing: 1px; box-shadow: 4px 4px 0 #000;">CONTACT SUPPORT →</a>

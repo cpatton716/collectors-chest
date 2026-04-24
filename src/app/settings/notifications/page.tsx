@@ -235,7 +235,7 @@ export default function NotificationSettingsPage() {
               <div>
                 <h3 className="font-comic text-pop-black">TRANSACTIONAL</h3>
                 <p className="text-sm font-body text-pop-black/70 mt-0.5">
-                  Always on — payment confirmations, shipping updates, and account security.
+                  Always on: payment confirmations, shipping updates, and account security.
                 </p>
               </div>
             </div>

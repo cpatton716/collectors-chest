@@ -7,7 +7,7 @@ import { BookOpen, Camera, Mail, Search, ShoppingBag, Users } from "lucide-react
 export const metadata: Metadata = {
   title: "About | Collectors Chest",
   description:
-    "Learn about Collectors Chest — the all-in-one platform for comic collectors to scan covers, track value, and connect with other collectors.",
+    "Learn about Collectors Chest, the all-in-one platform for comic collectors to scan covers, track value, and connect with other collectors.",
 };
 
 export default function AboutPage() {
@@ -54,7 +54,7 @@ export default function AboutPage() {
             <p className="font-body text-pop-black/80 text-lg leading-relaxed">
               Every great collection starts with a single issue.{" "}
               <span className="text-pop-red font-bold">
-                [Your origin story here — how Collectors Chest came to be, what problem you set out
+                [Your origin story here: how Collectors Chest came to be, what problem you set out
                 to solve, and why you&apos;re passionate about comics.]
               </span>
             </p>
@@ -158,7 +158,7 @@ export default function AboutPage() {
               </div>
             </div>
             <p className="font-body text-pop-red font-bold text-lg">
-              [Team member cards will go here — photo, name, role, short bio]
+              [Team member cards will go here: photo, name, role, short bio]
             </p>
           </div>
         </div>

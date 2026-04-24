@@ -239,7 +239,7 @@ export default function SellerOnboardingPage() {
             <li className="flex items-start gap-3 bg-pop-cream border-3 border-pop-black p-3 sm:p-4 shadow-comic-sm">
               <CheckCircle2 className="w-5 h-5 text-pop-green flex-shrink-0 mt-0.5" aria-hidden="true" />
               <span className="font-body text-pop-black text-sm sm:text-base">
-                <strong>Online banking login</strong> — for the easiest path, Stripe Link connects
+                <strong>Online banking login</strong>: for the easiest path, Stripe Link connects
                 instantly using your bank username and password. OR if you prefer: your bank{" "}
                 <strong>account number + routing number</strong> for manual entry.
               </span>
@@ -264,7 +264,7 @@ export default function SellerOnboardingPage() {
             </p>
             <div className="flex items-center gap-2 text-pop-black/70 text-xs sm:text-sm">
               <Phone className="w-4 h-4" aria-hidden="true" />
-              <span>Use a number that can receive SMS — landlines and VOIP may not work.</span>
+              <span>Use a number that can receive SMS. Landlines and VOIP may not work.</span>
             </div>
             <ScreenshotPlaceholder
               stepNumber={1}
@@ -272,7 +272,7 @@ export default function SellerOnboardingPage() {
               caption="Stripe email and phone entry"
             />
             <ProTip>
-              Use a real mobile number — Stripe blocks VoIP numbers. When the code arrives on the
+              Use a real mobile number. Stripe blocks VoIP numbers. When the code arrives on the
               next screen, enter it to continue. If it doesn&apos;t come through, you can tap{" "}
               &quot;Resend code&quot; or switch to a different phone number.
             </ProTip>
@@ -281,7 +281,7 @@ export default function SellerOnboardingPage() {
           {/* Step 2 */}
           <StepCard number={2} title="Choose your business type">
             <p>
-              Most hobbyist collectors select <strong>Individual</strong> — this is the right
+              Most hobbyist collectors select <strong>Individual</strong>. This is the right
               choice if you&apos;re selling from a personal collection. Choose{" "}
               <strong>Company</strong> only if you have a registered LLC, corporation, or sole
               proprietorship you want income routed to.
@@ -318,7 +318,7 @@ export default function SellerOnboardingPage() {
             <p>Use your name exactly as it appears on your government ID.</p>
             <CriticalCallout>
               <strong>No website? No problem.</strong> Select the &quot;product description&quot;
-              option and briefly describe what you sell — for example,{" "}
+              option and briefly describe what you sell. For example,{" "}
               <em>&quot;Comic books from my personal collection.&quot;</em> Most hobbyist sellers
               don&apos;t have a website and this path works fine.
             </CriticalCallout>
@@ -333,7 +333,7 @@ export default function SellerOnboardingPage() {
           <StepCard number={4} title="Connect your bank with Stripe Link (recommended)">
             <p>
               Stripe shows a screen titled &quot;Collectors Chest uses Stripe to connect your
-              accounts.&quot; This uses Stripe Link — the fastest way to finish setup. Link
+              accounts.&quot; This uses Stripe Link, the fastest way to finish setup. Link
               verifies your identity and connects your payout account in one step by signing you
               into your online banking, <strong>so you won&apos;t need to enter your SSN or
               address separately</strong>.
@@ -344,8 +344,8 @@ export default function SellerOnboardingPage() {
               Chest never sees your login.
             </TrustCue>
             <p>
-              Tap <strong>Agree and continue</strong> to use Link. (If you prefer to enter your
-              bank details manually, tap &quot;Manually verify instead&quot; — you&apos;ll be
+              Tap <strong>Agree and continue</strong>{" "}to use Link. (If you prefer to enter your
+              bank details manually, tap &quot;Manually verify instead&quot; you&apos;ll be
               asked for your SSN last 4 and address on a later step.)
             </p>
             <ScreenshotPlaceholder
@@ -419,7 +419,7 @@ export default function SellerOnboardingPage() {
           {/* Step 8 */}
           <StepCard number={8} title="Link success">
             <p>
-              Link shows a &quot;Success — Your account is connected and saved with Link&quot;
+              Link shows a &quot;Success: Your account is connected and saved with Link&quot;
               confirmation. Tap <strong>Done</strong> to move on.
             </p>
             <ScreenshotPlaceholder
@@ -434,7 +434,7 @@ export default function SellerOnboardingPage() {
             <p>
               Stripe shows a final confirmation, then brings you back to Collectors Chest.
               You&apos;re now ready to list items for sale. If Stripe still needs a piece of info,
-              we&apos;ll show a &quot;Finish seller setup&quot; banner — just tap it to pick up
+              we&apos;ll show a &quot;Finish seller setup&quot; banner. Just tap it to pick up
               where you left off.
             </p>
             <div className="bg-pop-green/15 border-3 border-pop-black p-3 sm:p-4 shadow-comic-sm flex items-start gap-3">
@@ -565,7 +565,7 @@ export default function SellerOnboardingPage() {
                 If Stripe Link doesn&apos;t support your bank, or you&apos;d rather enter details
                 manually, back out when you see the Link screen and select &quot;Enter bank account
                 details manually.&quot; You&apos;ll be prompted for your routing number, account
-                number, SSN last 4, and address — a slightly longer path but fully supported.
+                number, SSN last 4, and address, a slightly longer path but fully supported.
               </div>
             </details>
           </div>
@@ -580,7 +580,7 @@ export default function SellerOnboardingPage() {
             STILL NEED HELP?
           </h2>
           <p className="relative font-body text-pop-white text-sm sm:text-base mb-5 max-w-xl mx-auto">
-            Questions before you start? Email us — we usually respond within one business day.
+            Questions before you start? Email us. We usually respond within one business day.
           </p>
           <a
             href={`mailto:${SUPPORT_EMAIL}`}

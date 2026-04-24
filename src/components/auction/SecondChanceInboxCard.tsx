@@ -84,7 +84,7 @@ export function SecondChanceInboxCard({
       <div className="p-4 bg-white border-2 border-pop-black rounded-lg shadow-[3px_3px_0_#000]">
         <p className="font-bold text-pop-black">
           {resolved === "accept"
-            ? "Accepted — complete payment within 48 hours"
+            ? "Accepted: complete payment within 48 hours"
             : "Declined"}
         </p>
       </div>
@@ -121,7 +121,7 @@ export function SecondChanceInboxCard({
             {offer.comicTitle} {offer.issueNumber ? `#${offer.issueNumber}` : ""}
           </h3>
           <p className="text-sm text-gray-700 mt-1">
-            Offered at <strong>{formatPrice(offer.offerPrice)}</strong> — your
+            Offered at <strong>{formatPrice(offer.offerPrice)}</strong>, your
             last bid.
           </p>
           <p className="text-xs text-gray-600 mt-1 inline-flex items-center gap-1">

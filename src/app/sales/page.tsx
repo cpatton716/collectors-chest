@@ -7,11 +7,11 @@ import { useRouter } from "next/navigation";
 
 import { useUser } from "@clerk/nextjs";
 
-import { ArrowLeft, DollarSign, TrendingDown, TrendingUp } from "lucide-react";
+import { ArrowLeft, DollarSign, Lock, TrendingDown, TrendingUp } from "lucide-react";
 
 import { useCollection } from "@/hooks/useCollection";
+import { useSubscription } from "@/hooks/useSubscription";
 
-import { FeatureGate } from "@/components/FeatureGate";
 import { CollectionPageSkeleton } from "@/components/Skeleton";
 
 import { SaleRecord } from "@/types/comic";
@@ -21,6 +21,26 @@ export default function SalesPage() {
   const { isSignedIn, isLoaded: authLoaded } = useUser();
   const { sales, isLoading } = useCollection();
   const [selectedSale, setSelectedSale] = useState<SaleRecord | null>(null);
+  const { features, tier, isTrialing, startFreeTrial, startCheckout } = useSubscription();
+  const hasStatsAccess = features.fullStats;
+  const [isStartingUpgrade, setIsStartingUpgrade] = useState(false);
+
+  const handleUpgrade = async () => {
+    setIsStartingUpgrade(true);
+    if (tier === "free" && !isTrialing) {
+      const result = await startFreeTrial();
+      if (result.success) {
+        window.location.reload();
+        return;
+      }
+    }
+    const url = await startCheckout("monthly", tier === "free" && !isTrialing);
+    if (url) {
+      window.location.href = url;
+      return;
+    }
+    setIsStartingUpgrade(false);
+  };
 
   // Calculate summary stats
   const totalSales = sales.reduce((sum, sale) => sum + sale.salePrice, 0);
@@ -81,9 +101,17 @@ export default function SalesPage() {
         </div>
       </div>
 
-      <FeatureGate feature="fullStats">
-        {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+      {/* Summary Cards — blurred + overlaid with upgrade CTA for free users.
+          Data is still persisted on every sale regardless of tier, so stats
+          become available retroactively on upgrade. */}
+      <div className="relative mb-8">
+        <div
+          className={
+            hasStatsAccess ? "" : "filter blur-sm pointer-events-none select-none"
+          }
+          aria-hidden={!hasStatsAccess}
+        >
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Total Sales */}
           <div className="bg-pop-white border-2 border-pop-black p-4 shadow-[4px_4px_0px_#000]">
             <div className="flex items-center gap-3 mb-2">
@@ -144,8 +172,49 @@ export default function SalesPage() {
             <p className="text-sm text-gray-500">Per comic sold</p>
           </div>
         </div>
+        </div>
 
-        {/* Sales List */}
+        {!hasStatsAccess && (
+          <div className="absolute inset-0 flex items-center justify-center p-4">
+            <div
+              className="bg-pop-white border-3 border-pop-black p-6 max-w-sm text-center"
+              style={{ boxShadow: "4px 4px 0px #000" }}
+            >
+              <div className="w-12 h-12 bg-pop-yellow border-2 border-pop-black flex items-center justify-center mx-auto mb-3">
+                <Lock className="w-6 h-6 text-pop-black" />
+              </div>
+              <h3 className="text-lg font-black text-pop-black font-comic uppercase mb-2">
+                Unlock your Sales Stats
+              </h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Total sales, profit, and averages are a Premium feature. Your sale data is
+                still being saved, so stats become available instantly on upgrade.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-2 justify-center">
+                {tier === "free" && !isTrialing && (
+                  <button
+                    onClick={handleUpgrade}
+                    disabled={isStartingUpgrade}
+                    className="px-4 py-2 bg-pop-blue border-2 border-pop-black text-white font-bold text-sm transition-all hover:shadow-[3px_3px_0px_#000] disabled:opacity-50"
+                    style={{ boxShadow: "2px 2px 0px #000" }}
+                  >
+                    {isStartingUpgrade ? "Starting..." : "Start 7-Day Free Trial"}
+                  </button>
+                )}
+                <a
+                  href="/pricing"
+                  className="px-4 py-2 bg-pop-white border-2 border-pop-black text-pop-black font-bold text-sm transition-all hover:shadow-[3px_3px_0px_#000]"
+                  style={{ boxShadow: "2px 2px 0px #000" }}
+                >
+                  View Pricing
+                </a>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Sales List — always visible regardless of tier. */}
         {sales.length === 0 ? (
           <div className="bg-pop-white border-2 border-pop-black p-8 text-center shadow-[4px_4px_0px_#000]">
             <div className="w-16 h-16 bg-pop-yellow border-2 border-pop-black flex items-center justify-center mx-auto mb-4">
@@ -270,7 +339,6 @@ export default function SalesPage() {
             </div>
           </div>
         )}
-      </FeatureGate>
     </div>
   );
 }

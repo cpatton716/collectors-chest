@@ -267,8 +267,8 @@ export default function TermsOfServicePage() {
 
           <h3>4.13 Risk &amp; Fraud Notifications to Sellers</h3>
           <p>
-            If your seller account is affected by risk or fraud prevention actions — including
-            holds, reviews, or restrictions — Collectors Chest will notify you with the reason for
+            If your seller account is affected by risk or fraud prevention actions, including
+            holds, reviews, or restrictions, Collectors Chest will notify you with the reason for
             the action and any steps required to remediate. Notifications may be delivered by email,
             in-app notification, or both. Sellers are expected to respond to remediation requests
             promptly to restore their account.

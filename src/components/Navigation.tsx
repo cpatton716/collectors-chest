@@ -69,7 +69,7 @@ const faqs = [
   {
     question: "Any tips for getting the best scan results?",
     answer:
-      "Good, even lighting makes a huge difference — avoid harsh shadows and glare, especially on slabbed books. Photograph the full front cover straight-on (no angles or tilting), keep the camera steady, and make sure the image is in focus. A plain background with nothing distracting behind the book helps the AI zero in on the cover.",
+      "Good, even lighting makes a huge difference, so avoid harsh shadows and glare, especially on slabbed books. Photograph the full front cover straight-on (no angles or tilting), keep the camera steady, and make sure the image is in focus. A plain background with nothing distracting behind the book helps the AI zero in on the cover.",
   },
   {
     question: "How accurate are the price estimates?",
@@ -99,7 +99,7 @@ const faqs = [
   {
     question: "What happens after I buy a comic?",
     answer:
-      "After your payment clears, the sale is confirmed and the seller is notified to ship. The comic is added to your collection only once the seller marks it as shipped — this protects you if a seller never ships. Once shipped, both you and the seller can leave feedback on each other. You'll get email + in-app notifications at each step: purchase confirmation, shipped with tracking, and a feedback request.",
+      "After your payment clears, the sale is confirmed and the seller is notified to ship. The comic is added to your collection only once the seller marks it as shipped. This protects you if a seller never ships. Once shipped, both you and the seller can leave feedback on each other. You'll get email + in-app notifications at each step: purchase confirmation, shipped with tracking, and a feedback request.",
   },
   {
     question: "Can I trade comics with other collectors?",
@@ -124,12 +124,12 @@ const faqs = [
   {
     question: "Can I create custom lists?",
     answer:
-      "Yes! From your Collection page, create lists to organize comics however you like \u2014 by series, want list, favorites, reading order, or any category. Comics can belong to multiple lists.",
+      "Yes! From your Collection page, create lists to organize comics however you like: by series, want list, favorites, reading order, or any category. Comics can belong to multiple lists.",
   },
   {
     question: "What is Key Info and why does it matter?",
     answer:
-      "Key Info highlights significant events in a comic \u2014 first appearances, origin stories, deaths, team changes, and more. Key issues are typically worth more than regular issues. We maintain a curated database and you can suggest additions for community review.",
+      "Key Info highlights significant events in a comic: first appearances, origin stories, deaths, team changes, and more. Key issues are typically worth more than regular issues. We maintain a curated database and you can suggest additions for community review.",
   },
   {
     question: "How do I track my collection's value?",
@@ -144,22 +144,22 @@ const faqs = [
   {
     question: "Is my data safe?",
     answer:
-      "Your collection data is stored securely in the cloud and synced across all your devices. We use industry-standard encryption, secure authentication via Clerk, and your payment info is handled entirely by Stripe \u2014 we never store credit card details.",
+      "Your collection data is stored securely in the cloud and synced across all your devices. We use industry-standard encryption, secure authentication via Clerk, and your payment info is handled entirely by Stripe. We never store credit card details.",
   },
   {
     question: "What happens if I want a refund on a marketplace purchase?",
     answer:
-      "Collectors Chest processes refunds and handles chargeback claims for marketplace purchases. Contact our support team to initiate a refund request \u2014 don't go to your bank or card issuer first. We'll review the claim, coordinate with the seller, and resolve the issue.",
+      "Collectors Chest processes refunds and handles chargeback claims for marketplace purchases. Contact our support team to initiate a refund request. Don't go to your bank or card issuer first. We'll review the claim, coordinate with the seller, and resolve the issue.",
   },
   {
     question: "How does Collectors Chest ensure sellers are legitimate?",
     answer:
-      "We review seller accounts and require Stripe identity verification for all sellers before they can list items. We also prohibit counterfeit goods, stolen property, and unauthorized merchandise \u2014 sellers who violate these rules lose access to the marketplace.",
+      "We review seller accounts and require Stripe identity verification for all sellers before they can list items. We also prohibit counterfeit goods, stolen property, and unauthorized merchandise. Sellers who violate these rules lose access to the marketplace.",
   },
   {
     question: "Who do I contact if I have a payment problem?",
     answer:
-      "Contact Collectors Chest support first \u2014 we provide first-line support for all marketplace payment issues and disputes. We respond within two business days and coordinate directly with our payment processor when needed.",
+      "Contact Collectors Chest support first. We provide first-line support for all marketplace payment issues and disputes. We respond within two business days and coordinate directly with our payment processor when needed.",
   },
   {
     question: "What happens if my seller account is restricted or under review?",
@@ -169,7 +169,7 @@ const faqs = [
   {
     question: "Why might Collectors Chest ask me for additional information after I've signed up as a seller?",
     answer:
-      "Our payment processor occasionally requires updated identity or business information to keep seller accounts in good standing. If we ask for additional info, provide it promptly \u2014 if you don't respond in time, your payout access may be temporarily paused.",
+      "Our payment processor occasionally requires updated identity or business information to keep seller accounts in good standing. If we ask for additional info, provide it promptly. If you don't respond in time, your payout access may be temporarily paused.",
   },
   {
     question: "How do I set up my Stripe seller account?",
