@@ -4,6 +4,47 @@ This log tracks session-by-session progress on Collectors Chest.
 
 ---
 
+## Apr 23, 2026 - Session 40d: Active Bids Fix, Sales Gating Restructure, Em Dash Sweep, Typo Fix
+
+### Summary
+Third PROD testing feedback round surfaced one broken feature, one gating strategy mismatch, a site-wide copy preference, and a typo. Four fixes shipped in one bundle.
+
+### Features / Fixes Shipped
+
+1. **Active Bids tab threw 500 "Failed to fetch transactions".** pattonrt (current winning bidder) couldn't load `/transactions?tab=bids`. Root cause: the handler's Supabase `select` on the `bids` table listed column `amount`, but the real column is `bid_amount`. Supabase returned a schema error that bubbled as a 500. One-character fix in the select plus matching rename at the access site (`row.amount` to `row.bid_amount`).
+
+2. **Sales page gated everything behind `fullStats`.** Free seller (patton716) could not see their own sold-books list because the page wrapped list + row details + summary cards in a single `<FeatureGate feature="fullStats">`. Restructured:
+   - Sales list + per-row detail: always visible to every user.
+   - 3 Summary Cards (Total Sales / Total Profit / Avg. Profit): wrapped in a `relative` container with `filter blur-sm pointer-events-none select-none` when `features.fullStats` is false, plus an absolutely positioned upgrade CTA card overlay ("Unlock your Sales Stats" / "Start 7-Day Free Trial" / "View Pricing").
+   - Copy on the overlay explicitly says "Your sale data is still being saved" so users know upgrade works retroactively.
+   - **Data storage audited and confirmed:** `src/lib/db.ts`'s `markComicAsSold` inserts `purchase_price`, `sale_price`, and `profit` into the `sales` table with no tier check. Free users' sales history is fully preserved — upgrading reveals the existing data. No write-path changes needed.
+
+3. **Em dash site-wide sweep.** ~55 em dashes (`—`, U+2014) replaced in user-facing copy across 10 files: Navigation FAQ answers, all email templates (HTML and text), auctionDb notification titles/messages, seller-onboarding guide, about/terms/settings pages, SecondChanceInboxCard, comicFacts (home-page fun facts), refresh-value API error message, and collection placeholder glyphs. Context-aware replacements: names followed by em dash → comma; sentence breaks → period; glosses → colon; no-space em dashes → hyphen. Skipped ~224 occurrences in code comments, `console.*` args, AI prompts (`anthropic.ts`, `coverValidation.ts`), internal validator reason strings, JSDoc, tests, migrations, and markdown docs.
+
+4. **"Agree and continueto use Link" typo** in `src/app/seller-onboarding/page.tsx`. The source had a proper space between `</strong>` and `to`, but JSX was collapsing it on render. Forced the space with explicit `{" "}` interpolation.
+
+### Files Modified
+- `src/app/api/transactions/route.ts` — bid_amount column fix.
+- `src/app/sales/page.tsx` — restructured gating + blur overlay.
+- `src/app/seller-onboarding/page.tsx` — typo fix + em dashes.
+- `src/components/Navigation.tsx` — FAQ em dashes.
+- `src/lib/email.ts` — all templates em dashes.
+- `src/lib/auctionDb.ts`, `src/lib/comicFacts.ts` — copy em dashes.
+- `src/app/about/page.tsx`, `src/app/terms/page.tsx`, `src/app/settings/notifications/page.tsx`, `src/app/collection/page.tsx` — em dashes.
+- `src/components/auction/SecondChanceInboxCard.tsx` — em dashes.
+- `src/app/api/comics/[id]/refresh-value/route.ts` — error message em dash.
+
+### Deploy
+- Pushed to main at commit `6053bcf` → Netlify auto-deploy.
+
+### User-Confirmed Working (post-40c)
+- FAQ internal link now closes the modal on click ✓
+
+### Deferred
+- Feedback submit refresh verification → will validate when collector-patton leaves feedback on tomorrow's auction close.
+
+---
+
 ## Apr 23, 2026 - Session 40c: Feedback Submit Refresh + FAQ Modal Polish
 
 ### Summary
@@ -110,9 +151,9 @@ User began PROD testing of auction + buy-now flows with three accounts (collecto
 
 ## Changes Since Last Deploy
 
-**Last Deploy:** 2026-04-23 (Session 40c — feedback refresh + FAQ polish at commit `803db7c`). Same-day prior deploys: `e04ee1a` (Session 40b feedback batch), `814ca29` (Session 40a hotfix), `4175035` (Session 39c hCaptcha), `14037e1` (Session 39 pre-beta hardening), `8b4a9eb` (Session 38).
+**Last Deploy:** 2026-04-23 (Session 40d — active bids fix + sales gating + em dash sweep at commit `6053bcf`). Same-day prior deploys: `803db7c` (Session 40c), `e04ee1a` (Session 40b), `814ca29` (Session 40a), `4175035` (Session 39c), `14037e1` (Session 39), `8b4a9eb` (Session 38).
 **Sessions Since Last Deploy:** 0
-**Deploy Readiness:** Deployed — Session 40c UX polish. No new migrations, no new env vars.
+**Deploy Readiness:** Deployed — Session 40d PROD testing feedback. No new migrations, no new env vars.
 
 ---
 
