@@ -57,14 +57,15 @@ export function AuctionDetailModal({
   const [showActionConfirm, setShowActionConfirm] = useState<SellerAction | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [feedbackRefreshTick, setFeedbackRefreshTick] = useState(0);
 
-  // Check feedback eligibility for sold auctions. Re-query when shippedAt
-  // flips so the button appears after the seller marks the item shipped.
+  // Re-query eligibility on shipment (button appears) and after feedback
+  // submit (button swaps to "submitted" line without a hard reload).
   const completed = auction ? isListingCompleted(auction) : false;
   const { eligibility } = useFeedbackEligibility(
     completed && auction ? auction.id : undefined,
     completed ? "auction" : undefined,
-    auction?.shippedAt ?? null
+    `${auction?.shippedAt ?? ""}:${feedbackRefreshTick}`
   );
 
   useEffect(() => {
@@ -527,7 +528,10 @@ export function AuctionDetailModal({
                                 ? `@${auction.seller.username}`
                                 : auction.seller?.displayName || "the seller"
                           }
-                          onFeedbackSubmitted={loadAuction}
+                          onFeedbackSubmitted={() => {
+                            loadAuction();
+                            setFeedbackRefreshTick((t) => t + 1);
+                          }}
                         />
                       </div>
                     )}

@@ -197,6 +197,19 @@ export function Navigation() {
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
 
+  // Lock background scroll while the Ask the Professor modal is open so
+  // scrolling inside the FAQ list doesn't bleed through to the underlying
+  // page. Users reported the background page scrolling when they reached
+  // the end of the FAQ list.
+  useEffect(() => {
+    if (!showProfessor) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [showProfessor]);
+
   // Click-outside handler for More menu
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -511,7 +524,16 @@ export function Navigation() {
             </div>
 
             {/* FAQ List */}
-            <div className="overflow-y-auto max-h-[calc(80vh-120px)] p-4 dots-blue-light">
+            <div
+              className="overflow-y-auto max-h-[calc(80vh-120px)] p-4 dots-blue-light"
+              onClick={(e) => {
+                // Close the modal when the user clicks an internal link inside
+                // an FAQ answer — otherwise they navigate but the modal stays
+                // open, floating over the destination page.
+                const anchor = (e.target as HTMLElement).closest("a");
+                if (anchor) setShowProfessor(false);
+              }}
+            >
               <p className="text-pop-black font-body mb-4 bg-pop-white p-2 border-2 border-pop-black inline-block shadow-comic-sm">
                 Welcome, collector! Here are answers to commonly asked questions.
               </p>

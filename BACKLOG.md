@@ -670,6 +670,22 @@ Today's session shipped Resend `batch.send()` + `mapWithConcurrency(5)` for the 
 
 ---
 
+### FMV Lookup — Graceful Fallback for Rare / Key Issues at Exact Grade
+**Priority:** Medium (Pre-Launch — affects key-issue value display)
+**Status:** Pending
+**Added:** Apr 23, 2026 (Session 40b)
+
+The current eBay Browse path (`searchActiveListings` → `filterIrrelevantListings` → `filterOutliersAndCalculateMedian`) strictly filters listings to the exact grade (`\\b{grade}\\b` regex) and requires `MIN_LISTINGS_THRESHOLD = 3` listings to compute a median. For high-value key issues at uncommon grades (e.g. Hulk #181 CGC 2.5), active eBay listings at exactly that grade are often 0–2 at any given moment, so `refresh-value` returns "No eBay sales data found" even when the user can clearly find a listing on eBay directly. Confirmed in Session 40b PROD testing with collector-patton's Hulk #181 2.5.
+
+Fix directions:
+- If <3 listings at exact grade, fall back to broader grade band (e.g., 2.0–3.0) and apply the existing `GRADE_MULTIPLIERS` table to normalize each listing's price to the target grade before computing median.
+- Alternatively, relax `MIN_LISTINGS_THRESHOLD` to 1 for exact-grade queries when the book is slabbed and display "based on N listings" with confidence indicator.
+- Consider supplementing with sold-listing history (Finding API's `findCompletedItems`) for thicker data — but requires additional eBay API access.
+
+Should ship before public launch since it degrades trust for key-issue collectors.
+
+---
+
 ### Audit `cover_image_url` Source — Stop Persisting Long URLs / data: URIs
 **Priority:** Low (Post-Launch)
 **Status:** Defensive guards in place — root cause not yet fixed

@@ -61,15 +61,17 @@ export function ListingDetailModal({
   const [showActionConfirm, setShowActionConfirm] = useState<SellerAction | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [feedbackRefreshTick, setFeedbackRefreshTick] = useState(0);
 
-  // Check feedback eligibility for sold listings. Pass shippedAt as a refresh
-  // key so the hook re-queries once the seller marks as shipped — server-side
-  // eligibility flips from false → true at that moment.
+  // Check feedback eligibility for sold listings. Pass shippedAt + a local
+  // tick as the refresh key so the hook re-queries when (a) shipment flips
+  // eligibility true, and (b) the user submits feedback (tick bumps so the
+  // button swaps out for the "Feedback submitted" line immediately).
   const completed = listing ? isListingCompleted(listing) : false;
   const { eligibility } = useFeedbackEligibility(
     completed && listing ? listing.id : undefined,
     completed ? "sale" : undefined,
-    listing?.shippedAt ?? null
+    `${listing?.shippedAt ?? ""}:${feedbackRefreshTick}`
   );
 
   useEffect(() => {
@@ -437,7 +439,10 @@ export function ListingDetailModal({
                                   ? `@${listing.seller.username}`
                                   : listing.seller?.displayName || "the seller"
                             }
-                            onFeedbackSubmitted={loadListing}
+                            onFeedbackSubmitted={() => {
+                              loadListing();
+                              setFeedbackRefreshTick((t) => t + 1);
+                            }}
                           />
                         </div>
                       )}
