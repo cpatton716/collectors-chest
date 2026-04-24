@@ -222,7 +222,8 @@ export default function SalesPage() {
             </div>
             <h3 className="text-xl font-black text-pop-black mb-2">No sales yet</h3>
             <p className="text-gray-600">
-              When you mark comics as sold, they&apos;ll appear here with profit tracking.
+              When you mark comics as sold, they&apos;ll appear here
+              {hasStatsAccess ? " with profit tracking" : ""}.
             </p>
           </div>
         ) : (
@@ -234,15 +235,19 @@ export default function SalesPage() {
                     <th className="px-4 py-3 text-left text-sm font-black text-pop-black uppercase">
                       Comic
                     </th>
-                    <th className="px-4 py-3 text-right text-sm font-black text-pop-black uppercase hidden md:table-cell">
-                      Cost
-                    </th>
+                    {hasStatsAccess && (
+                      <th className="px-4 py-3 text-right text-sm font-black text-pop-black uppercase hidden md:table-cell">
+                        Cost
+                      </th>
+                    )}
                     <th className="px-4 py-3 text-right text-sm font-black text-pop-black uppercase">
                       Sale Price
                     </th>
-                    <th className="px-4 py-3 text-right text-sm font-black text-pop-black uppercase">
-                      Profit
-                    </th>
+                    {hasStatsAccess && (
+                      <th className="px-4 py-3 text-right text-sm font-black text-pop-black uppercase">
+                        Profit
+                      </th>
+                    )}
                     <th className="px-4 py-3 text-right text-sm font-black text-pop-black uppercase hidden sm:table-cell">
                       Date
                     </th>
@@ -285,20 +290,24 @@ export default function SalesPage() {
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-right text-gray-600 hidden md:table-cell">
-                        {formatPrice(sale.purchasePrice)}
-                      </td>
+                      {hasStatsAccess && (
+                        <td className="px-4 py-3 text-right text-gray-600 hidden md:table-cell">
+                          {formatPrice(sale.purchasePrice)}
+                        </td>
+                      )}
                       <td className="px-4 py-3 text-right font-bold text-pop-black">
                         {formatPrice(sale.salePrice)}
                       </td>
-                      <td
-                        className={`px-4 py-3 text-right font-bold ${
-                          sale.profit >= 0 ? "text-green-600" : "text-red-600"
-                        }`}
-                      >
-                        {sale.profit >= 0 ? "+" : ""}
-                        {formatPrice(sale.profit)}
-                      </td>
+                      {hasStatsAccess && (
+                        <td
+                          className={`px-4 py-3 text-right font-bold ${
+                            sale.profit >= 0 ? "text-green-600" : "text-red-600"
+                          }`}
+                        >
+                          {sale.profit >= 0 ? "+" : ""}
+                          {formatPrice(sale.profit)}
+                        </td>
+                      )}
                       <td className="px-4 py-3 text-right text-gray-500 text-sm hidden sm:table-cell">
                         {formatDate(sale.saleDate)}
                       </td>
@@ -315,23 +324,27 @@ export default function SalesPage() {
           <div className="mt-4 p-4 bg-pop-white border-2 border-pop-black shadow-[4px_4px_0px_#000] md:hidden">
             <h4 className="font-bold text-pop-black mb-3">Sale Details</h4>
             <div className="grid grid-cols-2 gap-2 text-sm">
-              <div>
-                <span className="text-gray-500">Cost:</span>
-                <span className="ml-2 font-bold">{formatPrice(selectedSale.purchasePrice)}</span>
-              </div>
+              {hasStatsAccess && (
+                <div>
+                  <span className="text-gray-500">Cost:</span>
+                  <span className="ml-2 font-bold">{formatPrice(selectedSale.purchasePrice)}</span>
+                </div>
+              )}
               <div>
                 <span className="text-gray-500">Sale:</span>
                 <span className="ml-2 font-bold">{formatPrice(selectedSale.salePrice)}</span>
               </div>
-              <div>
-                <span className="text-gray-500">Profit:</span>
-                <span
-                  className={`ml-2 font-bold ${selectedSale.profit >= 0 ? "text-green-600" : "text-red-600"}`}
-                >
-                  {selectedSale.profit >= 0 ? "+" : ""}
-                  {formatPrice(selectedSale.profit)}
-                </span>
-              </div>
+              {hasStatsAccess && (
+                <div>
+                  <span className="text-gray-500">Profit:</span>
+                  <span
+                    className={`ml-2 font-bold ${selectedSale.profit >= 0 ? "text-green-600" : "text-red-600"}`}
+                  >
+                    {selectedSale.profit >= 0 ? "+" : ""}
+                    {formatPrice(selectedSale.profit)}
+                  </span>
+                </div>
+              )}
               <div>
                 <span className="text-gray-500">Date:</span>
                 <span className="ml-2">{formatDate(selectedSale.saleDate)}</span>
