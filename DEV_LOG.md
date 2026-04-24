@@ -4,6 +4,37 @@ This log tracks session-by-session progress on Collectors Chest.
 
 ---
 
+## Apr 23, 2026 - Session 40c: Feedback Submit Refresh + FAQ Modal Polish
+
+### Summary
+User continued PROD testing post-40b and surfaced three more UX bugs plus one FMV-search issue. Shipped three fixes in one bundle; FMV captured to BACKLOG as a pre-launch item requiring more thought.
+
+### Features / Fixes Shipped
+
+1. **Feedback button didn't hide after submit.** `useFeedbackEligibility` deps only included `transactionId`, `transactionType`, and the `shippedAt` refresh key — none of which change when the user submits feedback. The button stayed visible until a hard refresh. Added a local `feedbackRefreshTick` state in both `ListingDetailModal` and `AuctionDetailModal` that bumps via the `LeaveFeedbackButton`'s `onFeedbackSubmitted` callback (in addition to `loadListing`/`loadAuction`). Tick is folded into the hook's refreshKey so submission triggers a fresh eligibility query, which returns `canLeaveFeedback: false` with `feedbackLeftAt` populated → UI swaps to "Feedback submitted on …".
+
+2. **Ask the Professor FAQ modal — scroll bled through.** User reported scroll reaching the end of the FAQ list would scroll the underlying page instead. Added a `useEffect` in `Navigation.tsx` that sets `document.body.style.overflow = "hidden"` while `showProfessor` is true, with cleanup restoring the previous value. Scroll now stays inside the modal.
+
+3. **Ask the Professor FAQ modal — internal links navigated but modal stayed open.** The Seller Onboarding link in the "How do I set up my Stripe seller account?" FAQ answer correctly navigates but the modal kept floating over the destination page. Added a delegated click handler on the FAQ list container: if the click target is inside an `<a>`, call `setShowProfessor(false)`. Works for the existing link and any future FAQ links without per-link handlers.
+
+### Backlog / Follow-up Captured
+
+- **FMV Lookup — Graceful Fallback for Rare / Key Issues at Exact Grade** (Medium / pre-launch). Current `searchActiveListings` + `filterIrrelevantListings` requires `MIN_LISTINGS_THRESHOLD = 3` listings at exactly the target grade. For high-value key issues at uncommon grades (Hulk #181 CGC 2.5 in the test) there are often 0–2 active listings on eBay at any moment, so `refresh-value` returns "No eBay sales data found" even when the user can clearly find one via eBay's search. Fix direction: grade-band fallback + `GRADE_MULTIPLIERS` normalization, or relaxing threshold to 1 with explicit confidence label. Captured in BACKLOG — needs a focused session before public launch.
+
+### User-Confirmed Working
+- Leave Feedback button now renders correctly post-shipment (40b fix verified in PROD)
+- Purchase confirmation email copy matches new ownership-transfer timing
+
+### Files Modified
+- `src/components/auction/ListingDetailModal.tsx` + `AuctionDetailModal.tsx` — feedback refresh tick.
+- `src/components/Navigation.tsx` — body scroll lock + link-close delegation.
+- `BACKLOG.md` — FMV fallback item captured.
+
+### Deploy
+- Pushed to main at commit `803db7c` → Netlify auto-deploy.
+
+---
+
 ## Apr 23, 2026 - Session 40b: PROD Testing Feedback Batch — Feedback Flow, FMV Lookup, Email Polish, FAQ
 
 ### Summary
@@ -79,9 +110,9 @@ User began PROD testing of auction + buy-now flows with three accounts (collecto
 
 ## Changes Since Last Deploy
 
-**Last Deploy:** 2026-04-23 (Session 40b — feedback batch at commit `e04ee1a`). Same-day prior deploys: `814ca29` (Session 40 hotfix), `4175035` (Session 39c hCaptcha), `14037e1` (Session 39 pre-beta hardening), `8b4a9eb` (Session 38).
+**Last Deploy:** 2026-04-23 (Session 40c — feedback refresh + FAQ polish at commit `803db7c`). Same-day prior deploys: `e04ee1a` (Session 40b feedback batch), `814ca29` (Session 40a hotfix), `4175035` (Session 39c hCaptcha), `14037e1` (Session 39 pre-beta hardening), `8b4a9eb` (Session 38).
 **Sessions Since Last Deploy:** 0
-**Deploy Readiness:** Deployed — Session 40b PROD testing feedback batch. No new migrations, no new env vars.
+**Deploy Readiness:** Deployed — Session 40c UX polish. No new migrations, no new env vars.
 
 ---
 
