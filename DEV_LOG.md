@@ -4,6 +4,20 @@ This log tracks session-by-session progress on Collectors Chest.
 
 ---
 
+## Apr 23, 2026 - Session 40e: Sales Page — Hide Cost + Profit Columns for Free Tier
+
+### Summary
+Follow-up to 40d. User verified 40d fixes, confirmed the Profit column was still leaking through to free-tier sellers. Wanted free-tier view to show only Comic, Sale Price, and Date.
+
+### Fix
+- `src/app/sales/page.tsx` — Cost `<th>`/`<td>` and Profit `<th>`/`<td>` now wrapped in `hasStatsAccess` guards (desktop table + mobile detail panel). Empty-state copy drops the "with profit tracking" phrase for free users so we don't promise a view they won't get.
+- No change to the write path; `sales` table continues to persist purchase_price and profit on every sale regardless of tier, so the columns become visible retroactively on upgrade.
+
+### Deploy
+- Pushed to main at commit `be8ceb9` → Netlify auto-deploy.
+
+---
+
 ## Apr 23, 2026 - Session 40d: Active Bids Fix, Sales Gating Restructure, Em Dash Sweep, Typo Fix
 
 ### Summary
@@ -151,9 +165,9 @@ User began PROD testing of auction + buy-now flows with three accounts (collecto
 
 ## Changes Since Last Deploy
 
-**Last Deploy:** 2026-04-23 (Session 40d — active bids fix + sales gating + em dash sweep at commit `6053bcf`). Same-day prior deploys: `803db7c` (Session 40c), `e04ee1a` (Session 40b), `814ca29` (Session 40a), `4175035` (Session 39c), `14037e1` (Session 39), `8b4a9eb` (Session 38).
+**Last Deploy:** 2026-04-23 (Session 40e — sales page Cost+Profit column gate at commit `be8ceb9`). Same-day prior deploys: `6053bcf` (Session 40d), `803db7c` (Session 40c), `e04ee1a` (Session 40b), `814ca29` (Session 40a), `4175035` (Session 39c), `14037e1` (Session 39), `8b4a9eb` (Session 38).
 **Sessions Since Last Deploy:** 0
-**Deploy Readiness:** Deployed — Session 40d PROD testing feedback. No new migrations, no new env vars.
+**Deploy Readiness:** Deployed — Session 40e sales column gate. No new migrations, no new env vars.
 
 ---
 
