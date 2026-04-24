@@ -10,7 +10,8 @@
 
 | Date | Change | Net Cost Impact |
 |------|--------|-----------------|
-| Apr 23, 2026 (Sessions 38 + 39) | Added hCaptcha (Pro trial until May 7, 2026, then auto-downgrades to free tier at 1M requests/mo). Removed Metron integration (was using free tier). Added `ZENROWS_API_KEY` env var but CGC-lookup feature deferred post-launch pending ROI review — no current cost. | $0/mo — private beta remains on free tiers |
+| Apr 23, 2026 (Session 40 a–e) | No new services, tiers, or integrations. Session was all marketplace bug fixes + UX polish + copy sweep surfaced during PROD testing. Confirmed all existing services still on the documented free tiers. | $0/mo — no change |
+| Apr 23, 2026 (Sessions 38 + 39) | Added hCaptcha (Pro trial until May 7, 2026, then auto-downgrades to free tier at 1M requests/mo). Removed Metron integration (was using free tier). Added `ZENROWS_API_KEY` env var but CGC-lookup feature deferred post-launch pending ROI review, no current cost. | $0/mo — private beta remains on free tiers |
 
 ---
 

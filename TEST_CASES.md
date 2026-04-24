@@ -1901,4 +1901,58 @@ If you encounter bugs or unexpected behavior:
 | Offer events logged | Create, accept, and decline an offer | Audit rows for `offer_created`, `offer_accepted`, `offer_declined` | Pending |
 | User flag event logged | Trigger payment-miss strike flagging | Audit row for `user_flagged` with strike count + timestamp | Pending |
 
+### Session 40 — Marketplace PROD Testing (Apr 23, 2026)
+
+**Scope:** Full end-to-end marketplace testing session with three accounts running concurrently in PROD: **collector-patton** (buyer, Mac Chrome, Free), **patton716** (seller, Android Chrome, Free), **pattonrt** (bidder, iOS Chrome, Free). Spanned 5 deploys (40a → 40e) covering Buy Now checkout, mobile modal layout, feedback flow timing, FMV lookup fallback, email copy polish, FAQ modal polish, Active Bids fix, sales page gating, and site-wide em dash sweep.
+
+**What changed this session (all files cited in DEV_LOG):**
+- `src/app/api/checkout/route.ts` — defensive `cover_image_url` guard (http(s) only, ≤2048 chars)
+- `src/components/auction/AuctionDetailModal.tsx` — mobile cover `max-h-[35vh]`
+- `src/components/auction/ListingDetailModal.tsx` — mobile cover `max-h-[40vh]` + feedback refresh tick
+- `src/app/api/webhooks/stripe/route.ts` — removed premature `rating_request`
+- `src/app/api/auctions/[id]/mark-shipped/route.ts` — `rating_request` for both buyer + seller at shipment
+- `src/hooks/useFeedbackEligibility.ts` — `refreshKey` arg
+- `src/app/api/comics/[id]/refresh-value/route.ts` — new FMV lookup endpoint
+- `src/components/ComicDetailModal.tsx` — "Look Up Market Value" CTA + optimistic state update
+- `src/lib/email.ts` — purchase confirmation copy fix + outbid `yourMaxBid` render + em dash sweep
+- `src/lib/auctionDb.ts` — pass `yourMaxBid` at outbid call site + em dashes
+- `src/components/Navigation.tsx` — new FAQ entry, body scroll lock on modal, link-close delegation, em dashes
+- `src/app/api/transactions/route.ts` — `bid_amount` column fix
+- `src/app/sales/page.tsx` — restructured gating: list always visible, 3 stat cards blurred with upgrade CTA for free users, Cost + Profit columns hidden entirely for free tier
+- `src/app/seller-onboarding/page.tsx` — "continue to" spacing typo + em dashes
+- Em dash site-wide sweep across 10 files (~55 replacements in user-facing copy only)
+
+**Preconditions:**
+- Three distinct test accounts with established relationships (collector-patton following / bidding on patton716's listings)
+- patton716 has completed Stripe Connect onboarding
+- Active auction + active Buy Now listing seeded by patton716
+- Test card `4242 4242 4242 4242` for real Stripe PROD charges (kept at $2 test amounts)
+
+| Test Case | Steps | Expected Result | Status |
+|-----------|-------|-----------------|--------|
+| **Buy Now — full end-to-end (happy path)** | (1) patton716 lists a comic as fixed_price via seller flow. (2) collector-patton opens listing, clicks "Buy Now" → Stripe Checkout → pays with test card. (3) Verify success redirect to `/collection?purchase=success`. (4) Both parties receive payment confirmation emails. (5) patton716 opens the listing → "Mark as Shipped" → enters carrier + tracking. (6) Verify comic clones to collector-patton's collection at this step. (7) Both parties receive shipping notification + rating_request. | Checkout completes without 500. Payment emails deliver to both parties. Comic appears in buyer's collection only after shipment marked. Both parties receive shipping notification + rating_request + "Leave Feedback" button surfaces. | Completed 2026-04-23 |
+| **Buy Now — overlong / data: cover URL does not 500** | (1) Create a listing whose `cover_image_url` is either a base64 `data:` URL or a Supabase signed URL >2048 chars. (2) As buyer, click "Buy Now" → Stripe Checkout. | Checkout session creates successfully. Stripe Checkout page renders WITHOUT the cover image (gracefully omitted) rather than returning 500 `invalid_request_error`. No image means no crash. | Completed 2026-04-23 |
+| **Mobile AuctionDetailModal — cover height cap** | On a phone (or mobile viewport), open an auction listing from `/shop`. | Cover image occupies at most ~35vh of viewport height. Bid details / input / history section is visible and scrollable below the cover without awkward zoom or scroll. | Completed 2026-04-23 |
+| **Mobile ListingDetailModal (Buy Now) — cover height cap** | On a phone, open a fixed_price listing from `/shop`. | Cover image occupies at most ~40vh. Price, Buy Now button, and seller details visible without scrolling past a dominating portrait cover. | Completed 2026-04-23 |
+| **Auction bidding — outbid notification + email contents** | (1) pattonrt places max bid $5. (2) collector-patton places max bid $10. (3) Check pattonrt's in-app notifications + inbox. | pattonrt receives in-app outbid notification AND email. Email renders both "Current bid: $X" AND "Your max bid: $5" line. "View listing" CTA in email deep-links to the auction page. | Completed 2026-04-23 |
+| **FMV / Look Up Market Value — happy path** | (1) As buyer, add a comic to collection manually (no scan, so `price_data: null`). (2) Open the comic's detail modal. (3) Click the blue "Look Up Market Value" CTA. | CTA card renders when `effectivePriceData?.estimatedValue` is falsy. On click: either value populates from eBay Browse (optimistically, no reload) OR "No eBay sales data found" banner surfaces gracefully (the latter is a known limitation at rare-key-at-exact-grade — tracked in BACKLOG as "FMV fallback"). No 500. | Completed 2026-04-23 |
+| **Feedback flow — no premature prompt after payment** | Complete a Buy Now purchase as buyer. Immediately check buyer's notifications / email inbox. | Buyer does NOT receive a `rating_request` notification at payment time. No "Leave Feedback" button is rendered in the listing modal yet. (Regression check for 40b fix.) | Completed 2026-04-23 |
+| **Feedback flow — prompts fire at shipment for both parties** | After Buy Now payment, as seller click "Mark as Shipped" with tracking. | BOTH buyer and seller receive `rating_request` notification + email. "Leave Feedback" button renders on the listing modal for both parties (buyer rates seller, seller rates buyer). | Completed 2026-04-23 |
+| **Feedback flow — button disappears after submit (no refresh)** | With Leave Feedback button visible, submit a rating. Stay on the listing modal. | Button swaps to "Feedback submitted on MM/DD/YYYY" WITHOUT requiring a hard page refresh. Eligibility hook re-fires via `feedbackRefreshTick` state bump. | Pending — 2026-04-24 auction close |
+| **Sales page — free tier column + stats gating** | As a free-tier seller (patton716) with at least one completed sale, visit `/sales` on desktop. | Sales list + per-row detail visible. Columns shown: Comic, Sale Price, Date ONLY. Cost column and Profit column are NOT rendered. 3 summary stat cards (Total Sales / Total Profit / Avg. Profit) at top are blurred (`filter blur-sm pointer-events-none select-none`) with an "Unlock your Sales Stats" overlay card containing "Start 7-Day Free Trial" + "View Pricing" buttons. Overlay copy says "Your sale data is still being saved". | Completed 2026-04-23 |
+| **Sales page — retroactive unlock on upgrade** | Upgrade patton716 from free → trialing/premium while they have existing sales. Reload `/sales`. | Cost + Profit columns now render on every row. Summary stat cards are unblurred and populated with real numbers. No data loss — `sales` table already stored `purchase_price` + `profit` regardless of tier. | Pending — 2026-04-24 auction close |
+| **Active Bids tab — loads without 500** | As pattonrt (current winning bidder on an active auction), visit `/transactions?tab=bids`. | Tab loads. Active bids render with current bid amount. No "Failed to fetch transactions" error. (Regression check: Supabase `select` uses `bid_amount` not `amount`.) | Completed 2026-04-23 |
+| **Ask the Professor — modal scroll lock** | Open the FAQ modal. Scroll to the bottom of the FAQ list. Continue scrolling / flick past the end. | Underlying page does NOT scroll while the modal is open. `document.body.style.overflow` is locked to `hidden` for the modal's lifetime and restored on close. | Completed 2026-04-23 |
+| **Ask the Professor — internal link closes modal + navigates** | In the FAQ modal, expand "How do I set up my Stripe seller account?". Click the Seller Onboarding link inside the answer. | Modal closes AND browser navigates to `/seller-onboarding` in the same click (delegated `<a>` click handler on the FAQ container fires `setShowProfessor(false)`). Target page is not covered by a lingering modal overlay. | Completed 2026-04-23 |
+| **Ask the Professor — "What happens after I buy a comic?" entry** | Open the FAQ modal. Scroll the list and look for the new entry. | Entry "What happens after I buy a comic?" is present. Answer explains: payment → seller notified → ships → comic added to your collection → feedback window opens. | Completed 2026-04-23 |
+| **Seller Onboarding — Link step copy spacing** | Visit `/seller-onboarding`. Scroll to the "Link" step section. | The phrase reads "Agree and continue to use Link" with a proper single space between `continue` and `to`. No "continueto" run-together. (JSX forces space via explicit `{" "}`.) | Completed 2026-04-23 |
+| **Em dash sweep — FAQ answers** | Open Ask the Professor modal. Read through every FAQ answer. | No `—` (em dash, U+2014) characters visible anywhere in answer text. Separators replaced with commas, periods, colons, or hyphens as appropriate. | Completed 2026-04-23 |
+| **Em dash sweep — email templates** | Trigger a purchase confirmation, an outbid email, an item-sold email, and a payment-reminder email. Open each in an email client (HTML + plain-text variants). | No em dashes in subject, body, CTAs, or footer. Both HTML and text variants clean. | Completed 2026-04-23 |
+| **Em dash sweep — seller onboarding guide** | Visit `/seller-onboarding` top-to-bottom on desktop + mobile. | No em dashes in any step text, headings, or disclaimers. | Completed 2026-04-23 |
+| **Em dash sweep — about / terms / settings pages** | Visit `/about`, `/terms`, `/settings/notifications`. | No em dashes in user-facing copy. (Code comments untouched — not part of scope.) | Pending |
+| **Purchase confirmation email — ownership timing copy** | Complete a Buy Now purchase. Open the "Order confirmation" email in your inbox. | Email body reads: "The comic will be added to your collection once the seller marks it as shipped." It does NOT say "has been added to your collection." Matches actual ownership-transfer timing (gates on ship, not payment). | Completed 2026-04-23 |
+| **Auction close → winner flow (pending tomorrow)** | On 2026-04-24 at 10:30, the active auction closes with collector-patton as winner. Verify: (1) Winner receives `auction_won` email + notification. (2) Seller receives `item_sold` email + notification. (3) Winner clicks "Complete Payment" → Stripe Checkout → pays. (4) After payment, seller marks shipped. (5) Both parties receive rating_request. (6) Both leave feedback. (7) Feedback button disappears without page refresh on both sides. | Full winner path executes. Feedback button auto-refreshes post-submit. Ownership transfers only after shipment. | Pending — 2026-04-24 auction close |
+
+---
+
 *Last Updated: April 23, 2026*

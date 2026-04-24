@@ -4,6 +4,52 @@ This log tracks session-by-session progress on Collectors Chest.
 
 ---
 
+## Apr 23, 2026 - Session 40 End-of-Day Rollup (Close Up Shop)
+
+### Day Summary
+A very heavy day of reactive PROD-testing work. User (product owner) worked through end-to-end marketplace testing across 3 accounts (collector-patton buyer on Mac Chrome, patton716 seller on Android Chrome, pattonrt bidder on iOS Chrome). Five distinct sub-sessions (40a–40e), each ending in a production deploy to Netlify. Every issue surfaced during testing was triaged, fixed, deployed, and re-verified in PROD before moving on.
+
+### Deploy History (chronological)
+
+| Sub-session | Commit | Summary |
+|-------------|--------|---------|
+| 40a | `814ca29` | Buy Now 500 root-cause fix (Stripe image URL guard), mobile auction + buy-now modal cover caps |
+| 40b | `e04ee1a` | Feedback flow (rating_request moved to mark-shipped, eligibility refresh), FMV refresh-value endpoint + ComicDetailModal CTA, purchase confirmation email copy, new FAQ entry, outbid email max-bid line |
+| 40c | `803db7c` | Feedback submit auto-refresh (refreshKey tick), Ask the Professor body scroll lock + close-on-link |
+| 40d | `6053bcf` | Active Bids 500 fix (`bid_amount` column), sales page partial gating restructure, site-wide em dash sweep (~55 replacements across 10 files), seller onboarding typo fix |
+| 40e | `be8ceb9` | Sales page — hide Cost + Profit columns from free-tier sellers |
+
+Interleaved local-only docs commits (DEV_LOG entries batched to avoid redundant Netlify builds): `e7c1763` (40a), `56d6d1f` (40b), `f530d5b` (40c), `2ba18b0` (40d), `4c5deb3` (40e).
+
+### New BACKLOG Items Captured
+- **Audit `cover_image_url` Source** (Low, Post-Launch) — stop persisting long signed URLs / base64 data: URIs at the source (multiple defensive strip points exist; fix should be at the write path).
+- **FMV Lookup Graceful Fallback for Rare / Key Issues** (Medium, Pre-Launch) — current eBay search requires ≥3 listings at exact grade which fails for high-value key issues at low grades (e.g., Hulk #181 CGC 2.5). Needs grade-band fallback + `GRADE_MULTIPLIERS` normalization before public launch.
+
+### Close-Up-Shop Documentation Pass
+- `ARCHITECTURE.md` — updated 10 sections covering new endpoint, feedback flow timing, checkout image guard, sales gating, outbid email, FAQ modal, mobile modal caps.
+- `EVALUATION.md` — flipped status to ✅ for Marketplace, Feedback System, Sales Page (Free Tier), Auction, Mobile Experience; overall score 9.1 → 9.2. FMV row marked ⚠️ partial with reference to BACKLOG entry.
+- `TEST_CASES.md` — 22 test cases added (18 marked Completed 2026-04-23 from live PROD verification, 3 Pending for 2026-04-24 auction close).
+- `docs/TECHNICAL_FEATURES.md` — 5 modified features (Real-Time Pricing, Auction Marketplace, Seller Reputation, Email System) + 2 new features (Sales Page Partial Gating, Ask the Professor FAQ Modal). Last Updated bumped to Sessions 38 + 39 + 40 (a–e).
+- `COST_PROJECTIONS.md` — Session 40 row added to audit log noting no cost changes. All existing services remain on documented free tiers.
+- `BACKLOG.md` — no completed items from today required removal (all Session 40 work was reactive to live testing, not pre-planned BACKLOG items).
+- `CLAUDE.md` — Services & Infrastructure table still matches COST_PROJECTIONS.md (no service changes this session).
+
+### Quality Checks at Close-Up-Shop
+- TypeScript: clean (0 errors)
+- ESLint: 0 errors, 115 warnings (all pre-existing, not introduced this session)
+- Tests: 745/745 passing across 47 suites
+- npm audit: 5 moderate severity (all pre-existing in `svix` transitive via `resend`)
+- Build: production build succeeds
+- Circular deps: none
+- Dead code: knip flags a handful of unused email-template type exports and tradingDb helper aliases (pre-existing, warn-only)
+
+### Deferred to 2026-04-24
+- **Auction close @ 10:30 a.m.** — Giant-Size X-Men #1 auction ends. Verify: winner notification + email, winner flow from notification link, payment deadline behavior, payment → Stripe Connect transfer, shipment + ownership transfer.
+- **Feedback submit auto-refresh** — will validate end-to-end when collector-patton leaves feedback on the auction win (40c fix not yet live-tested; 40b+40c fix combined was verified working for the Buy Now flow).
+- **FMV grade-band fallback** — BACKLOG item queued for a focused session before public launch.
+
+---
+
 ## Apr 23, 2026 - Session 40e: Sales Page — Hide Cost + Profit Columns for Free Tier
 
 ### Summary

@@ -10,7 +10,7 @@
 
 Collectors Chest is a comic book collection tracking app with AI-powered cover recognition and a new auction marketplace feature. The app is currently in **Private Beta** with public registration disabled.
 
-**Overall Score: 9.1/10** (up from 8.8/10 — Sessions 38 + 39 pre-beta hardening: Zod validation sweep on 82 routes, audit logging, payment-deadline enforcement, Second Chance Offer, Strike System, Notification Preferences, hCaptcha on guest scans, 10MB upload caps)
+**Overall Score: 9.2/10** (up from 9.1/10 — Session 40 PROD testing round closed the Buy Now 500 blocker, fixed feedback-eligibility timing, unblocked free-tier sellers' sales view, fixed Active Bids 500, added FMV lookup endpoint for purchased comics, mobile modal sizing, FAQ polish, outbid email maxBid line, em dash sweep)
 
 **Current Status: PRIVATE BETA**
 - Site is live at collectors-chest.com
@@ -106,7 +106,7 @@ Remaining items tracked in BACKLOG.md:
 
 ## 3. Auction Feature Evaluation
 
-**Score: 9.5/10** (up from 8/10)
+**Score: 9.6/10** (up from 9.5/10)
 
 ### What's Working Well
 - eBay-style proxy bidding system
@@ -116,13 +116,16 @@ Remaining items tracked in BACKLOG.md:
 - In-app notifications system
 - Cron job for processing ended auctions
 - Good database schema with RLS
-- **Buy Now fixed-price listings** ✅
+- **Buy Now fixed-price listings** ✅ PROD-validated end-to-end Apr 23, 2026 (Session 40a hotfix resolved Stripe 2048-char image URL cap; full flow — checkout, payment, ship, ownership transfer, emails — verified in 40b)
 - **Stripe Connect fee split** ✅ Validated end-to-end (Apr 21, 2026) — `transfer.created` webhook firing correctly
 - **Payment deadline enforcement** ✅ Complete — checkout-time deadline guard, T-24h reminder cron, expire-unpaid-auctions cron, live countdown UI (Sessions 38 + 39)
 - **Second Chance Offer** ✅ Complete — seller-initiated 48h offer to runner-up when winner doesn't pay (Session 39)
 - **Payment-Miss Strike System** ✅ Complete — warn on 1st offense, bid restriction on 2 strikes within 90 days (Session 39)
 - **Shipping tracking (Option A)** ✅ Mark-as-shipped with carrier + tracking number, fires buyer notification (Session 37)
 - **Auction audit log** ✅ Complete — 20 event types covering full lifecycle (Session 39)
+- **Feedback eligibility timing** ✅ Fixed Apr 23, 2026 — `rating_request` now fires at shipment (not payment) + `useFeedbackEligibility` re-queries on shipped/submit so button renders/hides correctly (Session 40b/40c)
+- **Outbid email content** ✅ Fixed Apr 23, 2026 — "Your max bid: $X" line now rendered (Session 40b)
+- **Active Bids tab** ✅ Fixed Apr 23, 2026 — `bid_amount` column fix resolved 500 on `/transactions?tab=bids` (Session 40d)
 
 ### Issues & Gaps
 
@@ -138,7 +141,7 @@ See BACKLOG.md for open auction/marketplace work.
 
 ## 4. User Experience & Onboarding
 
-**Score: 7/10**
+**Score: 7.5/10** (up from 7/10 — Session 40 polish: mobile modal sizing, FAQ scroll lock + close-on-link, free-tier sales list now visible, em dash sweep for design consistency)
 
 ### Guest Experience Flow
 1. Land on home page → see features & "How It Works"
@@ -243,7 +246,7 @@ See BACKLOG.md for open auction/marketplace work.
 
 ## 7. Mobile Experience
 
-**Score: 8/10**
+**Score: 8.5/10** (up from 8/10 — Session 40a capped cover-image heights on mobile auction + Buy Now modals so bid details/CTA no longer get pushed below the fold)
 
 | Feature | Status |
 |---------|--------|
@@ -253,6 +256,7 @@ See BACKLOG.md for open auction/marketplace work.
 | Mobile navigation | ✅ |
 | Camera scanning | ✅ |
 | Touch interactions | ✅ |
+| Mobile auction/listing modal layout | ✅ Fixed Apr 23, 2026 (Session 40a) |
 | Haptic feedback | ❌ |
 | Batch scanning | ❌ |
 
@@ -260,7 +264,7 @@ See BACKLOG.md for open auction/marketplace work.
 
 ## 8. Feature Completeness
 
-**Score: 9.3/10** (up from 8.7/10)
+**Score: 9.4/10** (up from 9.3/10)
 
 | Feature | Status |
 |---------|--------|
@@ -274,8 +278,11 @@ See BACKLOG.md for open auction/marketplace work.
 | Collection Statistics | ✅ Complete |
 | Public Sharing | ✅ Complete |
 | PWA Support | ✅ Complete |
-| Auction Marketplace | ✅ Complete |
-| Fixed-Price Listings (Buy Now) | ✅ Complete |
+| Auction Marketplace | ✅ Complete — PROD-validated Apr 23, 2026 (outbid + close paths) |
+| Fixed-Price Listings (Buy Now) | ✅ Complete — PROD-validated end-to-end Apr 23, 2026 (Session 40a/40b: checkout → payment → ship → ownership transfer → emails) |
+| Feedback System | ✅ Complete — timing + re-fetch fixed Apr 23, 2026 (Session 40b/40c) |
+| Sales Page (Free Tier Visibility) | ✅ Complete — list always visible, stats gated behind upgrade CTA, Cost+Profit columns gated; data persisted for retroactive stats on upgrade (Session 40d/40e) |
+| FMV Lookup for Purchased Comics | ⚠️ Partial — `POST /api/comics/[id]/refresh-value` endpoint + UI button shipped; eBay `MIN_LISTINGS_THRESHOLD = 3` at exact grade still misses rare/key issues. Pre-launch tuning tracked in BACKLOG ("FMV Lookup — Graceful Fallback for Rare / Key Issues at Exact Grade") |
 | CGC/CBCS Cert Lookup | ✅ Enhanced (ZenRows-backed lookup deferred post-launch) |
 | Error Tracking (Sentry) | ✅ Complete |
 | Analytics (PostHog) | ✅ Complete |

@@ -2,7 +2,7 @@
 
 > Reference document for spec doc creation. Each feature below should get its own detailed spec document through individual review sessions.
 >
-> **Last Updated:** April 23, 2026 — Sessions 38 + 39
+> **Last Updated:** April 23, 2026 — Sessions 38 + 39 + 40 (a–e)
 
 ---
 
@@ -29,7 +29,9 @@ OAuth token management → keyword search builder → category fallback chain (C
 - **Q1 pricing:** `filterOutliersAndCalculateMedian()` now uses Q1 (25th percentile) instead of median for more conservative, buyer-friendly estimates
 - **Grade filtering for slabs:** When pricing slabbed comics, search includes grade in keywords and filters results to only matching grade
 
-**Key files:** `src/lib/ebayBrowse.ts`, `src/app/api/ebay-prices/route.ts`, `src/lib/gradePrice.ts`
+**Session 40b addition — On-demand FMV refresh per comic:** `POST /api/comics/[id]/refresh-value` runs eBay Browse lookup for a single owned comic (owner-auth gated) and persists the result to `price_data` + `average_price` on that comic row. Honors the same 12h Redis cache as `/api/ebay-prices`. UI wire-up: `ComicDetailModal` renders a blue "Look Up Market Value" CTA when `effectivePriceData?.estimatedValue` is falsy (e.g., buyer-side clones of manually-added comics where the seller never scanned), and a "Refresh value" link inside the value card once data exists. Result is applied optimistically via local state so the new value appears without a reload. Known limitation (BACKLOG): `MIN_LISTINGS_THRESHOLD = 3` at exact grade returns "No eBay sales data found" for rare keys at uncommon grades — grade-band fallback needed pre-launch.
+
+**Key files:** `src/lib/ebayBrowse.ts`, `src/app/api/ebay-prices/route.ts`, `src/app/api/comics/[id]/refresh-value/route.ts`, `src/lib/gradePrice.ts`, `src/components/ComicDetailModal.tsx`
 
 ---
 
@@ -162,6 +164,15 @@ Two listing types: timed auction (1-14 days, proxy bidding) and fixed-price (30-
 - **New cron pipeline:** `processEndedAuctions → sendPaymentReminders → expireUnpaidAuctions → expireOffers → expireListings` (Session 39 adds `expireSecondChanceOffers`).
 - **Migration:** `20260423_payment_reminder_tracking.sql` — adds `payment_reminder_sent_at`, `payment_expired_at` columns + partial index on `(payment_deadline) WHERE status='ended' AND payment_status='pending'`.
 
+**Session 40 changes (April 23, 2026) — Marketplace PROD testing polish:**
+- **Checkout image URL guard** (`/api/checkout`): `product_data.images[0]` is now only passed to Stripe when the cover URL is `http(s)://` AND ≤2048 chars. Previously a long Supabase signed-URL JWT query param or a base64 `data:` URI blew Stripe's 2048-char cap and surfaced as HTTP 500 `invalid_request_error`. Cosmetic-only on Stripe Checkout when omitted. Consistent with the existing defensive pattern in `csvExport.ts`.
+- **Rating-request notification moved to shipment.** `rating_request` previously fired from the Stripe webhook on payment completion, but server-side eligibility (`checkSaleFeedbackEligibility`) requires `shipped_at`. Buyers were prompted but found no feedback UI. `/api/auctions/[id]/mark-shipped` now fires `rating_request` for both buyer and seller at the moment the button actually becomes visible; the Stripe webhook emission was removed.
+- **Feedback eligibility re-fetch on submit.** `useFeedbackEligibility` now accepts a `refreshKey` arg; callers in `ListingDetailModal` + `AuctionDetailModal` pass `${shippedAt}:${feedbackRefreshTick}` so the hook re-queries when `shippedAt` flips and again after `LeaveFeedbackButton.onFeedbackSubmitted` bumps the tick. UI swaps to "Feedback submitted on …" without a hard refresh.
+- **Active Bids tab fix.** `/api/transactions?type=bids` had its Supabase select referencing column `amount`; the real column is `bid_amount`. Single-character rename in the select + matching `row.bid_amount` access site fixed the 500.
+- **Outbid email — `yourMaxBid` line.** `BidActivityEmailData.yourMaxBid` field was already declared but the template never rendered it. HTML and text variants now conditionally render "Your max bid: $X"; wired from `currentWinningBid.max_bid` at the `placeBid` call site so bidders know if their proxy is still in the running.
+- **Mobile auction/Buy-Now modal cover caps.** `AuctionDetailModal` cover image capped at `max-h-[35vh]` on mobile (desktop `md:max-h-[70vh]` unchanged); `ListingDetailModal` capped at `max-h-[40vh]` on mobile. Fixes cover image dominating the viewport and leaving a sliver for bid details.
+- **Purchase confirmation email copy.** "The comic has been added to your collection." → "The comic will be added to your collection once the seller marks it as shipped." — matches actual ship-gated ownership-transfer timing.
+
 **Session 39 changes (April 23, 2026) — Second Chance + Strike + Audit + Cron Batching:**
 - **Second Chance Offer System** — When auction expires unpaid and runner-up exists, seller gets email + in-app notification with "Offer to runner-up" CTA. Runner-up has 48h to accept at their last actual bid price (not max_bid). No cascade. New table `second_chance_offers` + RLS, new routes (`/api/auctions/[id]/second-chance`, `/api/second-chance-offers`, `/api/second-chance-offers/[id]`), new components (`SecondChanceOfferButton`, `SecondChanceInboxCard`), cron pass `expireSecondChanceOffers`, 5 new email templates, 7 new notification types. See Feature #22 below.
 - **Payment-Miss Strike System** — See Feature #21 below. Inside `expireUnpaidAuctions()`, increments `payment_missed_count`; 1st offense → warning email, 2+ strikes in 90 days → sets `bid_restricted_at`, inserts system-negative reputation rating, emails user + admins. `/api/auctions/[id]/bid` enforces bid restriction.
@@ -198,7 +209,11 @@ Binary ratings (positive/negative) per transaction (sale/auction/trade). 7-day e
 
 **Eligibility rules (Session 37 update):** Both sale and auction buyer eligibility unlock on `shipped_at` (seller-reported tracking). Fallback: 7 days after sale/auction end if seller never marks shipped. Seller eligibility unlocks immediately on ship-or-completed.
 
-**Key files:** `src/lib/creatorCreditsDb.ts`, `src/app/api/feedback/`, `src/app/api/reputation/`
+**Session 40b/c updates — rating-request timing + live eligibility refresh:**
+- `rating_request` notification moved from the Stripe webhook (payment completed) to `/api/auctions/[id]/mark-shipped` so it fires at the same moment server-side eligibility flips true. Both buyer AND seller get a `rating_request` at shipment.
+- `useFeedbackEligibility` now accepts a `refreshKey` arg. `ListingDetailModal` + `AuctionDetailModal` pass `${shippedAt}:${feedbackRefreshTick}` — the `shippedAt` half re-queries when shipment status changes; `LeaveFeedbackButton.onFeedbackSubmitted` bumps the tick so submission triggers a fresh query that returns `canLeaveFeedback: false` with `feedbackLeftAt` populated, swapping the UI to "Feedback submitted on …" without a hard refresh.
+
+**Key files:** `src/lib/creatorCreditsDb.ts`, `src/app/api/feedback/`, `src/app/api/reputation/`, `src/hooks/useFeedbackEligibility.ts`, `src/components/auction/ListingDetailModal.tsx`, `src/components/auction/AuctionDetailModal.tsx`, `src/app/api/auctions/[id]/mark-shipped/route.ts`
 
 ---
 
@@ -236,6 +251,11 @@ Resend integration with comic-themed templates (POW!, BAM!, KA-CHING! sound effe
 - **Preference gating** via `NOTIFICATION_CATEGORY_MAP` (`src/lib/notificationPreferences.ts`): 4 categories (Transactional locked / Marketplace / Social / Marketing). `sendNotificationEmail` + `sendNotificationEmailsBatch` check `profiles.notify_marketplace`/`notify_social`/`notify_marketing` before sending, return skipped count.
 - **Resend `batch.send()`** used by cron passes — 50 emails/batch, fed via `mapWithConcurrency(5)` from `src/lib/concurrency.ts`. Unlocks 50+ payment expirations per cron tick without rate-limit issues.
 - **UI:** per-category toggles at `/settings/notifications` (GET/PATCH on `/api/settings/notifications`), plus 49 unit tests.
+
+**Session 40 copy polish:**
+- **Outbid email — max bid line.** Template now conditionally renders "Your max bid: $X" on both HTML + text variants when `BidActivityEmailData.yourMaxBid` is present. Wired from `currentWinningBid.max_bid` at the `placeBid` call site so bidders can tell if their proxy is still in play.
+- **Purchase confirmation email copy.** "added to your collection" → "will be added to your collection once the seller marks it as shipped" — matches ship-gated ownership-transfer timing.
+- **Site-wide em dash sweep.** ~55 em dashes (U+2014) removed from user-facing copy across 10 files (all email templates HTML + text, FAQ answers, notification titles/messages, seller-onboarding guide, about/terms/settings, SecondChanceInboxCard, comicFacts, refresh-value error string, collection placeholder glyphs). Context-aware replacements: names followed by dash → comma; sentence break → period; gloss → colon; no-space dash → hyphen. ~224 occurrences intentionally skipped in code comments, console args, AI prompts, internal validator reasons, JSDoc, tests, migrations, and markdown docs.
 
 **Key files:** `src/lib/email.ts`, `src/lib/notificationPreferences.ts`, `src/lib/concurrency.ts`, `src/types/notificationPreferences.ts`, `src/app/api/cron/send-trial-reminders/route.ts`, `src/app/api/cron/send-feedback-reminders/route.ts`, `src/app/api/settings/notifications/route.ts`, `src/app/settings/notifications/page.tsx`
 
@@ -335,3 +355,31 @@ Bidirectional sync so that Clerk and Supabase `profiles` never drift.
 **Known drift point:** Clerk dashboard allows dashes in usernames; Supabase's CHECK constraint doesn't. Still-open BACKLOG item to align Clerk's username rules so users get a friendly error at signup.
 
 **Key files:** `src/app/api/webhooks/clerk/route.ts` (`sanitizeUsername()`, `buildDisplayName()`), `src/app/api/username/route.ts`, `src/lib/db.ts` (`getOrCreateProfile()` self-heals email)
+
+---
+
+## 26. Sales Page — Partial Gating for Free Tier (Session 40d/e)
+
+The `/sales` page is visible to every user regardless of tier; only the aggregate stats UI is paywalled.
+
+- **Always visible:** Sales list + per-row detail (Comic, Sale Price, Date). Free users can see their entire sold-books history.
+- **Gated on `features.fullStats`:**
+  - 3 Summary Cards at the top (Total Sales / Total Profit / Avg. Profit) — wrapped in a `relative` container with `filter blur-sm pointer-events-none select-none` and an absolutely positioned upgrade CTA overlay ("Unlock your Sales Stats" / "Start 7-Day Free Trial" / "View Pricing").
+  - Cost `<th>`/`<td>` and Profit `<th>`/`<td>` in the desktop table + mobile detail panel — conditionally rendered behind `hasStatsAccess`.
+  - Empty-state copy drops the "with profit tracking" phrase for free users.
+- **Write path is tier-agnostic.** `markComicAsSold` in `src/lib/db.ts` always writes `purchase_price`, `sale_price`, and `profit` into the `sales` table. Free users' sale data is fully preserved → upgrading surfaces existing data retroactively. Overlay copy explicitly tells users "Your sale data is still being saved."
+
+**Key files:** `src/app/sales/page.tsx`, `src/lib/db.ts` (`markComicAsSold`)
+
+---
+
+## 27. Ask the Professor FAQ Modal (Session 40b/c)
+
+Site-wide FAQ modal surfaced from `Navigation.tsx` (desktop) and `AskProfessor.tsx` (mobile).
+
+- **Session 40b content addition:** "What happens after I buy a comic?" entry explains the payment → seller notified → ship → comic added to collection → feedback window flow. Sets expectations for the ship-gated ownership transfer and answers the "why doesn't it show up yet?" question in plain English.
+- **Session 40c UX polish:**
+  - **Body scroll lock.** `useEffect` in `Navigation.tsx` sets `document.body.style.overflow = "hidden"` while `showProfessor` is true, with cleanup restoring the previous value. Prevents the underlying page from scrolling once the user reaches the end of the FAQ list.
+  - **Internal link → close modal.** Delegated click handler on the FAQ list container closes the modal (`setShowProfessor(false)`) when the click target is inside an `<a>`. Works for the existing Seller Onboarding link and any future FAQ links without per-link wiring.
+
+**Key files:** `src/components/Navigation.tsx`, `src/components/AskProfessor.tsx`

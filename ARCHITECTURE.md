@@ -2,7 +2,7 @@
 
 > **Comprehensive map of pages, features, and service dependencies**
 
-*Last Updated: April 23, 2026 — Sessions 38 + 39 (Payment deadline enforcement, Second Chance Offers, Payment-Miss Strike System, Auction Audit Log, Zod validation across 82 routes, Email Notification Preferences, hCaptcha guest-scan protection, Cover crop validator, Clerk ↔ Supabase username sync-on-write, Metron + Hottest Books removed, seller onboarding help page, 10MB upload cap)*
+*Last Updated: April 23, 2026 — Sessions 38 + 39 + 40 (Payment deadline enforcement, Second Chance Offers, Payment-Miss Strike System, Auction Audit Log, Zod validation across 82 routes, Email Notification Preferences, hCaptcha guest-scan protection, Cover crop validator, Clerk ↔ Supabase username sync-on-write, Metron + Hottest Books removed, seller onboarding help page, 10MB upload cap; Session 40: manual FMV refresh endpoint for owned comics, feedback rating-request moved from payment to ship, `/api/checkout` image URL guard against Supabase signed URLs + base64 data URIs, partial pricing-gate on `/sales` page (Cost + Profit columns + summary cards behind `fullStats`), outbid email now surfaces recipient's max bid, Active Bids tab column-name fix, site-wide em dash removal, mobile auction/buy-now modal image caps, Ask the Professor FAQ scroll-lock)*
 
 ---
 
@@ -79,8 +79,8 @@
 
 | Feature | Services | Notes |
 |---------|----------|-------|
-| Sold Comics List | 💾 🗄️ | View all comics marked as sold |
-| Profit/Loss Tracking | 💾 🗄️ | Purchase price vs sale price |
+| Sold Comics List | 💾 🗄️ | View all comics marked as sold — always visible to all tiers |
+| Profit/Loss Tracking | 💾 🗄️ | Purchase price vs sale price — **partial gate**: the sales list + row detail are always visible, but **Cost + Profit columns** and the **3 summary cards** are gated on `features.fullStats` with blur + overlay upgrade CTA. Data persistence is unchanged — `sales` table writes `purchase_price`, `sale_price`, `profit` for every user regardless of tier, so historical stats light up the moment a user upgrades (Session 40e). |
 
 ---
 
@@ -487,7 +487,7 @@ All other routes are public (unauthenticated access allowed). Individual API rou
 
 | Route | Method | Purpose | Services |
 |-------|--------|---------|----------|
-| `/api/checkout` | POST | Stripe checkout session (accepts `listingId` or `auctionId`; blocks post-deadline auction payments with HTTP 400 when `listing.paymentDeadline < now`) | 💰 🗄️ 🔐 |
+| `/api/checkout` | POST | Stripe checkout session (accepts `listingId` or `auctionId`; blocks post-deadline auction payments with HTTP 400 when `listing.paymentDeadline < now`; guards `product_data.images[0]` — only passes URL when it's `http(s)://` and ≤2048 chars, so long Supabase signed URLs and base64 `data:` URIs that previously caused Stripe `invalid_request_error` are now dropped silently) | 💰 🗄️ 🔐 |
 | `/api/billing/checkout` | POST | Subscription checkout | 💰 🗄️ 🔐 |
 | `/api/billing/portal` | POST | Stripe customer portal | 💰 🗄️ 🔐 |
 | `/api/billing/status` | GET | Subscription status | 🗄️ 🔐 |
@@ -548,7 +548,7 @@ All other routes are public (unauthenticated access allowed). Individual API rou
 | `/api/reputation` | GET | Get current user's reputation | 🗄️ 🔐 |
 | `/api/reputation/[userId]` | GET | Get user's reputation profile | 🗄️ |
 | `/api/feedback` | GET/POST | List/create transaction feedback | 🗄️ 🔐 |
-| `/api/feedback/eligibility` | GET | Check if user can leave feedback (eligible once seller marks auction `shipped`; previously required `completed_at` or 7-day window) | 🗄️ 🔐 |
+| `/api/feedback/eligibility` | GET | Check if user can leave feedback — server-side `checkSaleFeedbackEligibility` gate requires `shipped_at` (Session 40c), so eligibility is *not* unlocked at payment time. Paired with client hook `useFeedbackEligibility(..., refreshKey)` which re-queries when `listing.shippedAt` changes or after feedback is submitted. | 🗄️ 🔐 |
 | `/api/feedback/[id]` | GET/PATCH | Get/update feedback | 🗄️ 🔐 |
 | `/api/feedback/[id]/respond` | POST | Seller responds to feedback | 🗄️ 🔐 |
 
@@ -557,6 +557,7 @@ All other routes are public (unauthenticated access allowed). Individual API rou
 | Route | Method | Purpose | Services |
 |-------|--------|---------|----------|
 | `/api/comics/[id]` | GET/PATCH/DELETE | Comic CRUD | 🗄️ 🔐 |
+| `/api/comics/[id]/refresh-value` | POST | Manual FMV refresh for an owned comic — triggers eBay Browse lookup, persists `price_data` + `average_price` on the `comics` row; honors the shared 12h Redis cache used by `/api/ebay-prices` (Session 40b) | 🏷️ 🗄️ 🔴 🔐 |
 | `/api/comics/bulk-update` | PATCH | Bulk update comics | 🗄️ 🔐 |
 | `/api/comics/bulk-delete` | POST | Bulk delete comics | 🗄️ 🔐 |
 | `/api/comics/bulk-add-to-list` | POST | Bulk add comics to list | 🗄️ 🔐 |
@@ -860,7 +861,9 @@ Stripe fires webhook chain → /api/webhooks/stripe (8 events incl. account.upda
     - Update auction: payment_status="paid", status="sold"
     - Audit: auction_audit_log insert (event: payment_received)
     - Insert sales record (seller's sales history)
-    - Notify seller: payment_received; Notify buyer: rating_request
+    - Notify seller: payment_received; Notify buyer: purchase_confirmation
+    - (Session 40c) `rating_request` is NOT fired here — server eligibility requires
+      shipped_at, so prompting at payment was premature
   - transfer.created (destination charge fires transfer to seller's Connect account)
   - payment_intent.succeeded
          ↓
@@ -870,7 +873,8 @@ Seller marks shipped via /api/auctions/[id]/mark-shipped:
   - Sets shipped_at + tracking_carrier + tracking_number
   - Audit: auction_audit_log insert (event: shipped)
   - Clones comic row to buyer's collection (ownership transfer gated on shipping)
-  - Fires shipped + rating_request notifications
+  - Fires shipped + rating_request notifications to BOTH buyer and seller
+    (Session 40c — rating_request moved here from Stripe webhook payment event)
          ↓
 Seller's Stripe Express Dashboard shows incoming transfer on 2-5 day payout schedule
 ```
@@ -888,7 +892,7 @@ Seller's Stripe Express Dashboard shows incoming transfer on 2-5 day payout sche
 | `useSubscription` | Subscription status and feature gating | 🗄️ 🔐 |
 | `useSelection` | Multi-select for bulk collection actions | 💾 |
 | `useDebounce` | Debounce utility for inputs | — |
-| `useFeedbackEligibility` | Check if user can leave feedback on a transaction | 🗄️ 🔐 |
+| `useFeedbackEligibility` | Check if user can leave feedback on a transaction; accepts a `refreshKey` arg so the client re-queries when `listing.shippedAt` changes or after feedback is submitted (Session 40c) | 🗄️ 🔐 |
 
 **useCollection provides:**
 - `collection`, `lists`, `sales` - state
@@ -975,7 +979,7 @@ Seller's Stripe Express Dashboard shows incoming transfer on 2-5 day payout sche
 | `src/lib/gradePrice.ts` | Grade-based price calculation logic |
 | `src/lib/csvExport.ts` | CSV export generation |
 | `src/lib/csvHelpers.ts` | CSV parsing and import helpers |
-| `src/lib/email.ts` | Email sending via Resend; `getListingComicData()` uses FK-qualified PostgREST join `comics!auctions_comic_id_fkey(...)`; `sendNotificationEmail` + `sendNotificationEmailsBatch` gate on `NOTIFICATION_CATEGORY_MAP` preferences with skipped-count reporting; Resend `batch.send()` (50 emails/batch) used by cron passes; new templates: `payment_reminder`, `auction_payment_expired`, `auction_payment_expired_seller`, `payment_missed_warning`, `payment_missed_flagged`, 5 Second Chance Offer templates |
+| `src/lib/email.ts` | Email sending via Resend; `getListingComicData()` uses FK-qualified PostgREST join `comics!auctions_comic_id_fkey(...)`; `sendNotificationEmail` + `sendNotificationEmailsBatch` gate on `NOTIFICATION_CATEGORY_MAP` preferences with skipped-count reporting; Resend `batch.send()` (50 emails/batch) used by cron passes; new templates: `payment_reminder`, `auction_payment_expired`, `auction_payment_expired_seller`, `payment_missed_warning`, `payment_missed_flagged`, 5 Second Chance Offer templates. Outbid email (`BidActivityEmailData`) now renders a "Your max bid: $X" line when `yourMaxBid` is present — wired from `currentWinningBid.max_bid` at the `placeBid` call site in `auctionDb.ts` (Session 40b). |
 | `src/lib/rateLimit.ts` | Upstash Redis rate limiting helpers |
 | `src/lib/storage.ts` | Supabase storage helpers |
 | `src/lib/supabase.ts` | Supabase client initialization |
@@ -1513,6 +1517,20 @@ Invisible hCaptcha gates guest scans 4 & 5 (the last two free scans before the l
 - Client: `src/components/GuestCaptcha.tsx` via `@hcaptcha/react-hcaptcha`, floating badge
 - Server: `src/lib/hcaptcha.ts` siteverify helper, 5s timeout, dev/prod key swap
 - Gating: `/api/analyze` requires a valid hCaptcha token on scans 4 & 5
+
+---
+
+## Recent Changes — Session 40 (2026-04-23)
+
+Session 40 shipped as five sub-sessions (40a–40e) focused on PROD marketplace testing feedback:
+
+- **Manual FMV refresh** — new `POST /api/comics/[id]/refresh-value` triggers an eBay Browse lookup for an owner's comic and persists `price_data` + `average_price`; honors the 12h Redis cache used by `/api/ebay-prices`.
+- **Feedback flow correction** — `rating_request` notification now fires from `/api/auctions/[id]/mark-shipped` (to both buyer and seller) instead of from the Stripe webhook on payment. Server-side eligibility in `checkSaleFeedbackEligibility` requires `shipped_at`, so prompting at payment was premature. `useFeedbackEligibility` now takes a `refreshKey` arg so the client re-queries after shipment or after feedback is submitted.
+- **Marketplace checkout hardening** — `/api/checkout` now guards `product_data.images[0]`: only passes a URL when it's `http(s)://` and ≤2048 chars. Catches long Supabase signed URLs and base64 `data:` URIs that were surfacing as Stripe `invalid_request_error` 500s on Buy Now.
+- **Sales page display restructure** — `/sales` no longer wraps everything in a single FeatureGate. Sales list + row detail are always visible (all tiers); Cost + Profit columns and the 3 summary cards are now gated on `features.fullStats` with blur + overlay upgrade CTA. Data persistence unchanged — every user's `sales` rows carry `purchase_price + sale_price + profit`, so stats light up instantly on upgrade.
+- **Outbid email enrichment** — template now renders "Your max bid: $X" when `BidActivityEmailData.yourMaxBid` is present; wired from `currentWinningBid.max_bid` at the `placeBid` call site in `auctionDb.ts`.
+- **Active Bids tab 500 fix** — `/api/transactions?type=bids` was selecting `amount`, but the `bids` table column is `bid_amount`. One-char fix.
+- **UX polish** — mobile auction/buy-now modal image heights capped (35vh / 40vh); Ask the Professor FAQ modal locks body scroll and closes on internal link clicks; em dashes removed site-wide (~55 replacements across 10 files in FAQ, email templates, notifications, onboarding copy, etc.).
 
 ---
 
