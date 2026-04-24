@@ -853,6 +853,7 @@ export async function placeBid(
             comicTitle: comicData.comicTitle,
             issueNumber: comicData.issueNumber,
             currentBid: newCurrentBid,
+            yourMaxBid: currentWinningBid?.max_bid,
             listingUrl: `${process.env.NEXT_PUBLIC_APP_URL || "https://collectors-chest.com"}/shop?listing=${auctionId}`,
           },
         });

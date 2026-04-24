@@ -35,7 +35,7 @@ import {
   ZoomIn,
 } from "lucide-react";
 
-import { CollectionItem, GRADE_SCALE, UserList } from "@/types/comic";
+import { CollectionItem, GRADE_SCALE, PriceData, UserList } from "@/types/comic";
 
 import { ComicImage } from "./ComicImage";
 import { GradePricingBreakdown } from "./GradePricingBreakdown";
@@ -115,8 +115,12 @@ export function ComicDetailModal({
   const [actionError, setActionError] = useState<string | null>(null);
   const [isForTrade, setIsForTrade] = useState(item.forTrade || false);
   const [isUpdatingTrade, setIsUpdatingTrade] = useState(false);
+  const [localPriceData, setLocalPriceData] = useState<PriceData | null>(null);
+  const [isRefreshingValue, setIsRefreshingValue] = useState(false);
+  const [valueLookupMessage, setValueLookupMessage] = useState<string | null>(null);
 
   const { comic } = item;
+  const effectivePriceData = localPriceData ?? comic.priceData;
 
   // Check if this comic has an active listing
   useEffect(() => {
@@ -170,6 +174,34 @@ export function ComicDetailModal({
       setActionError(error instanceof Error ? error.message : "Failed to process request");
     } finally {
       setIsProcessingAction(false);
+    }
+  };
+
+  // Handle market value lookup / refresh
+  const handleRefreshValue = async () => {
+    setIsRefreshingValue(true);
+    setValueLookupMessage(null);
+    try {
+      const response = await fetch(`/api/comics/${item.id}/refresh-value`, {
+        method: "POST",
+      });
+      const data = await response.json();
+      if (response.ok && data.success) {
+        if (data.priceData) {
+          setLocalPriceData(data.priceData);
+          setValueLookupMessage(null);
+        } else {
+          setValueLookupMessage(data.message || "No eBay sales data found for this comic.");
+        }
+      } else {
+        setValueLookupMessage(
+          data.message || "Couldn't reach the market data service. Try again later."
+        );
+      }
+    } catch {
+      setValueLookupMessage("Couldn't reach the market data service. Try again later.");
+    } finally {
+      setIsRefreshingValue(false);
     }
   };
 
@@ -548,7 +580,7 @@ export function ComicDetailModal({
             </div>
 
             {/* Value Section */}
-            {comic.priceData && comic.priceData.estimatedValue && (
+            {effectivePriceData && effectivePriceData.estimatedValue && (
               <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4 mb-6">
                 <div className="flex items-start justify-between">
                   <div>
@@ -559,18 +591,18 @@ export function ComicDetailModal({
                     <div className="flex items-baseline gap-1">
                       <DollarSign className="w-5 h-5 text-green-600" />
                       <span className="text-2xl font-bold text-green-700">
-                        {comic.priceData.estimatedValue.toLocaleString("en-US", {
+                        {effectivePriceData.estimatedValue.toLocaleString("en-US", {
                           minimumFractionDigits: 2,
                           maximumFractionDigits: 2,
                         })}
                       </span>
                     </div>
                   </div>
-                  {comic.priceData.recentSales?.length > 0 && (
+                  {effectivePriceData.recentSales?.length > 0 && (
                     <div className="text-right">
                       <p className="text-xs text-gray-500 mb-1">Recent Sales</p>
                       <div className="space-y-0.5">
-                        {comic.priceData.recentSales.slice(0, 3).map((sale, idx) => (
+                        {effectivePriceData.recentSales.slice(0, 3).map((sale, idx) => (
                           <p key={idx} className="text-xs text-gray-600">
                             ${sale.price.toLocaleString()}
                             <span className="text-gray-400 ml-1">
@@ -604,21 +636,51 @@ export function ComicDetailModal({
                 )}
 
                 {/* Disclaimer */}
-                {comic.priceData.disclaimer && (
+                {effectivePriceData.disclaimer && (
                   <div className="mt-3 pt-3 border-t border-green-200">
                     <p className="text-xs text-gray-500 flex items-start gap-1">
                       <Info className="w-3 h-3 mt-0.5 flex-shrink-0" />
-                      {comic.priceData.disclaimer}
+                      {effectivePriceData.disclaimer}
                     </p>
                   </div>
                 )}
 
+                {/* Refresh value link */}
+                <div className="mt-3 pt-3 border-t border-green-200 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={handleRefreshValue}
+                    disabled={isRefreshingValue}
+                    className="text-xs text-blue-600 hover:text-blue-800 disabled:text-gray-400 underline"
+                  >
+                    {isRefreshingValue ? "Refreshing…" : "Refresh value"}
+                  </button>
+                </div>
+
                 {/* Grade-aware pricing breakdown */}
                 <GradePricingBreakdown
-                  priceData={comic.priceData}
+                  priceData={effectivePriceData}
                   currentGrade={item.conditionGrade}
                   isSlabbed={item.isGraded}
                 />
+              </div>
+            )}
+
+            {/* No Market Value — Look Up Button */}
+            {!effectivePriceData?.estimatedValue && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 text-center">
+                <p className="text-sm text-gray-700 mb-3">No market value on file for this book yet.</p>
+                <button
+                  type="button"
+                  onClick={handleRefreshValue}
+                  disabled={isRefreshingValue}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isRefreshingValue ? "Looking up…" : "Look Up Market Value"}
+                </button>
+                {valueLookupMessage && (
+                  <p className="text-xs text-gray-600 mt-3">{valueLookupMessage}</p>
+                )}
               </div>
             )}
 
@@ -633,18 +695,18 @@ export function ComicDetailModal({
                       ${item.purchasePrice.toFixed(2)}
                     </span>
                   </div>
-                  {comic.priceData?.estimatedValue && (
+                  {effectivePriceData?.estimatedValue && (
                     <>
                       <div className="flex justify-between text-sm">
                         <span className="text-gray-600">Current Value:</span>
                         <span className="font-medium text-gray-900">
-                          ${comic.priceData.estimatedValue.toFixed(2)}
+                          ${effectivePriceData.estimatedValue.toFixed(2)}
                         </span>
                       </div>
                       <div className="border-t pt-2 flex justify-between text-sm">
                         <span className="text-gray-600 font-medium">Profit/Loss:</span>
                         {(() => {
-                          const profitLoss = comic.priceData.estimatedValue - item.purchasePrice;
+                          const profitLoss = effectivePriceData.estimatedValue - item.purchasePrice;
                           const profitPercent = (profitLoss / item.purchasePrice) * 100;
                           return (
                             <span

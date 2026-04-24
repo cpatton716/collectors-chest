@@ -62,11 +62,14 @@ export function ListingDetailModal({
   const [isProcessing, setIsProcessing] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  // Check feedback eligibility for sold listings
+  // Check feedback eligibility for sold listings. Pass shippedAt as a refresh
+  // key so the hook re-queries once the seller marks as shipped — server-side
+  // eligibility flips from false → true at that moment.
   const completed = listing ? isListingCompleted(listing) : false;
   const { eligibility } = useFeedbackEligibility(
     completed && listing ? listing.id : undefined,
-    completed ? "sale" : undefined
+    completed ? "sale" : undefined,
+    listing?.shippedAt ?? null
   );
 
   useEffect(() => {

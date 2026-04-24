@@ -6,7 +6,12 @@ import { FeedbackEligibility, TransactionType } from "@/types/creatorCredits";
 
 export function useFeedbackEligibility(
   transactionId: string | undefined,
-  transactionType: TransactionType | undefined
+  transactionType: TransactionType | undefined,
+  // Opaque refresh key that re-runs the eligibility check when it changes.
+  // Callers pass something that flips when eligibility could have changed
+  // server-side (e.g. listing.shippedAt) so a fresh fetch happens after the
+  // buyer/seller reopens the modal post-shipment.
+  refreshKey?: string | number | null
 ) {
   const [eligibility, setEligibility] = useState<FeedbackEligibility | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -35,7 +40,7 @@ export function useFeedbackEligibility(
     }
 
     checkEligibility();
-  }, [transactionId, transactionType]);
+  }, [transactionId, transactionType, refreshKey]);
 
   return { eligibility, isLoading };
 }

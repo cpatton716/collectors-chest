@@ -305,9 +305,12 @@ async function handleMarketplacePayment(
   } else {
     await createNotification(sellerId, "payment_received", auctionId);
     // Auction winners already received a "won" notification at auction end —
-    // no need to duplicate here. Kick off a rating request instead.
+    // no need to duplicate here.
   }
-  await createNotification(buyerId, "rating_request", auctionId);
+
+  // rating_request notifications fire from the mark-shipped route, not here.
+  // Feedback eligibility flips true on `shipped_at`, so prompting at payment
+  // leaves the buyer clicking the notification with nowhere to leave feedback.
 
   // Feedback reminders so both parties can leave ratings
   await createFeedbackReminders(

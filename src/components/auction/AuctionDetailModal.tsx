@@ -58,11 +58,13 @@ export function AuctionDetailModal({
   const [isProcessing, setIsProcessing] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  // Check feedback eligibility for sold auctions
+  // Check feedback eligibility for sold auctions. Re-query when shippedAt
+  // flips so the button appears after the seller marks the item shipped.
   const completed = auction ? isListingCompleted(auction) : false;
   const { eligibility } = useFeedbackEligibility(
     completed && auction ? auction.id : undefined,
-    completed ? "auction" : undefined
+    completed ? "auction" : undefined,
+    auction?.shippedAt ?? null
   );
 
   useEffect(() => {

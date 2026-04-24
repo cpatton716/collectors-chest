@@ -97,6 +97,11 @@ const faqs = [
       "Yes! The Shop features auctions and fixed-price listings. You can list comics from your collection for sale, bid on auctions, make offers on listings, and complete purchases via secure Stripe checkout.",
   },
   {
+    question: "What happens after I buy a comic?",
+    answer:
+      "After your payment clears, the sale is confirmed and the seller is notified to ship. The comic is added to your collection only once the seller marks it as shipped — this protects you if a seller never ships. Once shipped, both you and the seller can leave feedback on each other. You'll get email + in-app notifications at each step: purchase confirmation, shipped with tracking, and a feedback request.",
+  },
+  {
     question: "Can I trade comics with other collectors?",
     answer:
       "Yes! Mark comics as 'For Trade' in your collection, then browse the Trade tab in the Shop to find matches. The system suggests trades based on your want list and what other collectors have available.",

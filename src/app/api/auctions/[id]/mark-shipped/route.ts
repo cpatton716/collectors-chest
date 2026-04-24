@@ -131,18 +131,20 @@ export async function POST(
       );
     }
 
-    // Notify buyer that their item is on the way. Using `rating_request` as
-    // a lightweight signal for now — new notification type can wait for the
-    // full Shipping Tracking feature (Option B).
-    // Actually we already fire rating_request at payment; this adds a
-    // generic "ended" notification which the buyer's NotificationBell deep-links
-    // back to the listing.
+    // Notify buyer their item is on the way. NotificationBell deep-links
+    // `ended` type back to the listing.
     await createNotification(auction.winner_id, "ended", auctionId, undefined, {
       title: "Your comic has shipped!",
       message: trackingNumber
         ? `Tracking: ${trackingCarrier ? trackingCarrier + " " : ""}${trackingNumber}. The comic has been added to your collection.`
         : "The seller marked your comic as shipped. The comic has been added to your collection.",
     });
+
+    // Feedback eligibility flips true on shipment, so this is the right
+    // moment to prompt both parties. Buyer rates the seller, seller rates
+    // the buyer.
+    await createNotification(auction.winner_id, "rating_request", auctionId);
+    await createNotification(profile.id, "rating_request", auctionId);
 
     void logAuctionAuditEvent({
       auctionId,

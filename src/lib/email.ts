@@ -590,7 +590,7 @@ function purchaseConfirmationTemplate(data: MarketplaceTransactionEmailData): Em
         ${emailHeader(EMAIL_SOUND_EFFECTS.purchase_confirmation)}
         <div style="padding: 32px 24px;">
           <h2 style="font-size: 22px; font-weight: 900; color: #000; margin: 0 0 16px;">Your purchase is confirmed!</h2>
-          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 16px;">Hi ${data.buyerName || "there"} — thanks for your ${flowLabel} from <strong>${data.sellerName}</strong>. The comic has been added to your collection.</p>
+          <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 16px;">Hi ${data.buyerName || "there"} — thanks for your ${flowLabel} from <strong>${data.sellerName}</strong>. The comic will be added to your collection once the seller marks it as shipped.</p>
           <div style="background: #F5F9FF; border: 2px solid #0066FF; border-radius: 8px; padding: 16px 20px; margin: 0 0 24px;">
             <p style="font-size: 18px; font-weight: bold; color: #000; margin: 0 0 12px;">${data.comicTitle} #${data.issueNumber}${variantSuffix}</p>
             <table cellpadding="0" cellspacing="0" border="0" style="width: 100%; font-size: 14px;">
@@ -645,6 +645,12 @@ function itemSoldTemplate(data: MarketplaceTransactionEmailData): EmailTemplate 
 
 function outbidTemplate(data: BidActivityEmailData): EmailTemplate {
   const endsLine = data.endsIn ? `<p style="font-size: 14px; color: #b45309; margin: 0 0 12px;">Auction ends in <strong>${data.endsIn}</strong>.</p>` : "";
+  const maxBidHtmlLine =
+    typeof data.yourMaxBid === "number"
+      ? `<p style="font-size: 15px; color: #555; margin: 0 0 8px;">Your max bid: <strong>${formatPrice(data.yourMaxBid)}</strong></p>`
+      : "";
+  const maxBidTextLine =
+    typeof data.yourMaxBid === "number" ? `Your max bid: ${formatPrice(data.yourMaxBid)}\n` : "";
   return {
     subject: `You've been outbid on ${data.comicTitle} #${data.issueNumber}`,
     html: `
@@ -654,6 +660,7 @@ function outbidTemplate(data: BidActivityEmailData): EmailTemplate {
           <h2 style="font-size: 22px; font-weight: 900; color: #000; margin: 0 0 16px;">You've been outbid</h2>
           <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 12px;">Hi ${data.recipientName || "there"} — another bidder has topped your bid on <strong>${data.comicTitle} #${data.issueNumber}</strong>.</p>
           <p style="font-size: 15px; color: #555; margin: 0 0 8px;">Current bid: <strong>${formatPrice(data.currentBid)}</strong></p>
+          ${maxBidHtmlLine}
           ${endsLine}
           <div style="text-align: center; margin: 24px 0;">
             <a href="${data.listingUrl}" style="display: inline-block; background: #0066FF; color: #ffffff; font-weight: 900; padding: 14px 36px; border: 3px solid #000; border-radius: 8px; text-decoration: none; text-transform: uppercase; letter-spacing: 1px; box-shadow: 4px 4px 0 #000;">PLACE A NEW BID →</a>
@@ -662,7 +669,7 @@ function outbidTemplate(data: BidActivityEmailData): EmailTemplate {
         ${emailFooter()}
       </div>
     `,
-    text: `You've been outbid!\n\nAnother bidder topped your bid on ${data.comicTitle} #${data.issueNumber}.\nCurrent bid: ${formatPrice(data.currentBid)}\n${data.endsIn ? `Auction ends in ${data.endsIn}\n` : ""}\nPlace a new bid: ${data.listingUrl}\n\nScan comics. Track value. Collect smarter.\nTwisted Jester LLC · collectors-chest.com`,
+    text: `You've been outbid!\n\nAnother bidder topped your bid on ${data.comicTitle} #${data.issueNumber}.\nCurrent bid: ${formatPrice(data.currentBid)}\n${maxBidTextLine}${data.endsIn ? `Auction ends in ${data.endsIn}\n` : ""}\nPlace a new bid: ${data.listingUrl}\n\nScan comics. Track value. Collect smarter.\nTwisted Jester LLC · collectors-chest.com`,
   };
 }
 
