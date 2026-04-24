@@ -670,6 +670,38 @@ Today's session shipped Resend `batch.send()` + `mapWithConcurrency(5)` for the 
 
 ---
 
+### Auction Ending Soon Reminder for Active Bidders
+**Priority:** Medium (Pre-Launch — bidder engagement + trust)
+**Status:** Pending
+**Added:** Apr 23, 2026 (Session 40 close-up)
+
+Losing / non-winning bidders currently get nothing before an auction ends. They receive outbid notifications while bidding is live, and a `bid_auction_lost` in-app notification the moment the auction ends, but no warning in between. That's a meaningful gap — bidders routinely forget about auctions they were outbid on 3 days ago, miss the close, and we lose the "re-engage at the last moment" behavior that drives most auction revenue on eBay-style marketplaces.
+
+**Who should get reminded:**
+- Active bidders who placed a bid but are not currently winning (primary audience — highest intent).
+- Watchlist users who have not bid (secondary — wire up the already-defined `watchlist_auction_ending` type).
+
+**When to fire:**
+- Default: T-1 hour before `end_time`. Could tune to T-30min after launch if data says engagement is better there.
+- Keep the window tight — a T-24h reminder for a 7-day auction is noise.
+
+**Existing scaffolding already in the codebase:**
+- `notificationPreferences.ts` already maps `watchlist_auction_ending` to the `"marketplace"` category — but the type is not in the `NotificationType` union in `src/types/auction.ts` and is never created anywhere. Half-built feature worth finishing.
+- `bid_auction_lost` notification type exists and has in-app copy in `auctionDb.ts:1711,1749` but no email template in `email.ts` — worth adding one at the same time for consistency with the new pre-end reminder.
+
+**Implementation sketch:**
+1. Add new notification types to `src/types/auction.ts`: `auction_ending_soon_bidder` and (to finish the scaffolded one) `watchlist_auction_ending`. Wire both into `notificationPreferences.ts` under `"marketplace"`.
+2. New cron pass in `process-auctions/route.ts` that runs every ~15 minutes: select auctions with `end_time` between now and now+60min that have not already fired the reminder (needs a `reminder_sent_at` column on `auctions` to prevent duplicates).
+3. For each selected auction: select distinct `bidder_id` from `bids` where `bidder_id != current winning bidder` and `!= seller`; also select distinct watchers who are not in that bidder set. Fire in-app notifications + batch emails via Resend.
+4. New email template in `src/lib/email.ts`: "Auction ending in 1 hour" with current bid, recipient's own max bid if they're a bidder, and a bid-now CTA.
+5. Add `bid_auction_lost` email template at the same time so losing bidders also get a post-close email (currently in-app only).
+
+**Low implementation cost:** one cron pass, one schema migration for `reminder_sent_at`, two new email templates, two new notification types. Probably one focused session with tests.
+
+**Not a blocker for beta** but it's the single highest-leverage engagement feature we're missing for auctions, so land it before public launch.
+
+---
+
 ### FMV Lookup — Graceful Fallback for Rare / Key Issues at Exact Grade
 **Priority:** Medium (Pre-Launch — affects key-issue value display)
 **Status:** Pending
