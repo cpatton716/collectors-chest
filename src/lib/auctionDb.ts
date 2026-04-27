@@ -33,6 +33,10 @@ import {
 import { CollectionItem, ConditionLabel, PriceData } from "@/types/comic";
 
 import {
+  buildCursorFilter,
+  type NotificationCursor,
+} from "./notificationCursor";
+import {
   sendNotificationEmail,
   sendNotificationEmailsBatch,
   getProfileForEmail,
@@ -1803,6 +1807,7 @@ export async function createNotification(
     rating_request: "Leave feedback",
     auction_sold: "Your item sold!",
     payment_received: "Payment received",
+    shipped: "Your comic has shipped!",
     // Offer notifications
     offer_received: "New offer received!",
     offer_accepted: "Your offer was accepted!",
@@ -1841,6 +1846,7 @@ export async function createNotification(
     rating_request: "Please leave feedback for your recent purchase.",
     auction_sold: "Your auction has ended with a winning bidder!",
     payment_received: "Payment has been received for your sold item.",
+    shipped: "The seller marked your comic as shipped. The comic has been added to your collection.",
     // Offer messages
     offer_received: "Someone has made an offer on your listing. Review and respond.",
     offer_accepted: "The seller has accepted your offer! Complete payment within 48 hours.",
@@ -2010,34 +2016,188 @@ export async function getUserNotifications(
 
   if (error) throw error;
 
-  return (data || []).map((n) => ({
-    id: n.id,
-    userId: n.user_id,
+  return (data || []).map(transformNotificationRow);
+}
+
+function transformNotificationRow(n: Record<string, unknown>): Notification {
+  return {
+    id: n.id as string,
+    userId: n.user_id as string,
     type: n.type as NotificationType,
-    title: n.title,
-    message: n.message,
-    auctionId: n.auction_id,
-    isRead: n.is_read,
-    createdAt: n.created_at,
-  }));
+    title: n.title as string,
+    message: n.message as string,
+    auctionId: (n.auction_id as string | null) ?? null,
+    isRead: n.is_read as boolean,
+    readAt: (n.read_at as string | null) ?? null,
+    createdAt: n.created_at as string,
+  };
 }
 
 /**
- * Mark notification as read
+ * Paginated fetch for the inbox. Cursor-based on (created_at, id) DESC so
+ * batch-inserted rows that share a timestamp don't go missing across page
+ * boundaries.
+ *
+ * Returns up to `limit` rows plus a `nextCursor` if more rows exist
+ * beyond the current page.
  */
-export async function markNotificationRead(notificationId: string): Promise<void> {
-  await supabaseAdmin.from("notifications").update({ is_read: true }).eq("id", notificationId);
+export async function getUserNotificationsPaginated(
+  userId: string,
+  cursor: NotificationCursor | null,
+  limit: number
+): Promise<{ notifications: Notification[]; nextCursor: NotificationCursor | null }> {
+  let query = supabaseAdmin
+    .from("notifications")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(limit + 1); // fetch one extra to detect "more rows beyond"
+
+  if (cursor) {
+    query = query.or(buildCursorFilter(cursor));
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  const rows = (data || []).map(transformNotificationRow);
+  if (rows.length <= limit) {
+    return { notifications: rows, nextCursor: null };
+  }
+
+  // We fetched one extra row to peek beyond the page; trim it and emit
+  // the cursor for the NEXT page.
+  const page = rows.slice(0, limit);
+  const last = page[page.length - 1];
+  return {
+    notifications: page,
+    nextCursor: { createdAt: last.createdAt, id: last.id },
+  };
 }
 
 /**
- * Mark all notifications as read
+ * Fetch a single notification by id, scoped to the requesting user. Used
+ * by the inbox `?focus=<id>` deep-link to surface a "Notification not
+ * found — it may have been cleared" toast when the row has been pruned.
+ *
+ * Returns null on miss (treat as 404 — don't leak existence).
  */
-export async function markAllNotificationsRead(userId: string): Promise<void> {
+export async function getNotificationByIdForUser(
+  notificationId: string,
+  userId: string
+): Promise<Notification | null> {
+  const { data } = await supabaseAdmin
+    .from("notifications")
+    .select("*")
+    .eq("id", notificationId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (!data) return null;
+  return transformNotificationRow(data);
+}
+
+/**
+ * Owner-scoped hard delete for a single notification. Returns true on
+ * success (row was deleted), false if no matching row was found.
+ */
+export async function deleteNotificationForUser(
+  notificationId: string,
+  userId: string
+): Promise<boolean> {
+  const { error, count } = await supabaseAdmin
+    .from("notifications")
+    .delete({ count: "exact" })
+    .eq("id", notificationId)
+    .eq("user_id", userId);
+  if (error) throw error;
+  return (count ?? 0) > 0;
+}
+
+/**
+ * Cleanup helper for the cron pipeline.
+ *
+ * - Deletes notifications where read_at is older than 30 days (the user
+ *   has acted on them; the row is now noise).
+ * - Deletes unread notifications older than 90 days (long-stale; the
+ *   user has clearly never engaged).
+ *
+ * Returns counts so the cron route can log how many rows were pruned.
+ * Idempotent — calling repeatedly is safe; subsequent runs return zero.
+ */
+export async function pruneOldNotifications(): Promise<{
+  deletedRead: number;
+  deletedUnread: number;
+}> {
+  const now = new Date();
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString();
+
+  const readResult = await supabaseAdmin
+    .from("notifications")
+    .delete({ count: "exact" })
+    .not("read_at", "is", null)
+    .lt("read_at", thirtyDaysAgo);
+
+  const unreadResult = await supabaseAdmin
+    .from("notifications")
+    .delete({ count: "exact" })
+    .eq("is_read", false)
+    .lt("created_at", ninetyDaysAgo);
+
+  return {
+    deletedRead: readResult.count ?? 0,
+    deletedUnread: unreadResult.count ?? 0,
+  };
+}
+
+/**
+ * Mark a single notification as read.
+ *
+ * Owner-scoped — caller must pass the profile.id of the requesting user so
+ * the UPDATE can never affect rows owned by anyone else. supabaseAdmin
+ * bypasses RLS, so the .eq("user_id", userId) clause is the actual gate.
+ *
+ * Sets read_at = NOW() to drive the 30-day cleanup cron.
+ */
+export async function markNotificationRead(
+  notificationId: string,
+  userId: string
+): Promise<void> {
   await supabaseAdmin
     .from("notifications")
-    .update({ is_read: true })
+    .update({ is_read: true, read_at: new Date().toISOString() })
+    .eq("id", notificationId)
+    .eq("user_id", userId);
+}
+
+/**
+ * Mark all unread notifications for a user as read.
+ *
+ * Optional `asOf` clamps the UPDATE to notifications that existed at or
+ * before that timestamp — prevents silently sweeping a notification that
+ * was inserted between the user clicking "Mark all read" and the request
+ * landing.
+ *
+ * Sets read_at = NOW() and narrows the UPDATE to only rows where read_at
+ * is still NULL (idempotent — re-runs are no-ops).
+ */
+export async function markAllNotificationsRead(
+  userId: string,
+  asOf?: Date
+): Promise<void> {
+  let query = supabaseAdmin
+    .from("notifications")
+    .update({ is_read: true, read_at: new Date().toISOString() })
     .eq("user_id", userId)
-    .eq("is_read", false);
+    .eq("is_read", false)
+    .is("read_at", null);
+
+  if (asOf) {
+    query = query.lte("created_at", asOf.toISOString());
+  }
+
+  await query;
 }
 
 /**

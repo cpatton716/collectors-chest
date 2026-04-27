@@ -20,6 +20,8 @@ export type NotificationType =
   | "rating_request"
   | "auction_sold"
   | "payment_received"
+  // Shipment
+  | "shipped"
   // Offer types
   | "offer_received"
   | "offer_accepted"
@@ -312,6 +314,8 @@ export interface Notification {
   message: string;
   auctionId: string | null;
   isRead: boolean;
+  /** Set when the user marks the notification read; drives the 30-day prune. */
+  readAt: string | null;
   createdAt: string;
 }
 

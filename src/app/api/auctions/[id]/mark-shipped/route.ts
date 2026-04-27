@@ -131,13 +131,13 @@ export async function POST(
       );
     }
 
-    // Notify buyer their item is on the way. NotificationBell deep-links
-    // `ended` type back to the listing.
-    await createNotification(auction.winner_id, "ended", auctionId, undefined, {
-      title: "Your comic has shipped!",
+    // Notify buyer their item is on the way. Dedicated `shipped` type so
+    // the bell renders a delivery-truck icon (was overloading `ended` which
+    // showed a Clock — semantic mismatch fixed Apr 27, 2026).
+    await createNotification(auction.winner_id, "shipped", auctionId, undefined, {
       message: trackingNumber
         ? `Tracking: ${trackingCarrier ? trackingCarrier + " " : ""}${trackingNumber}. The comic has been added to your collection.`
-        : "The seller marked your comic as shipped. The comic has been added to your collection.",
+        : undefined,
     });
 
     // Feedback eligibility flips true on shipment, so this is the right

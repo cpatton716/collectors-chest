@@ -10,6 +10,7 @@ import { SignedIn, UserButton, useUser } from "@clerk/nextjs";
 import {
   ArrowLeftRight,
   BarChart3,
+  Bell,
   BookOpen,
   Brain,
   Camera,
@@ -316,6 +317,7 @@ export function Navigation() {
 
   // Registered user "More" dropdown
   const registeredSecondaryLinks = [
+    { href: "/notifications", label: "Inbox", icon: Bell },
     { href: "/messages", label: "Messages", icon: MessageSquare, showBadge: true },
     { href: "/transactions", label: "Transactions", icon: Wallet },
     { href: "/sales", label: "Sales", icon: DollarSign },

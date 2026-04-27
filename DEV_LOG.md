@@ -4,6 +4,134 @@ This log tracks session-by-session progress on Collectors Chest.
 
 ---
 
+## Apr 27, 2026 (Monday) - Session 42d: Notifications Inbox v1 + Truck Icon + IDOR Hotfix (Pending Deploy)
+
+### Summary
+User flagged that mobile bell-dropdown notifications truncate mid-sentence with no recourse. Decision: build a full `/notifications` inbox under the More submenu, with auto-cleanup (read → 30d, unread → 90d). Surfaced two adjacent issues during the build: a pre-existing IDOR in `markNotificationRead` (any auth'd user could mark anyone else's notification read), and a lingering "shipped" notification using the `ended` type → wrong icon. Bundled all three into one deploy.
+
+### Three rounds of deep-dive review before code
+- **Round 1** found 3 Critical / 8 High / 9 Medium / 6 Low → NO-PASS. Biggest premise bug: plan assumed "every minute" cron based on `vercel.json`, but production runs `*/5 * * * *` on Netlify (`netlify/functions/process-auctions.ts`). Other critical: Capacitor push deep-link contract was undefined.
+- **Round 2** found 1 Critical / 2 High / 3 Medium → NEAR-PASS. Surfaced the pre-existing IDOR + cross-user IndexedDB leak risk + cursor SQL idiom mismatch.
+- **Round 3** PASSED with 2 minor follow-up notes (audit other `supabaseAdmin.from("notifications").update()` callsites; rate-limit new `GET /api/notifications/:id`). Both captured for post-launch BACKLOG.
+- All three rounds logged to `docs/superpowers/deep-dive-learnings.md`.
+
+### Features Shipped
+
+#### 1. Pre-existing IDOR hotfix in `markNotificationRead` 🔒
+`src/lib/auctionDb.ts:2030` previously updated by id only (`supabaseAdmin` bypasses RLS, so the update succeeded for any caller). Any auth'd user could mark anyone else's notifications read by guessing UUIDs.
+- New signature: `markNotificationRead(notificationId, userId)`. Body adds `.eq("user_id", userId)` so the UPDATE is owner-scoped.
+- `markAllNotificationsRead(userId, asOf?)` already scoped to user_id, but now also clamps to `created_at <= asOf` (race-free clearing) + `read_at IS NULL` (idempotent re-runs).
+- PATCH route updated to pass `profile.id`.
+
+#### 2. Shipped notification → Truck icon 🚚
+`src/app/api/auctions/[id]/mark-shipped/route.ts` was creating notifications with `type: "ended"` and overriding the title — making the bell render a Clock icon for "Your comic has shipped!" Now uses a dedicated `"shipped"` type:
+- New migration `20260427_add_shipped_notification_type.sql` extends the `valid_notification_type` CHECK constraint.
+- `NotificationType` union in `src/types/auction.ts` adds `"shipped"`.
+- `auctionDb.ts` notification title/message defaults extended.
+- `NotificationBell.tsx` icon map adds `case "shipped": return <Truck className="w-4 h-4 text-blue-500" />`.
+
+#### 3. Notifications Inbox v1 📥
+**Schema** — new migration `20260427_notifications_inbox.sql`:
+- Adds `read_at TIMESTAMPTZ NULL` (drives the 30-day prune)
+- Backfill: `UPDATE … SET read_at = created_at WHERE is_read = true AND read_at IS NULL` (online-safe at current scale)
+- `idx_notifications_user_created (user_id, created_at DESC)` covers the cursor-pagination hot path
+- `idx_notifications_cleanup (read_at) WHERE read_at IS NOT NULL` keeps the prune query bounded
+- New RLS DELETE policy `notifications_delete_policy USING (user_id = current_profile_id())` — defense-in-depth (the API uses `supabaseAdmin` so it bypasses RLS, but the policy stops anyone who refactors to the anon client)
+
+**Backend** — `src/lib/auctionDb.ts`:
+- `getUserNotificationsPaginated(userId, cursor, limit)` with composite cursor `(created_at, id)` ordered DESC. Cursor predicate via PostgREST `.or("created_at.lt.X,and(created_at.eq.X,id.lt.Y)")` — single `.lt()` would lose rows on batch inserts that share `now()` to the microsecond.
+- `getNotificationByIdForUser(id, userId)` for `?focus=<id>` 404 handling
+- `deleteNotificationForUser(id, userId)` — atomic owner-scoped delete
+- `pruneOldNotifications()` — hard-deletes read >30d AND unread >90d, returns `{deletedRead, deletedUnread}` counts for cron logging
+- `markNotificationRead` + `markAllNotificationsRead` now write `read_at = NOW()`
+
+**API** — `src/app/api/notifications/`:
+- GET extended with `?cursor=<base64>&limit=N` (capped at 100). Legacy bell shape preserved when neither param is supplied.
+- New `[id]/route.ts` with GET (404 on owner mismatch — never 403, never leak existence) and DELETE (suspension check, `NON_DELETABLE_TYPES` server-side block on payment-miss + payment-expired notifications, 204 on success)
+
+**Cron** — `src/app/api/cron/process-auctions/route.ts`:
+- `pruneOldNotifications()` appended to pipeline, runs every 5 min via Netlify scheduled function. Logs deletion counts via `console.log("[prune] notifications: ...")`.
+- Vestigial `vercel.json` deleted (stated `"* * * * *"` but production runs from Netlify; reading `vercel.json` was misleading future devs about cron cadence).
+
+**Helpers** — two new pure modules:
+- `src/lib/notificationLinks.ts` — `getNotificationDeepLink()` (universal: `/shop?listing=<id>` for auction-targeted, `/notifications?focus=<id>` for system-only — Capacitor push handler will use this contract), `isNotificationClickableInBell()`, `NON_DELETABLE_NOTIFICATION_TYPES` set + `isNonDeletableNotification()`.
+- `src/lib/notificationCursor.ts` — base64 encode/decode of `(createdAt, id)` cursor + `buildCursorFilter()` PostgREST `.or()` builder + `NOTIFICATIONS_PAGE_LIMIT_DEFAULT/MAX`.
+- `src/lib/notificationsCache.ts` — localStorage-backed inbox cache, profile-namespaced (`cc_notifications_inbox_<profileId>`), version-tagged (CACHE_VERSION = 1), cleared on sign-out via `useEffect` watching Clerk `userId`.
+
+**Frontend** — `src/app/notifications/page.tsx` + `src/components/notifications/NotificationsInbox.tsx`:
+- Server component shell, Clerk-gated (redirects guests to `/sign-in?redirect=/notifications`)
+- Inbox component:
+  - Reads `?focus=<id>` on mount → if row exists in current page, scroll into view + flash-highlight (1500ms ring); if not in page, fetch directly via `GET /api/notifications/:id`; if 404, toast "Notification not found — it may have been cleared" and `router.replace` to clear `?focus` from URL
+  - Infinite scroll via Intersection Observer + cursor (page size 50)
+  - Sticky "Mark all as read" only renders when `unreadCount > 0`
+  - Per-row 44×44pt X dismiss button (hidden for `NON_DELETABLE_TYPES`); `e.stopPropagation()`; optimistic remove with rollback + toast on network failure
+  - Tap-to-navigate preserves bell behavior; uses `getNotificationDeepLink`
+  - Long messages clamped at 3 lines, min row height 88px (Lichtenstein border + bg-white card)
+  - Empty state: "You're all caught up." with bell-with-zzz icon
+  - "Last updated Xm ago — tap to refresh" pill (no custom PTR — defers to Capacitor `@capacitor/pull-to-refresh` post-launch to avoid iOS WKWebView bounce conflict)
+  - Cache hydration banner when offline: "Showing cached notifications. Tap to refresh →"
+  - Footer hint links to `/settings/notifications` for email preferences
+
+**Bell updates** — `src/components/NotificationBell.tsx`:
+- Reverses the "filter system-only" decision from the original plan after Round 1's "liar badge" feedback. Bell now shows ALL notifications. System-only types (`!auctionId`) render with `cursor-default opacity-70` + meta line "· View in inbox for details", non-clickable. Badge count = ALL unread (honest math).
+- Click handler delegates to `getNotificationDeepLink` (single source of truth across bell + inbox + email + future Capacitor push).
+- Footer adds "View all notifications →" link to `/notifications` next to "Close".
+
+**Navigation** — `src/components/Navigation.tsx`:
+- New "Inbox" entry as first item in `registeredSecondaryLinks` (signed-in More menu only — guests don't have notifications). Uses Bell icon to mirror the header.
+
+### Tests Added (20 new)
+- `src/lib/__tests__/notificationCursor.test.ts` — 11 tests: encode/decode roundtrip, URL-safety, malformed input tolerance (empty/non-string/garbage base64/missing separator/edge separator positions), `buildCursorFilter` PostgREST output, default + max page limit constants
+- `src/lib/__tests__/notificationLinks.test.ts` — 9 tests: deep-link mapping for auction-targeted/rating_request/system-only fallback, clickability predicate, `NON_DELETABLE` membership matrix (payment-miss + payment-expiry vs normal lifecycle types)
+- All 773 tests passing across 50 suites (was 753).
+
+### Files Modified / Created
+**New:**
+- `supabase/migrations/20260427_add_shipped_notification_type.sql`
+- `supabase/migrations/20260427_notifications_inbox.sql`
+- `src/lib/notificationLinks.ts`
+- `src/lib/notificationCursor.ts`
+- `src/lib/notificationsCache.ts`
+- `src/app/api/notifications/[id]/route.ts`
+- `src/app/notifications/page.tsx`
+- `src/components/notifications/NotificationsInbox.tsx`
+- `src/lib/__tests__/notificationCursor.test.ts`
+- `src/lib/__tests__/notificationLinks.test.ts`
+
+**Modified:**
+- `src/lib/auctionDb.ts` — IDOR fix + new helpers + transformNotificationRow extracted
+- `src/types/auction.ts` — `"shipped"` NotificationType + `readAt` on Notification interface
+- `src/app/api/notifications/route.ts` — cursor pagination, scoped helpers, asOf clamp
+- `src/app/api/auctions/[id]/mark-shipped/route.ts` — uses `"shipped"` type
+- `src/app/api/cron/process-auctions/route.ts` — prune appended + logs
+- `src/components/NotificationBell.tsx` — Truck icon, dimmed system-only, footer link, uses shared deep-link helper
+- `src/components/Navigation.tsx` — Inbox entry in More
+
+**Deleted:**
+- `vercel.json` (vestigial; production cron is Netlify scheduled function)
+
+### Migrations to run in Supabase BEFORE deploy
+1. `20260427_add_shipped_notification_type.sql`
+2. `20260427_notifications_inbox.sql`
+
+### Quality Checks
+- TypeScript: 0 errors
+- ESLint: 0 errors, 115 warnings (all pre-existing — none introduced this session)
+- Tests: 773/773 passing across 50 suites
+- Production build: succeeds clean
+
+### BACKLOG follow-ups captured (post-launch, low priority)
+1. Audit other `supabaseAdmin.from("notifications").update()` callsites for the same IDOR pattern (the helper-vs-route audit lesson from Round 2)
+2. Rate-limit `GET /api/notifications/:id` — Capacitor retry storms on 404 could amplify cost
+3. Sign-out cache-clear race tightening (use `useRef` + check current Clerk userId mid-flight)
+
+### Changes Since Last Deploy
+| Sub-session | Status | Summary |
+|-------------|--------|---------|
+| 42d | ⏳ Pending deploy | IDOR hotfix + truck icon + notifications inbox v1 |
+
+---
+
 ## Apr 27, 2026 (Monday) - Session 42: Second-Chance Flow End-to-End Fixes (Code Complete, Pending Deploy)
 
 ### Summary

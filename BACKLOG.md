@@ -780,6 +780,30 @@ Today's session wired a 5-second AbortSignal timeout on the hCaptcha siteverify 
 
 ---
 
+### Audit Other `supabaseAdmin` Notification Writes for IDOR Pattern
+**Priority:** Low (Post-Launch)
+**Status:** Pending
+**Added:** Apr 27, 2026 (Session 42d deep-dive Round 2)
+
+Round 2 of the notifications-inbox deep dive surfaced a pre-existing IDOR in `markNotificationRead` (`src/lib/auctionDb.ts:2030`) — the helper used `supabaseAdmin` and updated by `id` only, no `user_id` scope. Fixed in Session 42d. The pattern is broader: any helper that takes only an `id` parameter and uses `supabaseAdmin` to write to a user-owned table is a potential IDOR if the route's auth check is the only gate.
+
+Audit task: grep `supabaseAdmin.from(` for INSERT/UPDATE/DELETE callsites across all user-owned tables (notifications, comics, sales, offers, bids, second_chance_offers, watchlist, follows, key_info_suggestions). For each, confirm the helper signature includes the requesting user's id AND the WHERE clause scopes by it. Flag any helper that doesn't.
+
+Cheap hygiene win — prevents future regressions.
+
+---
+
+### Rate-Limit `GET /api/notifications/:id`
+**Priority:** Low (Post-Launch)
+**Status:** Pending
+**Added:** Apr 27, 2026 (Session 42d deep-dive Round 3)
+
+The new `GET /api/notifications/:id` endpoint (used by the inbox `?focus=<id>` deep-link) can amplify cost under Capacitor retry-storm scenarios — the iOS push notification system retries failed taps, each triggering a 404 lookup if the row was pruned. Add Upstash rate limit (5 req/10s per profile) when iOS native ships, before public launch.
+
+Not v1-blocking — Capacitor app isn't shipped yet.
+
+---
+
 ### Per-Profile Timezone Preference for Email Deadlines
 **Priority:** Low (Post-Launch)
 **Status:** Pending

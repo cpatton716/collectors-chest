@@ -434,3 +434,62 @@ Site-wide FAQ modal surfaced from `Navigation.tsx` (desktop) and `AskProfessor.t
   - **Internal link → close modal.** Delegated click handler on the FAQ list container closes the modal (`setShowProfessor(false)`) when the click target is inside an `<a>`. Works for the existing Seller Onboarding link and any future FAQ links without per-link wiring.
 
 **Key files:** `src/components/Navigation.tsx`, `src/components/AskProfessor.tsx`
+
+---
+
+## 28. Notifications Inbox (Session 42d, Apr 27 2026)
+
+Full-page `/notifications` view that complements the bell-dropdown preview. Mobile-first — the bell line-clamps message bodies and offers no escape route; the inbox renders full text with infinite scroll, per-row dismiss, and offline cache hydration. Designed to be the deep-link destination for Capacitor iOS push notifications once the native app ships.
+
+**Routing & deep-link contract:**
+- `getNotificationDeepLink(notification)` is the single source of truth across bell, inbox, email links, and the future Capacitor `PushNotifications` listener. When the notification carries an `auction_id` it links to `/shop?listing=<id>` (or `…&leave-feedback=true` for `rating_request`). When it doesn't (system-only types), it links to `/notifications?focus=<id>`.
+- The inbox reads `?focus=<id>` on mount and either scrolls/flash-highlights the row in the current page, or fetches it via `GET /api/notifications/:id` to confirm existence. On 404 (e.g., the row was pruned) it surfaces a toast and `router.replace`s the URL to clear the param so a remount doesn't re-trigger.
+
+**Pagination:**
+- Composite cursor `(created_at, id)` ordered DESC. Single-key cursors break under the cron's batch inserts (`processEndedAuctions`, `sendPaymentReminders`, `notifyFollowersOfNewListing`) which all share `now()` to the microsecond.
+- Wire format: base64 of `${createdAt}|${id}`, URL-safe (`+` → `-`, `/` → `_`, no padding).
+- Server-side `limit` capped at `NOTIFICATIONS_PAGE_LIMIT_MAX = 100`.
+- SQL builder uses PostgREST `.or("created_at.lt.X,and(created_at.eq.X,id.lt.Y)")` because the JS client doesn't natively express row-tuple `<`.
+
+**Auto-cleanup:**
+- `pruneOldNotifications()` cron pass (every 5 min via Netlify scheduled function): hard-deletes rows where `read_at < NOW() - 30d` AND rows where `is_read = false AND created_at < NOW() - 90d`. Returns counts; cron logs them.
+- Trade-off documented: email links pointing at `/notifications?focus=<id>` go 404-feeling after 30 days. Most email links target the underlying auction directly via `getNotificationDeepLink`, so this is a corner case for system-only types only.
+
+**Schema (migration `20260427_notifications_inbox.sql`):**
+- `read_at TIMESTAMPTZ NULL` (drives 30-day prune; backfilled to `created_at` for already-read rows)
+- `idx_notifications_user_created (user_id, created_at DESC)` — covers the cursor hot path
+- `idx_notifications_cleanup (read_at) WHERE read_at IS NOT NULL` — bounded prune index
+- New RLS DELETE policy `notifications_delete_policy USING (user_id = current_profile_id())` (defense-in-depth; the API uses `supabaseAdmin` so it bypasses RLS, but the policy stops anyone refactoring to the anon client)
+
+**Security:**
+- `markNotificationRead(notificationId, userId)` is now owner-scoped — a pre-existing IDOR (any auth'd user could mark anyone else's notification read by guessing UUIDs) was discovered in Round 2 of the deep dive and patched as part of this work.
+- `markAllNotificationsRead(userId, asOf?)` clamps to `created_at <= asOf` so notifications arriving mid-flight aren't silently swept; also narrows by `read_at IS NULL` for idempotent re-runs.
+- `DELETE /api/notifications/:id` does atomic `.eq("id", id).eq("user_id", profile.id)`, suspension check, and rejects `NON_DELETABLE_NOTIFICATION_TYPES` (`payment_missed_warning`, `payment_missed_flagged`, `auction_payment_expired`, `auction_payment_expired_seller`) — moderation/safety evidence the user shouldn't be able to erase.
+- `GET /api/notifications/:id` returns 404 (not 403) on owner mismatch to avoid leaking existence.
+
+**Bell behavior** (reversed from the original plan after Round 1's "liar badge" feedback):
+- Shows ALL notifications. System-only types (no `auction_id`) render dimmed + non-clickable with "View in inbox for details" hint. Badge count = ALL unread (honest math).
+- Footer adds "View all notifications →" link to `/notifications`.
+
+**Offline-first cache:**
+- `notificationsCache.ts` stores last successful inbox response in localStorage, profile-namespaced (`cc_notifications_inbox_<profileId>`), version-tagged (CACHE_VERSION = 1).
+- On fetch failure, hydrate from cache + show banner "Showing cached notifications. Tap to refresh →". Distinguishes offline-empty from true-empty so a user tapping a push from lock-screen doesn't see "You're all caught up" when their inbox actually has content.
+- Cleared on Clerk sign-out via `useEffect` watching `userId`.
+
+**Mobile/Capacitor decisions:**
+- No custom pull-to-refresh in v1 — iOS WKWebView's native bounce conflicts with JS-level pull events. Show "Last updated Xm ago — tap to refresh" pill instead. Defer to `@capacitor/pull-to-refresh` when native app ships.
+- 44×44pt transparent padding around the per-row X dismiss button + `e.stopPropagation()` to prevent fat-finger collision with the row tap.
+- Cards: min-height 88px, `line-clamp-3` on the message — long messages don't break the Lichtenstein bordered card layout.
+
+**Tests:** 20 new unit tests across `notificationCursor.test.ts` and `notificationLinks.test.ts`. Cursor tests cover encode/decode roundtrip + URL-safety + malformed-input tolerance + the PostgREST `.or()` builder. Link tests cover deep-link mapping + clickability predicate + `NON_DELETABLE_TYPES` membership matrix.
+
+**Three rounds of deep-dive review** before code: 3 Critical / 8 High / 9 Medium / 6 Low (R1) → 1 Critical / 2 High / 3 Medium (R2) → PASS with 2 minor follow-ups (R3, both captured for post-launch BACKLOG). Findings logged to `docs/superpowers/deep-dive-learnings.md`.
+
+**Key files:**
+- `src/lib/notificationLinks.ts`, `src/lib/notificationCursor.ts`, `src/lib/notificationsCache.ts`
+- `src/lib/auctionDb.ts` (helpers + IDOR fix)
+- `src/app/api/notifications/route.ts`, `src/app/api/notifications/[id]/route.ts`
+- `src/app/notifications/page.tsx`, `src/components/notifications/NotificationsInbox.tsx`
+- `src/components/NotificationBell.tsx`, `src/components/Navigation.tsx`
+- `supabase/migrations/20260427_notifications_inbox.sql`
+- `supabase/migrations/20260427_add_shipped_notification_type.sql` (companion: `shipped` notification type + Truck icon)

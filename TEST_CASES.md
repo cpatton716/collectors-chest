@@ -1961,4 +1961,45 @@ If you encounter bugs or unexpected behavior:
 
 ---
 
-*Last Updated: April 23, 2026*
+### Notifications Inbox v1 (Session 42d, Apr 27 2026)
+
+**Scope:** New `/notifications` full-page inbox under the More submenu. Bell continues to show last-50 preview with "View all →" footer. Auto-prune: read >30d and unread >90d hard-deleted by cron. Truck icon for `shipped` type. Pre-existing IDOR in `markNotificationRead` patched.
+
+**Preconditions:**
+- Migrations `20260427_add_shipped_notification_type.sql` and `20260427_notifications_inbox.sql` run in Supabase BEFORE deploy
+- Signed-in account with at least 5 notifications (mix of auction-targeted + system-only)
+
+| Test Case | Steps | Expected Result | Status |
+|-----------|-------|-----------------|--------|
+| **Inbox accessible from More submenu** | Sign in. Open the More dropdown. | "Inbox" entry visible at top of the menu with a Bell icon. Tap → lands on `/notifications`. | Pending |
+| **Inbox renders full message text** | Open `/notifications` with at least one notification whose message exceeds 100 chars (e.g., a `second_chance_offered` row). | Message renders in 3-line clamp at most, full text NOT truncated mid-word. Min row height 88px, Lichtenstein bordered card layout. | Pending |
+| **Bell footer "View all →" link** | Open the bell dropdown. | Footer shows "View all notifications →" link on the left, "Close" on the right. Tapping the link closes the dropdown and navigates to `/notifications`. | Pending |
+| **Bell shows ALL notifications** | Have a `payment_missed_warning` (system-only) and an `outbid` (auction-targeted) in the inbox. Open the bell. | Both rows visible. The system-only row is dimmed (opacity-70), non-clickable, and shows the "· View in inbox for details" hint. Badge count includes both. | Pending |
+| **System-only row tap is no-op in bell** | Tap the dimmed `payment_missed_warning` row in the bell. | Nothing happens — no navigation, no marking-read. (Open the inbox to interact with it.) | Pending |
+| **Cursor pagination — load more** | Have >50 notifications. Open `/notifications`. Scroll to the bottom. | Sentinel triggers; next page of up to 50 loads automatically. "Loading more…" indicator briefly visible. New rows appended below. | Pending |
+| **Composite cursor handles batch-inserted ties** | Have 51+ notifications where rows 50–52 share a `created_at` (batch insert from `processEndedAuctions`). Page through inbox. | Every row visible exactly once across page boundary. No duplicates, no drops. | Pending |
+| **Per-row dismiss (X button)** | Tap the X on a normal-lifecycle notification (e.g., `outbid`). | Row disappears immediately (optimistic). Badge decrements if it was unread. After ~1s, no rollback toast (server confirmed). Refresh page → row stays gone. | Pending |
+| **Dismiss network failure → rollback** | Block network in DevTools. Tap X on a notification. | Row disappears optimistically, then reappears within ~1s. Toast "Couldn't delete — try again." appears at bottom. | Pending |
+| **Non-deletable types hide X icon** | Find a `payment_missed_warning` in your inbox. | NO X icon visible on that row. Tapping the row marks-read + navigates as normal (or for system-only types, marks read + scrolls). | Pending |
+| **Non-deletable types reject DELETE API** | Get the id of a `payment_missed_warning` from DB. `curl -X DELETE /api/notifications/<id>` with valid auth cookie. | HTTP 403 with body `{"error": "This notification can't be dismissed. It contains account-safety information."}`. Row remains in DB. | Pending |
+| **Mark all as read** | Have 3+ unread notifications. Open `/notifications`. | Sticky "Mark all as read" button visible at top. Tap → all unread rows visually swap to read state, badge clears, button disappears. Refresh → state persists. | Pending |
+| **Mark all as read button hidden when 0 unread** | Open `/notifications` with all notifications already read. | "Mark all as read" button NOT rendered. Page still functional. | Pending |
+| **Mark all as read race-safe (asOf clamp)** | Have 5 unread. Click "Mark all as read." Immediately trigger a new notification (e.g., place a bid as another user that outbids you). Refresh inbox. | The 5 original notifications are read. The new outbid (created after the click) is still UNREAD. Badge shows 1. | Pending |
+| **`?focus=<id>` deep-link — row in current page** | Visit `/notifications?focus=<id-of-row-3>`. | Page scrolls row 3 into view + flashes a blue ring outline for ~1.5s. URL retains `?focus`. | Pending |
+| **`?focus=<id>` deep-link — row was pruned** | Visit `/notifications?focus=00000000-0000-0000-0000-000000000000` (any UUID not in DB). | Toast "Notification not found — it may have been cleared." appears at bottom. URL is `router.replace`d to `/notifications` (no `?focus` param). Page renders normally. | Pending |
+| **Empty state** | Sign in with an account that has zero notifications. Visit `/notifications`. | Centered Bell icon + "You're all caught up." headline + "New notifications will appear here." subhead. NO "Mark all as read" button. | Pending |
+| **Offline cache — hydration banner** | Open `/notifications` once online to populate cache. Disable network. Refresh page. | Page renders cached notifications immediately. Yellow banner across top: "Showing cached notifications. Tap to refresh →". | Pending |
+| **Sign-out clears cache** | Sign in as user A, open inbox to populate cache. Sign out. Sign in as user B (or open in incognito). | User A's cached notifications NOT visible to user B. Confirm `localStorage.cc_notifications_inbox_<userA-id>` is removed (DevTools → Application → Local Storage). | Pending |
+| **Auto-prune — read >30d** | Insert a test notification with `read_at = NOW() - INTERVAL '31 days'` directly in Supabase. Wait for next cron pass (or trigger via dev GET). | Row deleted from `notifications`. Cron logs `[prune] notifications: deletedRead=1`. | Pending |
+| **Auto-prune — unread >90d** | Insert a test notification with `is_read = false, created_at = NOW() - INTERVAL '91 days'`. Trigger cron. | Row deleted. Cron logs `[prune] notifications: deletedUnread=1`. | Pending |
+| **Auto-prune is idempotent** | Run cron 3 times in a row with no fresh notifications older than the cutoff. | All three runs return `deletedRead=0, deletedUnread=0`. No errors. | Pending |
+| **Truck icon on shipped notification** | Mark an auction as shipped via `/api/auctions/[id]/mark-shipped`. Open the bell. | "Your comic has shipped!" notification renders with a blue Truck icon (NOT the gray Clock that previously showed). | Pending |
+| **IDOR fix — markNotificationRead scoped** | As user A, find user B's notification id (via DB query in dev). `curl -X PATCH /api/notifications -H 'Content-Type: application/json' -d '{"notificationId":"<userB-notif-id>"}'` while authenticated as user A. | API returns success (200) BUT user B's notification is NOT marked read in the DB. (The `.eq("user_id", userId)` clause silently filters the UPDATE.) | Pending |
+| **Suspended user — DELETE returns 403** | Mark a test user as suspended. Sign in as that user. Try to dismiss a notification via `/api/notifications/[id]` DELETE. | API returns HTTP 403 with body `{"error": "Your account has been suspended."}`. Notification remains in DB. | Pending |
+| **Capacitor push tap (post-iOS-launch only)** | When iOS native ships, send a push notification with payload referencing a system-only type (e.g., `payment_missed_warning`). Tap it from lock screen. | App opens to `/notifications?focus=<id>` and scrolls/highlights the row. (Defer this test until Capacitor build exists.) | Deferred |
+| **Mobile bottom-bar safe-area on inbox** | Open `/notifications` on iPhone via PWA "Add to Home Screen." | Bottom of the inbox content respects iOS safe area; nothing hidden behind home indicator. Toast notification renders above safe area. | Pending |
+| **Android Chrome PWA — pull-to-refresh disabled** | Open `/notifications` on Android Chrome PWA. Pull down at the top of the inbox list. | No custom pull-to-refresh fires (we use the "tap to refresh" pill instead). Native browser overscroll bounce is acceptable. | Pending |
+
+---
+
+*Last Updated: April 27, 2026*

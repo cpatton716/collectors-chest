@@ -2,24 +2,17 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import { Bell, Check, Clock, DollarSign, Gavel, Star, Trophy, X } from "lucide-react";
+import { Bell, Check, Clock, DollarSign, Gavel, Star, Trophy, Truck } from "lucide-react";
+
+import {
+  getNotificationDeepLink,
+  isNotificationClickableInBell,
+} from "@/lib/notificationLinks";
 
 import { Notification, NotificationType } from "@/types/auction";
-
-// Derive the deep-link destination for a notification from its type + auctionId.
-// Keeps logic centralized so new notification types only need one line here.
-function deriveNotificationHref(notification: Notification): string | null {
-  if (!notification.auctionId) return null;
-  const base = `/shop?listing=${notification.auctionId}`;
-  switch (notification.type) {
-    case "rating_request":
-      return `${base}&leave-feedback=true`;
-    default:
-      return base;
-  }
-}
 
 interface NotificationBellProps {
   className?: string;
@@ -34,14 +27,15 @@ export function NotificationBell({ className = "" }: NotificationBellProps) {
   const panelRef = useRef<HTMLDivElement>(null);
 
   const handleNotificationClick = (notification: Notification) => {
+    // System-only notifications (no auction_id) render as non-clickable in
+    // the bell — the dimmed style + the "View all →" footer steer the
+    // user to the inbox page where the message can be read in full.
+    if (!isNotificationClickableInBell(notification)) return;
     if (!notification.isRead) {
       markAsRead(notification.id);
     }
-    const href = deriveNotificationHref(notification);
-    if (href) {
-      setIsOpen(false);
-      router.push(href);
-    }
+    setIsOpen(false);
+    router.push(getNotificationDeepLink(notification));
   };
 
   useEffect(() => {
@@ -139,6 +133,8 @@ export function NotificationBell({ className = "" }: NotificationBellProps) {
         return <Trophy className="w-4 h-4 text-yellow-500" />;
       case "ended":
         return <Clock className="w-4 h-4 text-gray-500" />;
+      case "shipped":
+        return <Truck className="w-4 h-4 text-blue-500" />;
       case "auction_sold":
         return <DollarSign className="w-4 h-4 text-green-500" />;
       case "payment_received":
@@ -206,44 +202,59 @@ export function NotificationBell({ className = "" }: NotificationBellProps) {
               </div>
             ) : (
               <div className="divide-y">
-                {notifications.map((notification) => (
-                  <div
-                    key={notification.id}
-                    onClick={() => handleNotificationClick(notification)}
-                    className={`flex items-start gap-3 px-4 py-3 hover:bg-gray-50 cursor-pointer ${
-                      !notification.isRead ? "bg-blue-50" : ""
-                    }`}
-                  >
-                    <div className="flex-shrink-0 w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
-                      {getIcon(notification.type)}
+                {notifications.map((notification) => {
+                  const clickable = isNotificationClickableInBell(notification);
+                  return (
+                    <div
+                      key={notification.id}
+                      onClick={() => handleNotificationClick(notification)}
+                      className={`flex items-start gap-3 px-4 py-3 ${
+                        clickable
+                          ? "hover:bg-gray-50 cursor-pointer"
+                          : "cursor-default opacity-70"
+                      } ${!notification.isRead ? "bg-blue-50" : ""}`}
+                    >
+                      <div className="flex-shrink-0 w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
+                        {getIcon(notification.type)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900">{notification.title}</p>
+                        <p className="text-sm text-gray-600 line-clamp-2">{notification.message}</p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          {formatTime(notification.createdAt)}
+                          {!clickable && (
+                            <span className="ml-2 italic">
+                              · View in inbox for details
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                      {!notification.isRead && (
+                        <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0 mt-2" />
+                      )}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900">{notification.title}</p>
-                      <p className="text-sm text-gray-600 line-clamp-2">{notification.message}</p>
-                      <p className="text-xs text-gray-400 mt-1">
-                        {formatTime(notification.createdAt)}
-                      </p>
-                    </div>
-                    {!notification.isRead && (
-                      <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0 mt-2" />
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
 
           {/* Footer */}
-          {notifications.length > 0 && (
-            <div className="border-t px-4 py-2">
-              <button
-                onClick={() => setIsOpen(false)}
-                className="w-full text-center text-sm text-gray-600 hover:text-gray-900 py-1"
-              >
-                Close
-              </button>
-            </div>
-          )}
+          <div className="border-t flex items-center justify-between px-4 py-2 gap-3">
+            <Link
+              href="/notifications"
+              onClick={() => setIsOpen(false)}
+              className="text-sm font-semibold text-blue-600 hover:text-blue-800"
+            >
+              View all notifications →
+            </Link>
+            <button
+              onClick={() => setIsOpen(false)}
+              className="text-sm text-gray-500 hover:text-gray-900"
+            >
+              Close
+            </button>
+          </div>
         </div>
       )}
     </div>

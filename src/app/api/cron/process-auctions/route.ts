@@ -6,6 +6,7 @@ import {
   expireSecondChanceOffers,
   expireUnpaidAuctions,
   processEndedAuctions,
+  pruneOldNotifications,
   sendPaymentReminders,
 } from "@/lib/auctionDb";
 
@@ -40,6 +41,15 @@ export async function POST(request: NextRequest) {
     // Expire old listings (30 day expiration)
     const listingResult = await expireListings();
 
+    // Prune old notifications (read >30d, unread >90d). Idempotent —
+    // returns counts so we can log how much was deleted per tick.
+    const pruneResult = await pruneOldNotifications();
+    if (pruneResult.deletedRead || pruneResult.deletedUnread) {
+      console.log(
+        `[prune] notifications: deletedRead=${pruneResult.deletedRead}, deletedUnread=${pruneResult.deletedUnread}`
+      );
+    }
+
     return NextResponse.json({
       success: true,
       auctions: {
@@ -66,6 +76,10 @@ export async function POST(request: NextRequest) {
         expired: listingResult.expired,
         expiring: listingResult.expiring,
         errors: listingResult.errors,
+      },
+      notifications: {
+        deletedRead: pruneResult.deletedRead,
+        deletedUnread: pruneResult.deletedUnread,
       },
     });
   } catch (error) {
@@ -82,23 +96,13 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Process ended auctions
     const auctionResult = await processEndedAuctions();
-
-    // Payment reminders
     const reminderResult = await sendPaymentReminders();
-
-    // Expire unpaid auctions
     const paymentExpiryResult = await expireUnpaidAuctions();
-
-    // Expire old offers
     const offerResult = await expireOffers();
-
-    // Expire Second Chance Offers
     const secondChanceExpiryResult = await expireSecondChanceOffers();
-
-    // Expire old listings
     const listingResult = await expireListings();
+    const pruneResult = await pruneOldNotifications();
 
     return NextResponse.json({
       success: true,
@@ -126,6 +130,10 @@ export async function GET(request: NextRequest) {
         expired: listingResult.expired,
         expiring: listingResult.expiring,
         errors: listingResult.errors,
+      },
+      notifications: {
+        deletedRead: pruneResult.deletedRead,
+        deletedUnread: pruneResult.deletedUnread,
       },
     });
   } catch (error) {
