@@ -52,6 +52,33 @@ import { getSubscriptionStatus, getTransactionFeePercent } from "./subscription"
 import { supabase, supabaseAdmin } from "./supabase";
 
 // ============================================================================
+// EMAIL FORMATTING HELPERS
+// ============================================================================
+
+/**
+ * Render a deadline timestamp for inclusion in transactional emails.
+ *
+ * Uses America/New_York and includes a short timezone abbreviation
+ * (e.g. "EDT", "EST") so recipients can interpret the time without
+ * ambiguity. Beta users are US-focused; this is a deliberately simple
+ * fix until per-profile timezone preferences land (BACKLOG, post-launch).
+ *
+ * Example output: "April 26, 2026 at 10:20 AM EDT"
+ */
+export function formatDeadlineForEmail(date: Date): string {
+  return new Intl.DateTimeFormat("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: "America/New_York",
+    timeZoneName: "short",
+  }).format(date);
+}
+
+// ============================================================================
 // AUCTION CRUD
 // ============================================================================
 
@@ -304,7 +331,67 @@ export async function getAuction(auctionId: string, userId?: string): Promise<Au
     }
   }
 
+  // Populate second-chance state for cancelled auctions so the seller's
+  // detail modal can render the "Offer to Runner-up" CTA. Only relevant
+  // when the viewer is the seller; skip for everyone else to save round-trips.
+  if (auction.status === "cancelled" && auction.isSeller) {
+    const secondChanceState = await getAuctionSecondChanceState(auctionId);
+    auction.hasRunnerUp = secondChanceState.hasRunnerUp;
+    auction.runnerUpLastBid = secondChanceState.runnerUpLastBid;
+    auction.secondChanceOfferStatus = secondChanceState.offerStatus;
+  }
+
   return auction;
+}
+
+/**
+ * For a cancelled auction, return whether a runner-up exists, their last
+ * actual bid, and the status of any existing second_chance_offers row.
+ *
+ * Used by the seller-facing AuctionDetailModal to decide whether to render
+ * the "Offer to Runner-up" CTA.
+ */
+async function getAuctionSecondChanceState(auctionId: string): Promise<{
+  hasRunnerUp: boolean;
+  runnerUpLastBid: number | null;
+  offerStatus: SecondChanceOffer["status"] | null;
+}> {
+  const [{ data: bids }, { data: offer }] = await Promise.all([
+    supabase
+      .from("bids")
+      .select("bidder_id, bid_amount, created_at")
+      .eq("auction_id", auctionId)
+      .order("bid_amount", { ascending: false })
+      .order("created_at", { ascending: true }),
+    supabase
+      .from("second_chance_offers")
+      .select("status")
+      .eq("auction_id", auctionId)
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  const offerStatus =
+    (offer?.status as SecondChanceOffer["status"] | undefined) ?? null;
+
+  if (!bids || bids.length < 2) {
+    return { hasRunnerUp: false, runnerUpLastBid: null, offerStatus };
+  }
+
+  const winnerBidderId = bids[0].bidder_id as string;
+  const runnerUpRow = bids.find(
+    (b) => (b.bidder_id as string) !== winnerBidderId
+  );
+
+  if (!runnerUpRow) {
+    return { hasRunnerUp: false, runnerUpLastBid: null, offerStatus };
+  }
+
+  return {
+    hasRunnerUp: true,
+    runnerUpLastBid: Number(runnerUpRow.bid_amount),
+    offerStatus,
+  };
 }
 
 /**
@@ -2194,7 +2281,7 @@ export async function processEndedAuctions(): Promise<{
                 issueNumber: comicData.issueNumber,
                 finalPrice,
                 listingUrl,
-                paymentDeadline: paymentDeadline.toLocaleString("en-US", { dateStyle: "long", timeStyle: "short" }),
+                paymentDeadline: formatDeadlineForEmail(paymentDeadline),
                 transactionsUrl: `${baseUrl}/transactions?tab=wins`,
               },
             }).catch((err) => console.error("[Email] auction_won failed:", err));
@@ -2904,10 +2991,7 @@ export async function sendPaymentReminders(): Promise<{
                 issueNumber: comicData.issueNumber,
                 finalPrice:
                   a.winning_bid != null ? a.winning_bid : comicData.price,
-                paymentDeadline: deadlineDate.toLocaleString("en-US", {
-                  dateStyle: "long",
-                  timeStyle: "short",
-                }),
+                paymentDeadline: formatDeadlineForEmail(deadlineDate),
                 hoursRemaining,
                 listingUrl: `${baseUrl}/shop?listing=${a.id}`,
                 transactionsUrl: `${baseUrl}/transactions?tab=wins`,
@@ -3069,6 +3153,34 @@ export async function expireUnpaidAuctions(): Promise<{
       );
     }
 
+    // Phase 1.5: Per-auction "suppress seller cancellation" decision. If a
+    // runner-up exists AND no second_chance_offers row has been created yet,
+    // we'll defer the seller's cancellation messaging in favor of the
+    // second_chance_available email fired in Phase 4. After the runner-up
+    // flow has completed (offer accepted/declined/expired), a second_chance_
+    // offers row exists and a subsequent expiry sends the cancellation
+    // normally — covering the case where the runner-up accepted but didn't
+    // pay within their own 48h window.
+    //
+    // Failure mode is "fail open": on error, we send the cancellation email.
+    // A documented double-email is safer than silent loss.
+    const suppressSellerCancellation = new Map<string, boolean>();
+    if (claimed.length > 0) {
+      await Promise.all(
+        claimed.map(async (a) => {
+          try {
+            const suppress = await shouldSuppressSellerCancellationEmail(a.id);
+            suppressSellerCancellation.set(a.id, suppress);
+          } catch (err) {
+            errors.push(
+              `Auction ${a.id}: suppression check failed ${String(err)}`
+            );
+            suppressSellerCancellation.set(a.id, false);
+          }
+        })
+      );
+    }
+
     // Phase 2: Batch-insert notifications for BOTH parties in a single
     // Supabase round-trip.
     let notificationsInserted = 0;
@@ -3096,15 +3208,17 @@ export async function expireUnpaidAuctions(): Promise<{
             offer_id: null,
           });
         }
-        notificationRows.push({
-          user_id: a.seller_id,
-          type: "auction_payment_expired_seller",
-          title: "Buyer did not pay in time",
-          message:
-            "The winning bidder did not pay within the 48-hour window. The auction has been cancelled and you may re-list the comic.",
-          auction_id: a.id,
-          offer_id: null,
-        });
+        if (!suppressSellerCancellation.get(a.id)) {
+          notificationRows.push({
+            user_id: a.seller_id,
+            type: "auction_payment_expired_seller",
+            title: "Buyer did not pay in time",
+            message:
+              "The winning bidder did not pay within the 48-hour window. The auction has been cancelled and you may re-list the comic.",
+            auction_id: a.id,
+            offer_id: null,
+          });
+        }
       }
 
       if (notificationRows.length > 0) {
@@ -3170,7 +3284,10 @@ export async function expireUnpaidAuctions(): Promise<{
               });
             }
 
-            if (sellerProfile?.email) {
+            if (
+              sellerProfile?.email &&
+              !suppressSellerCancellation.get(a.id)
+            ) {
               out.push({
                 to: sellerProfile.email,
                 type: "auction_payment_expired_seller",
@@ -3265,6 +3382,46 @@ export async function expireUnpaidAuctions(): Promise<{
 //   5. expireSecondChanceOffers — cron pass that flips unanswered
 //      second-chance offers to "expired" and notifies the seller.
 // ============================================================================
+
+/**
+ * Decide whether to suppress the seller's "buyer did not pay, listing
+ * cancelled" notification + email for a freshly cancelled auction.
+ *
+ * Returns true (suppress) iff:
+ *   - a runner-up exists in the bids table, AND
+ *   - no second_chance_offers row exists for this auction yet.
+ *
+ * The second_chance_available email/notification fired by Phase 4 covers
+ * this case. Returns false in all other branches:
+ *   - No runner-up → seller gets the standard cancellation messaging.
+ *   - second_chance_offers row exists → we've already been through the
+ *     runner-up flow once. A fresh expiry now means the runner-up accepted
+ *     and didn't pay within their own 48h window, so the cancellation
+ *     messaging is the right next signal for the seller.
+ */
+async function shouldSuppressSellerCancellationEmail(
+  auctionId: string
+): Promise<boolean> {
+  const { data: existingOffer } = await supabaseAdmin
+    .from("second_chance_offers")
+    .select("id")
+    .eq("auction_id", auctionId)
+    .limit(1)
+    .maybeSingle();
+  if (existingOffer) return false;
+
+  const { data: bids } = await supabaseAdmin
+    .from("bids")
+    .select("bidder_id")
+    .eq("auction_id", auctionId)
+    .order("bid_amount", { ascending: false })
+    .order("created_at", { ascending: true });
+
+  if (!bids || bids.length < 2) return false;
+
+  const winnerBidderId = bids[0].bidder_id as string;
+  return bids.some((b) => (b.bidder_id as string) !== winnerBidderId);
+}
 
 function transformDbSecondChanceOffer(
   row: Record<string, unknown>
@@ -3675,10 +3832,7 @@ export async function createSecondChanceOffer(
         comicTitle: comicData.comicTitle,
         issueNumber: comicData.issueNumber,
         offerPrice,
-        expiresAt: new Date(expiresAt).toLocaleString("en-US", {
-          dateStyle: "long",
-          timeStyle: "short",
-        }),
+        expiresAt: formatDeadlineForEmail(new Date(expiresAt)),
         responseUrl: `${baseUrl}/transactions?tab=wins`,
       },
     });

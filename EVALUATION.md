@@ -2,7 +2,7 @@
 
 > Launch readiness scorecard. See `BACKLOG.md` for open work items and `DEV_LOG.md` for session history.
 
-*Last Updated: April 24, 2026*
+*Last Updated: April 27, 2026*
 
 ---
 
@@ -10,7 +10,7 @@
 
 Collectors Chest is a comic book collection tracking app with AI-powered cover recognition and a new auction marketplace feature. The app is currently in **Private Beta** with public registration disabled.
 
-**Overall Score: 9.2/10** (up from 9.1/10 — Session 40 PROD testing round closed the Buy Now 500 blocker, fixed feedback-eligibility timing, unblocked free-tier sellers' sales view, fixed Active Bids 500, added FMV lookup endpoint for purchased comics, mobile modal sizing, FAQ polish, outbid email maxBid line, em dash sweep)
+**Overall Score: 9.3/10** (up from 9.2/10 — Session 42 closed three trust-blocking marketplace bugs surfaced in the Apr 24 PROD auction post-mortem: seller received both contradictory expiry emails simultaneously; the Second Chance flow had no seller CTA in either email or in-app paths; payment-deadline emails rendered server timezone (UTC) without a label and recipients mis-read "2:20 PM" as ET when actual expiry was 10:20 AM EDT)
 
 **Current Status: PRIVATE BETA**
 - Site is live at collectors-chest.com
@@ -119,7 +119,7 @@ Remaining items tracked in BACKLOG.md:
 - **Buy Now fixed-price listings** ✅ PROD-validated end-to-end Apr 23, 2026 (Session 40a hotfix resolved Stripe 2048-char image URL cap; full flow — checkout, payment, ship, ownership transfer, emails — verified in 40b)
 - **Stripe Connect fee split** ✅ Validated end-to-end (Apr 21, 2026) — `transfer.created` webhook firing correctly
 - **Payment deadline enforcement** ✅ Complete — checkout-time deadline guard, T-24h reminder cron, expire-unpaid-auctions cron, live countdown UI (Sessions 38 + 39)
-- **Second Chance Offer** ✅ Complete — seller-initiated 48h offer to runner-up when winner doesn't pay (Session 39)
+- **Second Chance Offer** ✅ Complete — seller-initiated 48h offer to runner-up when winner doesn't pay (Session 39); seller CTA now wired into `AuctionDetailModal` + Phase 3 cancellation email mutex preventing the contradictory "cancelled, relist ready" email from firing alongside (Session 42)
 - **Payment-Miss Strike System** ✅ Complete — warn on 1st offense, bid restriction on 2 strikes within 90 days (Session 39)
 - **Shipping tracking (Option A)** ✅ Mark-as-shipped with carrier + tracking number, fires buyer notification (Session 37)
 - **Auction audit log** ✅ Complete — 20 event types covering full lifecycle (Session 39)

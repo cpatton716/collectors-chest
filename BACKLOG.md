@@ -704,8 +704,11 @@ Losing / non-winning bidders currently get nothing before an auction ends. They 
 
 ### Payment Deadline Anchored to Cron Run Time Instead of Auction `end_time`
 **Priority:** Medium (Pre-Launch — buyer-facing deadline accuracy)
-**Status:** Pending
+**Status:** Pending — Apr 27, 2026 update: timezone display fixed (Session 42), deadline-anchor fix still open
 **Added:** Apr 24, 2026 (Session 41 PROD testing)
+**Updated:** Apr 27, 2026
+
+**Apr 27, 2026 update:** Session 42 fixed the *display* side of this bug — the buyer's email now renders the deadline in `America/New_York` with an explicit "EDT"/"EST" abbreviation (was previously formatted with the server's timezone, i.e. UTC, and presented to users as raw "2:20 PM" with no label, which they mis-read as ET). The underlying anchoring bug below is still real — `payment_deadline` is still persisted as `cron_run_time + 48h` instead of `auction.end_time + 48h`. With small cron lag (5–10 min) the discrepancy is invisible. With the ~3h42m lag observed Apr 24, it's a meaningful drift. Keep priority as Medium pre-launch.
 
 `processEndedAuctions` in `src/lib/auctionDb.ts:2138` calls `calculatePaymentDeadline()` with no argument, which defaults to `new Date()` (the moment the cron runs). This anchors the 48h payment window to the cron processing time, not the auction's actual `end_time`. If the cron is late, every winning bidder gets a proportionally longer window than the advertised 48 hours.
 
@@ -774,6 +777,23 @@ During Session 39, the Second Chance Offer agent discovered the `valid_notificat
 **Added:** Apr 23, 2026
 
 Today's session wired a 5-second AbortSignal timeout on the hCaptcha siteverify fetch to fail-fast during outages. Future enhancement: add 1-2 retries with short backoff for transient network errors before returning `network_error` to the user. Current behavior is fail-closed, which is correct, but retries would improve UX during brief connectivity blips.
+
+---
+
+### Per-Profile Timezone Preference for Email Deadlines
+**Priority:** Low (Post-Launch)
+**Status:** Pending
+**Added:** Apr 27, 2026 (Session 42)
+
+Session 42 hardcoded `America/New_York` + explicit "EDT"/"EST" abbreviation in transactional email deadline rendering (`formatDeadlineForEmail` in `src/lib/auctionDb.ts`). This is the right call for the US-focused beta — recipients now see "April 26, 2026 at 10:20 AM EDT" instead of an unlabeled UTC time.
+
+Once the user base grows beyond US Eastern, swap to per-profile timezone:
+- Add `profiles.timezone` column (text, e.g. `"America/Los_Angeles"`)
+- Auto-detect at signup via `Intl.DateTimeFormat().resolvedOptions().timeZone`
+- Add a settings selector
+- Pass user's tz into `formatDeadlineForEmail(date, timezone)` per email
+
+Deadline display is the only user-facing timestamp that matters today (auction close + payment expiry + second-chance expiry). Other surfaces (notifications page, transactions page) render relative time or browser-locale strings client-side, so this fix only needs to extend to the email layer.
 
 ---
 

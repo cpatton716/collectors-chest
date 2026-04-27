@@ -4,6 +4,68 @@ This log tracks session-by-session progress on Collectors Chest.
 
 ---
 
+## Apr 27, 2026 (Monday) - Session 42: Second-Chance Flow End-to-End Fixes (Code Complete, Pending Deploy)
+
+### Summary
+First three feedback items from PROD test continuation surfaced a partially broken Second Chance flow on the Apr 24 auction (Giant-Size X-Men #1, $6 winner unpaid, $5 runner-up). All three were code-complete in one session and bundled for deploy.
+
+### Bugs Surfaced
+1. **Both seller emails fired simultaneously** — At payment-expiry, the seller (`patton716`) received BOTH "Buyer didn't pay: cancelled, relist ready" AND "Second Chance Available" emails (timestamp 10:20 AM ET). The two paths in `expireUnpaidAuctions` were unconditional: Phase 3 sent the cancellation email/notification to all sellers; Phase 4's `handleRunnerUpForExpiredAuction` then ALSO sent the second-chance email when a runner-up existed.
+2. **No seller CTA to send the offer** — `SecondChanceOfferButton` component existed (`src/components/auction/SecondChanceOfferButton.tsx`) but was never imported anywhere. The "OFFER TO RUNNER-UP →" button in the email linked to `/shop?listing=<auctionId>`, which opened `AuctionDetailModal` — a modal that had no rendering branch for cancelled+seller. So neither the email nor the in-app path actually exposed a way to send the offer.
+3. **Buyer's payment-deadline email displayed UTC without a timezone label** — Email said "Apr 26, 2:20 PM" (with no abbreviation). Actual expiry fired ~10:20 AM ET. The 4-hour gap was the timezone offset: 14:20 UTC = 10:20 AM EDT, and `paymentDeadline.toLocaleString("en-US", {dateStyle, timeStyle})` rendered server-local time (Netlify Lambdas → UTC) without a `timeZone` argument or `timeZoneName: "short"`. Users mis-read the unlabeled "2:20 PM" as ET.
+
+### Fixes Shipped (code complete, deploy pending)
+
+**Bug 1 — Mutex on Phase 3 seller cancellation email/notification** (`src/lib/auctionDb.ts`)
+- New helper `shouldSuppressSellerCancellationEmail(auctionId)`: returns true iff a runner-up exists in `bids` AND no `second_chance_offers` row exists yet for the auction.
+- New "Phase 1.5" in `expireUnpaidAuctions` builds a `Map<auctionId, suppress>` (parallel + best-effort). Phase 2 (notification batch) and Phase 3 (email batch) gate the seller cancellation insert/push on `!suppressMap.get(a.id)`.
+- Critical case preserved per user request: if the runner-up accepts and then doesn't pay within their own 48h window, a `second_chance_offers` row exists, suppression returns false, and the cancellation email/notification fires correctly. Validated logically against all 4 second-chance offer states (no row / pending / accepted / declined / expired).
+- Failure mode is "fail open" — if the suppression check itself errors, we default to sending the cancellation. A documented double-email is safer than silent loss.
+
+**Bug 2 — Wire `SecondChanceOfferButton` into AuctionDetailModal**
+- Extended `Auction` type (`src/types/auction.ts`) with three optional fields: `hasRunnerUp`, `runnerUpLastBid`, `secondChanceOfferStatus`.
+- Added private `getAuctionSecondChanceState(auctionId)` helper in auctionDb.ts. `getAuction()` now populates the three fields when `status === "cancelled"` AND viewer is the seller (skips the round-trip for everyone else).
+- `AuctionDetailModal` renders a new "Buyer Did Not Pay" section for cancelled+seller. Branches on `secondChanceOfferStatus`:
+  - `null` + has runner-up → renders `SecondChanceOfferButton` (button → confirm modal → POST `/api/auctions/:id/second-chance`).
+  - `null` + no runner-up → "No runner-up bid was placed. The comic is back in your collection and ready to be re-listed."
+  - `"pending"` → "Second chance offer sent. The runner-up has 48 hours to accept or decline."
+  - `"accepted"` → "The runner-up accepted your offer. Awaiting their payment."
+  - `"declined"` / `"expired"` → "The comic is back in your collection and ready to be re-listed."
+- `onOfferCreated` callback re-runs `loadAuction()` so the section flips to the "pending" copy without a hard reload.
+
+**Bug 3 — Payment deadline rendered in ET with explicit timezone**
+- New `formatDeadlineForEmail(date)` exported helper in `auctionDb.ts`. Uses `Intl.DateTimeFormat("en-US", {…, timeZone: "America/New_York", timeZoneName: "short"})`. Output: `"April 26, 2026 at 10:20 AM EDT"`. Handles DST flip automatically (`"EST"` in winter).
+- Replaced 3 `toLocaleString` callsites: `auctionDb.ts:2197` (auction_won email), `auctionDb.ts:2907` (payment_reminder email), `auctionDb.ts:3678` (second_chance_offered runner-up email).
+- Added 3 unit tests in `src/lib/__tests__/auctionDbHelpers.test.ts`: DST → "EDT", standard time → "EST", regression test for the unlabeled-UTC bug.
+- BACKLOG entry added (Low / Post-Launch): per-profile timezone preference for when user base expands beyond US Eastern.
+
+### Files Modified
+- `src/lib/auctionDb.ts` — `formatDeadlineForEmail`, `shouldSuppressSellerCancellationEmail`, Phase 1.5 in `expireUnpaidAuctions`, gate in Phase 2 + Phase 3, `getAuctionSecondChanceState`, populate fields in `getAuction`, 3 deadline render-site swaps.
+- `src/types/auction.ts` — `hasRunnerUp` / `runnerUpLastBid` / `secondChanceOfferStatus` on `Auction`.
+- `src/components/auction/AuctionDetailModal.tsx` — import `SecondChanceOfferButton`; new "Buyer Did Not Pay" section.
+- `src/lib/__tests__/auctionDbHelpers.test.ts` — new test file (3 tests for `formatDeadlineForEmail`).
+- `BACKLOG.md` — yesterday's "Payment Deadline Anchored to Cron Run Time" item updated with Apr 27 context (display side fixed, anchor still open). New "Per-Profile Timezone Preference" item.
+
+### Open BACKLOG Item Touched
+- "Payment Deadline Anchored to Cron Run Time" — added Apr 27 context noting the display side is now fixed; the deadline anchor fix is still pending. Priority unchanged (Medium / Pre-Launch).
+
+### Quality Checks
+- TypeScript: clean (0 errors)
+- ESLint: 0 errors, 115 warnings (all pre-existing)
+- Tests: 748/748 passing across 48 suites (was 745/745 — added 3 new tests)
+- No build run yet — will run as part of Deploy command.
+
+### Pending User Actions
+1. Confirm understanding + approve deploy.
+2. After deploy: open `/shop?listing=<auctionId>` for the Apr 24 Giant-Size X-Men #1 auction (now status=cancelled with runner-up `pattonrt` at $5). Send the second-chance offer to validate the live flow with partner present.
+
+### Changes Since Last Deploy
+| Sub-session | Status | Summary |
+|-------------|--------|---------|
+| 42 | ⏳ Pending deploy | 3 fixes: seller-email mutex, SecondChanceOfferButton wire-up, ET timezone in deadline emails |
+
+---
+
 ## Apr 24, 2026 (Friday) - Session 41: PROD Auction Close Validation + Documentation Audit Pass
 
 ### Summary

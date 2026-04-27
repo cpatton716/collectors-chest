@@ -33,6 +33,7 @@ import { AuctionCountdown } from "./AuctionCountdown";
 import { BidForm } from "./BidForm";
 import { BidHistory } from "./BidHistory";
 import { PaymentButton } from "./PaymentButton";
+import { SecondChanceOfferButton } from "./SecondChanceOfferButton";
 import { SellerBadge } from "./SellerBadge";
 import { WatchlistButton } from "./WatchlistButton";
 
@@ -345,6 +346,56 @@ export function AuctionDetailModal({
                     <p className="text-sm text-gray-600 whitespace-pre-wrap">
                       {auction.description}
                     </p>
+                  </div>
+                )}
+
+                {/* Seller Controls — Cancelled (Second Chance Flow) */}
+                {auction.isSeller && auction.status === "cancelled" && (
+                  <div className="mt-6 pt-4 border-t">
+                    <h4 className="text-sm font-medium text-gray-700 mb-3">
+                      Buyer Did Not Pay
+                    </h4>
+                    {auction.hasRunnerUp &&
+                    auction.runnerUpLastBid != null &&
+                    !auction.secondChanceOfferStatus ? (
+                      <div className="space-y-2">
+                        <p className="text-sm text-gray-600">
+                          The winning bidder didn&apos;t pay in time. You can offer
+                          this comic to the runner-up at their last bid price.
+                          They&apos;ll have 48 hours to accept or decline.
+                        </p>
+                        <SecondChanceOfferButton
+                          auctionId={auction.id}
+                          runnerUpLastBid={auction.runnerUpLastBid}
+                          onOfferCreated={() => loadAuction()}
+                        />
+                      </div>
+                    ) : auction.secondChanceOfferStatus === "pending" ? (
+                      <p className="text-sm text-gray-600">
+                        Second chance offer sent. The runner-up has 48 hours to
+                        accept or decline.
+                      </p>
+                    ) : auction.secondChanceOfferStatus === "accepted" ? (
+                      <p className="text-sm text-gray-600">
+                        The runner-up accepted your offer. Awaiting their
+                        payment.
+                      </p>
+                    ) : auction.secondChanceOfferStatus === "declined" ? (
+                      <p className="text-sm text-gray-600">
+                        The runner-up declined. The comic is back in your
+                        collection and ready to be re-listed.
+                      </p>
+                    ) : auction.secondChanceOfferStatus === "expired" ? (
+                      <p className="text-sm text-gray-600">
+                        The runner-up didn&apos;t respond in 48 hours. The comic is
+                        back in your collection and ready to be re-listed.
+                      </p>
+                    ) : (
+                      <p className="text-sm text-gray-600">
+                        No runner-up bid was placed. The comic is back in your
+                        collection and ready to be re-listed.
+                      </p>
+                    )}
                   </div>
                 )}
 

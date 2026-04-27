@@ -117,6 +117,12 @@ export interface Auction {
   isWatching?: boolean;
   isSeller?: boolean;
   userBid?: Bid | null;
+
+  // Second-chance state (populated for cancelled auctions; lets the seller
+  // see whether they can still offer the comic to a runner-up).
+  hasRunnerUp?: boolean;
+  runnerUpLastBid?: number | null;
+  secondChanceOfferStatus?: SecondChanceOffer["status"] | null;
 }
 
 export interface CreateAuctionInput {
