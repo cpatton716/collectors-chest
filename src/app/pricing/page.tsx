@@ -305,7 +305,7 @@ export default function PricingPage() {
             />
             <FAQ
               question="How does the seller fee work?"
-              answer="When you sell a comic in the Shop, we deduct a platform fee from the sale price — 8% on Free, 5% on Premium. The rate is set when you create the listing and stays with that listing through to the sale, even if you change tiers afterward. Stripe's payment-processing fee is separate and is paid by Collectors Chest, not by you — for example, on a $100 sale at 8%, you receive exactly $92.00."
+              answer="When you sell a comic in the Shop, we deduct a platform fee from the sale price — 8% on Free, 5% on Premium, with a $0.75 minimum per sale. The rate is set when you create the listing and stays with that listing through to the sale, even if you change tiers afterward. Stripe's payment-processing fee is separate and is paid by Collectors Chest, not by you — for example, on a $100 sale at 8%, you receive exactly $92.00."
             />
             <FAQ
               question="Do purchased scans expire?"

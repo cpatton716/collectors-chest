@@ -133,20 +133,21 @@ Mobile-first quick-lookup: cover scan or manual entry → grade selector → `/a
 ---
 
 ## 11. Auction & Fixed-Price Marketplace
-Two listing types: timed auction (1-14 days, proxy bidding) and fixed-price (30-day, accepts offers). Offer negotiation (max 3 rounds, 7-day expiry). Stripe Connect (Express) for seller payouts via destination charges. Transaction fees: 8% free / 5% premium (seller-favorable `Math.floor` rounding). Cron-driven auction processing, listing expiration, and offer expiration.
+Two listing types: timed auction (1-14 days, proxy bidding) and fixed-price (30-day, accepts offers). Offer negotiation (max 3 rounds, 7-day expiry). Stripe Connect (Express) for seller payouts via destination charges. Transaction fees: 8% free / 5% premium with a **$0.75 minimum per sale** (seller-favorable `Math.floor` rounding above the floor). Cron-driven auction processing, listing expiration, and offer expiration.
 
 **Transaction fee mechanics — snapshotted at listing time, not checkout time:**
 
-The fee is determined by the seller's subscription tier *at the moment the listing is created*, not when the buyer pays. Flow:
+The fee *rate* (5% or 8%) is determined by the seller's subscription tier *at the moment the listing is created*, not when the buyer pays. The minimum fee floor is a current constant, applied at checkout. Flow:
 
 1. `createAuction` (`src/lib/auctionDb.ts:112-115`) and `createFixedPriceListing` (`src/lib/auctionDb.ts:207-210`) call `getTransactionFeePercent(sellerId)` at write time and persist the result to `auctions.platform_fee_percent` (5 for premium/trialing, 8 for free — see `src/lib/subscription.ts:655-663`).
-2. `/api/checkout` reads the stored `platform_fee_percent` off the listing row (`src/app/api/checkout/route.ts:151-154`) — *not* the seller's current tier — and passes it through `calculateDestinationAmount(totalCents, feePercent)` (`src/lib/stripeConnect.ts:12`) to compute `sellerAmount = totalCents - floor(totalCents × feePercent / 100)`.
+2. `/api/checkout` reads the stored `platform_fee_percent` off the listing row (`src/app/api/checkout/route.ts:151-154`) — *not* the seller's current tier — and passes it through `calculateDestinationAmount(totalCents, feePercent)` (`src/lib/stripeConnect.ts`) to compute `sellerAmount = totalCents - max(MIN_PLATFORM_FEE_CENTS, floor(totalCents × feePercent / 100))`, capped so the seller payout can never go negative.
 3. Stripe Checkout receives `payment_intent_data.transfer_data.destination` (the seller's Connect account ID) + `amount: sellerAmount`. No `application_fee_amount`, no `on_behalf_of`. No platform-fee configuration in the Stripe Dashboard — the split is 100% code-driven.
 
 **Snapshot consequences (intentional, not a bug):**
 - Premium seller lists, then cancels Premium → that listing still settles at 5% on purchase.
 - Free seller lists, then upgrades to Premium → that listing still settles at 8% on purchase.
-- Premium incentive is "list while you're Premium." If a future requirement is to recompute the fee at checkout, the change is `auctionDb.ts:115` and `:210` (drop the snapshot writes) plus `checkout/route.ts:151-154` (call `getTransactionFeePercent(listing.seller_id)` instead of reading the column).
+- Premium incentive is "list while you're Premium." If a future requirement is to recompute the rate at checkout, the change is `auctionDb.ts:115` and `:210` (drop the snapshot writes) plus `checkout/route.ts:151-154` (call `getTransactionFeePercent(listing.seller_id)` instead of reading the column).
+- The $0.75 floor is **not** snapshotted — it's a const in `stripeConnect.ts` applied at checkout. Changing the floor affects all future settlements regardless of when the listing was created. If we ever need a snapshotted floor (so a price increase doesn't retroactively hit live listings), add `auctions.platform_fee_min_cents` and write it alongside `platform_fee_percent`.
 
 **Stripe processing fee (~2.9% + $0.30) — paid by platform, not seller:**
 
@@ -155,13 +156,29 @@ The destination-charge model means the platform is the merchant of record. The b
 Worked example — $100 sale, 8% (free seller):
 - Buyer pays $100.00 flat.
 - Stripe deducts ~$3.20 processing fee from gross → platform balance gains $96.80.
-- Stripe transfers `sellerAmount = 100 - floor(100 × 0.08) = $92.00` to the seller's Connect account.
+- Stripe transfers `sellerAmount = 100 - floor(100 × 0.08) = $92.00` to the seller's Connect account (8% percent-fee is well above the $0.75 floor, so floor doesn't apply).
 - Platform net: $96.80 − $92.00 = **~$4.80**.
 - Seller net: $92.00.
 
 Same sale at 5% (premium seller): platform net **~$1.80**, seller net $95.00.
 
-Small-ticket caveat: the $0.30 Stripe fixed cost dominates micro-sales. A $6 sale at 8% nets the platform ~$0.01 ($0.48 fee − $0.47 Stripe). Worth flagging if a min-fee floor is ever considered.
+**$0.75 minimum platform fee floor (Session 42, Apr 27 2026):**
+
+Below the percent-fee/Stripe-fee break-even point, every sale lost the platform money:
+- Free tier (8%) break-even: $5.88. Premium (5%) break-even: $14.29.
+- April 27 PROD validation showed a $2 test sale at 8% nets the platform −$0.20 (Stripe pulls the difference from future charges).
+
+Floor sized to keep every sale gross-positive after Stripe's $0.30 + 2.9%. Above $9.38 (8%) and $15.00 (5%) the percent-fee already exceeds the floor, so the floor is invisible to typical comic sales. Below those thresholds, the seller pays $0.75 instead of the smaller percent-fee.
+
+Worked example — $5 sale, 8% (free seller):
+- Without floor: fee = $0.40, seller gets $4.60, platform nets $4.55 − $4.60 = **−$0.05**.
+- With floor: fee = $0.75 (max of $0.40 and $0.75), seller gets $4.25, platform nets $4.55 − $4.25 = **$0.30**.
+
+Worked example — $10 sale, 5% (premium seller):
+- Without floor: fee = $0.50, seller gets $9.50, platform nets $9.41 − $9.50 = **−$0.09**.
+- With floor: fee = $0.75, seller gets $9.25, platform nets $9.41 − $9.25 = **$0.16**.
+
+Edge case — $0.50 sale: percent-fee would be $0.04, floor wants $0.75, but the cap at `totalCents` ensures the seller payout never goes negative. Platform takes the full $0.50, seller gets $0.00. Still a loss for the platform once Stripe fees apply, but only an issue if anyone lists at sub-floor prices (rare; we may add a listing-price floor as a follow-up if abuse appears).
 
 **Session 36 changes (April 21, 2026):**
 - **Stripe Connect fully enabled in both test and live mode.** Destination-charge fee splits validated end-to-end on localhost with test keys (5% premium tier and 8% free tier both verified). Live webhook endpoint now subscribed to `account.updated` (8 of 8 events configured).

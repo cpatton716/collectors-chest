@@ -1,4 +1,5 @@
 import {
+  MIN_PLATFORM_FEE_CENTS,
   calculateDestinationAmount,
   isConnectOnboardingComplete,
   buildOnboardingReturnUrl,
@@ -8,7 +9,8 @@ import {
 
 describe("stripeConnect", () => {
   describe("calculateDestinationAmount", () => {
-    it("calculates seller amount for free tier (8% fee)", () => {
+    it("calculates seller amount for free tier (8% fee) on a $100 sale", () => {
+      // $100 × 8% = $8.00 (above $0.75 floor) → percent-fee wins
       const result = calculateDestinationAmount(10000, 8);
       expect(result).toEqual({
         sellerAmount: 9200,
@@ -16,7 +18,8 @@ describe("stripeConnect", () => {
       });
     });
 
-    it("calculates seller amount for premium tier (5% fee)", () => {
+    it("calculates seller amount for premium tier (5% fee) on a $100 sale", () => {
+      // $100 × 5% = $5.00 (above $0.75 floor) → percent-fee wins
       const result = calculateDestinationAmount(10000, 5);
       expect(result).toEqual({
         sellerAmount: 9500,
@@ -24,23 +27,63 @@ describe("stripeConnect", () => {
       });
     });
 
-    it("handles small amounts correctly", () => {
+    it("rounds percent-fee down to nearest cent (seller-favorable) when above the floor", () => {
+      // $20.07 × 8% = $1.6056 → floor($1.6056) = $1.60 (well above $0.75 floor)
+      const result = calculateDestinationAmount(2007, 8);
+      expect(result.platformFee).toBe(160);
+      expect(result.sellerAmount).toBe(1847);
+    });
+
+    it("applies the $0.75 floor when 8% would yield less", () => {
+      // $5.00 × 8% = $0.40 → floor wins → fee = $0.75
       const result = calculateDestinationAmount(500, 8);
       expect(result).toEqual({
-        sellerAmount: 460,
-        platformFee: 40,
+        sellerAmount: 425,
+        platformFee: 75,
       });
     });
 
-    it("rounds fee down to nearest cent (seller-favorable)", () => {
-      const result = calculateDestinationAmount(733, 8);
-      expect(result.platformFee).toBe(58);
-      expect(result.sellerAmount).toBe(675);
+    it("applies the $0.75 floor when 5% premium would yield less on a $10 sale", () => {
+      // $10.00 × 5% = $0.50 → floor wins → fee = $0.75
+      const result = calculateDestinationAmount(1000, 5);
+      expect(result).toEqual({
+        sellerAmount: 925,
+        platformFee: 75,
+      });
+    });
+
+    it("uses percent-fee at the 8% break-even (just above floor)", () => {
+      // $9.38 × 8% = $0.7504 → floor($0.75) ties, percent-fee path is taken
+      const result = calculateDestinationAmount(938, 8);
+      expect(result.platformFee).toBe(75);
+      expect(result.sellerAmount).toBe(863);
+    });
+
+    it("uses percent-fee at the 5% break-even (just above floor)", () => {
+      // $15.00 × 5% = $0.75 → exactly the floor → either path gives the same answer
+      const result = calculateDestinationAmount(1500, 5);
+      expect(result.platformFee).toBe(75);
+      expect(result.sellerAmount).toBe(1425);
+    });
+
+    it("never lets the platform fee exceed the sale total (seller payout never negative)", () => {
+      // $0.50 sale × 8% = $0.04, floor would be $0.75 → cap at $0.50
+      // Seller gets $0.00, platform gets $0.50. Stripe still loses money on this
+      // sale, but the seller's payout is guaranteed non-negative.
+      const result = calculateDestinationAmount(50, 8);
+      expect(result).toEqual({
+        sellerAmount: 0,
+        platformFee: 50,
+      });
     });
 
     it("handles zero amount", () => {
       const result = calculateDestinationAmount(0, 8);
       expect(result).toEqual({ sellerAmount: 0, platformFee: 0 });
+    });
+
+    it("exposes MIN_PLATFORM_FEE_CENTS as 75 (regression: floor must not be silently changed)", () => {
+      expect(MIN_PLATFORM_FEE_CENTS).toBe(75);
     });
   });
 

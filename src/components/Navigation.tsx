@@ -99,7 +99,7 @@ const faqs = [
   {
     question: "What does it cost me to sell on Collectors Chest?",
     answer:
-      "We charge a flat platform fee on each completed sale — 8% on Free accounts, 5% on Premium. The rate is locked at the moment you create the listing, so changing tiers later doesn't change fees on listings that are already up. Stripe's processing fee is on us, not you. Sell a $100 comic on Free and you receive $92.00; on Premium you receive $95.00.",
+      "We charge a flat platform fee on each completed sale — 8% on Free accounts, 5% on Premium — with a $0.75 minimum per sale. The rate is locked at the moment you create the listing, so changing tiers later doesn't change fees on listings that are already up. Stripe's processing fee is on us, not you. Sell a $100 comic on Free and you receive $92.00; on Premium you receive $95.00. The $0.75 minimum only kicks in on small sales (below $9.38 on Free, below $15.00 on Premium).",
   },
   {
     question: "What happens after I buy a comic?",
