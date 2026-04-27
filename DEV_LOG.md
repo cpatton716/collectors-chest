@@ -59,10 +59,11 @@ First three feedback items from PROD test continuation surfaced a partially brok
 1. Confirm understanding + approve deploy.
 2. After deploy: open `/shop?listing=<auctionId>` for the Apr 24 Giant-Size X-Men #1 auction (now status=cancelled with runner-up `pattonrt` at $5). Send the second-chance offer to validate the live flow with partner present.
 
+### Deploy
+- Pushed to main at commit `42f2caa` → Netlify auto-deploy.
+
 ### Changes Since Last Deploy
-| Sub-session | Status | Summary |
-|-------------|--------|---------|
-| 42 | ⏳ Pending deploy | 3 fixes: seller-email mutex, SecondChanceOfferButton wire-up, ET timezone in deadline emails |
+*(empty — Session 42 deployed at `42f2caa`)*
 
 ---
 
