@@ -86,7 +86,7 @@ export function SecondChanceOfferButton({
           <button
             onClick={handleConfirm}
             disabled={isLoading}
-            className="px-4 py-2 bg-pop-blue text-white font-bold rounded-md hover:bg-blue-700 disabled:bg-gray-400 text-sm inline-flex items-center gap-2"
+            className="px-4 py-2 bg-green-600 text-white font-bold rounded-md hover:bg-green-700 disabled:bg-gray-400 text-sm inline-flex items-center gap-2"
           >
             {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
             Send Offer
