@@ -86,8 +86,11 @@ export function NotificationsInbox() {
   const searchParams = useSearchParams();
   const focusId = searchParams.get("focus");
   const { user, isLoaded: userLoaded } = useUser();
-  const profileId = user?.publicMetadata?.profileId as string | undefined;
-  const previousProfileIdRef = useRef<string | null>(null);
+  // Cache key uses Clerk user.id — always available on signed-in users and
+  // unique per account. Profile.id (Supabase) isn't exposed to the client by
+  // default; the API route does that mapping server-side.
+  const cacheKey = user?.id ?? null;
+  const previousCacheKeyRef = useRef<string | null>(null);
 
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -126,11 +129,14 @@ export function NotificationsInbox() {
   );
 
   // Initial load — try cache first for instant render, then fetch fresh.
+  // Don't gate on cacheKey: the API uses the Clerk session cookie directly,
+  // so we can fetch without knowing the cache key. We just skip the cache
+  // read/write when there's no key yet.
   useEffect(() => {
-    if (!profileId) return;
+    if (!userLoaded) return;
     let cancelled = false;
 
-    const cached = readNotificationsCache(profileId);
+    const cached = cacheKey ? readNotificationsCache(cacheKey) : null;
     if (cached) {
       setNotifications(cached.notifications);
       setUnreadCount(cached.unreadCount);
@@ -147,7 +153,9 @@ export function NotificationsInbox() {
         setNextCursor(result.nextCursor);
         setHydratedFromCache(false);
         setLastUpdatedAt(new Date());
-        writeNotificationsCache(profileId, result.notifications, result.unreadCount);
+        if (cacheKey) {
+          writeNotificationsCache(cacheKey, result.notifications, result.unreadCount);
+        }
       } else if (!cached) {
         // Network failed AND no cache — still show empty state without
         // the "you're all caught up" lie.
@@ -159,25 +167,25 @@ export function NotificationsInbox() {
     return () => {
       cancelled = true;
     };
-  }, [profileId, fetchPage]);
+  }, [userLoaded, cacheKey, fetchPage]);
 
   // Sign-out cleanup: when Clerk reports null user, drop the cache for
-  // the previously-signed-in profile.
+  // the previously-signed-in account.
   useEffect(() => {
-    if (profileId) {
-      previousProfileIdRef.current = profileId;
+    if (cacheKey) {
+      previousCacheKeyRef.current = cacheKey;
       return;
     }
-    if (userLoaded && !profileId && previousProfileIdRef.current) {
-      clearNotificationsCache(previousProfileIdRef.current);
-      previousProfileIdRef.current = null;
+    if (userLoaded && !cacheKey && previousCacheKeyRef.current) {
+      clearNotificationsCache(previousCacheKeyRef.current);
+      previousCacheKeyRef.current = null;
     }
-  }, [profileId, userLoaded]);
+  }, [cacheKey, userLoaded]);
 
   // Poll unread count quietly (don't refresh the list — too disruptive
   // mid-scroll).
   useEffect(() => {
-    if (!profileId) return;
+    if (!userLoaded || !user) return;
     const interval = setInterval(async () => {
       try {
         const res = await fetch("/api/notifications?countOnly=true");
@@ -190,7 +198,7 @@ export function NotificationsInbox() {
       }
     }, POLL_INTERVAL_MS);
     return () => clearInterval(interval);
-  }, [profileId]);
+  }, [userLoaded, user]);
 
   // Focus-on-mount: if `?focus=<id>` is in the URL, scroll the row into
   // view and flash-highlight. If the row isn't in the current page, fetch
@@ -331,16 +339,18 @@ export function NotificationsInbox() {
   const handleManualRefresh = useCallback(async () => {
     setIsLoading(true);
     const result = await fetchPage(null);
-    if (result && profileId) {
+    if (result) {
       setNotifications(result.notifications);
       setUnreadCount(result.unreadCount);
       setNextCursor(result.nextCursor);
       setHydratedFromCache(false);
       setLastUpdatedAt(new Date());
-      writeNotificationsCache(profileId, result.notifications, result.unreadCount);
+      if (cacheKey) {
+        writeNotificationsCache(cacheKey, result.notifications, result.unreadCount);
+      }
     }
     setIsLoading(false);
-  }, [fetchPage, profileId]);
+  }, [fetchPage, cacheKey]);
 
   const lastUpdatedLabel = useMemo(() => {
     if (!lastUpdatedAt) return null;

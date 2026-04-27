@@ -10,6 +10,7 @@ import { useUser } from "@clerk/nextjs";
 import {
   ArrowLeftRight,
   BarChart3,
+  Bell,
   BookOpen,
   DollarSign,
   Gavel,
@@ -166,6 +167,7 @@ export function MobileNav() {
 
   // Registered drawer items
   const registeredDrawerItems: DrawerItem[] = [
+    { href: "/notifications", icon: Bell, label: "Inbox" },
     { href: "/messages", icon: MessageSquare, label: "Messages" },
     { href: "/transactions", icon: Wallet, label: "Transactions" },
     { href: "/sales", icon: DollarSign, label: "Sales" },
