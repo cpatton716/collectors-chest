@@ -62,8 +62,25 @@ First three feedback items from PROD test continuation surfaced a partially brok
 ### Deploy
 - Pushed to main at commit `42f2caa` → Netlify auto-deploy.
 
+### Continued (Apr 27, post-deploy)
+
+**Sub-session 42b — UX polish + fee documentation pass (deployed at `f0330f3`):**
+- SecondChanceOffer confirm dialog: "Send Offer" button moved from blue to green so the affirmative action reads clearer next to the gray Cancel. Initial CTA stays blue. (commit `f698f32`)
+- User asked whether FAQs explain the 5%/8% mechanics. Audit found the pricing FAQ had a single one-liner (no snapshot, no Stripe-fee clarification), the Navigation "Ask the Professor" FAQ had no entry on seller fees, and Terms 4.5 said "Stripe fees are separate and in addition" — sellers would naturally read that as "I pay Stripe on top of your fee," contradicting our destination-charge implementation. Pricing FAQ expanded, new Navigation FAQ added ("What does it cost me to sell on Collectors Chest?"), Terms 4.5 rewritten to state explicitly that Stripe fees are absorbed by the Company. `docs/TECHNICAL_FEATURES.md` Feature #11 expanded with full snapshot mechanics (file:line refs), worked numeric examples at 5% and 8%, and the small-ticket caveat that surfaced the fee-floor decision. (commit `f0330f3`)
+
+**Sub-session 42c — $0.75 minimum platform fee floor (pending deploy):**
+- User flagged that the Apr 26 $2 PROD test transaction was unprofitable (8% × $2 = $0.16 fee vs Stripe's $0.36 cost = −$0.20 platform net). Break-even analysis: free tier (8%) breaks even at $5.88; premium (5%) at $14.29. Below those numbers, every sale loses money.
+- Implemented Option A (industry standard, used by eBay/Mercari/Discogs): `MIN_PLATFORM_FEE_CENTS = 75` exported const in `src/lib/stripeConnect.ts`. `calculateDestinationAmount` now does `Math.max(percentFee, MIN_PLATFORM_FEE_CENTS)`, capped at `totalCents` so the seller payout can never go negative.
+- Floor is invisible above $9.38 (8%) / $15.00 (5%) — 95%+ of typical comic sales unaffected.
+- User direction: "I'm okay with the site not being loaded with dollar bin books" — i.e., the friction added on sub-$10 sales is acceptable as a soft signal toward higher-value listings.
+- Existing 22 `stripeConnect` tests refreshed (1 expectation flipped: $5 sale at 8% now yields $0.75 floor instead of $0.40 percent-fee). 5 new tests covering: floor application at 8%, floor application at 5%, percent-fee at 8% break-even, percent-fee at 5% break-even, never-negative-payout cap (sub-floor sales).
+- FAQ + Terms 4.5 + TECHNICAL_FEATURES.md Feature #11 all updated to mention the $0.75 minimum and explain when it kicks in.
+
+### Sub-session 42c deploy
+- Pushed to main at commit `1adca18` → Netlify auto-deploy.
+
 ### Changes Since Last Deploy
-*(empty — Session 42 deployed at `42f2caa`)*
+*(empty — Sub-session 42c deployed at `1adca18`)*
 
 ---
 
