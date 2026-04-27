@@ -4,6 +4,50 @@ This log tracks session-by-session progress on Collectors Chest.
 
 ---
 
+## Apr 24, 2026 (Friday) - Session 41: PROD Auction Close Validation + Documentation Audit Pass
+
+### Summary
+First-ever real-money PROD auction close test. Giant-Size X-Men #1 ended ~10:38 a.m. ET; collector-patton was the winner at $6.00. Surfaced one real bug, did a focused documentation audit of `docs/TECHNICAL_FEATURES.md`, and decided to let the 48h payment window expire naturally to validate the Second Chance Offer flow with the user's partner present (no manual fast-forwarding). No code shipped — docs-only session.
+
+### Validated in PROD
+- **Auction-won email** delivered to collector-patton on close. Subject: "Congratulations, you won Giant-Size X-Men #1!". Comic-themed Collectors Chest header, clear "Final price: $6.00", and the "Complete payment by ..." CTA rendered in a distinct (red/orange) color. User feedback: liked the visual standout on the deadline copy. ✅
+- **Winner notification** logged on close. ✅
+
+### Bug Surfaced
+**Payment deadline anchored to cron run time instead of `auction.end_time`.** The won email displayed deadline of **April 26, 2:20 PM** — ~51.5 hours after the auction's actual end_time, not the advertised 48 hours. Root cause traced: `processEndedAuctions` at `src/lib/auctionDb.ts:2138` calls `calculatePaymentDeadline()` with no argument, which defaults to `new Date()` (cron run time). Auction ended at 10:38 a.m. but cron didn't process it until ~2:20 p.m. (~3h42m gap). Fix is one-line: pass `new Date(auction.end_time)`. Other 4 call sites (Buy Now / offer accepted / second-chance accepted) correctly anchor to `new Date()` — those are the moment the transaction starts, not a scheduled end. Captured as **BACKLOG → Medium (Pre-Launch)** with the fix sketch + audit-other-call-sites checklist + cron-lag note. User direction: "5 to 10 min cron lag is acceptable" — fix above makes deadline robust to any lag.
+
+### Documentation Audit Pass
+- **Mental-model correction:** ARCHITECTURE.md is the system overview (route table, cron pipeline, flow diagrams, DB tables, audit events, components); `docs/TECHNICAL_FEATURES.md` is the per-feature deep-dive. Feature specs (full schema fields, state transitions, idempotency rules, race-safety notes) belong in TECHNICAL_FEATURES.md. Memory entry added (`feedback_doc_layering.md`) so this distinction sticks.
+- **Feature #22 (Second Chance Offer) tightened in TECHNICAL_FEATURES.md** — closed 6 gaps: schema columns enumerated (with explicit callout that the column is `runner_up_profile_id`, not `recipient_profile_id`); notification-type count corrected from "7" to **5** (verified against `src/types/auction.ts:39-43`); runner-up selection rule documented (ordering by `bid_amount DESC, created_at ASC`, ties broken by earliest `created_at`, single-bidder guard); idempotency guard in `handleRunnerUpForExpiredAuction` documented; auction-row state transitions on accept enumerated (status='ended', winner_id=runnerUp, winning_bid=offer_price, payment_status='pending', payment_deadline=NOW()+48h, payment_expired_at=NULL) including the non-transactional caveat; post-accept downstream behavior (mark-shipped + feedback eligibility identical to a normal win).
+- **Whole-doc audit of TECHNICAL_FEATURES.md** (27 features total, 391 lines) found one 🔴 correctness drift in **Feature #20 — Email System**: doc said preference columns were `profiles.notify_marketplace`/`notify_social`/`notify_marketing`, actual columns are `profiles.email_pref_marketplace`/`email_pref_social`/`email_pref_marketing` (verified against `supabase/migrations/20260423_notification_preferences.sql:14-16` and `src/lib/notificationPreferences.ts:115-128`). Anyone querying or implementing downstream would have hit a dead end. Fixed.
+- Test-count drift in Feature #20: doc said "49 unit tests", actual is 29. Fixed.
+- Feature #24 noted but left: "All 82 API routes validate input" → grep shows 80. Off-by-2 from a post-doc refactor; will self-correct next time the validation layer is touched.
+- All other features (1–8b, 11, 23, 26, 27, 21, 25, 11, 14, 19) spot-checked and verified clean.
+
+### Files Modified (docs-only)
+- `BACKLOG.md` — added "Payment Deadline Anchored to Cron Run Time Instead of Auction `end_time`" (Medium, Pre-Launch).
+- `TESTING_RESULTS.md` — session-start entry for Apr 24.
+- `docs/TECHNICAL_FEATURES.md` — Feature #22 expanded; Feature #20 column names + test count fixed.
+- (Memory) `feedback_doc_layering.md` added; `MEMORY.md` index updated.
+
+### Quality Checks at Close-Up-Shop
+- TypeScript: clean (0 errors)
+- ESLint: 0 errors, 115 warnings (all pre-existing, none introduced this session)
+- Tests: 745/745 passing across 47 suites
+- npm audit: 8 moderate severity (all pre-existing in `svix` transitive via `resend`)
+- Build: production build succeeds
+- Circular deps: none (374 files processed)
+- Dead code: knip flags handful of unused email-template type exports + tradingDb helper aliases (pre-existing, warn-only)
+
+### Deferred
+- **Auction payment expiry @ Apr 26 ~2:20 p.m. ET** — letting it expire naturally to test Second Chance Offer flow live (user wants partner present to watch the moment). After expiry: validate seller gets `second_chance_available` notification + email, seller initiates offer to runner-up (`pattonrt`), runner-up accepts at last bid price, completes payment, mark-shipped, ownership transfer, feedback flow.
+- **Payment deadline anchor fix** — captured in BACKLOG, will land in a focused session post-Second-Chance-flow validation. Not fixing mid-test (deadline is already persisted on the auction row; code change wouldn't retro-update it).
+
+### Cost / Services
+No service changes this session. COST_PROJECTIONS.md and CLAUDE.md Services & Infrastructure table both still accurate as of Apr 23 audit.
+
+---
+
 ## Apr 23, 2026 - Session 40 End-of-Day Rollup (Close Up Shop)
 
 ### Day Summary

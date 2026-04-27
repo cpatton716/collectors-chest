@@ -4,6 +4,14 @@ This document tracks testing sessions with platform and account context.
 
 ---
 
+## April 24, 2026 - Session Start
+- **Platform:** Both (Web + Mobile)
+- **Account Type:** Free
+- **Device(s):** iPhone, Android
+- **Focus:** PROD validation of Giant-Size X-Men #1 auction close (10:30am ET) — winner notification/email, payment deadline, Stripe Connect transfer, mark-shipped → ownership transfer, feedback flow
+
+---
+
 ## April 23, 2026 - Session Start
 - **Platform:** Both (Web + Mobile)
 - **Account Type:** Free, Premium

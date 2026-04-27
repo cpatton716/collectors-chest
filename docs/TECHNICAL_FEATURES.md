@@ -248,9 +248,9 @@ Cover approval queue, barcode review queue, key info moderation, message report 
 Resend integration with comic-themed templates (POW!, BAM!, KA-CHING! sound effects). **27+ email types** (was 12+): welcome, trial expiring, offers, listings, messages, feedback reminders, followed seller alerts, auction won/sold/lost, payment received, shipped, rating request, plus Session 38+39 additions (payment_reminder, auction_payment_expired, auction_payment_expired_seller, payment_missed_warning, payment_missed_flagged, 5 Second Chance Offer templates). Cron-driven batch sending with idempotency guards.
 
 **Session 39 additions:**
-- **Preference gating** via `NOTIFICATION_CATEGORY_MAP` (`src/lib/notificationPreferences.ts`): 4 categories (Transactional locked / Marketplace / Social / Marketing). `sendNotificationEmail` + `sendNotificationEmailsBatch` check `profiles.notify_marketplace`/`notify_social`/`notify_marketing` before sending, return skipped count.
+- **Preference gating** via `NOTIFICATION_CATEGORY_MAP` (`src/lib/notificationPreferences.ts`): 4 categories (Transactional locked / Marketplace / Social / Marketing). `sendNotificationEmail` + `sendNotificationEmailsBatch` check `profiles.email_pref_marketplace`/`email_pref_social`/`email_pref_marketing` before sending, return skipped count. (Schema: migration `20260423_notification_preferences.sql`.)
 - **Resend `batch.send()`** used by cron passes — 50 emails/batch, fed via `mapWithConcurrency(5)` from `src/lib/concurrency.ts`. Unlocks 50+ payment expirations per cron tick without rate-limit issues.
-- **UI:** per-category toggles at `/settings/notifications` (GET/PATCH on `/api/settings/notifications`), plus 49 unit tests.
+- **UI:** per-category toggles at `/settings/notifications` (GET/PATCH on `/api/settings/notifications`), plus 29 unit tests.
 
 **Session 40 copy polish:**
 - **Outbid email — max bid line.** Template now conditionally renders "Your max bid: $X" on both HTML + text variants when `BidActivityEmailData.yourMaxBid` is present. Wired from `currentWinningBid.max_bid` at the `placeBid` call site so bidders can tell if their proxy is still in play.
@@ -291,21 +291,27 @@ Resend integration with comic-themed templates (POW!, BAM!, KA-CHING! sound effe
 Seller-initiated re-offer to the runner-up after an auction expires unpaid.
 
 **Flow:**
-1. Auction expires unpaid via `expireUnpaidAuctions()` cron pass; if a runner-up exists, the seller gets email + in-app notification with an "Offer to runner-up" CTA.
-2. Seller clicks CTA in `SecondChanceOfferButton` → `POST /api/auctions/[id]/second-chance` → creates `second_chance_offers` row with `expires_at = NOW() + 48h`.
-3. Runner-up is notified (email + in-app), sees the offer in `SecondChanceInboxCard` with 48h countdown.
+1. Auction expires unpaid via `expireUnpaidAuctions()` cron pass. If a runner-up exists, `handleRunnerUpForExpiredAuction()` (`auctionDb.ts:3293`) creates a `second_chance_available` in-app notification and email for the seller with an "Offer to runner-up" CTA. **Idempotent:** if a `second_chance_offers` row already exists for the auction, the function early-returns — no duplicate notification, safe for cron re-runs.
+2. Seller clicks CTA in `SecondChanceOfferButton` → `POST /api/auctions/[id]/second-chance` → creates `second_chance_offers` row with `status='pending'`, `expires_at = NOW() + 48h`.
+3. Runner-up is notified (`second_chance_offered` email + in-app), sees the offer in `SecondChanceInboxCard` with 48h countdown.
 4. **Price = runner-up's last actual bid price** (not their `max_bid`).
-5. Accept → `POST /api/second-chance-offers/[id]` → flows into standard `/api/checkout` path (same payment deadline enforcement as a won auction).
-6. Decline or ignore → `expireSecondChanceOffers()` cron pass cancels at 48h. **No cascade** — the offer simply ends; it does NOT fall to 3rd place.
+5. Accept → `POST /api/second-chance-offers/[id]` (`action: "accept"`) → re-opens the auction row (see "Auction row transitions" below) → buyer flows into the standard `/api/checkout` path → same payment deadline enforcement and Stripe Connect payout as a normal won auction. Mark-shipped + feedback eligibility flows are **identical to a normal win** — no special casing downstream.
+6. Decline or ignore → `expireSecondChanceOffers()` cron pass flips unanswered offers to `status='expired'` at the 48h mark. **No cascade** — the offer simply ends; it does NOT fall to 3rd place (tracked as a Low-priority BACKLOG enhancement).
+
+**Runner-up selection rule** (`auctionDb.ts:3308-3325`): all bids for the auction ordered `bid_amount DESC, created_at ASC`. First row's `bidder_id` is the winner. Runner-up = the first subsequent row whose `bidder_id !== winner.bidder_id`. Ties in `bid_amount` are broken by earliest `created_at`. If there are fewer than 2 distinct bidders, no offer is created.
+
+**Auction row transitions on accept** (`auctionDb.ts:3723-3767`): conditional UPDATE on `second_chance_offers` (race-safe — requires `status='pending' AND expires_at > NOW()`), then auction row patched with `status='ended'`, `winner_id = runnerUp`, `winning_bid = offer_price`, `payment_status='pending'`, `payment_deadline = NOW() + 48h`, `payment_expired_at = NULL`. Acceptance + auction re-open are **not transactional** — if the auction re-open fails, the offer stays accepted and the error is logged for admin follow-up.
 
 **Infrastructure:**
 - New table `second_chance_offers` with RLS (migration `20260423_second_chance_offers.sql`)
-- New routes: `POST /api/auctions/[id]/second-chance`, `GET /api/second-chance-offers`, `POST/PATCH /api/second-chance-offers/[id]`
+- **Columns:** `id`, `auction_id` (FK auctions), `runner_up_profile_id` (FK profiles — **not** `recipient_profile_id`), `offer_price` (numeric), `status` (`pending | accepted | declined | expired`), `expires_at`, `accepted_at`, `declined_at`, `created_at`
+- New routes: `POST /api/auctions/[id]/second-chance` (seller creates), `GET /api/second-chance-offers` (runner-up's pending inbox), `POST/PATCH /api/second-chance-offers/[id]` (runner-up accepts/declines)
 - New cron pass `expireSecondChanceOffers` added to `/api/cron/process-auctions` pipeline
-- 5 new email templates + 7 new notification types
+- **5 email templates + 5 notification types** — `second_chance_available` (seller), `second_chance_offered` (runner-up), `second_chance_accepted` (seller), `second_chance_declined` (seller), `second_chance_expired` (seller). Types enumerated in `src/types/auction.ts:39-43`.
+- **Audit events** emitted via `logAuctionAuditEvent`: `offer_accepted` + `offer_rejected` (both with `eventData.kind: "second_chance"` discriminator) on runner-up action; `second_chance_sent`, `second_chance_accepted`, `second_chance_expired` enum values are declared in `auction_audit_event_type` and wired at corresponding state transitions.
 - Components: `src/components/auction/SecondChanceOfferButton.tsx`, `src/components/auction/SecondChanceInboxCard.tsx`
 
-**Key files:** `src/lib/auctionDb.ts`, `src/app/api/auctions/[id]/second-chance/route.ts`, `src/app/api/second-chance-offers/route.ts`, `src/app/api/second-chance-offers/[id]/route.ts`, `src/components/auction/SecondChanceOfferButton.tsx`, `src/components/auction/SecondChanceInboxCard.tsx`
+**Key files:** `src/lib/auctionDb.ts`, `src/types/auction.ts`, `src/app/api/auctions/[id]/second-chance/route.ts`, `src/app/api/second-chance-offers/route.ts`, `src/app/api/second-chance-offers/[id]/route.ts`, `src/components/auction/SecondChanceOfferButton.tsx`, `src/components/auction/SecondChanceInboxCard.tsx`
 
 ---
 

@@ -702,6 +702,32 @@ Losing / non-winning bidders currently get nothing before an auction ends. They 
 
 ---
 
+### Payment Deadline Anchored to Cron Run Time Instead of Auction `end_time`
+**Priority:** Medium (Pre-Launch — buyer-facing deadline accuracy)
+**Status:** Pending
+**Added:** Apr 24, 2026 (Session 41 PROD testing)
+
+`processEndedAuctions` in `src/lib/auctionDb.ts:2138` calls `calculatePaymentDeadline()` with no argument, which defaults to `new Date()` (the moment the cron runs). This anchors the 48h payment window to the cron processing time, not the auction's actual `end_time`. If the cron is late, every winning bidder gets a proportionally longer window than the advertised 48 hours.
+
+**Observed in PROD today:** Giant-Size X-Men #1 auction ended ~10:38am ET. Cron didn't process it until ~2:20pm ET (~3h42m lag). Winner's email displayed deadline of **Apr 26, 2:20 PM** — ~51.5 hours after the actual close, not the advertised 48.
+
+**Fix:** change line 2138 to pass `new Date(auction.end_time)`:
+```ts
+const paymentDeadline = calculatePaymentDeadline(new Date(auction.end_time));
+```
+Similar audit should run on the other 4 call sites (`auctionDb.ts:965, 1309, 1525, 3724`) to confirm each uses the correct anchor (e.g., Buy Now / offer accepted / second-chance accepted should still anchor to `new Date()` — those *are* the moment the transaction starts).
+
+**Secondary — cron lag worth a quick look:** `/api/cron/process-auctions` is documented as "every 5 min" in `ARCHITECTURE.md:639`. A ~3h42m gap between auction `end_time` and cron processing is well outside that window. User direction (Apr 24): "A five to ten minute window for the cron to run is totally acceptable" — so the fix above makes deadline calculation robust to any lag. But the actual lag observed today is suspicious and worth a glance at Netlify scheduled-function logs for `/api/cron/process-auctions` between 10:38 and 14:20 ET today to confirm the schedule was firing.
+
+**Files:**
+- `src/lib/auctionDb.ts:2138` — primary fix
+- `src/lib/auctionDb.ts:965, 1309, 1525, 3724` — audit each call site
+- Netlify logs — verify cron cadence post-fix
+
+**Tests to add:** unit test that `processEndedAuctions` sets `payment_deadline = end_time + 48h` regardless of `Date.now()` when it runs.
+
+---
+
 ### FMV Lookup — Graceful Fallback for Rare / Key Issues at Exact Grade
 **Priority:** Medium (Pre-Launch — affects key-issue value display)
 **Status:** Pending
