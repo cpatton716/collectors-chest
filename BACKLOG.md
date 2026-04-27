@@ -1,5 +1,19 @@
 # Collectors Chest Backlog
 
+## ⭐ Next Session — Main Priority (set Apr 27, 2026)
+
+Lead with these when the next session opens. Surfaced from session 42d's deep-dive review + in-flight testing; details under their full BACKLOG entries below.
+
+1. **Validate Second Chance offer flow live** (in-flight test). The Apr 27 offer to runner-up `pattonrt` started its 48h window today. Either path is informative:
+   - **Acceptance path** → checkout → Stripe payment → seller marks shipped → ownership transfer → both leave feedback → feedback button auto-hides on submit. Validates the full Session 39+40 + 42 fixes end-to-end with a real purchase.
+   - **Expiry path** → cron flips offer to `expired` after 48h → seller receives `second_chance_expired` notification + email, listing is back in seller's collection. Validates Phase 4 → cancellation email path (which now correctly fires post-second-chance via the Session 42 mutex logic).
+2. **Payment Deadline Anchored to Cron Run Time** (Medium, Pre-Launch). Display side fixed Apr 27; the `payment_deadline` write itself still anchors to `cron_run_time + 48h` instead of `auction.end_time + 48h`. One-line fix at `src/lib/auctionDb.ts:2138`. Audit the other 4 call sites (965, 1309, 1525, 3724) to confirm each uses the correct anchor. Should land before public launch — promised "48h from auction close" should be exact.
+3. **Validate Notifications Inbox manual TEST_CASES** (27 added Apr 27). Most are quick — tap-X-dismisses-row, mark-all-read button hidden when 0 unread, infinite scroll, focus-on-mount, NON_DELETABLE types reject delete, suspended-user DELETE returns 403. Defer the Capacitor-specific ones (push-tap deep-link, iOS safe-area) until iOS native ships.
+
+After those: pick from the standing pre-launch list below (Auction Ending Soon Reminder, FMV graceful fallback, `account.updated` webhook validation, iOS native, Apple Developer enrollment).
+
+---
+
 ## Pre-Launch — Critical / High Priority
 
 ### Shipping Tracking for Sold Items (payment gated on validated tracking)

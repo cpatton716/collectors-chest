@@ -188,6 +188,21 @@ Manage comic trades with three tabs:
 
 ---
 
+### Notifications Inbox (`/notifications`)
+
+Full-page inbox added Apr 27, 2026 (Session 42d). Bell-dropdown preview kept; this page is the deep-read surface. Mobile-first.
+
+| Feature | Services | Notes |
+|---------|----------|-------|
+| Cursor pagination (infinite scroll) | 🗄️ 🔐 | Composite cursor `(created_at, id)` ordered DESC. PostgREST `.or("created_at.lt.X,and(created_at.eq.X,id.lt.Y)")` predicate handles batch-insert ties. Page size default 50, capped at 100 server-side. |
+| Tap-to-navigate | 🔐 | Reuses `getNotificationDeepLink()` from the bell — `/shop?listing=<id>` for auction-targeted, `/notifications?focus=<id>` fallback for system-only. Single source of truth for bell + inbox + email + Capacitor push (when iOS native ships). |
+| Per-row dismiss (X) | 🗄️ 🔐 | Hidden for `NON_DELETABLE_NOTIFICATION_TYPES` (`payment_missed_*`, `auction_payment_expired*`). Optimistic remove + toast rollback on network failure. 44×44pt tap target. |
+| Mark all as read | 🗄️ 🔐 | `asOf` clamp prevents silently sweeping notifications inserted between click and request. Conditional render — hidden when `unreadCount === 0`. |
+| `?focus=<id>` deep-link | 🗄️ 🔐 | Scrolls row into view + flash-highlights for 1.5s. If row isn't in current page, GETs `/api/notifications/:id`; on 404 toasts and `router.replace`s to clear the param so a remount doesn't re-fire. |
+| Offline cache | — | localStorage (profile-namespaced via Clerk user.id, version-tagged via `CACHE_VERSION` const). On fetch failure hydrates from cache + shows banner; distinguishes offline-empty from true-empty. Cleared on Clerk sign-out. |
+| Auto-prune | 🗄️ | Cron pass deletes `read_at < NOW() - 30d` AND unread `created_at < NOW() - 90d`. |
+| Capacitor-readiness | — | Pull-to-refresh deferred to `@capacitor/pull-to-refresh` post-launch; v1 uses "Last updated Xm ago — tap to refresh" pill instead. |
+
 ### Settings (`/settings/notifications`, `/settings/preferences`)
 
 | Feature | Services | Notes |
@@ -393,6 +408,7 @@ Clerk middleware protects specific routes requiring authentication:
 | `/api/billing(.*)` | All billing API routes |
 | `/api/watchlist(.*)` | Watchlist management |
 | `/api/notifications(.*)` | Notification management |
+| `/notifications(.*)` | Inbox page (signed-in only; redirects guests to `/sign-in`) |
 | `/api/sharing(.*)` | Collection sharing |
 | `/api/key-hunt(.*)` | Hunt list management |
 | `/api/auctions/:id/bid(.*)` | Placing bids |
@@ -459,7 +475,8 @@ All other routes are public (unauthenticated access allowed). Individual API rou
 | Route | Method | Purpose | Services |
 |-------|--------|---------|----------|
 | `/api/watchlist` | GET/POST/DELETE | Manage watchlist | 🗄️ 🔐 |
-| `/api/notifications` | GET/PATCH | User notifications | 🗄️ 🔐 |
+| `/api/notifications` | GET/PATCH | List user notifications + mark read. GET supports both legacy bell shape (limit 50, no cursor) and inbox cursor-pagination shape (`?cursor=<base64>&limit=N` capped at 100). PATCH supports single-row mark-read + bulk `markAll` with optional `asOf` clamp. Owner-scoped writes (Apr 27 IDOR fix). | 🗄️ 🔐 |
+| `/api/notifications/[id]` | GET/DELETE | GET fetches single notification (404 on owner mismatch — never leak existence) for the inbox `?focus=<id>` deep-link. DELETE is the per-row dismiss (atomic owner-scope, suspension check, blocks `NON_DELETABLE_NOTIFICATION_TYPES` like `payment_missed_*` / `auction_payment_expired*`). | 🗄️ 🔐 |
 
 ### Messaging
 
@@ -636,7 +653,7 @@ All cron jobs run as **Netlify Scheduled Functions** (`netlify/functions/`). Eac
 
 | Netlify Function | Schedule | API Route | Purpose | Services |
 |------------------|----------|-----------|---------|----------|
-| `process-auctions.ts` | Every 5 min | `/api/cron/process-auctions` | Pipeline: `processEndedAuctions → sendPaymentReminders → expireUnpaidAuctions → expireSecondChanceOffers → expireOffers → expireListings`. Returns stats for all six passes. | 🗄️ 📧 |
+| `process-auctions.ts` | Every 5 min | `/api/cron/process-auctions` | Pipeline: `processEndedAuctions → sendPaymentReminders → expireUnpaidAuctions → expireOffers → expireSecondChanceOffers → expireListings → pruneOldNotifications`. Returns stats for all seven passes. The prune pass hard-deletes notifications where `read_at < NOW() - 30d` OR (`is_read = false AND created_at < NOW() - 90d`); logs counts via `console.warn("[prune] notifications: ...")` when anything is deleted. | 🗄️ 📧 |
 | `reset-scans.ts` | 1st of month | `/api/cron/reset-scans` | Reset free tier scan counts | 🗄️ |
 | `moderate-messages.ts` | Every hour | `/api/cron/moderate-messages` | AI moderation of flagged messages | 🗄️ 🤖 |
 | `send-feedback-reminders.ts` | Daily 3 PM UTC | `/api/cron/send-feedback-reminders` | Remind users to leave transaction feedback | 🗄️ 📧 |

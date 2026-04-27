@@ -10,7 +10,7 @@
 
 Collectors Chest is a comic book collection tracking app with AI-powered cover recognition and a new auction marketplace feature. The app is currently in **Private Beta** with public registration disabled.
 
-**Overall Score: 9.3/10** (up from 9.2/10 — Session 42 closed three trust-blocking marketplace bugs surfaced in the Apr 24 PROD auction post-mortem: seller received both contradictory expiry emails simultaneously; the Second Chance flow had no seller CTA in either email or in-app paths; payment-deadline emails rendered server timezone (UTC) without a label and recipients mis-read "2:20 PM" as ET when actual expiry was 10:20 AM EDT)
+**Overall Score: 9.4/10** (up from 9.3/10 — Session 42 + 42b–d shipped six deploys today: Second Chance flow end-to-end fixes, $0.75 minimum platform fee floor (closes the sub-$6 sale loss), site-wide transaction-fee documentation pass with Terms 4.5 rewrite, Notifications Inbox v1 with Capacitor-ready deep-link contract + 30/90-day auto-prune, retroactive pre-existing IDOR hotfix in `markNotificationRead`, dedicated `shipped` notification type with Truck icon, and three smoke-test fixes (inbox infinite-loading bug, mobile More menu missing Inbox entry, bell dropdown cropped on Android). Three rounds of deep-dive review on the inbox plan before code (3 Critical / 8 High / 9 Medium / 6 Low → 1 Critical / 2 High / 3 Medium → PASS).)
 
 **Current Status: PRIVATE BETA**
 - Site is live at collectors-chest.com
@@ -51,7 +51,7 @@ _(No open Medium items. Hottest Books was removed from scope Apr 22, 2026 — se
 
 ## 1. Code Quality & Technical Debt
 
-**Score: 9/10** (up from 8/10)
+**Score: 9.2/10** (up from 9/10 — Session 42d closed a pre-existing IDOR in `markNotificationRead` surfaced during deep-dive Round 2; 20 new unit tests for cursor pagination + deep-link helper + non-deletable types; 773/773 tests passing across 50 suites)
 
 ### Issues Status
 
@@ -119,7 +119,9 @@ Remaining items tracked in BACKLOG.md:
 - **Buy Now fixed-price listings** ✅ PROD-validated end-to-end Apr 23, 2026 (Session 40a hotfix resolved Stripe 2048-char image URL cap; full flow — checkout, payment, ship, ownership transfer, emails — verified in 40b)
 - **Stripe Connect fee split** ✅ Validated end-to-end (Apr 21, 2026) — `transfer.created` webhook firing correctly
 - **Payment deadline enforcement** ✅ Complete — checkout-time deadline guard, T-24h reminder cron, expire-unpaid-auctions cron, live countdown UI (Sessions 38 + 39)
-- **Second Chance Offer** ✅ Complete — seller-initiated 48h offer to runner-up when winner doesn't pay (Session 39); seller CTA now wired into `AuctionDetailModal` + Phase 3 cancellation email mutex preventing the contradictory "cancelled, relist ready" email from firing alongside (Session 42)
+- **Second Chance Offer** ✅ Complete — seller-initiated 48h offer to runner-up when winner doesn't pay (Session 39); seller CTA now wired into `AuctionDetailModal` + Phase 3 cancellation email mutex preventing the contradictory "cancelled, relist ready" email from firing alongside (Session 42); confirm-dialog "Send Offer" button moved blue → green for clarity (Session 42b)
+- **Notifications Inbox v1** ✅ Complete — full `/notifications` page (Session 42d), infinite scroll + per-row dismiss + Mark All Read + offline cache + 30/90-day auto-prune cron + Capacitor-ready deep-link contract. Pre-existing `markNotificationRead` IDOR patched in same commit. Dedicated `shipped` notification type + Truck icon.
+- **Marketplace Fee Floor** ✅ Complete — $0.75 minimum platform fee on every sale closes the sub-$6 platform-loss zone (free-tier break-even was $5.88, premium was $14.29). Above $9.38 (8%) / $15.00 (5%) the floor is invisible. Documented in pricing FAQ + Navigation Ask the Professor + Terms 4.5 + TECHNICAL_FEATURES.md Feature #11.
 - **Payment-Miss Strike System** ✅ Complete — warn on 1st offense, bid restriction on 2 strikes within 90 days (Session 39)
 - **Shipping tracking (Option A)** ✅ Mark-as-shipped with carrier + tracking number, fires buyer notification (Session 37)
 - **Auction audit log** ✅ Complete — 20 event types covering full lifecycle (Session 39)
@@ -141,7 +143,7 @@ See BACKLOG.md for open auction/marketplace work.
 
 ## 4. User Experience & Onboarding
 
-**Score: 7.5/10** (up from 7/10 — Session 40 polish: mobile modal sizing, FAQ scroll lock + close-on-link, free-tier sales list now visible, em dash sweep for design consistency)
+**Score: 8/10** (up from 7.5/10 — Session 42d notifications inbox closes the mobile-truncation gap; bell dropdown re-laid out as full-width sheet on mobile so titles + footer link no longer crop; Truck icon for shipped notifications semantically matches the message)
 
 ### Guest Experience Flow
 1. Land on home page → see features & "How It Works"
@@ -246,7 +248,7 @@ See BACKLOG.md for open auction/marketplace work.
 
 ## 7. Mobile Experience
 
-**Score: 8.5/10** (up from 8/10 — Session 40a capped cover-image heights on mobile auction + Buy Now modals so bid details/CTA no longer get pushed below the fold)
+**Score: 8.7/10** (up from 8.5/10 — Session 42d added /notifications inbox built mobile-first with sheet-style bell dropdown, 44pt tap targets, message clamp-3 + 88px min-row-height for Lichtenstein cards, IndexedDB-equivalent localStorage cache namespaced by Clerk user.id, deferred custom pull-to-refresh until Capacitor `@capacitor/pull-to-refresh` ships)
 
 | Feature | Status |
 |---------|--------|
@@ -264,7 +266,7 @@ See BACKLOG.md for open auction/marketplace work.
 
 ## 8. Feature Completeness
 
-**Score: 9.4/10** (up from 9.3/10)
+**Score: 9.5/10** (up from 9.4/10 — Notifications Inbox v1 added; $0.75 fee floor closes the small-sale loss zone)
 
 | Feature | Status |
 |---------|--------|

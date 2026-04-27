@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
     // returns counts so we can log how much was deleted per tick.
     const pruneResult = await pruneOldNotifications();
     if (pruneResult.deletedRead || pruneResult.deletedUnread) {
-      console.log(
+      console.warn(
         `[prune] notifications: deletedRead=${pruneResult.deletedRead}, deletedUnread=${pruneResult.deletedUnread}`
       );
     }

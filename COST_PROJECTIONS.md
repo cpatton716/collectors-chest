@@ -1,7 +1,7 @@
 # Collectors Chest - Operating Cost Projections
 
 > Cost estimates for running the application at various scale levels.
-> All prices in USD. Updated April 24, 2026.
+> All prices in USD. Updated April 27, 2026.
 > **Audit cadence:** reviewed at end of every session (close-up-shop). Any new service added or cost change must land here before commit.
 
 ---
@@ -10,6 +10,7 @@
 
 | Date | Change | Net Cost Impact |
 |------|--------|-----------------|
+| Apr 27, 2026 (Session 42 + 42b–d) | No new services, tiers, or integrations. Six deploys of internal logic: Second Chance flow fixes, **$0.75 platform-fee floor** (closes the sub-$6 platform-loss zone where Stripe processing fees exceeded our percent-fee — free-tier break-even was $5.88, premium $14.29), transaction-fee documentation pass, Notifications Inbox v1 (uses existing Supabase + localStorage cache), pre-existing IDOR hotfix in `markNotificationRead`, three smoke-test fixes. Migrations applied to Supabase: `20260427_add_shipped_notification_type.sql`, `20260427_notifications_inbox.sql`, `20260427_backfill_shipped_notification_type.sql`. All services remain on documented free tiers. | $0/mo — no change (and **net positive going forward**: every small sale now profitable after Stripe fees) |
 | Apr 24, 2026 (Session 41) | No new services, tiers, or integrations. Docs-only session: PROD auction-close validation + payment-deadline anchor bug captured to BACKLOG + TECHNICAL_FEATURES.md audit pass (Feature #22 deepened, Feature #20 column-name drift fixed). All services remain on documented free tiers. | $0/mo — no change |
 | Apr 23, 2026 (Session 40 a–e) | No new services, tiers, or integrations. Session was all marketplace bug fixes + UX polish + copy sweep surfaced during PROD testing. Confirmed all existing services still on the documented free tiers. | $0/mo — no change |
 | Apr 23, 2026 (Sessions 38 + 39) | Added hCaptcha (Pro trial until May 7, 2026, then auto-downgrades to free tier at 1M requests/mo). Removed Metron integration (was using free tier). Added `ZENROWS_API_KEY` env var but CGC-lookup feature deferred post-launch pending ROI review, no current cost. | $0/mo — private beta remains on free tiers |

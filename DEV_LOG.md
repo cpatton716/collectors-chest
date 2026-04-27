@@ -135,8 +135,23 @@ Three smoke-test issues surfaced immediately post-deploy:
 2. **Mobile bottom-nav More menu missing Inbox** — `MobileNav.tsx` has its own `registeredDrawerItems` separate from `Navigation.tsx`'s desktop array; I missed updating the mobile one. Added Bell import + Inbox entry.
 3. **Bell dropdown cropped on mobile** — `absolute right-0 w-80 max-w-[calc(100vw-2rem)]` was extending off-screen left on narrow Android viewports. Switched to sheet-on-mobile pattern: `fixed left-2 right-2 top-16 sm:absolute sm:right-0 sm:left-auto sm:top-auto sm:mt-2 sm:w-80`. Mobile gets a viewport-pinned sheet, desktop keeps 320px right-anchored.
 
+### Sub-session 42d-backfill (local commit `bc8416a`, SQL run manually in Supabase)
+Truck icon didn't appear retroactively on the existing "Your comic has shipped!" notification — that row was created before the deploy with `type='ended'` (the old mark-shipped route overloaded the auction-ended type). Added one-off backfill migration `20260427_backfill_shipped_notification_type.sql` (idempotent): `UPDATE notifications SET type = 'shipped' WHERE type = 'ended' AND title = 'Your comic has shipped!'`. SQL run by user in Supabase SQL Editor; row flipped to Truck icon on refresh. Migration file committed locally (not pushed standalone — will ride out with next deploy).
+
+### Close-up-shop documentation pass (Apr 27, end of day)
+- **ARCHITECTURE.md** — added `/notifications` Pages & Features section, `/api/notifications/[id]` GET+DELETE row to Watchlist & Notifications API table, `/notifications(.*)` to middleware-protected routes, `pruneOldNotifications` to the cron pipeline description (now seven passes).
+- **EVALUATION.md** — overall 9.3 → 9.4. Code Quality 9 → 9.2 (IDOR closed + 20 new unit tests). User Experience 7.5 → 8 (mobile inbox + bell sheet). Mobile 8.5 → 8.7 (mobile-first inbox, Capacitor-readiness). Feature Completeness 9.4 → 9.5 (Notifications Inbox v1).
+- **COST_PROJECTIONS.md** — audit log entry for Apr 27 noting net positive impact: $0.75 fee floor closes the sub-$6 platform-loss zone. No new services, all on documented free tiers.
+- **CLAUDE.md** — Services & Infrastructure table unchanged this session (no new services added).
+- **TECHNICAL_FEATURES.md** — Feature #28 (Notifications Inbox) added at end of day (already in place).
+- **BACKLOG.md** — added "⭐ Next Session Main Priority" callout at top: validate Second Chance offer flow live (in-flight 48h window started today); Payment Deadline anchor fix (display side fixed, value-side fix still pending); validate the 27 new manual TEST_CASES from the inbox work. Three new low-priority post-launch items added: Audit other supabaseAdmin notification writes, Rate-limit GET /api/notifications/:id, Per-Profile Timezone Preference.
+- **TEST_CASES.md** — 27 new cases added during the inbox build for: inbox loads, infinite scroll, dismiss row + rollback, mark-all-read race, focus-on-mount + 404 fallback, NON_DELETABLE rejects DELETE, suspended-user 403, IDOR scoping, truck icon, offline cache, sign-out cache clear, Capacitor push tap deep-link (deferred), iOS safe-area, Android PWA PTR-disabled.
+
+### Cleanup notes
+- One `console.log` flipped to `console.warn` in the cron route's prune-output (consistency with other cron logging patterns at `[expireUnpaidAuctions] processed N`). No other cleanup needed — no TODOs, no dead code, no unused imports introduced this session.
+
 ### Changes Since Last Deploy
-*(empty — Sub-session 42d-hotfix deployed at `c5670fa`)*
+*(empty — Sub-session 42d-hotfix deployed at `c5670fa`. Local commits `39b5c0d` (DEV_LOG hotfix) + `bc8416a` (backfill migration file) + close-up-shop docs commit will ride out with the next deploy.)*
 
 ---
 
