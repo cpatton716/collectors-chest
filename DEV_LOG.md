@@ -125,10 +125,12 @@ User flagged that mobile bell-dropdown notifications truncate mid-sentence with 
 2. Rate-limit `GET /api/notifications/:id` — Capacitor retry storms on 404 could amplify cost
 3. Sign-out cache-clear race tightening (use `useRef` + check current Clerk userId mid-flight)
 
+### Sub-session 42d deploy
+- Migrations `20260427_add_shipped_notification_type.sql` + `20260427_notifications_inbox.sql` applied in Supabase manually before push.
+- Pushed to main at commit `c4467ce` → Netlify auto-deploy.
+
 ### Changes Since Last Deploy
-| Sub-session | Status | Summary |
-|-------------|--------|---------|
-| 42d | ⏳ Pending deploy | IDOR hotfix + truck icon + notifications inbox v1 |
+*(empty — Sub-session 42d deployed at `c4467ce`)*
 
 ---
 
