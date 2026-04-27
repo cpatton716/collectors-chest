@@ -129,8 +129,14 @@ User flagged that mobile bell-dropdown notifications truncate mid-sentence with 
 - Migrations `20260427_add_shipped_notification_type.sql` + `20260427_notifications_inbox.sql` applied in Supabase manually before push.
 - Pushed to main at commit `c4467ce` → Netlify auto-deploy.
 
+### Sub-session 42d-hotfix (deployed at `c5670fa`)
+Three smoke-test issues surfaced immediately post-deploy:
+1. **Inbox stuck on infinite Loading spinner** — `NotificationsInbox` was reading `profileId` from `user?.publicMetadata?.profileId` but Clerk's publicMetadata doesn't carry that field by default. Initial-load effect's `if (!profileId) return` meant `isLoading` never flipped. Switched cache namespace to `user.id` (always populated for signed-in users); effects now gate on `userLoaded && user`.
+2. **Mobile bottom-nav More menu missing Inbox** — `MobileNav.tsx` has its own `registeredDrawerItems` separate from `Navigation.tsx`'s desktop array; I missed updating the mobile one. Added Bell import + Inbox entry.
+3. **Bell dropdown cropped on mobile** — `absolute right-0 w-80 max-w-[calc(100vw-2rem)]` was extending off-screen left on narrow Android viewports. Switched to sheet-on-mobile pattern: `fixed left-2 right-2 top-16 sm:absolute sm:right-0 sm:left-auto sm:top-auto sm:mt-2 sm:w-80`. Mobile gets a viewport-pinned sheet, desktop keeps 320px right-anchored.
+
 ### Changes Since Last Deploy
-*(empty — Sub-session 42d deployed at `c4467ce`)*
+*(empty — Sub-session 42d-hotfix deployed at `c5670fa`)*
 
 ---
 
