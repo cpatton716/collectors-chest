@@ -198,8 +198,10 @@ export default function TermsOfServicePage() {
             The Company charges the following seller transaction fees on completed marketplace sales:
             8% for Free tier accounts and 5% for Premium tier accounts. Transaction fees are
             calculated on the total sale amount (excluding shipping) and are deducted from the
-            seller&apos;s payout. Payment processing fees charged by Stripe are separate and in
-            addition to platform transaction fees.
+            seller&apos;s payout. The applicable rate is set when the listing is created and remains
+            in effect through completion of the sale, regardless of any subsequent change to the
+            seller&apos;s subscription tier. Payment processing fees charged by Stripe are absorbed
+            by the Company and are not deducted from the seller&apos;s payout.
           </p>
 
           <h3>4.6 Seller Payouts</h3>

@@ -97,6 +97,11 @@ const faqs = [
       "Yes! The Shop features auctions and fixed-price listings. You can list comics from your collection for sale, bid on auctions, make offers on listings, and complete purchases via secure Stripe checkout.",
   },
   {
+    question: "What does it cost me to sell on Collectors Chest?",
+    answer:
+      "We charge a flat platform fee on each completed sale — 8% on Free accounts, 5% on Premium. The rate is locked at the moment you create the listing, so changing tiers later doesn't change fees on listings that are already up. Stripe's processing fee is on us, not you. Sell a $100 comic on Free and you receive $92.00; on Premium you receive $95.00.",
+  },
+  {
     question: "What happens after I buy a comic?",
     answer:
       "After your payment clears, the sale is confirmed and the seller is notified to ship. The comic is added to your collection only once the seller marks it as shipped. This protects you if a seller never ships. Once shipped, both you and the seller can leave feedback on each other. You'll get email + in-app notifications at each step: purchase confirmation, shipped with tracking, and a feedback request.",
