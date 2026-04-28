@@ -2381,8 +2381,13 @@ export async function processEndedAuctions(): Promise<{
         .single();
 
       if (winningBid) {
-        // Auction has a winner
-        const paymentDeadline = calculatePaymentDeadline();
+        // Anchor the 48h payment window to auction.end_time, not the cron run
+        // time — cron lag (5-10 min typical, but observed up to ~3h42m on
+        // Apr 24, 2026) would otherwise stretch the marketed "48h from
+        // auction close" window proportionally.
+        const paymentDeadline = calculatePaymentDeadline(
+          new Date(auction.end_time)
+        );
 
         // Idempotent guard: only transition from 'active' to 'ended'. If the
         // row is already in a finalized state (ended/sold/cancelled) because

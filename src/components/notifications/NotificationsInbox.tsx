@@ -91,6 +91,14 @@ export function NotificationsInbox() {
   // default; the API route does that mapping server-side.
   const cacheKey = user?.id ?? null;
   const previousCacheKeyRef = useRef<string | null>(null);
+  // Live-readable mirror of cacheKey for async closures. If the user signs
+  // out / switches accounts mid-fetch, the closure's captured `cacheKey`
+  // is stale; this ref reflects the current Clerk userId at resolve time.
+  // Defense-in-depth on top of the per-effect `cancelled` flag.
+  const currentCacheKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    currentCacheKeyRef.current = cacheKey;
+  }, [cacheKey]);
 
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -135,8 +143,12 @@ export function NotificationsInbox() {
   useEffect(() => {
     if (!userLoaded) return;
     let cancelled = false;
+    // Capture the cacheKey at fetch start. If the user signs out or
+    // switches accounts before the fetch resolves, we must NOT write
+    // user A's payload into the (now-stale or now-different) slot.
+    const startKey = cacheKey;
 
-    const cached = cacheKey ? readNotificationsCache(cacheKey) : null;
+    const cached = startKey ? readNotificationsCache(startKey) : null;
     if (cached) {
       setNotifications(cached.notifications);
       setUnreadCount(cached.unreadCount);
@@ -147,14 +159,17 @@ export function NotificationsInbox() {
     (async () => {
       const result = await fetchPage(null);
       if (cancelled) return;
+      // Mid-flight Clerk userId check — abort if the active user has
+      // changed since fetch started.
+      if (currentCacheKeyRef.current !== startKey) return;
       if (result) {
         setNotifications(result.notifications);
         setUnreadCount(result.unreadCount);
         setNextCursor(result.nextCursor);
         setHydratedFromCache(false);
         setLastUpdatedAt(new Date());
-        if (cacheKey) {
-          writeNotificationsCache(cacheKey, result.notifications, result.unreadCount);
+        if (startKey) {
+          writeNotificationsCache(startKey, result.notifications, result.unreadCount);
         }
       } else if (!cached) {
         // Network failed AND no cache — still show empty state without

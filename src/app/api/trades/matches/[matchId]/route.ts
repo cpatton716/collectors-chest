@@ -39,11 +39,15 @@ export async function PATCH(
     if (!validatedBody.success) return validatedBody.response;
     const { action } = validatedBody.data;
 
-    if (action === "view") {
-      await markMatchViewed(matchId);
-    } else {
-      // action === "dismiss" (enum guarantees this)
-      await dismissMatch(matchId);
+    const matched =
+      action === "view"
+        ? await markMatchViewed(matchId, profile.id)
+        : await dismissMatch(matchId, profile.id);
+
+    if (!matched) {
+      // Match doesn't exist OR isn't owned by this user. Return 404 either
+      // way — never 403 — so we don't leak existence of others' rows.
+      return NextResponse.json({ error: "Match not found" }, { status: 404 });
     }
 
     return NextResponse.json({ success: true });

@@ -567,34 +567,60 @@ export async function getUserMatches(userId: string): Promise<GroupedMatch[]> {
 }
 
 /**
- * Mark a match as viewed
+ * Mark a match as viewed. `userId` MUST be the caller's profile id —
+ * `supabaseAdmin` bypasses RLS, so an `.eq("id", matchId)`-only update
+ * would be IDOR (any user could mark anyone's match viewed by guessing
+ * UUIDs). Returns true iff a row matched.
  */
-export async function markMatchViewed(matchId: string): Promise<void> {
-  await supabaseAdmin
+export async function markMatchViewed(
+  matchId: string,
+  userId: string
+): Promise<boolean> {
+  const { data } = await supabaseAdmin
     .from("trade_matches")
     .update({
       status: "viewed",
       viewed_at: new Date().toISOString(),
     })
-    .eq("id", matchId);
+    .eq("id", matchId)
+    .or(`user_a_id.eq.${userId},user_b_id.eq.${userId}`)
+    .select("id");
+  return (data?.length ?? 0) > 0;
 }
 
 /**
- * Dismiss a match
+ * Dismiss a match. See ownership-scoping note on `markMatchViewed`.
+ * Returns true iff a row matched.
  */
-export async function dismissMatch(matchId: string): Promise<void> {
-  await supabaseAdmin
+export async function dismissMatch(
+  matchId: string,
+  userId: string
+): Promise<boolean> {
+  const { data } = await supabaseAdmin
     .from("trade_matches")
     .update({
       status: "dismissed",
       dismissed_at: new Date().toISOString(),
     })
-    .eq("id", matchId);
+    .eq("id", matchId)
+    .or(`user_a_id.eq.${userId},user_b_id.eq.${userId}`)
+    .select("id");
+  return (data?.length ?? 0) > 0;
 }
 
 /**
- * Mark match as traded (when a trade is created from a match)
+ * Mark match as traded (when a trade is created from a match).
+ * See ownership-scoping note on `markMatchViewed`.
  */
-export async function markMatchTraded(matchId: string): Promise<void> {
-  await supabaseAdmin.from("trade_matches").update({ status: "traded" }).eq("id", matchId);
+export async function markMatchTraded(
+  matchId: string,
+  userId: string
+): Promise<boolean> {
+  const { data } = await supabaseAdmin
+    .from("trade_matches")
+    .update({ status: "traded" })
+    .eq("id", matchId)
+    .or(`user_a_id.eq.${userId},user_b_id.eq.${userId}`)
+    .select("id");
+  return (data?.length ?? 0) > 0;
 }

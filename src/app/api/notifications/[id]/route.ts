@@ -10,6 +10,11 @@ import {
 } from "@/lib/auctionDb";
 import { getProfileByClerkId } from "@/lib/db";
 import { isNonDeletableNotification } from "@/lib/notificationLinks";
+import {
+  checkRateLimit,
+  getRateLimitIdentifier,
+  rateLimiters,
+} from "@/lib/rateLimit";
 import { schemas, validateParams } from "@/lib/validation";
 
 const paramsSchema = z.object({ id: schemas.uuid });
@@ -29,6 +34,16 @@ export async function GET(
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    // Rate limit: a Capacitor push handler that taps a stale deep link will
+    // 404 here and retry; without a cap that storm could amplify Redis +
+    // function-invocation cost. Use the general 30/min bucket keyed on
+    // Clerk userId.
+    const rateCheck = await checkRateLimit(
+      rateLimiters.api,
+      getRateLimitIdentifier(userId, null)
+    );
+    if (!rateCheck.success) return rateCheck.response!;
 
     const profile = await getProfileByClerkId(userId);
     if (!profile) {

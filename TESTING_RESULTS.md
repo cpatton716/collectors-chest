@@ -339,3 +339,9 @@ This document tracks testing sessions with platform and account context.
 - **Account Type:** Free, Premium
 - **Device(s):** Android, Mac Chrome, Mac Safari
 - **Focus:** TBD
+
+## Apr 28, 2026 - Session 43 Start
+- **Platform:** Both (Mobile + Web)
+- **Account Type:** Free, Premium
+- **Device(s):** iPhone, Android, Mac Chrome
+- **Focus:** TBD (lead candidates: validate live Second-Chance flow + payment-deadline anchor fix + 27 inbox TEST_CASES)
