@@ -195,11 +195,22 @@ function CollectionPageContent() {
     new Set(collection.map((item) => item.gradingCompany).filter((g): g is string => Boolean(g)))
   ).sort();
 
+  // The "My Collection" primary list is the union view — items present in
+  // the collection don't tag themselves with its id. Other auto-seeded
+  // lists (Want List, For Sale, Slabbed, Passed-on) ALSO carry
+  // isDefault=true but ARE member-tagged like custom lists. Detect the
+  // primary list by id-sentinel (guest) or by name (cloud).
+  const isPrimaryList = (list: { id: string; name: string } | undefined) =>
+    !!list && (list.id === "collection" || list.name === "My Collection");
+  const isDefaultListSelected =
+    selectedList === "collection" ||
+    isPrimaryList(lists.find((l) => l.id === selectedList));
+
   // Filter and sort collection
   const filteredCollection = collection
     .filter((item) => {
-      // Filter by list
-      if (selectedList !== "collection") {
+      // Filter by list — skip filtering when "My Collection" is selected
+      if (!isDefaultListSelected) {
         if (!item.listIds.includes(selectedList)) return false;
       }
 
@@ -635,6 +646,14 @@ function CollectionPageContent() {
             <Share2 className="w-5 h-5" />
             <span className="hidden sm:inline">Share</span>
           </button>
+          <FeatureButton
+            feature="csvExport"
+            onClick={handleExportCSV}
+            className="inline-flex items-center gap-2 px-3 py-2 bg-pop-white border-2 border-pop-black text-pop-black font-bold hover:shadow-[2px_2px_0px_#000] transition-all"
+          >
+            <Download className="w-5 h-5" />
+            <span className="hidden sm:inline">CSV</span>
+          </FeatureButton>
           <button
             onClick={() => router.push("/scan")}
             className="inline-flex items-center gap-2 px-3 py-2 bg-pop-blue border-2 border-pop-black text-white font-bold shadow-[2px_2px_0px_#000] hover:shadow-[3px_3px_0px_#000] transition-all"
@@ -762,61 +781,12 @@ function CollectionPageContent() {
         />
       )}
 
-      {/* List Selector Tabs - Pop Art Style */}
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
-        <div className="flex flex-wrap gap-2">
-          {lists.map((list) => {
-            const count =
-              list.id === "collection"
-                ? collection.length
-                : collection.filter((item) => item.listIds.includes(list.id)).length;
-
-            // Hide empty lists (except the main collection)
-            if (count === 0 && list.id !== "collection") {
-              return null;
-            }
-
-            return (
-              <button
-                key={list.id}
-                onClick={() => setSelectedList(list.id)}
-                className={`px-4 py-2 text-sm font-bold transition-all flex items-center gap-2 border-2 border-pop-black ${
-                  selectedList === list.id
-                    ? "bg-pop-blue text-white shadow-[2px_2px_0px_#000]"
-                    : "bg-pop-white text-pop-black hover:shadow-[2px_2px_0px_#000]"
-                }`}
-              >
-                {list.name}
-                <span
-                  className={`px-1.5 py-0.5 text-xs font-black border border-pop-black ${
-                    selectedList === list.id
-                      ? "bg-white text-pop-black"
-                      : "bg-gray-100 text-pop-black"
-                  }`}
-                >
-                  {count}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Select Button - positioned above filters */}
-        <button
-          onClick={enterSelectionMode}
-          className="inline-flex items-center gap-2 px-3 py-2 bg-pop-white border-2 border-pop-black text-pop-black font-bold hover:shadow-[2px_2px_0px_#000] transition-all"
-        >
-          <CheckSquare className="w-5 h-5" />
-          <span>Select</span>
-        </button>
-      </div>
-
       {/* Filters Bar - Pop Art Style */}
       <div className="bg-pop-white border-3 border-pop-black p-4 shadow-[4px_4px_0px_#000] mb-6">
-        <div className="flex flex-col gap-4">
-          {/* Top Row - Search and View Toggle */}
-          <div className="flex flex-col md:flex-row gap-4">
-            {/* Search */}
+        <div className="flex flex-col gap-3">
+          {/* Row 1 — Search + View Toggle + Select (Select desktop-only;
+              mobile gets it next to the Viewing dropdown to free space) */}
+          <div className="flex items-center gap-3">
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-pop-black/50" />
               <input
@@ -828,8 +798,7 @@ function CollectionPageContent() {
               />
             </div>
 
-            {/* View Toggle */}
-            <div className="flex items-center bg-gray-100 rounded-lg p-1">
+            <div className="flex items-center bg-gray-100 rounded-lg p-1 flex-shrink-0">
               <button
                 onClick={() => setViewMode("grid")}
                 title="Grid View - Display comics as cover thumbnails"
@@ -853,11 +822,51 @@ function CollectionPageContent() {
                 <List className="w-5 h-5" />
               </button>
             </div>
+
+            <button
+              onClick={enterSelectionMode}
+              className="hidden md:inline-flex items-center gap-2 px-3 py-1.5 bg-pop-white border-2 border-pop-black text-pop-black font-bold hover:shadow-[2px_2px_0px_#000] transition-all flex-shrink-0 text-sm"
+            >
+              <CheckSquare className="w-4 h-4" />
+              <span>Select</span>
+            </button>
           </div>
 
-          {/* Filter Row 1 - Quick filters */}
+          {/* Row 2 — Viewing (list switcher with counts) */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <label className="text-sm font-comic font-bold text-pop-black/70 flex-shrink-0">
+              Viewing:
+            </label>
+            <select
+              value={selectedList}
+              onChange={(e) => setSelectedList(e.target.value)}
+              className="px-3 py-1.5 border-2 border-pop-black bg-pop-white text-sm font-comic font-bold text-pop-black focus:outline-none hover:shadow-[2px_2px_0px_#000] transition-all cursor-pointer"
+            >
+              {lists.map((list) => {
+                const count = isPrimaryList(list)
+                  ? collection.length
+                  : collection.filter((item) =>
+                      item.listIds.includes(list.id)
+                    ).length;
+                return (
+                  <option key={list.id} value={list.id}>
+                    {list.name} ({count})
+                  </option>
+                );
+              })}
+            </select>
+
+            <button
+              onClick={enterSelectionMode}
+              className="md:hidden ml-auto inline-flex items-center gap-2 px-3 py-1.5 bg-pop-white border-2 border-pop-black text-pop-black font-bold hover:shadow-[2px_2px_0px_#000] transition-all flex-shrink-0 text-sm"
+            >
+              <CheckSquare className="w-4 h-4" />
+              <span>Select</span>
+            </button>
+          </div>
+
+          {/* Row 3 — Filters + Sort + Clear */}
           <div className="flex flex-wrap items-center gap-2">
-            {/* Starred Filter */}
             <button
               onClick={() => setShowStarredOnly(!showStarredOnly)}
               className={`flex items-center gap-1.5 px-3 py-1.5 border-2 border-pop-black font-comic text-sm transition-all ${
@@ -872,7 +881,6 @@ function CollectionPageContent() {
               Starred
             </button>
 
-            {/* For Trade Filter */}
             <button
               onClick={() => setShowForTradeOnly(!showForTradeOnly)}
               className={`flex items-center gap-1.5 px-3 py-1.5 border-2 border-pop-black font-comic text-sm transition-all ${
@@ -885,54 +893,12 @@ function CollectionPageContent() {
               For Trade
             </button>
 
-            {/* List Filter */}
-            <select
-              value={selectedList}
-              onChange={(e) => setSelectedList(e.target.value)}
-              className="px-3 py-1.5 border-2 border-pop-black bg-pop-white text-sm font-comic text-pop-black focus:outline-none hover:shadow-[2px_2px_0px_#000] transition-all cursor-pointer"
-            >
-              {lists.map((list) => (
-                <option key={list.id} value={list.id}>
-                  {list.name}
-                </option>
-              ))}
-            </select>
-
-            {/* Clear Filters */}
-            {(publisherFilter !== "all" ||
-              titleFilter !== "all" ||
-              gradingCompanyFilter !== "all" ||
-              gradeFilter !== "all" ||
-              showStarredOnly ||
-              showForTradeOnly ||
-              searchQuery ||
-              selectedList !== "collection") && (
-              <button
-                onClick={() => {
-                  setPublisherFilter("all");
-                  setTitleFilter("all");
-                  setGradingCompanyFilter("all");
-                  setGradeFilter("all");
-                  setShowStarredOnly(false);
-                  setShowForTradeOnly(false);
-                  setSearchQuery("");
-                  setSelectedList("collection");
-                }}
-                className="text-sm text-primary-600 hover:text-primary-700 underline whitespace-nowrap"
-              >
-                Clear
-              </button>
-            )}
-          </div>
-
-          {/* Filter Row 2 - Dropdowns and Sort */}
-          <div className="flex flex-wrap items-center gap-2">
             <select
               value={publisherFilter}
               onChange={(e) => setPublisherFilter(e.target.value)}
               className="px-3 py-1.5 border-2 border-pop-black bg-pop-white text-sm font-comic text-pop-black focus:outline-none hover:shadow-[2px_2px_0px_#000] transition-all cursor-pointer"
             >
-              <option value="all">All Publishers</option>
+              <option value="all">Publishers</option>
               {uniquePublishers.map((publisher) => (
                 <option key={publisher} value={publisher}>
                   {publisher}
@@ -945,7 +911,7 @@ function CollectionPageContent() {
               onChange={(e) => setTitleFilter(e.target.value)}
               className="px-3 py-1.5 border-2 border-pop-black bg-pop-white text-sm font-comic text-pop-black focus:outline-none hover:shadow-[2px_2px_0px_#000] transition-all cursor-pointer"
             >
-              <option value="all">All Titles</option>
+              <option value="all">Titles</option>
               {uniqueTitles.map((title) => (
                 <option key={title} value={title}>
                   {title}
@@ -959,7 +925,7 @@ function CollectionPageContent() {
                 onChange={(e) => setGradingCompanyFilter(e.target.value)}
                 className="px-3 py-1.5 border-2 border-pop-black bg-pop-white text-sm font-comic text-pop-black focus:outline-none hover:shadow-[2px_2px_0px_#000] transition-all cursor-pointer"
               >
-                <option value="all">All Graders</option>
+                <option value="all">Graders</option>
                 {uniqueGradingCompanies.map((company) => (
                   <option key={company} value={company}>
                     {company}
@@ -987,15 +953,30 @@ function CollectionPageContent() {
               </select>
             </div>
 
-            {/* Export CSV - Premium Feature */}
-            <FeatureButton
-              feature="csvExport"
-              onClick={handleExportCSV}
-              className="flex items-center gap-1.5 px-3 py-1.5 border-2 border-pop-black bg-pop-white text-pop-black/60 font-comic text-sm hover:shadow-[2px_2px_0px_#000] transition-all"
-            >
-              <Download className="w-4 h-4" />
-              <span className="hidden sm:inline">CSV</span>
-            </FeatureButton>
+            {(publisherFilter !== "all" ||
+              titleFilter !== "all" ||
+              gradingCompanyFilter !== "all" ||
+              gradeFilter !== "all" ||
+              showStarredOnly ||
+              showForTradeOnly ||
+              searchQuery ||
+              !isDefaultListSelected) && (
+              <button
+                onClick={() => {
+                  setPublisherFilter("all");
+                  setTitleFilter("all");
+                  setGradingCompanyFilter("all");
+                  setGradeFilter("all");
+                  setShowStarredOnly(false);
+                  setShowForTradeOnly(false);
+                  setSearchQuery("");
+                  setSelectedList("collection");
+                }}
+                className="text-sm text-primary-600 hover:text-primary-700 underline whitespace-nowrap"
+              >
+                Clear
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -1013,7 +994,7 @@ function CollectionPageContent() {
             showStarredOnly ||
             showForTradeOnly
               ? "No comics match your filters"
-              : selectedList !== "collection"
+              : !isDefaultListSelected
                 ? "This list is empty"
                 : "Your collection is empty"}
           </h3>
@@ -1024,7 +1005,7 @@ function CollectionPageContent() {
             showStarredOnly ||
             showForTradeOnly
               ? "Try adjusting your filters or search terms"
-              : selectedList !== "collection"
+              : !isDefaultListSelected
                 ? "Add comics to this list from the comic details view"
                 : "Start by scanning your first comic book cover"}
           </p>
@@ -1053,10 +1034,10 @@ function CollectionPageContent() {
                 style={{ boxShadow: "4px 4px 0px #000" }}
               >
                 <Plus className="w-5 h-5" />
-                {selectedList !== "collection" ? "Scan a Book" : "Add Your First Comic"}
+                {!isDefaultListSelected ? "Scan a Book" : "Add Your First Comic"}
               </button>
             )}
-            {selectedList !== "collection" && collection.length > 0 && (
+            {!isDefaultListSelected && collection.length > 0 && (
               <button
                 onClick={() => setSelectedList("collection")}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-pop-white border-2 border-pop-black text-pop-black font-bold shadow-[2px_2px_0px_#000] hover:shadow-[3px_3px_0px_#000] transition-all"
