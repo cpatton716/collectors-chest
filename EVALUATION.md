@@ -2,7 +2,7 @@
 
 > Launch readiness scorecard. See `BACKLOG.md` for open work items and `DEV_LOG.md` for session history.
 
-*Last Updated: April 27, 2026*
+*Last Updated: April 28, 2026*
 
 ---
 
@@ -10,7 +10,7 @@
 
 Collectors Chest is a comic book collection tracking app with AI-powered cover recognition and a new auction marketplace feature. The app is currently in **Private Beta** with public registration disabled.
 
-**Overall Score: 9.4/10** (up from 9.3/10 — Session 42 + 42b–d shipped six deploys today: Second Chance flow end-to-end fixes, $0.75 minimum platform fee floor (closes the sub-$6 sale loss), site-wide transaction-fee documentation pass with Terms 4.5 rewrite, Notifications Inbox v1 with Capacitor-ready deep-link contract + 30/90-day auto-prune, retroactive pre-existing IDOR hotfix in `markNotificationRead`, dedicated `shipped` notification type with Truck icon, and three smoke-test fixes (inbox infinite-loading bug, mobile More menu missing Inbox entry, bell dropdown cropped on Android). Three rounds of deep-dive review on the inbox plan before code (3 Critical / 8 High / 9 Medium / 6 Low → 1 Critical / 2 High / 3 Medium → PASS).)
+**Overall Score: 9.5/10** (up from 9.4/10 — Session 43 (Apr 28, 2026) closed three pre-launch items in one bundle: Payment-deadline anchor fix in `processEndedAuctions` (now anchors to `auction.end_time` instead of cron run time, eliminating drift on slow cron runs), a NEW High-risk IDOR uncovered during a broader RLS-bypass audit (`/api/trades/matches/[matchId]` PATCH route — `dismissMatch` / `markMatchViewed` were updating by row id only with no `user_a_id`/`user_b_id` predicate), and rate-limit on `GET /api/notifications/:id` (Capacitor retry-storm guard). Also: My Collection filter UX refactor (Phase 1 + 2) — desktop/mobile both — including bug fixes for cloud-synced list filtering. Comp Premium granted to all 3 co-founder accounts via new `subscription_source` column. Deployed May 1, 2026.)
 
 **Current Status: PRIVATE BETA**
 - Site is live at collectors-chest.com
@@ -51,7 +51,7 @@ _(No open Medium items. Hottest Books was removed from scope Apr 22, 2026 — se
 
 ## 1. Code Quality & Technical Debt
 
-**Score: 9.2/10** (up from 9/10 — Session 42d closed a pre-existing IDOR in `markNotificationRead` surfaced during deep-dive Round 2; 20 new unit tests for cursor pagination + deep-link helper + non-deletable types; 773/773 tests passing across 50 suites)
+**Score: 9.3/10** (up from 9.2/10 — Session 43 added `isPrimaryList` helper + My Collection filter card refactor (Phase 1 + 2) splitting desktop/mobile presentation cleanly; bug fixes for cloud-synced list filtering. 773/773 tests passing across 50 suites.)
 
 ### Issues Status
 
@@ -75,7 +75,7 @@ _(No open Medium items. Hottest Books was removed from scope Apr 22, 2026 — se
 
 ## 2. Security Posture
 
-**Score: 9.5/10** (up from 8/10)
+**Score: 9.6/10** (up from 9.5/10 — Session 43 closed a NEW High-risk IDOR in `/api/trades/matches/[matchId]` PATCH route, found during a broader RLS-bypass audit. `dismissMatch` / `markMatchViewed` were updating by row id only with no `user_a_id`/`user_b_id` predicate.)
 
 | Item | Status | Notes |
 |------|--------|-------|
@@ -91,6 +91,8 @@ _(No open Medium items. Hottest Books was removed from scope Apr 22, 2026 — se
 | CAPTCHA on guest scans | ✅ Complete | **hCaptcha on scans 4–5** (added Session 38/39). Pro trial through May 7, 2026 → auto-downgrades to free tier (1M req/mo) |
 | Audit logging | ✅ Complete | **`auction_audit_log` table** with 20 event types + 17 lifecycle wire-ups (Apr 23, 2026). Admin-only RLS. Covers auction/offer/payment/shipment transitions + Stripe webhook |
 | Payment-miss strike system | ✅ Complete | First-offense warning email, 2-strikes-in-90-days triggers bid restriction + reputation hit (Apr 23, 2026) — partial fraud mitigation |
+| Trade matches IDOR | ✅ Closed Apr 28, 2026 | `/api/trades/matches/[matchId]` PATCH was updating by row id only; now scoped by `user_a_id`/`user_b_id` predicate (Session 43 RLS-bypass audit) |
+| Notifications GET rate limit | ✅ Added Apr 28, 2026 | `GET /api/notifications/:id` now rate-limited — Capacitor retry-storm guard (Session 43) |
 | CSRF protection | ⚠️ Implicit | Next.js provides some protection |
 | Middleware protection | ⚠️ Minimal | Few routes marked as protected |
 | Bid fraud detection | ⚠️ Partial | Strike system covers payment-miss pattern; pattern-based bid anomaly detection is post-launch — see BACKLOG |
@@ -143,7 +145,7 @@ See BACKLOG.md for open auction/marketplace work.
 
 ## 4. User Experience & Onboarding
 
-**Score: 8/10** (up from 7.5/10 — Session 42d notifications inbox closes the mobile-truncation gap; bell dropdown re-laid out as full-width sheet on mobile so titles + footer link no longer crop; Truck icon for shipped notifications semantically matches the message)
+**Score: 8.2/10** (up from 8/10 — Session 43 My Collection filter UX refactor materially improves mobile: ~600px filter card pushing content below fold replaced with ~80px collapsed bar + on-demand bottom-sheet drawer + active-filter chips with one-tap remove)
 
 ### Guest Experience Flow
 1. Land on home page → see features & "How It Works"
@@ -248,7 +250,7 @@ See BACKLOG.md for open auction/marketplace work.
 
 ## 7. Mobile Experience
 
-**Score: 8.7/10** (up from 8.5/10 — Session 42d added /notifications inbox built mobile-first with sheet-style bell dropdown, 44pt tap targets, message clamp-3 + 88px min-row-height for Lichtenstein cards, IndexedDB-equivalent localStorage cache namespaced by Clerk user.id, deferred custom pull-to-refresh until Capacitor `@capacitor/pull-to-refresh` ships)
+**Score: 8.9/10** (up from 8.7/10 — Session 43 introduced new reusable mobile pattern: bottom-sheet drawer + active-filter chips with one-tap remove, applied to My Collection. Sets up Phase 3 of mobile UX work for other pages (Sales, Auctions, Key Hunt).)
 
 | Feature | Status |
 |---------|--------|
@@ -270,7 +272,7 @@ See BACKLOG.md for open auction/marketplace work.
 
 | Feature | Status |
 |---------|--------|
-| Core Collection Management | ✅ Complete |
+| Core Collection Management | ✅ Complete — filter UX refactored Apr 28, 2026 (mobile bottom-sheet drawer + active chips) |
 | AI Cover Recognition | ✅ Complete |
 | Listed Value (eBay Browse API) | ✅ Complete |
 | Grade-Aware Pricing | ✅ Complete |
@@ -321,6 +323,7 @@ See BACKLOG.md for open auction/marketplace work.
 - Auction marketplace (8% free / 5% premium transaction fee)
 - ⏳ Stripe account setup pending
 - ⏳ Stripe Connect for automated seller payouts (pending)
+- Comp Premium for co-founder accounts via `subscription_source` column added Apr 28 — preserves analytics filterability (`WHERE subscription_source <> 'comped'`).
 
 ### Premium Tier Value Props (Ready)
 - Unlimited scans
@@ -379,3 +382,5 @@ See BACKLOG.md for open auction/marketplace work.
 - Shipping Tracking Option B — EasyPost + 10-day auto-refund (post-launch)
 
 See `BACKLOG.md` for the full prioritized list of open items.
+
+_Deployed May 1, 2026 — Session 43 bundle (payment-deadline anchor, trade_matches IDOR fix, notifications GET rate-limit, My Collection filter UX refactor, comp Premium for co-founders)._

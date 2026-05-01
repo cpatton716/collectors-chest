@@ -2002,4 +2002,51 @@ If you encounter bugs or unexpected behavior:
 
 ---
 
-*Last Updated: April 27, 2026*
+### Session 43 — trade_matches IDOR Fix + My Collection Filter Refactor (Apr 28, 2026)
+
+**Scope:** Three sets of changes shipped together:
+1. **Security:** `/api/trades/matches/[matchId]` PATCH route + `tradingDb.ts` helpers now require user scoping (closes a pre-existing IDOR where any authenticated user could mutate any other user's trade match by id).
+2. **Filter Phase 1 (desktop):** My Collection page reorganized — list selector tabs deleted, list dropdown gets per-list counts, CSV moved to page actions row, "Viewing:" label, and a list-tagging bug fix for cloud users (`isPrimaryList()` helper distinguishes "My Collection" from other auto-seeded `isDefault: true` lists like Want List / For Sale).
+3. **Filter Phase 2 (mobile):** Bottom-sheet drawer for filters + active-filter chips bar with one-tap removal.
+
+**What changed (cited in DEV_LOG):**
+- `src/app/api/trades/matches/[matchId]/route.ts` — PATCH now validates `userId` ownership before mutating
+- `src/lib/tradingDb.ts` — helpers (`dismissMatch`, `markMatchViewed`, etc.) now take a `userId` param and scope updates with `.eq("user_id", userId)`
+- `src/app/collection/page.tsx` — page-actions row, filter card layout, `isPrimaryList()` helper, list dropdown counts, "Viewing:" label
+- Mobile filter drawer + chips components under `src/components/collection/`
+
+**Preconditions:**
+- Two distinct authenticated test accounts (call them user A and user B)
+- User B has at least one open trade match in the `trade_matches` table
+- Test account with at least one comic tagged to a Want List and one tagged to a custom list (for filter coverage)
+- Cloud-synced account (not local-only) — needed to reproduce the Phase 1 list-tagging bug regression check
+
+| Test Case | Steps | Expected Result | Status |
+|-----------|-------|-----------------|--------|
+| **IDOR — PATCH another user's match returns 404** | As authenticated user A, find a `trade_matches` row owned by user B (via DB query). `curl -X PATCH /api/trades/matches/<matchId-belonging-to-userB> -H 'Content-Type: application/json' -d '{"action":"dismiss"}'` with user A's session cookie. | HTTP 404 (not 200, not 403). User B's match row is unchanged in the DB. The `.eq("user_id", userId)` scoping filter silently misses the row, returning not-found rather than leaking existence/permission detail. | Pending |
+| **IDOR — PATCH own match returns 200 + status flips** | As user A, PATCH `/api/trades/matches/<matchId-owned-by-userA>` with `{"action":"dismiss"}`. | HTTP 200. The match's `status` column flips to `dismissed` (or equivalent). Row is correctly mutated in DB. | Pending |
+| **IDOR — mark-viewed on another user's match returns 404** | As user A, PATCH `/api/trades/matches/<matchId-owned-by-userB>` with `{"action":"mark_viewed"}`. | HTTP 404. User B's match `viewed_at` remains null in DB. | Pending |
+| **IDOR — suspended user blocked per existing flow** | Mark a test user as suspended in `profiles`. Sign in as that user. PATCH any trade match (own or otherwise). | HTTP 401 or 403 per existing suspension middleware. No DB mutation. | Pending |
+| **Phase 1 desktop — page-actions row layout** | On Mac Chrome desktop, sign in and visit `/collection`. Look at the page-actions row (above the filter card). | CSV export button is visible between Share and "+ Add Book". For free-tier users the CSV button is Premium-gated (locked icon or upgrade prompt). For Premium users CSV downloads work. | Pending |
+| **Phase 1 desktop — filter card layout** | Same as above. Inspect the filter card. | Filter card renders 3 rows: (1) search box + view toggle + Select button, (2) "Viewing:" label + list dropdown, (3) inline filter chips (Starred / For Trade / Publisher / Title / Grader). | Pending |
+| **Phase 1 desktop — old List Selector Tabs row removed** | Same as above. Look above the filter card for any "List" tab strip. | NO list selector tabs row renders. The list-switching UI lives only inside the filter card's list dropdown. | Pending |
+| **Phase 1 desktop — "Viewing:" label** | Same as above. | "Viewing:" label is visible directly above (or to the left of) the list dropdown, providing visual context for the dropdown. | Pending |
+| **Phase 1 desktop — list dropdown shows counts** | Open the list dropdown. | Each option renders its count: "My Collection (N)" / "Want List (N)" / "For Sale (N)" / custom lists with their counts. Counts reflect actual tagged comics. | Pending |
+| **Phase 1 — Want List count is accurate** | With at least 5 comics in the collection but only 2 tagged to Want List, open the list dropdown. | "Want List (2)" — only items actually tagged to Want List, NOT the full collection length. | Pending |
+| **Phase 1 — My Collection count equals total** | With N comics total in the collection. | "My Collection (N)" matches the full collection length (every comic counts as in My Collection regardless of tags). | Pending |
+| **Phase 1 cloud-user regression — My Collection → Want List → My Collection** | As a cloud-synced (signed-in) user, visit `/collection`. Switch list dropdown to "Want List" and confirm Want List items render. Switch back to "My Collection". | Collection grid renders all items in My Collection both times. No empty grid, no missing books on the second view. (This was the Phase 1 bug — `isPrimaryList()` now correctly distinguishes My Collection from Want List/For Sale even though both are `isDefault: true`.) | Pending |
+| **Phase 1 — custom list filters to its tagged items only** | Create a custom list (e.g., "Faves"). Tag 3 specific comics to it. Switch list dropdown to "Faves". | Grid shows ONLY the 3 tagged comics. No other collection items leak through. | Pending |
+| **Phase 2 mobile — filter card layout** | On a real iPhone/Android (or DevTools mobile emulator), visit `/collection`. | Filter card on mobile shows: search box / Viewing dropdown / row with [Filters (N)] button + [Sort ▼] dropdown. No inline filter chips on mobile (those live in the drawer). | Pending |
+| **Phase 2 mobile — open filter drawer** | Tap the [Filters] button. | Bottom-sheet drawer slides up from the bottom with a darkened backdrop overlay. Page content behind is non-interactive. | Pending |
+| **Phase 2 mobile — drawer header** | With drawer open, look at the top. | Header shows "Filters (N)" title (N = active filter count) and a close × button on the right. | Pending |
+| **Phase 2 mobile — drawer body content** | With drawer open, scroll body. | Body shows: Starred + For Trade buttons in a split row at top, then Publisher / Title / Grader (Grader only when applicable to the visible list) dropdowns stacked below. | Pending |
+| **Phase 2 mobile — drawer footer buttons** | With drawer open, look at the bottom. | Footer has [Clear All] (disabled/gray when no filters active) + [Show N Comics] (live count, blue). N updates as filters are toggled inside the drawer. | Pending |
+| **Phase 2 mobile — drawer dismiss methods** | Open the drawer. Test three close paths: (a) tap the backdrop outside the drawer, (b) tap the close × in the header, (c) tap [Show N Comics] in the footer. | Each method closes the drawer and returns focus to the trigger row. | Pending |
+| **Phase 2 mobile — active-filter chips appear after picking** | Open drawer, pick (e.g.) Starred + Publisher: Marvel. Close the drawer. | "Active:" label + chip bar appears below the filter card. Chips: [Starred ×] [Publisher: Marvel ×]. Each chip shows the value + an × icon. | Pending |
+| **Phase 2 mobile — tap chip × removes filter** | With chips visible, tap the × on the [Starred] chip. | Starred filter clears immediately. The chip disappears from the bar. The [Filters (N)] count badge decrements by 1. Grid updates to show non-starred items. | Pending |
+| **Phase 2 mobile — chip bar hidden when no filters** | Clear all filters (via Clear All in drawer or by tapping every chip ×). | Active-filter chip bar is NOT rendered. Filter card collapses back to baseline height. | Pending |
+| **Phase 2 mobile — Sort dropdown is OUTSIDE the drawer** | On the filter card trigger row, tap the [Sort ▼] dropdown. | Sort options open in-place (native select or popover) WITHOUT the filter drawer opening. Sort can be changed independently of filters. Confirms Sort is a peer of [Filters], not nested inside the drawer. | Pending |
+
+---
+
+*Last Updated: April 28, 2026*

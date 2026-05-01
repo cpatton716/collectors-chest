@@ -4,11 +4,10 @@
 
 Lead with these when the next session opens. Surfaced from session 42d's deep-dive review + in-flight testing; details under their full BACKLOG entries below.
 
-1. **Validate Second Chance offer flow live** (in-flight test). The Apr 27 offer to runner-up `pattonrt` started its 48h window today. Either path is informative:
+1. **Validate Second Chance offer flow live** (in-flight test). The Apr 27 offer's 48h window expired around Apr 29; verify cron flipped offer to `expired` and the cancellation-email mutex worked correctly. Either path was informative:
    - **Acceptance path** → checkout → Stripe payment → seller marks shipped → ownership transfer → both leave feedback → feedback button auto-hides on submit. Validates the full Session 39+40 + 42 fixes end-to-end with a real purchase.
    - **Expiry path** → cron flips offer to `expired` after 48h → seller receives `second_chance_expired` notification + email, listing is back in seller's collection. Validates Phase 4 → cancellation email path (which now correctly fires post-second-chance via the Session 42 mutex logic).
-2. **Payment Deadline Anchored to Cron Run Time** (Medium, Pre-Launch). Display side fixed Apr 27; the `payment_deadline` write itself still anchors to `cron_run_time + 48h` instead of `auction.end_time + 48h`. One-line fix at `src/lib/auctionDb.ts:2138`. Audit the other 4 call sites (965, 1309, 1525, 3724) to confirm each uses the correct anchor. Should land before public launch — promised "48h from auction close" should be exact.
-3. **Validate Notifications Inbox manual TEST_CASES** (27 added Apr 27). Most are quick — tap-X-dismisses-row, mark-all-read button hidden when 0 unread, infinite scroll, focus-on-mount, NON_DELETABLE types reject delete, suspended-user DELETE returns 403. Defer the Capacitor-specific ones (push-tap deep-link, iOS safe-area) until iOS native ships.
+2. **Validate Notifications Inbox manual TEST_CASES** (27 added Apr 27). Most are quick — tap-X-dismisses-row, mark-all-read button hidden when 0 unread, infinite scroll, focus-on-mount, NON_DELETABLE types reject delete, suspended-user DELETE returns 403. Defer the Capacitor-specific ones (push-tap deep-link, iOS safe-area) until iOS native ships. Note: Phase 1 + Phase 2 of the My Collection filter refactor (Session 43) also added new test cases — see TEST_CASES.md.
 
 After those: pick from the standing pre-launch list below (Auction Ending Soon Reminder, FMV graceful fallback, `account.updated` webhook validation, iOS native, Apple Developer enrollment).
 
@@ -716,35 +715,6 @@ Losing / non-winning bidders currently get nothing before an auction ends. They 
 
 ---
 
-### Payment Deadline Anchored to Cron Run Time Instead of Auction `end_time`
-**Priority:** Medium (Pre-Launch — buyer-facing deadline accuracy)
-**Status:** Pending — Apr 27, 2026 update: timezone display fixed (Session 42), deadline-anchor fix still open
-**Added:** Apr 24, 2026 (Session 41 PROD testing)
-**Updated:** Apr 27, 2026
-
-**Apr 27, 2026 update:** Session 42 fixed the *display* side of this bug — the buyer's email now renders the deadline in `America/New_York` with an explicit "EDT"/"EST" abbreviation (was previously formatted with the server's timezone, i.e. UTC, and presented to users as raw "2:20 PM" with no label, which they mis-read as ET). The underlying anchoring bug below is still real — `payment_deadline` is still persisted as `cron_run_time + 48h` instead of `auction.end_time + 48h`. With small cron lag (5–10 min) the discrepancy is invisible. With the ~3h42m lag observed Apr 24, it's a meaningful drift. Keep priority as Medium pre-launch.
-
-`processEndedAuctions` in `src/lib/auctionDb.ts:2138` calls `calculatePaymentDeadline()` with no argument, which defaults to `new Date()` (the moment the cron runs). This anchors the 48h payment window to the cron processing time, not the auction's actual `end_time`. If the cron is late, every winning bidder gets a proportionally longer window than the advertised 48 hours.
-
-**Observed in PROD today:** Giant-Size X-Men #1 auction ended ~10:38am ET. Cron didn't process it until ~2:20pm ET (~3h42m lag). Winner's email displayed deadline of **Apr 26, 2:20 PM** — ~51.5 hours after the actual close, not the advertised 48.
-
-**Fix:** change line 2138 to pass `new Date(auction.end_time)`:
-```ts
-const paymentDeadline = calculatePaymentDeadline(new Date(auction.end_time));
-```
-Similar audit should run on the other 4 call sites (`auctionDb.ts:965, 1309, 1525, 3724`) to confirm each uses the correct anchor (e.g., Buy Now / offer accepted / second-chance accepted should still anchor to `new Date()` — those *are* the moment the transaction starts).
-
-**Secondary — cron lag worth a quick look:** `/api/cron/process-auctions` is documented as "every 5 min" in `ARCHITECTURE.md:639`. A ~3h42m gap between auction `end_time` and cron processing is well outside that window. User direction (Apr 24): "A five to ten minute window for the cron to run is totally acceptable" — so the fix above makes deadline calculation robust to any lag. But the actual lag observed today is suspicious and worth a glance at Netlify scheduled-function logs for `/api/cron/process-auctions` between 10:38 and 14:20 ET today to confirm the schedule was firing.
-
-**Files:**
-- `src/lib/auctionDb.ts:2138` — primary fix
-- `src/lib/auctionDb.ts:965, 1309, 1525, 3724` — audit each call site
-- Netlify logs — verify cron cadence post-fix
-
-**Tests to add:** unit test that `processEndedAuctions` sets `payment_deadline = end_time + 48h` regardless of `Date.now()` when it runs.
-
----
-
 ### FMV Lookup — Graceful Fallback for Rare / Key Issues at Exact Grade
 **Priority:** Medium (Pre-Launch — affects key-issue value display)
 **Status:** Pending
@@ -791,30 +761,6 @@ During Session 39, the Second Chance Offer agent discovered the `valid_notificat
 **Added:** Apr 23, 2026
 
 Today's session wired a 5-second AbortSignal timeout on the hCaptcha siteverify fetch to fail-fast during outages. Future enhancement: add 1-2 retries with short backoff for transient network errors before returning `network_error` to the user. Current behavior is fail-closed, which is correct, but retries would improve UX during brief connectivity blips.
-
----
-
-### Audit Other `supabaseAdmin` Notification Writes for IDOR Pattern
-**Priority:** Low (Post-Launch)
-**Status:** Pending
-**Added:** Apr 27, 2026 (Session 42d deep-dive Round 2)
-
-Round 2 of the notifications-inbox deep dive surfaced a pre-existing IDOR in `markNotificationRead` (`src/lib/auctionDb.ts:2030`) — the helper used `supabaseAdmin` and updated by `id` only, no `user_id` scope. Fixed in Session 42d. The pattern is broader: any helper that takes only an `id` parameter and uses `supabaseAdmin` to write to a user-owned table is a potential IDOR if the route's auth check is the only gate.
-
-Audit task: grep `supabaseAdmin.from(` for INSERT/UPDATE/DELETE callsites across all user-owned tables (notifications, comics, sales, offers, bids, second_chance_offers, watchlist, follows, key_info_suggestions). For each, confirm the helper signature includes the requesting user's id AND the WHERE clause scopes by it. Flag any helper that doesn't.
-
-Cheap hygiene win — prevents future regressions.
-
----
-
-### Rate-Limit `GET /api/notifications/:id`
-**Priority:** Low (Post-Launch)
-**Status:** Pending
-**Added:** Apr 27, 2026 (Session 42d deep-dive Round 3)
-
-The new `GET /api/notifications/:id` endpoint (used by the inbox `?focus=<id>` deep-link) can amplify cost under Capacitor retry-storm scenarios — the iOS push notification system retries failed taps, each triggering a 404 lookup if the row was pruned. Add Upstash rate limit (5 req/10s per profile) when iOS native ships, before public launch.
-
-Not v1-blocking — Capacitor app isn't shipped yet.
 
 ---
 

@@ -2,7 +2,7 @@
 
 > **Comprehensive map of pages, features, and service dependencies**
 
-*Last Updated: April 23, 2026 — Sessions 38 + 39 + 40 (Payment deadline enforcement, Second Chance Offers, Payment-Miss Strike System, Auction Audit Log, Zod validation across 82 routes, Email Notification Preferences, hCaptcha guest-scan protection, Cover crop validator, Clerk ↔ Supabase username sync-on-write, Metron + Hottest Books removed, seller onboarding help page, 10MB upload cap; Session 40: manual FMV refresh endpoint for owned comics, feedback rating-request moved from payment to ship, `/api/checkout` image URL guard against Supabase signed URLs + base64 data URIs, partial pricing-gate on `/sales` page (Cost + Profit columns + summary cards behind `fullStats`), outbid email now surfaces recipient's max bid, Active Bids tab column-name fix, site-wide em dash removal, mobile auction/buy-now modal image caps, Ask the Professor FAQ scroll-lock)*
+*Last Updated: Apr 28, 2026 (deployed May 1) — Sessions 38 + 39 + 40 + 42d + 43 (Payment deadline enforcement, Second Chance Offers, Payment-Miss Strike System, Auction Audit Log, Zod validation across 82 routes, Email Notification Preferences, hCaptcha guest-scan protection, Cover crop validator, Clerk ↔ Supabase username sync-on-write, Metron + Hottest Books removed, seller onboarding help page, 10MB upload cap; Session 40: manual FMV refresh endpoint for owned comics, feedback rating-request moved from payment to ship, `/api/checkout` image URL guard against Supabase signed URLs + base64 data URIs, partial pricing-gate on `/sales` page (Cost + Profit columns + summary cards behind `fullStats`), outbid email now surfaces recipient's max bid, Active Bids tab column-name fix, site-wide em dash removal, mobile auction/buy-now modal image caps, Ask the Professor FAQ scroll-lock; Sessions 42d + 43: notifications + trade_matches IDOR closures with cross-cutting service-role write-scoping pattern)*
 
 ---
 
@@ -546,7 +546,7 @@ All other routes are public (unauthenticated access allowed). Individual API rou
 | `/api/trades/available` | GET | Get all comics marked for trade | 🗄️ |
 | `/api/trades/matches` | GET | Get user's Hunt List matches | 🗄️ 🔐 |
 | `/api/trades/matches` | POST | Trigger match finding | 🗄️ 🔐 |
-| `/api/trades/matches/[matchId]` | PATCH | Update match (view, dismiss) | 🗄️ 🔐 |
+| `/api/trades/matches/[matchId]` | PATCH | Update match (view, dismiss, traded). Owner-scoped writes via `tradingDb` helpers (`dismissMatch` / `markMatchViewed` / `markMatchTraded` require `userId` + `.or('user_a_id.eq.X,user_b_id.eq.X')` predicate); returns **404 on owner mismatch** to avoid existence leaks (Session 43 IDOR fix). | 🗄️ 🔐 |
 | `/api/comics/for-trade` | GET | Get user's for-trade comics | 🗄️ 🔐 |
 | `/api/comics/[id]/for-trade` | PATCH | Toggle for_trade status | 🗄️ 🔐 |
 
@@ -1534,6 +1534,15 @@ Invisible hCaptcha gates guest scans 4 & 5 (the last two free scans before the l
 - Client: `src/components/GuestCaptcha.tsx` via `@hcaptcha/react-hcaptcha`, floating badge
 - Server: `src/lib/hcaptcha.ts` siteverify helper, 5s timeout, dev/prod key swap
 - Gating: `/api/analyze` requires a valid hCaptcha token on scans 4 & 5
+
+### Service-Role Write Scoping (lesson from sessions 42d + 43)
+
+Any helper that uses `supabaseAdmin` (which bypasses RLS) for an `UPDATE` / `DELETE` on a user-owned table **MUST** scope by the calling user's id explicitly. `.eq('id', rowId)` alone is IDOR. The pattern is `.eq('id', rowId)` + ownership predicate (`.eq('user_id', userId)` for single-owner tables, or `.or('user_a_id.eq.X,user_b_id.eq.X')` for tables with multiple owner columns like `trade_matches`). Helpers should return `Promise<boolean>` (was a row affected) and the calling route should **404 on miss — never 403**, to avoid existence leaks.
+
+Affected helpers:
+
+- `markNotificationRead` / `markAllNotificationsRead` — `notifications` table (fixed Session 42d)
+- `dismissMatch` / `markMatchViewed` / `markMatchTraded` — `trade_matches` table (fixed Session 43)
 
 ---
 

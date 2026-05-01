@@ -4,6 +4,160 @@ This log tracks session-by-session progress on Collectors Chest.
 
 ---
 
+## Apr 28, 2026 (Tuesday) - Session 43: Yesterday's Round-3 Follow-ups + Trade IDOR + Comp Premium + My Collection Filter Refactor (Deployed May 1, 2026)
+
+> **Note on dates:** Code work in this entry began Apr 28, 2026. Deploy to production happened May 1, 2026. Several deep-dive review notes from session 42d's Round 3 carry forward into this session.
+
+### Summary
+Five-bucket session, all bundled into a single May 1 deploy:
+1. Yesterday's screenshot follow-ups — Round-3 deep-dive notes from session 42d (notifications inbox) cleared in one bundle: payment-deadline anchor in `processEndedAuctions`, rate-limit on `GET /api/notifications/:id`, and sign-out cache-clear race tightening on the inbox.
+2. **NEW IDOR uncovered during the broader RLS-bypass audit** — `/api/trades/matches/[matchId]` PATCH route + `tradingDb` helpers (`dismissMatch`, `markMatchViewed`, `markMatchTraded`) used `supabaseAdmin` with `.eq("id", matchId)` only — no user scoping on the `trade_matches` table. Same shape as the notifications IDOR closed in 42d. Patched.
+3. **Comp Premium for 3 co-founder accounts** — new `subscription_source` column ('stripe' | 'comped' | 'trial') added to `profiles`. The 3 admin Clerk IDs comped to permanent Premium with `source='comped'`, `stripe_customer_id` left NULL so Stripe webhooks never match these rows.
+4. **My Collection filter UX refactor — Phase 1 (desktop)** — collapsed redundant List Selector Tabs row, moved CSV to page actions row, "Viewing:" label on list dropdown with counts, dropped "ALL " prefix. Surfaced and fixed two cloud-user list-tagging bugs (sentinel string `"collection"` vs UUID; `isDefault` flag too broad for "show all" detection).
+5. **My Collection filter UX refactor — Phase 2 (mobile)** — bottom-sheet drawer for filters + active-filter chips bar with one-tap removal. `md:hidden` / `hidden md:flex` Tailwind toggles; desktop unchanged from Phase 1.
+
+### Features Shipped
+
+#### 1. Payment Deadline Anchor — `processEndedAuctions` 🛡️
+Promise to users in emails / Terms / FAQs is "payment due 48 hours from auction close." But `processEndedAuctions` was calling `calculatePaymentDeadline()` with no arg → defaulted to `now()` at cron time. With a slow cron (~3h42m drift observed Apr 24, 2026 PROD test), the marketed window stretched to 51.5h.
+
+Audited the 4 sibling call sites at user direction (Buy Now, offer accept, counter-offer accept, second-chance accept). All four correctly anchor to `new Date()` because those *are* the moment the transaction starts (purchase clicked / offer accepted) — no fix needed. Only the cron path was wrong.
+
+One-line fix in `src/lib/auctionDb.ts:2388`:
+```ts
+const paymentDeadline = calculatePaymentDeadline(new Date(auction.end_time));
+```
+
+#### 2. trade_matches IDOR — closed (NEW find) 🔒
+Broader RLS-bypass audit (kicked off as a hygiene scan after the session 42d notifications IDOR) surfaced this:
+
+`src/lib/tradingDb.ts` had three helpers — `dismissMatch`, `markMatchViewed`, `markMatchTraded` — all using `supabaseAdmin` (bypasses RLS) with `.eq("id", matchId)` and **no user predicate**. The `trade_matches` table has `user_a_id` and `user_b_id` ownership columns, so any authenticated user could dismiss or mark-viewed any match by guessing UUIDs. `markMatchTraded` is currently unused in the codebase but carried the same defect.
+
+Fix:
+- Helper signatures now require `userId: string`
+- Predicate adds `.or("user_a_id.eq.${userId},user_b_id.eq.${userId}")` (matches the existing safe pattern in `getUserMatches` at line 497)
+- Helpers return `Promise<boolean>` (was a row affected)
+- Route at `src/app/api/trades/matches/[matchId]/route.ts` passes `profile.id` and 404s on `false` (never 403 — no existence leak)
+- `markMatchTraded` defensively patched even though it has no callsites
+
+Audit confirmed no other unscoped `supabaseAdmin` mutations exist on user-owned tables. The cross-cutting lesson is now documented in `ARCHITECTURE.md` under "Service-Role Write Scoping" as a defensive pattern reference for future helpers.
+
+#### 3. Rate-Limit GET `/api/notifications/:id` 🚦
+30/minute Upstash sliding-window rate limit keyed on Clerk `userId`, using the existing `rateLimiters.api` bucket. Defense against Capacitor push deep-link tap landing on a stale notification id and retry-storming the 404 path once iOS native ships.
+
+#### 4. Sign-Out Cache-Clear Race Tightening 🛡️
+Round 3 minor note from session 42d: `NotificationsInbox`'s initial-load effect captured the cacheKey via closure at fetch start. If the user signed out / switched accounts mid-fetch, the old closure could write user A's payload into the (now-stale or now-different) cache slot. Existing `cancelled` flag handled the common case but not exotic microtask ordering edges.
+
+Fix: capture `cacheKey` into `startKey` at effect start, mirror live `cacheKey` into a `currentCacheKeyRef` via a separate effect, and re-check `currentCacheKeyRef.current === startKey` before writing to localStorage. Belt-and-suspenders; defense-in-depth on shared-device fast account switching.
+
+#### 5. Comp Premium for 3 Co-Founder Accounts 🎁
+New column on `profiles`: `subscription_source TEXT DEFAULT 'stripe' CHECK (subscription_source IN ('stripe', 'comped', 'trial'))`.
+
+Schema migration `20260428_add_subscription_source.sql`:
+- Adds the column + CHECK constraint + index
+- Backfills existing rows: `trial_started_at IS NOT NULL` → 'trial'; `stripe_subscription_id IS NOT NULL` → 'stripe'; everyone else stays at default
+
+Comp UPDATE `20260428_comp_cofounder_premium.sql` flips the 3 admin Clerk accounts to `tier='premium' / status='active' / source='comped'`, leaves `stripe_customer_id` NULL so the Stripe webhook handlers (which look up rows via `getProfileByStripeCustomerId`) never match these rows and can't accidentally downgrade them. Trial timestamps cleared to preserve their legitimate-trial eligibility if they ever leave comp.
+
+User verified Premium features unlocked in production after the migrations applied.
+
+#### 6. My Collection Filter Refactor — Phase 1 (Desktop) 📐
+Collapsed the heavy filter card from 3 stacked rows + a separate List Selector Tabs row into 3 tight rows in one card. Layout now:
+- **Row 1:** Search + view-mode toggle + Select button (desktop only; mobile gets Select on row 2)
+- **Row 2:** "Viewing: [List ▼]" with item counts in the dropdown labels
+- **Row 3:** Inline filter chips (Starred, For Trade, Publisher, Title, Grader) + Sort + Clear
+
+Other small wins:
+- "ALL" prefix dropped from filter labels ("Publishers", not "ALL PUBLISHERS")
+- CSV Export button moved out of the filter card and into the page-level actions row alongside Stats / Sales / Share — it's an action, not a filter
+- List Selector Tabs row deleted (the dropdown supersedes it and scales naturally to N user-created lists)
+
+**Bug fixes surfaced during user testing of Phase 1:**
+
+- *Bug A:* My Collection list count showed `(0)` for cloud-synced users with N items in the collection. Root cause: `list.id === "collection"` (the localStorage default sentinel) never matched a UUID-id from Supabase, so the count fell through to `item.listIds.includes(uuid)` which returned 0 (items in the default list don't tag themselves with the parent list's UUID).
+- *Bug B:* Switching from a non-primary list back to "My Collection" rendered an empty grid. Same root cause — `selectedList !== "collection"` was true (selectedList = UUID) so the filter logic tried to match by that UUID and found nothing.
+- *Bug C (introduced by my first fix):* I broadened the detector to `list.isDefault === true`. But ALL auto-seeded lists (Want List, For Sale, Slabbed, Passed-on) carry `isDefault: true` — that flag means "system-seeded, not user-created," not "primary union view." So the count display showed `(N)` for every default list and switching to Want List rendered all comics.
+
+**Final fix:** introduce `isPrimaryList()` helper that returns `true` only for the literal primary list, identified by id-sentinel `"collection"` (guests) OR `name === "My Collection"` (cloud). Other auto-seeded lists fall through to the standard `item.listIds.includes(listId)` member-tag path. The `"collection"` string sentinel survives in setters (initial state, Clear-filters, View-All-Comics fallback) for guest backward compat — the helper accepts both shapes.
+
+#### 7. My Collection Filter Refactor — Phase 2 (Mobile) 📱
+Mobile-only additions; desktop layout from Phase 1 unchanged via `md:hidden` / `hidden md:flex` Tailwind prefixes.
+
+- **Trigger row** replaces the inline filter chips on mobile: `[🎚 Filters (N)]                Sort: [Date Added ▼]`. The `(N)` badge appears only when filters are active.
+- **Bottom-sheet drawer** opens on tap. Sticky header with `Filters (N)` + close ×. Body has `[★ Starred] [⇄ For Trade]` (split row) then Publisher / Title / Grader dropdowns. Sticky footer with `[Clear All]` (disabled when no filters) + `[Show N Comics]` (live count, blue, dismisses drawer).
+- **Active-filter chips bar** renders below the filter card (mobile-only) when any filter is active. Each chip shows its value (e.g. "Marvel ×") and tapping the × clears that one filter without reopening the drawer.
+- **Sort lives OUTSIDE the drawer** in the trigger row because users change sort more often than filters.
+
+The drawer is rendered inline in `page.tsx` rather than extracted to a component. With ~12 pieces of state to thread through, the extraction overhead would have been larger than the JSX itself.
+
+Verified locally on Mac Chrome (Phase 1) and via DevTools mobile emulator (Phase 2). True mobile-device verification deferred until prod deploy because Clerk's `<SignIn />` widget silently fails on dev's `http://10.0.0.34:3000` LAN IP — the IP isn't whitelisted as an authorized origin in the Clerk dashboard. (Documented in `DEV_LOG.md:746` from session 36 + new memory file.)
+
+### Tests
+
+No new automated tests added this session. Reasoning per change:
+- Payment deadline: pure helper (`calculatePaymentDeadline`) is already tested in `auction.test.ts:225-247`; the fix was a call-site config change. Adding a `processEndedAuctions` integration test would require mocking the entire Supabase chain — disproportionate for a single-line fix.
+- trade_matches IDOR: helpers correctness is best validated end-to-end (curl test against the route), captured as manual cases in `TEST_CASES.md`.
+- Rate-limit: relies on Upstash; integration validation lives at the deployment level.
+- Sign-out race: timing-sensitive; not unit-testable cleanly.
+- Filter refactor: pure JSX/CSS reorg; correctness validated by inspection + DevTools emulator.
+
+**773/773 tests pass across 50 suites** (unchanged from session 42d).
+
+### Files Modified / Created
+
+**New:**
+- `supabase/migrations/20260428_add_subscription_source.sql`
+- `supabase/migrations/20260428_comp_cofounder_premium.sql`
+- `~/.claude/projects/-Users-chrispatton-Coding-for-Dummies-Comic-Tracker/memory/feedback_clerk_mobile_dev.md` *(memory file — saves the LAN-IP Clerk widget issue so future sessions don't re-debug)*
+
+**Modified:**
+- `src/lib/auctionDb.ts` — payment deadline anchor in `processEndedAuctions` (1 line)
+- `src/lib/tradingDb.ts` — `dismissMatch` / `markMatchViewed` / `markMatchTraded` now require `userId`, add `.or()` ownership predicate, return `Promise<boolean>`
+- `src/app/api/trades/matches/[matchId]/route.ts` — passes `profile.id`, 404s on owner mismatch
+- `src/app/api/notifications/[id]/route.ts` — added Upstash rate-limit on GET
+- `src/components/notifications/NotificationsInbox.tsx` — `currentCacheKeyRef` + `startKey` mid-flight check
+- `src/app/collection/page.tsx` — Phase 1 + Phase 2 of filter refactor (~340 net line increase)
+- `BACKLOG.md`, `EVALUATION.md`, `ARCHITECTURE.md`, `TEST_CASES.md` — close-up-shop documentation pass
+- `TESTING_RESULTS.md` — session 43 testing context entry
+
+### Migrations Applied to Supabase Before Deploy
+1. `20260428_add_subscription_source.sql` — applied Apr 28, 2026
+2. `20260428_comp_cofounder_premium.sql` — applied Apr 28, 2026
+
+### Quality Checks (pre-deploy May 1)
+- TypeScript: 0 errors
+- ESLint: clean (warnings unchanged from session 42d)
+- Tests: 773/773 passing across 50 suites
+- Production build: succeeds clean
+
+### Commits
+- `0253cc0` — fix(security+marketplace): payment deadline + trade IDOR + inbox hardening
+- `7e8ed62` — refactor(collection): Phase 1 filter UX + cloud-user list-tagging bug fixes
+- `377d745` — chore(db): subscription_source column + comp Premium for co-founders
+- `c51656a` — feat(collection): Phase 2 mobile filter drawer + active chips
+
+### Issues Encountered
+- **Clerk widget fails to mount on dev LAN IP** — re-discovery of the issue documented in DEV_LOG.md:746 (session 36, Apr 21). User correctly recalled we'd hit this before. Saved to memory as `feedback_clerk_mobile_dev.md` so future sessions short-circuit to the right testing path (DevTools mobile emulator, prod, or ngrok) instead of re-running this debugging arc.
+- **`next dev --experimental-https` fell back to HTTP** — `mkcert -install` requires interactive sudo which `npm run` can't pass through. Reverted my exploratory `dev:https` script addition; the right paths for real-mobile dev testing are documented in the memory file.
+
+### BACKLOG follow-ups
+- Three Round-3 minor items from session 42d closed this session (payment deadline, rate-limit, IDOR hygiene scan). The fourth (sign-out race) closed too.
+- One new defensive item NOT added per project memory rule (completed items get DEV_LOG entry, not BACKLOG entry): the trade_matches IDOR closure record lives here.
+
+### Memory updates this session
+- New: `feedback_clerk_mobile_dev.md` — Clerk widget fails on LAN IP; route mobile testing through prod/DevTools/ngrok, not `http://10.0.0.34:3000`.
+
+### Where We Left Off
+Deployed May 1, 2026. Awaiting:
+- Validation of the in-flight Apr 27 Second Chance offer expiry path (cron should have flipped the `pattonrt` offer to `expired` around Apr 29; cancellation-email mutex from session 42 should have prevented contradictory emails).
+- Manual TEST_CASES.md execution on the new entries (trade_matches IDOR, Phase 1 desktop, Phase 2 mobile — 23 cases pending).
+- Any user-reported issues from production after the May 1 deploy.
+
+### Changes Since Last Deploy
+*(empty — Session 43 deployed May 1, 2026. All four commits above shipped together.)*
+
+---
+
 ## Apr 27, 2026 (Monday) - Session 42d: Notifications Inbox v1 + Truck Icon + IDOR Hotfix (Pending Deploy)
 
 ### Summary
