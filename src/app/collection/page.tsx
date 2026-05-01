@@ -17,6 +17,7 @@ import {
   Download,
   Eye,
   EyeOff,
+  Filter,
   Grid3X3,
   List,
   Plus,
@@ -27,6 +28,7 @@ import {
   Star,
   Tag,
   TrendingUp,
+  X,
 } from "lucide-react";
 
 import { exportCollectionToCSV } from "@/lib/csvExport";
@@ -106,6 +108,7 @@ function CollectionPageContent() {
   const [gradeFilter, setGradeFilter] = useState<FilterOption>("all");
   const [showFinancials, setShowFinancials] = useState(true);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [showFiltersDrawer, setShowFiltersDrawer] = useState(false);
 
   // Selection state
   const {
@@ -205,6 +208,17 @@ function CollectionPageContent() {
   const isDefaultListSelected =
     selectedList === "collection" ||
     isPrimaryList(lists.find((l) => l.id === selectedList));
+
+  // Count of active *filters* (excludes search, sort, list — those have
+  // their own visible controls). Drives the "Filters (N)" badge on mobile
+  // and decides whether to render the active-chips bar.
+  const activeFilterCount = [
+    showStarredOnly,
+    showForTradeOnly,
+    publisherFilter !== "all",
+    titleFilter !== "all",
+    uniqueGradingCompanies.length > 0 && gradingCompanyFilter !== "all",
+  ].filter(Boolean).length;
 
   // Filter and sort collection
   const filteredCollection = collection
@@ -865,8 +879,41 @@ function CollectionPageContent() {
             </button>
           </div>
 
-          {/* Row 3 — Filters + Sort + Clear */}
-          <div className="flex flex-wrap items-center gap-2">
+          {/* Row 3 (mobile) — Filters drawer trigger + inline Sort.
+              Sort stays out of the drawer because users change it often. */}
+          <div className="flex md:hidden items-center gap-2">
+            <button
+              onClick={() => setShowFiltersDrawer(true)}
+              className="inline-flex items-center gap-2 px-3 py-1.5 border-2 border-pop-black bg-pop-white font-comic text-sm font-bold hover:shadow-[2px_2px_0px_#000] transition-all"
+            >
+              <Filter className="w-4 h-4" />
+              Filters
+              {activeFilterCount > 0 && (
+                <span className="ml-1 px-1.5 py-0.5 bg-pop-blue text-white text-xs font-black border border-pop-black min-w-[20px] text-center">
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
+
+            <div className="flex items-center gap-1.5 ml-auto">
+              <SortAsc className="w-4 h-4 text-pop-black flex-shrink-0" />
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as SortOption)}
+                className="px-2 py-1.5 border-2 border-pop-black bg-pop-white text-sm font-comic text-pop-black focus:outline-none cursor-pointer"
+              >
+                <option value="date">Date Added</option>
+                <option value="title">Title</option>
+                <option value="issue">Issue #</option>
+                <option value="value">Value (High to Low)</option>
+                <option value="value-asc">Value (Low to High)</option>
+                <option value="grade">Grade (High to Low)</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Row 3 (desktop) — Filters inline + Sort + Clear */}
+          <div className="hidden md:flex flex-wrap items-center gap-2">
             <button
               onClick={() => setShowStarredOnly(!showStarredOnly)}
               className={`flex items-center gap-1.5 px-3 py-1.5 border-2 border-pop-black font-comic text-sm transition-all ${
@@ -978,6 +1025,63 @@ function CollectionPageContent() {
               </button>
             )}
           </div>
+
+          {/* Row 4 (mobile only) — Active filter chips with one-tap remove.
+              Mirrors the desktop inline filter row so users can see/clear
+              what's active without re-opening the drawer. */}
+          {activeFilterCount > 0 && (
+            <div className="md:hidden flex flex-wrap items-center gap-1.5 pt-3 border-t-2 border-pop-black/20">
+              <span className="text-xs font-comic font-bold text-pop-black/60 uppercase mr-1">
+                Active:
+              </span>
+              {showStarredOnly && (
+                <button
+                  onClick={() => setShowStarredOnly(false)}
+                  className="inline-flex items-center gap-1 px-2 py-1 border-2 border-pop-black bg-pop-yellow text-pop-black text-xs font-bold hover:shadow-[1px_1px_0px_#000] transition-all"
+                >
+                  Starred
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+              {showForTradeOnly && (
+                <button
+                  onClick={() => setShowForTradeOnly(false)}
+                  className="inline-flex items-center gap-1 px-2 py-1 border-2 border-pop-black bg-pop-orange text-pop-white text-xs font-bold hover:shadow-[1px_1px_0px_#000] transition-all"
+                >
+                  For Trade
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+              {publisherFilter !== "all" && (
+                <button
+                  onClick={() => setPublisherFilter("all")}
+                  className="inline-flex items-center gap-1 px-2 py-1 border-2 border-pop-black bg-pop-white text-pop-black text-xs font-bold hover:shadow-[1px_1px_0px_#000] transition-all"
+                >
+                  {publisherFilter}
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+              {titleFilter !== "all" && (
+                <button
+                  onClick={() => setTitleFilter("all")}
+                  className="inline-flex items-center gap-1 px-2 py-1 border-2 border-pop-black bg-pop-white text-pop-black text-xs font-bold hover:shadow-[1px_1px_0px_#000] transition-all"
+                >
+                  {titleFilter}
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+              {uniqueGradingCompanies.length > 0 &&
+                gradingCompanyFilter !== "all" && (
+                  <button
+                    onClick={() => setGradingCompanyFilter("all")}
+                    className="inline-flex items-center gap-1 px-2 py-1 border-2 border-pop-black bg-pop-white text-pop-black text-xs font-bold hover:shadow-[1px_1px_0px_#000] transition-all"
+                  >
+                    {gradingCompanyFilter}
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -1283,6 +1387,154 @@ function CollectionPageContent() {
           onUndo={handleUndoDelete}
           onExpire={handleExpireUndo}
         />
+      )}
+
+      {/* Mobile Filters Drawer — bottom-sheet pattern. Hidden on md+ where
+          the inline filter row is visible directly. */}
+      {showFiltersDrawer && (
+        <div className="md:hidden fixed inset-0 z-50">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setShowFiltersDrawer(false)}
+            aria-hidden="true"
+          />
+          {/* Sheet */}
+          <div className="absolute inset-x-0 bottom-0 bg-pop-white border-t-3 border-pop-black max-h-[85vh] flex flex-col shadow-[0_-4px_0px_#000]">
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b-2 border-pop-black flex-shrink-0">
+              <h3 className="text-lg font-black uppercase font-comic text-pop-black">
+                Filters
+                {activeFilterCount > 0 && (
+                  <span className="ml-2 px-1.5 py-0.5 bg-pop-blue text-white text-xs font-black border border-pop-black">
+                    {activeFilterCount}
+                  </span>
+                )}
+              </h3>
+              <button
+                onClick={() => setShowFiltersDrawer(false)}
+                className="p-1.5 border-2 border-pop-black bg-pop-white hover:shadow-[2px_2px_0px_#000] transition-all"
+                aria-label="Close filters"
+              >
+                <X className="w-5 h-5 text-pop-black" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="overflow-y-auto px-4 py-4 flex flex-col gap-3 flex-1">
+              {/* Quick toggles */}
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => setShowStarredOnly(!showStarredOnly)}
+                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 border-2 border-pop-black font-comic text-sm transition-all ${
+                    showStarredOnly
+                      ? "bg-pop-yellow text-pop-black shadow-[2px_2px_0px_#000]"
+                      : "bg-pop-white text-pop-black"
+                  }`}
+                >
+                  <Star
+                    className={`w-4 h-4 ${showStarredOnly ? "fill-pop-black" : ""}`}
+                  />
+                  Starred
+                </button>
+                <button
+                  onClick={() => setShowForTradeOnly(!showForTradeOnly)}
+                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 border-2 border-pop-black font-comic text-sm transition-all ${
+                    showForTradeOnly
+                      ? "bg-pop-orange text-pop-white shadow-[2px_2px_0px_#000]"
+                      : "bg-pop-white text-pop-black"
+                  }`}
+                >
+                  <ArrowLeftRight className="w-4 h-4" />
+                  For Trade
+                </button>
+              </div>
+
+              {/* Publisher */}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-comic font-bold text-pop-black/70 uppercase">
+                  Publisher
+                </label>
+                <select
+                  value={publisherFilter}
+                  onChange={(e) => setPublisherFilter(e.target.value)}
+                  className="w-full px-3 py-2 border-2 border-pop-black bg-pop-white text-sm font-comic text-pop-black focus:outline-none cursor-pointer"
+                >
+                  <option value="all">All Publishers</option>
+                  {uniquePublishers.map((publisher) => (
+                    <option key={publisher} value={publisher}>
+                      {publisher}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Title */}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-comic font-bold text-pop-black/70 uppercase">
+                  Title
+                </label>
+                <select
+                  value={titleFilter}
+                  onChange={(e) => setTitleFilter(e.target.value)}
+                  className="w-full px-3 py-2 border-2 border-pop-black bg-pop-white text-sm font-comic text-pop-black focus:outline-none cursor-pointer"
+                >
+                  <option value="all">All Titles</option>
+                  {uniqueTitles.map((title) => (
+                    <option key={title} value={title}>
+                      {title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Grader (conditional) */}
+              {uniqueGradingCompanies.length > 0 && (
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-comic font-bold text-pop-black/70 uppercase">
+                    Grader
+                  </label>
+                  <select
+                    value={gradingCompanyFilter}
+                    onChange={(e) => setGradingCompanyFilter(e.target.value)}
+                    className="w-full px-3 py-2 border-2 border-pop-black bg-pop-white text-sm font-comic text-pop-black focus:outline-none cursor-pointer"
+                  >
+                    <option value="all">All Graders</option>
+                    {uniqueGradingCompanies.map((company) => (
+                      <option key={company} value={company}>
+                        {company}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+
+            {/* Footer actions */}
+            <div className="flex items-center gap-2 px-4 py-3 border-t-2 border-pop-black bg-pop-white flex-shrink-0">
+              <button
+                onClick={() => {
+                  setPublisherFilter("all");
+                  setTitleFilter("all");
+                  setGradingCompanyFilter("all");
+                  setShowStarredOnly(false);
+                  setShowForTradeOnly(false);
+                }}
+                disabled={activeFilterCount === 0}
+                className="flex-1 px-4 py-2 border-2 border-pop-black bg-pop-white text-pop-black font-bold text-sm hover:shadow-[2px_2px_0px_#000] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none"
+              >
+                Clear All
+              </button>
+              <button
+                onClick={() => setShowFiltersDrawer(false)}
+                className="flex-1 px-4 py-2 border-2 border-pop-black bg-pop-blue text-white font-bold text-sm shadow-[2px_2px_0px_#000] hover:shadow-[3px_3px_0px_#000] transition-all"
+              >
+                Show {filteredCollection.length}{" "}
+                {filteredCollection.length === 1 ? "Comic" : "Comics"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
