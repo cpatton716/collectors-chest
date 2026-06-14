@@ -14,6 +14,15 @@ After those: pick from the standing pre-launch list below (FMV graceful fallback
 
 ## Pre-Launch — Critical / High Priority
 
+### Execute Audit Remediation Test Suite (2026-06-14)
+**Priority:** High (Pre-Launch — highest priority; the 2026-06-14 audit fixes are unreleased until verified)
+**Status:** Pending
+**Added:** Jun 14, 2026
+
+Manual/device verification of the ~211 autonomous audit fixes shipped 2026-06-14 (commits 04c19f6, e1e6dfe, 43fa943). Full test plan with per-test device targets (Web / Mobile iOS→Android / Both) is in TEST_CASES.md → "Audit Remediation Test Plan — 2026-06-14". Highest regression risk: money paths (Stripe webhook idempotency, atomic Buy-It-Now, offer auto-reject, Connect IDOR), security (rate-limited public endpoints, profanity-username fix), cover WebP upload, a11y, and PWA/service-worker changes. Until verified, these changes are unreleased.
+
+---
+
 ### Variant Detection — Two-Pass High-Res Barcode OCR (Option C3)
 **Priority:** High (Pre-Launch — variant resolver shipped Session 46 is non-functional in production until this lands)
 **Status:** Pending — root cause confirmed in Session 46 production testing; design agreed (Option C3); implementation pending
@@ -288,6 +297,24 @@ Native iOS app via Capacitor wrapping our existing Next.js/PWA codebase. Distrib
 ---
 
 ## Pending Enhancements
+
+### Complete 6 deferred audit refactors (large/structural)
+**Priority:** Medium (Post-Launch — high regression risk, no user-facing change, best done with dedicated testing)
+**Status:** Pending
+**Added:** Jun 14, 2026
+
+Deferred from the 2026-06-14 audit remediation (high regression risk, no user-facing change, best done with dedicated testing): decompose auctionDb.ts (4.6k), decompose email.ts (1.5k), decompose ComicDetailsForm/ComicDetailModal, decompose oversized page/form components + code-split profile tabs, add full auctionDb money-function test suite, and the overlay-modal dialog-semantics a11y sweep. See AUDIT_2026-06-14.md (refs M-AU9, M-EM5, M-CO15, M-FE13, H-AU5, H-CC7).
+
+---
+
+### Triage audit Partial/No items (owner-dependent)
+**Priority:** Medium (Post-Launch — owner-dependent steps surfaced by the 2026-06-14 audit)
+**Status:** Pending
+**Added:** Jun 14, 2026
+
+The 2026-06-14 audit surfaced 64 'Partial' + 4 'No' findings requiring an owner step (DB migrations for atomic-bid unique index / FOR UPDATE RPC, schema NOT-NULL/RLS changes, env vars, Stripe dashboard config, product/copy decisions). Full detail in AUDIT_2026-06-14.md → Findings by Priority. Triage and schedule.
+
+---
 
 ### Cover Edit Modal — Add "Take Photo / Upload" Button
 **Priority:** Medium (Post-Launch — natural pair with Bug 2 fix from Session 46)
