@@ -21,7 +21,8 @@ export const FROM_EMAIL = "Collectors Chest <notifications@collectors-chest.com>
  * support address before launch. Until then this points at a clearly-marked
  * default on the verified sending domain. Update here once decided.
  */
-export const SUPPORT_EMAIL = "support@collectors-chest.com";
+export const SUPPORT_EMAIL =
+  process.env.SUPPORT_EMAIL || "support@collectors-chest.com";
 
 /**
  * Number of bonus scans granted to a guest who verifies their email through
