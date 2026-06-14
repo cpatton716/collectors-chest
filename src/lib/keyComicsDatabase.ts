@@ -1,9 +1,17 @@
 /**
- * Key Comics Database
+ * Key Comics Database (STATIC FALLBACK — L-SC34)
  *
  * Curated list of 1,130 key comics with guaranteed accurate key info.
  * (Authoritative count is getKeyComicsCount() === KEY_COMICS.length.)
- * This database is checked FIRST before falling back to AI lookup.
+ *
+ * ROLE: This module is the FALLBACK source for key-info lookups. The canonical
+ * read path is `keyComicsDb.ts` (`lookupKeyInfoFromDb`), which consults the
+ * Supabase-backed `key_comics` table FIRST (so admin-approved community entries
+ * surface) and falls back HERE when the DB is unavailable or has no match.
+ *
+ * Do NOT delete this file — it ships hand-vetted keys offline and guarantees a
+ * useful response when Supabase is down. New runtime callers should import from
+ * `keyComicsDb.ts`; import directly from here only for the offline fallback.
  *
  * To add more keys, add entries to the KEY_COMICS array below.
  *

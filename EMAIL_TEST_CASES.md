@@ -211,6 +211,104 @@ PASS
 
 ---
 
+## 14. Purchase Confirmation
+
+**Trigger:** Buyer completes payment on a Buy Now / accepted offer
+
+| # | Test Case | Steps | Expected Result | Status |
+|---|-----------|-------|-----------------|--------|
+| 14.1 | Buyer notified | Complete a purchase | Buyer receives: "Purchase confirmation: [Comic] #[Issue]" | |
+| 14.2 | Order details | Check email body | Shows comic title, issue, amount paid, seller | |
+| 14.3 | CTA button | Click CTA | Redirects to transactions / order detail | |
+
+---
+
+## 15. Item Sold
+
+**Trigger:** A seller's fixed-price listing is purchased
+
+| # | Test Case | Steps | Expected Result | Status |
+|---|-----------|-------|-----------------|--------|
+| 15.1 | Seller notified | Sell an item | Seller receives: "Item sold: [Comic] #[Issue]" | |
+| 15.2 | Sale details | Check email body | Shows buyer, sale amount, next steps (ship) | |
+
+---
+
+## 16. Auction — Outbid / Won / Sold / Ending Soon
+
+**Trigger:** Bid activity and auction close events
+
+| # | Test Case | Steps | Expected Result | Status |
+|---|-----------|-------|-----------------|--------|
+| 16.1 | Outbid | Be outbid on an auction | Receive: "You've been outbid on [Comic] #[Issue]" (shows your max bid) | |
+| 16.2 | Auction won | Win an auction | Receive: "Congratulations, you won [Comic] #[Issue]!" | |
+| 16.3 | Auction sold (seller) | Your auction ends with a winner | Receive: "Your auction ended: [Comic] #[Issue] sold for [amount]" | |
+| 16.4 | Ending soon (bidder) | Be outbid on an auction nearing close | Receive: "Ending [time]: [Comic] #[Issue]" with current + your max bid | |
+
+---
+
+## 17. Payment Reminder & Payment Window Closed
+
+**Trigger:** Auction/offer payment deadline approaching or missed
+
+| # | Test Case | Steps | Expected Result | Status |
+|---|-----------|-------|-----------------|--------|
+| 17.1 | Payment due soon (buyer) | Win/accept and let deadline approach | Receive: "Payment due soon: [Comic] #[Issue]" | |
+| 17.2 | Window closed (buyer) | Miss the payment window | Receive: "Payment window closed: [Comic] #[Issue] auction cancelled" | |
+| 17.3 | Window closed (seller) | Buyer misses payment | Seller receives: "Buyer did not pay: [Comic] #[Issue] cancelled, relist ready" | |
+
+---
+
+## 18. Second Chance Offers
+
+**Trigger:** Winning bidder fails to pay; runner-up flow runs
+
+| # | Test Case | Steps | Expected Result | Status |
+|---|-----------|-------|-----------------|--------|
+| 18.1 | Available (seller) | Winner misses payment, a runner-up exists | Seller receives: "Buyer didn't pay: offer to runner-up for [amount]?" | |
+| 18.2 | Offered (runner-up) | Seller offers second chance | Runner-up receives: "Good news: [Comic] #[Issue] is yours for [amount]" | |
+| 18.3 | Accepted (seller) | Runner-up accepts | Seller receives: "Runner-up accepted your second-chance offer: [Comic] #[Issue]" | |
+| 18.4 | Declined (seller) | Runner-up declines | Seller receives: "Runner-up declined: [Comic] #[Issue]" | |
+| 18.5 | Expired (seller) | Runner-up does not respond in time | Seller receives: "Second-chance offer expired: [Comic] #[Issue]" | |
+
+---
+
+## 19. Payment-Miss Strike System
+
+**Trigger:** Buyer misses a payment (warning), or hits the strike threshold (flagged)
+
+| # | Test Case | Steps | Expected Result | Status |
+|---|-----------|-------|-----------------|--------|
+| 19.1 | Warning | Miss a payment (first/under-threshold) | Receive: "Please pay on time next time" | |
+| 19.2 | Flagged | Reach the strike threshold | Receive: "Your bidding privileges are temporarily restricted" | |
+| 19.3 | Always delivered | Disable all email preferences, then trigger both | Both still send (transactional/account-status — not gated) | |
+
+---
+
+## 20. Subscription Payment Failed
+
+**Trigger:** Stripe reports a failed Premium subscription charge
+
+| # | Test Case | Steps | Expected Result | Status |
+|---|-----------|-------|-----------------|--------|
+| 20.1 | User notified | Simulate a failed subscription payment | Receive: "Action needed: your Premium payment didn't go through" | |
+| 20.2 | Update-payment CTA | Click CTA | Redirects to billing / update payment method | |
+| 20.3 | Always delivered | Disable email preferences, then trigger | Still sends (transactional) | |
+
+---
+
+## 21. Bonus Scan (Guest Email Capture)
+
+**Trigger:** Guest enters email to unlock bonus scans (verify), then verifies (granted)
+
+| # | Test Case | Steps | Expected Result | Status |
+|---|-----------|-------|-----------------|--------|
+| 21.1 | Verify email | As a guest, submit email for bonus scans | Receive: "Verify your email for [N] bonus scans" | |
+| 21.2 | Verify link works | Click verify link | Bonus scans granted, redirected back to scan | |
+| 21.3 | Granted confirmation | Complete verification | Receive: "You unlocked [N] bonus scans!" | |
+
+---
+
 ## General Email Quality Checks
 
 Run these for any email received during testing:

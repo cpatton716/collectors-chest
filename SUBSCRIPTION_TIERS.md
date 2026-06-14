@@ -2,7 +2,7 @@
 
 > **Reference document for Collectors Chest subscription and monetization model.**
 >
-> *Last Updated: January 15, 2026*
+> *Last Updated: June 14, 2026*
 
 ---
 
@@ -41,7 +41,7 @@ Collectors Chest uses a three-tier model designed to maximize conversion while p
 
 ### Guest (No Registration)
 
-**Purpose:** Low-friction introduction to the product. Let users experience AI cover recognition without commitment.
+**Purpose:** Low-friction introduction to the product. Let users experience Technopathic cover recognition without commitment.
 
 | Attribute | Value |
 |-----------|-------|
@@ -127,6 +127,18 @@ Collectors Chest uses a three-tier model designed to maximize conversion while p
 | Comics scanned | **Kept in collection** even if trial expires |
 | Features after expiry | Reverts to Free tier (loses Key Hunt, Export, Full Stats) |
 
+### 30-Day Promo Trial (QR-Exclusive)
+
+A longer **30-day** Premium trial offered through QR-code campaigns (e.g., convention floor, partner promos) instead of the standard 7-day trial.
+
+| Aspect | Behavior |
+|--------|----------|
+| Duration | 30 days from activation |
+| Eligibility | Gated server-side on `profiles.promo_trial_eligible` |
+| Access | Issued via a signed, single-use promo token (never trusted from the request body) |
+| One per account | Yes — consuming the token clears eligibility |
+| Behavior otherwise | Same as the standard trial (unlimited scans, full Premium, collection kept on expiry) |
+
 ### Trial Conversion Prompts
 
 | Timing | Trigger | Message Focus |
@@ -165,6 +177,8 @@ For Free users who hit their monthly limit but aren't ready to subscribe.
 |------|-----|---------------------|
 | Free | 8% | $8.00 fee, $92.00 to seller |
 | Premium | 5% | $5.00 fee, $95.00 to seller |
+
+**Minimum platform fee:** A **$0.75** fee floor applies to every sale. On low-value items the percentage fee is raised to $0.75 so the platform doesn't net a loss after Stripe's per-transaction cost (e.g., a $5 Free-tier sale would be $0.40 at 8% → floored to $0.75).
 
 **Break-even calculation:**
 - Premium costs $4.99/month
@@ -254,6 +268,7 @@ When Premium subscription ends:
 | Date | Change |
 |------|--------|
 | Jan 15, 2026 | Initial tier structure defined |
+| Jun 14, 2026 | "AI" → "Technopathic" cover-recognition wording; added 30-day QR-exclusive promo trial; documented $0.75 minimum platform fee floor |
 
 ---
 

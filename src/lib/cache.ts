@@ -57,6 +57,43 @@ export async function cacheGet<T>(
 }
 
 /**
+ * Get several values for the SAME prefix in a single round trip (L-CC25).
+ *
+ * Use this anywhere a code path would otherwise loop and `await cacheGet` once
+ * per key (a fan-out). A naive loop of N keys spends N Upstash commands and N
+ * network round trips; `mget` collapses that to a single command + round trip,
+ * keeping the per-request command budget flat at 1 regardless of how many keys
+ * are read. Prefer this over `Promise.all([...].map(cacheGet))` for hot paths.
+ *
+ * Per-request command budget: 1 Upstash command (one `MGET`) for any key count.
+ *
+ * @param keys - Cache keys (each will be prefixed automatically)
+ * @param prefix - Cache prefix type (single prefix for the whole batch)
+ * @returns Array aligned to `keys`; each slot is the cached value or null
+ *   (cache miss). Returns all-null when Redis is unavailable or on error so
+ *   callers can treat it as a clean miss and fall back to fetching.
+ */
+export async function cacheGetMany<T>(
+  keys: string[],
+  prefix: keyof typeof CACHE_PREFIX
+): Promise<(T | null)[]> {
+  if (keys.length === 0) return [];
+  if (!redis) return keys.map(() => null);
+
+  try {
+    const fullKeys = keys.map((key) => `${CACHE_PREFIX[prefix]}${key}`);
+    // Upstash returns one slot per key (value or null), JSON-deserialized like
+    // .get(). A single MGET command covers the whole batch.
+    const values = await redis.mget<(T | null)[]>(...fullKeys);
+    // Defensive: normalize length/shape so the result always aligns to `keys`.
+    return keys.map((_, i) => (values?.[i] ?? null) as T | null);
+  } catch (error) {
+    console.error("Redis cache mget error:", error);
+    return keys.map(() => null);
+  }
+}
+
+/**
  * Set a value in Redis cache with automatic TTL
  * @param key - Cache key (will be prefixed automatically)
  * @param value - Value to cache (will be JSON serialized)

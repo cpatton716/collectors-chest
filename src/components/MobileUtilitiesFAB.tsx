@@ -33,10 +33,10 @@ export function MobileUtilitiesFAB() {
   return (
     <button
       onClick={handleScan}
-      className="fixed bottom-24 right-8 z-40 w-14 h-14 bg-primary-600 hover:bg-primary-700 rounded-full shadow-lg flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95"
+      className="fixed bottom-24 right-8 z-40 w-14 h-14 bg-pop-blue hover:bg-pop-blueDark rounded-full border-3 border-pop-black shadow-comic flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95"
       aria-label="Add comic"
     >
-      <Plus className="w-7 h-7 text-white" />
+      <Plus className="w-7 h-7 text-pop-white" />
     </button>
   );
 }

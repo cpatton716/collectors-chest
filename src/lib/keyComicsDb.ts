@@ -1,16 +1,27 @@
 /**
- * Key Comics Database - Supabase-backed
+ * Key Comics Database — Supabase-backed (CANONICAL READ MODULE — L-SC34)
  *
- * Provides fast key info lookups from the community-maintained database.
- * Falls back to the static curated list if database is unavailable.
+ * This is the canonical key-info read path. `lookupKeyInfoFromDb` /
+ * `lookupKeyInfoMetaFromDb` consult the community-maintained `key_comics`
+ * table FIRST (so admin-approved community entries surface), then fall back to
+ * the static curated list (`keyComicsDatabase.ts`) when the DB is unavailable
+ * or has no match. New runtime callers should import from THIS module; the
+ * static file remains a fallback-only dependency (do not delete it).
+ *
+ * Read-path policy (DB-PRIMARY / STATIC-FALLBACK):
+ *   key_comics (Supabase)  →  keyComicsDatabase.ts (static curated)
  *
  * Features:
- * - Redis caching for fast lookups
- * - Fallback to static database
- * - Community contribution support
+ * - DB-primary lookups with static fallback
+ * - Community contribution + moderation
+ * - Admin CRUD over key_comics
  */
 import { createNotification } from "./auctionDb";
-import { lookupKeyInfo as lookupKeyInfoStatic } from "./keyComicsDatabase";
+import {
+  lookupKeyInfo as lookupKeyInfoStatic,
+  lookupKeyInfoWithMeta as lookupKeyInfoWithMetaStatic,
+  type KeyInfoLookupResult,
+} from "./keyComicsDatabase";
 import { recordContribution } from "./creatorCreditsDb";
 import { normalizeKeyComicTitle as normalizeTitle } from "./normalizeTitle";
 import { supabaseAdmin } from "./supabase";
@@ -66,6 +77,60 @@ export async function lookupKeyInfoFromDb(
 
   // Fallback to static database
   return lookupKeyInfoStatic(title, issueNumber, releaseYear);
+}
+
+/**
+ * DB-primary key-info lookup that preserves the rich match metadata shape used
+ * by the con-mode lookup UI (M-PR6). Community-approved `key_comics` rows win
+ * (reported as an "exact" match — the curated table doesn't track per-row
+ * volume disambiguation), and we fall back to the static curated DB's
+ * `lookupKeyInfoWithMeta` (which still resolves multi-volume year matches) when
+ * the DB has no row or is unavailable.
+ *
+ * `totalCandidates` is set to 1 for a DB hit (a single approved community row).
+ */
+export async function lookupKeyInfoMetaFromDb(
+  title: string,
+  issueNumber: string,
+  releaseYear?: number | null
+): Promise<KeyInfoLookupResult | null> {
+  if (supabase) {
+    try {
+      const normalizedTitle = normalizeTitle(title);
+
+      const { data, error } = await supabase
+        .from("key_comics")
+        .select("key_info")
+        .eq("title_normalized", normalizedTitle)
+        .eq("issue_number", issueNumber)
+        .single();
+
+      if (!error && data?.key_info && data.key_info.length > 0) {
+        return { keyInfo: data.key_info, matchType: "exact", totalCandidates: 1 };
+      }
+
+      // Try without leading zeros
+      if (issueNumber.startsWith("0")) {
+        const cleanIssue = issueNumber.replace(/^0+/, "") || "0";
+        const { data: data2 } = await supabase
+          .from("key_comics")
+          .select("key_info")
+          .eq("title_normalized", normalizedTitle)
+          .eq("issue_number", cleanIssue)
+          .single();
+
+        if (data2?.key_info && data2.key_info.length > 0) {
+          return { keyInfo: data2.key_info, matchType: "exact", totalCandidates: 1 };
+        }
+      }
+    } catch (error) {
+      console.error("Error looking up key info meta from DB:", error);
+      // Fall through to static lookup
+    }
+  }
+
+  // Fallback to static curated database (preserves year-resolved meta).
+  return lookupKeyInfoWithMetaStatic(title, issueNumber, releaseYear);
 }
 
 /**
@@ -456,35 +521,46 @@ export async function getSubmissionCounts(): Promise<{
   }
 
   try {
-    const [pendingRes, approvedRes, rejectedRes] = await Promise.all([
-      supabase
-        .from("key_info_submissions")
-        .select("*", { count: "exact", head: true })
-        .eq("status", "pending"),
-      supabase
-        .from("key_info_submissions")
-        .select("*", { count: "exact", head: true })
-        .eq("status", "approved"),
-      supabase
-        .from("key_info_submissions")
-        .select("*", { count: "exact", head: true })
-        .eq("status", "rejected"),
-    ]);
+    // L-AD8: one grouped fetch of statuses, tallied in JS, instead of three
+    // separate count queries (cuts the dashboard read to a single round-trip).
+    const { data, error } = await supabase
+      .from("key_info_submissions")
+      .select("status");
 
-    const pending = pendingRes.count || 0;
-    const approved = approvedRes.count || 0;
-    const rejected = rejectedRes.count || 0;
+    if (error || !data) {
+      console.error("Error getting submission counts:", error);
+      return { pending: 0, approved: 0, rejected: 0, total: 0 };
+    }
 
-    return {
-      pending,
-      approved,
-      rejected,
-      total: pending + approved + rejected,
-    };
+    return tallySubmissionCounts(data);
   } catch (error) {
     console.error("Error getting submission counts:", error);
     return { pending: 0, approved: 0, rejected: 0, total: 0 };
   }
+}
+
+/**
+ * Pure tally helper for submission status rows (L-AD8). Counts pending /
+ * approved / rejected and derives total from the row count, so any unexpected
+ * statuses still contribute to `total` without inflating a known bucket.
+ */
+export function tallySubmissionCounts(rows: Array<{ status: string | null }>): {
+  pending: number;
+  approved: number;
+  rejected: number;
+  total: number;
+} {
+  let pending = 0;
+  let approved = 0;
+  let rejected = 0;
+
+  for (const row of rows) {
+    if (row.status === "pending") pending++;
+    else if (row.status === "approved") approved++;
+    else if (row.status === "rejected") rejected++;
+  }
+
+  return { pending, approved, rejected, total: rows.length };
 }
 
 // ==========================================
@@ -527,7 +603,11 @@ export async function searchKeyComics(params: {
 
     if (params.search) {
       const normalized = normalizeTitle(params.search);
-      query = query.ilike("title_normalized", `%${normalized}%`);
+      // L-AD9: prefix search (trailing-wildcard only) so PostgreSQL can use the
+      // btree index on title_normalized. A leading wildcard (`%x%`) forces a
+      // full scan; substring search is only worthwhile with the OPTIONAL
+      // pg_trgm GIN index (see MIGRATIONS), which we don't depend on here.
+      query = query.ilike("title_normalized", `${normalized}%`);
     }
 
     if (params.source) {

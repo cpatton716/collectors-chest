@@ -1,6 +1,7 @@
 import { Resend } from "resend";
 import { supabaseAdmin } from "@/lib/supabase";
 import { FREE_MONTHLY_SCAN_LIMIT } from "@/lib/subscription";
+import { sign } from "@/lib/signedToken";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -11,6 +12,26 @@ const resend = new Resend(process.env.RESEND_API_KEY);
  * notifications, bonus-scan emails) should send through this constant.
  */
 export const FROM_EMAIL = "Collectors Chest <notifications@collectors-chest.com>";
+
+/**
+ * Support / unsubscribe-by-mail inbox surfaced in the `List-Unsubscribe`
+ * header alongside the one-click HTTP URL.
+ *
+ * ⚠️ OWNER-SUPPLIED PLACEHOLDER — the owner must confirm the real monitored
+ * support address before launch. Until then this points at a clearly-marked
+ * default on the verified sending domain. Update here once decided.
+ */
+export const SUPPORT_EMAIL = "support@collectors-chest.com";
+
+/**
+ * Env var name whose secret signs unsubscribe tokens. Falls back to
+ * `CLERK_SECRET_KEY` inside `signedToken` when unset, so no new required env
+ * var is forced. The unsubscribe route (B20) verifies with the same name.
+ */
+const UNSUBSCRIBE_SECRET_NAME = "UNSUBSCRIBE_SECRET";
+
+/** Unsubscribe links are valid for 90 days from send. */
+const UNSUBSCRIBE_TOKEN_TTL_MS = 90 * 24 * 60 * 60 * 1000;
 
 /**
  * Number of bonus scans granted to a guest who verifies their email through
@@ -258,9 +279,56 @@ export function emailFooter(): string {
     <div style="background: #f5f5f5; border-top: 2px solid #e5e5e5; padding: 24px 24px 28px; text-align: center;">
       <p style="font-size: 13px; color: #666; font-style: italic; margin: 0 0 8px;">Scan comics. Track value. Collect smarter.</p>
       <p style="font-size: 12px; color: #999; margin: 0 0 8px; line-height: 1.5;">Twisted Jester LLC · collectors-chest.com</p>
-      <p style="font-size: 11px; color: #bbb; margin: 0; line-height: 1.5;"><a href="${appUrl}/privacy" style="color: #999; text-decoration: underline;">Privacy Policy</a> · <a href="${appUrl}/terms" style="color: #999; text-decoration: underline;">Terms of Service</a></p>
+      <p style="font-size: 11px; color: #bbb; margin: 0 0 8px; line-height: 1.5;"><a href="${appUrl}/privacy" style="color: #999; text-decoration: underline;">Privacy Policy</a> · <a href="${appUrl}/terms" style="color: #999; text-decoration: underline;">Terms of Service</a></p>
+      <p style="font-size: 11px; color: #bbb; margin: 0; line-height: 1.5;"><a href="${appUrl}/settings/notifications" style="color: #999; text-decoration: underline;">Manage email preferences</a></p>
     </div>
   `;
+}
+
+/**
+ * Build the one-click unsubscribe URL for a recipient (M-EM4).
+ *
+ * Returns a `NEXT_PUBLIC_APP_URL`-rooted link to the unsubscribe route (B20)
+ * carrying a signed token so the route can flip the right email preference
+ * without trusting query params. Returns `null` when we have no profile to
+ * scope the unsubscribe to (e.g., guest-adjacent sends) — callers then omit
+ * the List-Unsubscribe headers.
+ */
+function buildUnsubscribeUrl(
+  profileId: string | null | undefined,
+  category: string
+): string | null {
+  if (!profileId) return null;
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://collectors-chest.com";
+  const token = sign(
+    { profileId, category, exp: Date.now() + UNSUBSCRIBE_TOKEN_TTL_MS },
+    UNSUBSCRIBE_SECRET_NAME
+  );
+  return `${appUrl}/api/unsubscribe?token=${encodeURIComponent(token)}`;
+}
+
+/**
+ * Build RFC 8058 List-Unsubscribe headers for a NON-transactional send.
+ *
+ * Returns `{}` (no headers) for transactional types or when there's no
+ * profile to scope the unsubscribe to — transactional mail must never carry an
+ * unsubscribe affordance. Non-transactional mail gets both the one-click HTTP
+ * URL and the owner-supplied mailto, plus `List-Unsubscribe-Post` so Gmail/
+ * Yahoo can offer native one-click unsubscribe.
+ */
+export function buildUnsubscribeHeaders(
+  type: NotificationEmailType,
+  profileId: string | null | undefined,
+  getCategory: (t: string) => string
+): Record<string, string> {
+  const category = getCategory(type);
+  if (category === "transactional") return {};
+  const url = buildUnsubscribeUrl(profileId, category);
+  if (!url) return {};
+  return {
+    "List-Unsubscribe": `<${url}>, <mailto:${SUPPORT_EMAIL}?subject=unsubscribe>`,
+    "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+  };
 }
 
 // ============================================================================
@@ -1133,19 +1201,22 @@ export async function sendNotificationEmail({
 
   // Preference gating - skip if the recipient has opted out of this category.
   // Transactional types and unknown profiles always pass through (handled
-  // inside `shouldSendEmailForUser`).
+  // inside `shouldSendEmailForUser`). We also hold onto the resolved profile id
+  // + category resolver so the same context can build List-Unsubscribe headers.
+  let resolvedProfileId: string | null = profileId ?? null;
+  // Fallback mirrors notificationPreferences' own default (unknown → marketplace,
+  // i.e. non-transactional) so a failed import still attaches unsubscribe headers.
+  let getCategory: (t: string) => string = () => "marketplace";
   try {
-    const { shouldSendEmailForUser, getNotificationCategory } = await import(
-      "./notificationPreferences"
-    );
-    let resolvedProfileId: string | null = profileId ?? null;
-    if (resolvedProfileId === null && getNotificationCategory(type) !== "transactional") {
+    const prefs = await import("./notificationPreferences");
+    getCategory = prefs.getNotificationCategory;
+    if (resolvedProfileId === null && getCategory(type) !== "transactional") {
       // Only do the email->profile lookup when the category could be gated.
       resolvedProfileId = await resolveProfileIdByEmail(to);
     }
-    const allowed = await shouldSendEmailForUser(resolvedProfileId, type, supabaseAdmin);
+    const allowed = await prefs.shouldSendEmailForUser(resolvedProfileId, type, supabaseAdmin);
     if (!allowed) {
-      const category = getNotificationCategory(type);
+      const category = getCategory(type);
       console.log(`[email] skipped - user opted out of ${category} (${type} to ${to})`);
       return { success: true, skipped: true };
     }
@@ -1159,6 +1230,9 @@ export async function sendNotificationEmail({
     return { success: false, error: `Unknown email type: ${type}` };
   }
 
+  // Non-transactional mail carries one-click unsubscribe headers (M-EM4).
+  const unsubscribeHeaders = buildUnsubscribeHeaders(type, resolvedProfileId, getCategory);
+
   try {
     const { error } = await resend.emails.send({
       from: FROM_EMAIL,
@@ -1166,6 +1240,7 @@ export async function sendNotificationEmail({
       subject: template.subject,
       html: template.html,
       text: template.text,
+      ...(Object.keys(unsubscribeHeaders).length > 0 ? { headers: unsubscribeHeaders } : {}),
     });
 
     if (error) {
@@ -1219,14 +1294,17 @@ export async function sendNotificationEmailsBatch(
   // Transactional types and no-profile-context entries pass through.
   let filteredEmails = emails;
   let skippedCount = 0;
+  // Fallback mirrors notificationPreferences' default (unknown → marketplace).
+  let getCategory: (t: string) => string = () => "marketplace";
   try {
-    const { filterEmailsByPreference } = await import("./notificationPreferences");
+    const prefs = await import("./notificationPreferences");
+    getCategory = prefs.getNotificationCategory;
     const normalized = emails.map((e) => ({
       ...e,
       emailType: e.type,
       profileId: e.profileId ?? null,
     }));
-    const kept = await filterEmailsByPreference(normalized, supabaseAdmin);
+    const kept = await prefs.filterEmailsByPreference(normalized, supabaseAdmin);
     skippedCount = emails.length - kept.length;
     if (skippedCount > 0) {
       console.log(`[email] batch: ${skippedCount} opted-out recipient(s) filtered`);
@@ -1244,20 +1322,24 @@ export async function sendNotificationEmailsBatch(
     subject: string;
     html: string;
     text: string;
+    headers?: Record<string, string>;
   }> = [];
 
-  for (const { to, type, data } of filteredEmails) {
+  for (const { to, type, data, profileId } of filteredEmails) {
     const template = resolveNotificationTemplate(type, data);
     if (!template) {
       errors.push(`Unknown email type: ${type} (to=${to})`);
       continue;
     }
+    // Non-transactional mail carries one-click unsubscribe headers (M-EM4).
+    const unsubscribeHeaders = buildUnsubscribeHeaders(type, profileId, getCategory);
     payloads.push({
       from: FROM_EMAIL,
       to,
       subject: template.subject,
       html: template.html,
       text: template.text,
+      ...(Object.keys(unsubscribeHeaders).length > 0 ? { headers: unsubscribeHeaders } : {}),
     });
   }
 
@@ -1292,7 +1374,14 @@ const RESEND_RETRY_ATTEMPTS = 2; // 1 initial + 2 retries = 3 total
 const RESEND_RETRY_BASE_MS = 500;
 
 async function sendBatchWithRetry(
-  batch: Array<{ from: string; to: string; subject: string; html: string; text: string }>,
+  batch: Array<{
+    from: string;
+    to: string;
+    subject: string;
+    html: string;
+    text: string;
+    headers?: Record<string, string>;
+  }>,
 ): Promise<{ ok: boolean; errorMsg?: string }> {
   for (let attempt = 0; attempt <= RESEND_RETRY_ATTEMPTS; attempt++) {
     try {

@@ -1,5 +1,7 @@
 # PriceCharting Subscription — Aponte Decision Brief
 
+> **Status: Deferred (pending ROI)**
+
 > **Audience:** Co-founder partner review. Plain-English summary of a $499/yr partner-data subscription decision before Beta launch.
 >
 > **Asked of you:** A yes/no on subscribing to PriceCharting's Legendary Sub at $499/year. Subscription is cancelable; not a multi-year commitment.

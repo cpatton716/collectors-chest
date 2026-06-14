@@ -1,4 +1,5 @@
 import {
+  cacheGetMany,
   cacheGetOrSet,
   generateAiAnalyzeCacheKey,
   generateComicMetadataCacheKey,
@@ -23,12 +24,13 @@ jest.mock("@upstash/redis", () => ({
     get: jest.fn(),
     set: jest.fn(),
     del: jest.fn(),
+    mget: jest.fn(),
   })),
 }));
 
 // Provide a controllable shared redis client so the Redis-backed helpers run.
 jest.mock("../redis", () => {
-  const client = { get: jest.fn(), set: jest.fn(), del: jest.fn() };
+  const client = { get: jest.fn(), set: jest.fn(), del: jest.fn(), mget: jest.fn() };
   return { redis: client, isRedisAvailable: () => true };
 });
 
@@ -36,6 +38,7 @@ const redisClient = mockRedis as unknown as {
   get: jest.Mock;
   set: jest.Mock;
   del: jest.Mock;
+  mget: jest.Mock;
 };
 
 describe("Cache Key Generation", () => {
@@ -305,5 +308,48 @@ describe("webhook idempotency helpers (H-PAY1 / M-PAY4)", () => {
     expect(value).toBe(true);
     // 3-day TTL (M-PAY4): 60 * 60 * 24 * 3 = 259200 seconds
     expect(opts).toEqual({ ex: 60 * 60 * 24 * 3 });
+  });
+});
+
+describe("cacheGetMany batched multi-key read (L-CC25)", () => {
+  beforeEach(() => {
+    redisClient.mget.mockReset();
+  });
+
+  it("returns an empty array without touching Redis for no keys", async () => {
+    const result = await cacheGetMany<number>([], "ebayPrice");
+    expect(result).toEqual([]);
+    expect(redisClient.mget).not.toHaveBeenCalled();
+  });
+
+  it("issues exactly one MGET call for the whole batch (one command per request)", async () => {
+    redisClient.mget.mockResolvedValueOnce([{ v: 1 }, { v: 2 }, { v: 3 }]);
+    await cacheGetMany<{ v: number }>(["a", "b", "c"], "comicMetadata");
+    expect(redisClient.mget).toHaveBeenCalledTimes(1);
+  });
+
+  it("prefixes every key with the cache prefix", async () => {
+    redisClient.mget.mockResolvedValueOnce([null, null]);
+    await cacheGetMany<number>(["k1", "k2"], "ebayPrice");
+    expect(redisClient.mget).toHaveBeenCalledWith("cache:ebay:k1", "cache:ebay:k2");
+  });
+
+  it("returns values aligned to the input keys, preserving order", async () => {
+    redisClient.mget.mockResolvedValueOnce([{ v: 10 }, null, { v: 30 }]);
+    const result = await cacheGetMany<{ v: number }>(["a", "miss", "c"], "comicMetadata");
+    expect(result).toEqual([{ v: 10 }, null, { v: 30 }]);
+  });
+
+  it("normalizes missing/undefined slots to null (cache miss)", async () => {
+    // Upstash may return a shorter/sparse array; result must still align to keys.
+    redisClient.mget.mockResolvedValueOnce([{ v: 1 }]);
+    const result = await cacheGetMany<{ v: number }>(["a", "b", "c"], "ebayPrice");
+    expect(result).toEqual([{ v: 1 }, null, null]);
+  });
+
+  it("returns all-null (clean miss) when mget throws", async () => {
+    redisClient.mget.mockRejectedValueOnce(new Error("redis down"));
+    const result = await cacheGetMany<number>(["a", "b"], "ebayPrice");
+    expect(result).toEqual([null, null]);
   });
 });

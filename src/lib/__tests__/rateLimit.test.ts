@@ -21,7 +21,12 @@ jest.mock("../redis", () => ({
 
 import type { Ratelimit } from "@upstash/ratelimit";
 
-import { checkRateLimit, getRateLimitIdentifier, rateLimiters } from "../rateLimit";
+import {
+  checkRateLimit,
+  checkRateLimitsBatch,
+  getRateLimitIdentifier,
+  rateLimiters,
+} from "../rateLimit";
 
 describe("getRateLimitIdentifier", () => {
   it("prefers userId when present", () => {
@@ -107,6 +112,71 @@ describe("checkRateLimit", () => {
     } as unknown as Ratelimit;
 
     const result = await checkRateLimit(limiter, "user_1");
+    expect(result.success).toBe(true);
+  });
+});
+
+describe("checkRateLimitsBatch (L-CC25 batched multi-limiter check)", () => {
+  const passing = () =>
+    ({
+      limit: jest.fn().mockResolvedValue({
+        success: true,
+        limit: 5,
+        remaining: 4,
+        reset: Date.now() + 60_000,
+      }),
+    }) as unknown as Ratelimit;
+
+  const denying = () =>
+    ({
+      limit: jest.fn().mockResolvedValue({
+        success: false,
+        limit: 5,
+        remaining: 0,
+        reset: Date.now() + 30_000,
+      }),
+    }) as unknown as Ratelimit;
+
+  it("succeeds with no checks", async () => {
+    const result = await checkRateLimitsBatch([]);
+    expect(result.success).toBe(true);
+  });
+
+  it("succeeds when every limiter passes", async () => {
+    const result = await checkRateLimitsBatch([
+      { limiter: passing(), identifier: "a" },
+      { limiter: passing(), identifier: "b" },
+    ]);
+    expect(result.success).toBe(true);
+    expect(result.response).toBeUndefined();
+  });
+
+  it("returns the first denial's 429 response when one limiter denies", async () => {
+    const result = await checkRateLimitsBatch([
+      { limiter: passing(), identifier: "a" },
+      { limiter: denying(), identifier: "b" },
+    ]);
+    expect(result.success).toBe(false);
+    expect(result.response).toBeDefined();
+    expect(result.response!.status).toBe(429);
+  });
+
+  it("evaluates all checks concurrently (each limiter called once)", async () => {
+    const p = passing();
+    const d = passing();
+    await checkRateLimitsBatch([
+      { limiter: p, identifier: "a" },
+      { limiter: d, identifier: "b" },
+    ]);
+    expect((p as unknown as { limit: jest.Mock }).limit).toHaveBeenCalledTimes(1);
+    expect((d as unknown as { limit: jest.Mock }).limit).toHaveBeenCalledTimes(1);
+  });
+
+  it("treats null limiters as a pass (not configured)", async () => {
+    const result = await checkRateLimitsBatch([
+      { limiter: null, identifier: "a" },
+      { limiter: passing(), identifier: "b" },
+    ]);
     expect(result.success).toBe(true);
   });
 });

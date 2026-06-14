@@ -4,7 +4,9 @@ import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 
 import { getComicMetadata, incrementComicLookupCount, saveComicMetadata } from "@/lib/db";
-import { lookupKeyInfoWithMeta } from "@/lib/keyComicsDatabase";
+// M-PR6: DB-primary key-info lookup (admin-approved community entries win),
+// with static curated fallback handled inside lookupKeyInfoMetaFromDb.
+import { lookupKeyInfoMetaFromDb } from "@/lib/keyComicsDb";
 import { MODEL_LIGHTWEIGHT } from "@/lib/models";
 import { recordScanAnalytics, estimateScanCostCents } from "@/lib/analyticsServer";
 import { isBrowseApiConfigured, searchActiveListings, convertBrowseToPriceData } from "@/lib/ebayBrowse";
@@ -119,10 +121,11 @@ export async function POST(request: NextRequest) {
           (g) => gradesEqual(g.grade, selectedGrade)
         );
 
-        // Curated keyComicsDatabase wins over the cached row - handles stale
+        // Curated/community key info wins over the cached row - handles stale
         // cache rows where an earlier AI key-info call silently failed and
-        // baked an empty array into comic_metadata.key_info.
-        const curatedMatch = lookupKeyInfoWithMeta(
+        // baked an empty array into comic_metadata.key_info. DB-primary so
+        // admin-approved community entries surface (M-PR6).
+        const curatedMatch = await lookupKeyInfoMetaFromDb(
           dbResult.title,
           dbResult.issueNumber,
           dbResult.releaseYear ? parseInt(String(dbResult.releaseYear)) : null
@@ -267,7 +270,7 @@ export async function POST(request: NextRequest) {
       // anything not in the curated set.
       let keyInfo: string[] = [];
       let keyInfoMeta: ConModeLookupResult["keyInfoMeta"] = undefined;
-      const curatedMatch = lookupKeyInfoWithMeta(
+      const curatedMatch = await lookupKeyInfoMetaFromDb(
         normalizedTitle,
         normalizedIssue,
         seriesYears?.match(/\d{4}/)?.[0] ? parseInt(seriesYears.match(/\d{4}/)![0]) : null,
@@ -372,7 +375,7 @@ export async function POST(request: NextRequest) {
     // 4. No eBay data available - return null priceData with listing metadata.
     // Still surface curated key info if we have it (collectors care about
     // the "why" even when there's no current price signal).
-    const noDataMatch = lookupKeyInfoWithMeta(
+    const noDataMatch = await lookupKeyInfoMetaFromDb(
       normalizedTitle,
       normalizedIssue,
       seriesYears?.match(/\d{4}/)?.[0] ? parseInt(seriesYears.match(/\d{4}/)![0]) : null,

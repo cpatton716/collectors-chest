@@ -93,7 +93,7 @@ export function MobileNav() {
           isVisible && !selectionMode ? "translate-y-0" : "translate-y-full"
         }`}
       >
-        <div className="mx-3 mb-3 bg-white/80 backdrop-blur-lg rounded-2xl shadow-lg border border-gray-200/50">
+        <div className="mx-3 mb-3 bg-pop-yellow rounded-2xl shadow-comic border-3 border-pop-black">
           <div className="flex items-center justify-around py-2 px-1">
             {/* Regular nav items */}
             {navItems.map((item) => {
@@ -107,8 +107,8 @@ export function MobileNav() {
                   aria-current={isActive ? "page" : undefined}
                   className={`relative flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl transition-all duration-200 ${
                     isActive
-                      ? "bg-primary-100 text-primary-600"
-                      : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+                      ? "bg-pop-white text-pop-black border-2 border-pop-black shadow-comic-sm"
+                      : "text-pop-black hover:bg-pop-white/50"
                   }`}
                 >
                   <Icon className={`w-5 h-5 ${isActive ? "stroke-[2.5]" : ""}`} />
@@ -127,14 +127,14 @@ export function MobileNav() {
               aria-label="More navigation"
               className={`relative flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl transition-all duration-200 ${
                 showDrawer
-                  ? "bg-primary-100 text-primary-600"
-                  : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+                  ? "bg-pop-white text-pop-black border-2 border-pop-black shadow-comic-sm"
+                  : "text-pop-black hover:bg-pop-white/50"
               }`}
             >
               <div className="relative">
                 <MoreHorizontal className="w-5 h-5" />
                 {isSignedIn && unreadCount > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[8px] font-bold rounded-full h-4 w-4 flex items-center justify-center">
+                  <span className="absolute -top-1.5 -right-1.5 bg-pop-red text-pop-white text-[8px] font-bold rounded-full h-4 w-4 flex items-center justify-center border border-pop-black">
                     <span aria-hidden="true">{unreadCount > 9 ? "9+" : unreadCount}</span>
                     <span className="sr-only">{unreadCount} unread messages</span>
                   </span>
@@ -149,16 +149,16 @@ export function MobileNav() {
                 onClick={handleKeyHuntClick}
                 className={`relative flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl transition-all duration-200 ${
                   pathname === "/key-hunt"
-                    ? "bg-amber-100 text-amber-600"
+                    ? "bg-pop-white text-pop-black border-2 border-pop-black shadow-comic-sm"
                     : isPremium
-                      ? "text-amber-500 hover:text-amber-600 hover:bg-amber-50"
-                      : "text-gray-400"
+                      ? "text-pop-orange hover:text-pop-red hover:bg-pop-white/50"
+                      : "text-pop-black/60"
                 }`}
               >
                 <div className="relative">
                   <KeyRound className={`w-5 h-5 ${pathname === "/key-hunt" ? "stroke-[2.5]" : ""}`} />
                   {!isPremium && (
-                    <Lock className="w-3 h-3 absolute -top-1 -right-1 text-gray-400" />
+                    <Lock className="w-3 h-3 absolute -top-1 -right-1 text-pop-black/60" />
                   )}
                 </div>
                 <span className={`text-[10px] ${pathname === "/key-hunt" ? "font-semibold" : "font-medium"}`}>
@@ -177,20 +177,20 @@ export function MobileNav() {
         <div className="fixed inset-0 z-[60] md:hidden">
           {/* Backdrop */}
           <div
-            className="absolute inset-0 bg-black/50 animate-in fade-in duration-200"
+            className="absolute inset-0 bg-pop-black/70 animate-in fade-in duration-200"
             onClick={() => setShowDrawer(false)}
           />
 
           {/* Drawer */}
-          <div className="absolute right-0 top-0 bottom-0 w-72 bg-white shadow-xl animate-in slide-in-from-right duration-300">
+          <div className="absolute right-0 top-0 bottom-0 w-72 bg-pop-white border-l-4 border-pop-black shadow-comic-lg animate-in slide-in-from-right duration-300">
             {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-100">
-              <h2 className="font-semibold text-gray-900">More</h2>
+            <div className="flex items-center justify-between p-4 bg-pop-yellow border-b-4 border-pop-black">
+              <h2 className="font-comic text-xl tracking-wide text-pop-black">MORE</h2>
               <button
                 onClick={() => setShowDrawer(false)}
-                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                className="p-2 bg-pop-red border-2 border-pop-black shadow-comic-sm hover:shadow-comic transition-all"
               >
-                <X className="w-5 h-5 text-gray-500" />
+                <X className="w-5 h-5 text-pop-white" />
               </button>
             </div>
 
@@ -207,22 +207,22 @@ export function MobileNav() {
                     onClick={() => setShowDrawer(false)}
                     role="menuitem"
                     aria-current={isActive ? "page" : undefined}
-                    className={`flex items-center gap-3 px-4 py-3 transition-colors ${
+                    className={`flex items-center gap-3 px-4 py-3 transition-colors border-b border-pop-black/20 last:border-b-0 ${
                       isActive
-                        ? "bg-primary-50 text-primary-600"
-                        : "text-gray-700 hover:bg-gray-50"
+                        ? "bg-pop-yellow text-pop-black"
+                        : "text-pop-black hover:bg-pop-yellow/30"
                     }`}
                   >
                     <Icon className="w-5 h-5" />
-                    <span className="font-medium">{item.label}</span>
+                    <span className="font-comic text-sm tracking-wide">{item.label.toUpperCase()}</span>
                     {item.showBadge && unreadCount > 0 && (
-                      <span className="ml-auto bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+                      <span className="ml-auto bg-pop-red text-pop-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center border border-pop-black">
                         <span aria-hidden="true">{unreadCount > 9 ? "9+" : unreadCount}</span>
                         <span className="sr-only">{unreadCount} unread messages</span>
                       </span>
                     )}
                     {item.requiresAuth && (
-                      <Lock className="w-4 h-4 ml-auto text-gray-400" />
+                      <Lock className="w-4 h-4 ml-auto text-pop-black/60" />
                     )}
                   </Link>
                 );
@@ -235,14 +235,14 @@ export function MobileNav() {
                   onClick={() => setShowDrawer(false)}
                   role="menuitem"
                   aria-current={pathname.startsWith("/admin") ? "page" : undefined}
-                  className={`flex items-center gap-3 px-4 py-3 border-t border-gray-100 transition-colors ${
+                  className={`flex items-center gap-3 px-4 py-3 border-t border-pop-black/20 transition-colors ${
                     pathname.startsWith("/admin")
-                      ? "bg-red-50 text-red-600"
-                      : "text-gray-700 hover:bg-gray-50"
+                      ? "bg-pop-red text-pop-white"
+                      : "text-pop-black hover:bg-pop-red/20"
                   }`}
                 >
                   <Shield className="w-5 h-5" />
-                  <span className="font-medium">Admin</span>
+                  <span className="font-comic text-sm tracking-wide">ADMIN</span>
                   <AdminAlertBadge variant="count" />
                 </Link>
               )}
@@ -250,16 +250,16 @@ export function MobileNav() {
 
             {/* Sign in prompt for guests */}
             {!isSignedIn && (
-              <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-100 bg-gray-50">
-                <p className="text-sm text-gray-600 mb-3">
+              <div className="absolute bottom-0 left-0 right-0 p-4 border-t-4 border-pop-black bg-pop-cream">
+                <p className="text-sm text-pop-black font-body mb-3">
                   Sign in to access all features
                 </p>
                 <Link
                   href="/sign-in"
                   onClick={() => setShowDrawer(false)}
-                  className="block w-full py-2.5 px-4 bg-primary-600 text-white text-center rounded-lg font-medium hover:bg-primary-700 transition-colors"
+                  className="block w-full py-2.5 px-4 bg-pop-blue text-pop-white text-center border-2 border-pop-black shadow-comic-sm hover:shadow-comic transition-all font-comic tracking-wide"
                 >
-                  Sign In
+                  SIGN IN
                 </Link>
               </div>
             )}
