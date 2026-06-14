@@ -1,5 +1,7 @@
 # Welcome Email Implementation Plan
 
+> **✅ STATUS: COMPLETED & SHIPPED (archived).** The welcome email is live in production. This implementation plan is retained for historical reference only — do not execute. See the design spec `docs/engineering-specs/2026-04-01-welcome-email-design.md` and the broader `docs/engineering-specs/2026-04-01-email-overhaul-design.md`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Send a branded pop-art welcome email via Resend when a new user creates an account through Clerk.

@@ -51,13 +51,13 @@ _(No open Medium items. Hottest Books was removed from scope Apr 22, 2026 — se
 
 ## 1. Code Quality & Technical Debt
 
-**Score: 9.5/10** (Session 46 added `src/lib/variantResolver.ts` (3-tier catalog → AI → derived) + signed-in cover-persistence helpers (`src/lib/uploadCoverImage.ts`, `/api/comics/upload-cover`); +21 net new tests (variantResolver). TypeScript clean, ESLint 0 errors / 116 pre-existing warnings, build clean, npm audit clean, no circular deps. Knip surfaces 14 unused exported types, 1 new this session (`VariantSource` from variantResolver — not externally consumed yet, OK to defer). 850/850 tests passing.)
+**Score: 9.5/10** (Session 47 (May 27, 2026) was a mobile collection-UI fix + PROD-validation pass — UI/CSS + client-side event work only, no new test files or net test changes. TypeScript clean, ESLint 0 errors / 116 pre-existing warnings, build clean, smoke-test homepage 200, npm audit clean, no circular deps. 850/850 tests passing across 56 suites. Earlier — Session 46 added `src/lib/variantResolver.ts` (3-tier catalog → AI → derived) + signed-in cover-persistence helpers (`src/lib/uploadCoverImage.ts`, `/api/comics/upload-cover`) with +21 net new tests; Knip still surfaces ~14 unused exported types incl. `VariantSource` — not externally consumed yet, OK to defer.)
 
 ### Issues Status
 
 | Issue | Severity | Status |
 |-------|----------|--------|
-| Test suite | 🟢 Good | **850 tests passing** (May 9, 2026) |
+| Test suite | 🟢 Good | **850/850 tests passing** across 56 suites (verified Session 47, May 27, 2026) |
 | ESLint config | 🟢 Fixed | Working with Next.js defaults |
 | Viewport/themeColor metadata | 🟢 Fixed | Migrated to `export const viewport` |
 | Stripe webhook config export | 🟢 Fixed | Deprecated config removed |

@@ -1,8 +1,10 @@
 # Cover Image Validation Pipeline — Design Spec
 
 **Date:** 2026-03-19
-**Status:** Draft
+**Status:** Implemented (shipped)
 **Author:** Claude + Chris Patton
+
+> **✅ Implemented & shipped.** The cover image validation pipeline is live in production. Follow-up refinements ("No Cover" vs "Unavailable" distinction + error-path test coverage) are documented in `docs/engineering-specs/2026-04-07-cover-validation-improvements-design.md`.
 
 > **Apr 23, 2026 update:** Metron verification was fully removed from the scan pipeline this session. All references below to Metron (as a candidate source, `cover_source: 'metron'`, `metronResult.cover_image`, "no Metron cover available" fallback logic, etc.) describe historical behavior only and no longer reflect production code. The current candidate chain is: Community DB → eBay images → Open Library. `'metron'` is preserved as a legal `coverSource` enum value only for already-cached rows from before the removal — no new rows are written with that source.
 >

@@ -1,0 +1,13 @@
+{"type":"server-started","port":49242,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:49242","screen_dir":"/Users/chrispatton/Coding for Dummies/Comic Tracker/.superpowers/brainstorm/91254-1775159791/content","state_dir":"/Users/chrispatton/Coding for Dummies/Comic Tracker/.superpowers/brainstorm/91254-1775159791/state"}
+{"type":"screen-added","file":"/Users/chrispatton/Coding for Dummies/Comic Tracker/.superpowers/brainstorm/91254-1775159791/content/welcome-email-mockup.html"}
+{"source":"user-event","type":"click","text":"✏️\n        I like the direction but want changes\n        Tell me what to adjust in the terminal\n      \n    \n    \n      Needs changes\n      Describe what you'd like different in the terminal","choice":"needs-changes","id":null,"timestamp":1775160024795}
+{"type":"screen-added","file":"/Users/chrispatton/Coding for Dummies/Comic Tracker/.superpowers/brainstorm/91254-1775159791/content/welcome-email-mockup-v2.html"}
+{"source":"user-event","type":"click","text":"✏️\n        I like the direction but want more changes\n        Tell me what to adjust in the terminal\n      \n    \n    \n      Needs more changes\n      Describe what you'd like different in the terminal","choice":"needs-changes","id":null,"timestamp":1775160199458}
+{"type":"screen-added","file":"/Users/chrispatton/Coding for Dummies/Comic Tracker/.superpowers/brainstorm/91254-1775159791/content/welcome-email-top.html"}
+{"type":"screen-added","file":"/Users/chrispatton/Coding for Dummies/Comic Tracker/.superpowers/brainstorm/91254-1775159791/content/welcome-email-top-v2.html"}
+{"type":"screen-added","file":"/Users/chrispatton/Coding for Dummies/Comic Tracker/.superpowers/brainstorm/91254-1775159791/content/welcome-email-top-v3.html"}
+{"type":"screen-added","file":"/Users/chrispatton/Coding for Dummies/Comic Tracker/.superpowers/brainstorm/91254-1775159791/content/welcome-email-top-v4.html"}
+{"type":"screen-added","file":"/Users/chrispatton/Coding for Dummies/Comic Tracker/.superpowers/brainstorm/91254-1775159791/content/welcome-email-top-v5.html"}
+{"type":"screen-added","file":"/Users/chrispatton/Coding for Dummies/Comic Tracker/.superpowers/brainstorm/91254-1775159791/content/welcome-email-bottom.html"}
+{"type":"screen-added","file":"/Users/chrispatton/Coding for Dummies/Comic Tracker/.superpowers/brainstorm/91254-1775159791/content/waiting.html"}
+{"type":"server-stopped","reason":"idle timeout"}

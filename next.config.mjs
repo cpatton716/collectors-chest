@@ -15,6 +15,9 @@ const nextConfig = {
       },
     ],
   },
+  experimental: {
+    optimizePackageImports: ["lucide-react"],
+  },
 };
 
 // Wrap with Sentry only if DSN is configured
@@ -29,8 +32,12 @@ const sentryConfig = process.env.SENTRY_DSN
       // Hide source maps from browsers
       hideSourceMaps: true,
 
-      // Disable logger to reduce bundle size
-      disableLogger: true,
+      // Tree-shake Sentry SDK logger statements to reduce bundle size
+      webpack: {
+        treeshake: {
+          removeDebugLogging: true,
+        },
+      },
     })
   : nextConfig;
 

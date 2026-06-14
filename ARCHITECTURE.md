@@ -18,8 +18,8 @@
 |------|---------|---------|
 | 🔐 | **Clerk** | Authentication |
 | 🗄️ | **Supabase** | Database (PostgreSQL) |
-| 🤖 | **Anthropic/Claude** | AI analysis (primary) |
-| 🤖² | **Google/Gemini** | AI analysis (primary for vision) |
+| 🤖² | **Google/Gemini** | AI analysis (primary — Gemini 2.0 Flash) |
+| 🤖 | **Anthropic/Claude** | AI analysis (fallback — Claude Sonnet 4.5) |
 | 💰 | **Stripe** | Payments |
 | 📧 | **Resend** | Email |
 | 🔴 | **Upstash Redis** | Cache/Rate limiting |
@@ -57,7 +57,7 @@
 | Slab Label Color Detection | 🤖 | AI detects CGC/CBCS label color (blue, yellow, green, etc.) from slab photo |
 | Cover Validation | 🤖² 🗄️ | Gemini-powered cover image validation pipeline |
 | Cover Harvest | 🤖 🗄️ | Auto-harvest cover image from scan result; crop, store in Supabase Storage (`cover-images` bucket), insert into `cover_images` with variant support |
-| Key Info Lookup | 🗄️ | 402 curated key comics database |
+| Key Info Lookup | 🗄️ | 1,132-entry curated key comics database |
 | Suggest Key Info | 🗄️ 🔐 | Community submissions for key facts |
 | Scan Limits | 💾 🗄️ | Guest 5, Free 10/mo, Pro unlimited |
 | hCaptcha Guest Gate | 🔐 | Guest scans 4 & 5 require invisible hCaptcha verification; floating badge; 5s siteverify timeout; dev/prod key swap (see `src/lib/hcaptcha.ts`, `src/components/GuestCaptcha.tsx`) |
@@ -112,7 +112,7 @@
 | Quick-Add Buttons | 💾 | Want List, Collection, Passed On |
 | My Hunt List | 🗄️ 🔐 | Wishlist of comics user wants to find |
 | Add to Hunt List | 🗄️ 🔐 | From scan results or cover scan |
-| **Key Issue Chips (Session 44)** | 🗄️ 🤖 | Yellow KEY ISSUE tags rendered between grade and price; pulled from curated `keyComicsDatabase.ts` (1,130 entries) first, AI fallback for non-curated. Wins over stale `comic_metadata.key_info: []` rows. |
+| **Key Issue Chips (Session 44)** | 🗄️ 🤖 | Yellow KEY ISSUE tags rendered between grade and price; pulled from curated `keyComicsDatabase.ts` (1,132 entries) first, AI fallback for non-curated. Wins over stale `comic_metadata.key_info: []` rows. |
 | **Cover Lightbox (Session 44)** | 💾 | Tap thumbnail → full-screen `CoverLightbox` for variant verification; iPhone safe-area aware; Escape/backdrop tap to close. Reusable component. |
 | **History Persistence (Session 45b)** | 💾 | localStorage `KeyHuntHistoryEntry` shape gained `keyInfo?: string[]` and `keyInfoMeta?: { matchType: "exact" \| "year-resolved"; matchedYear: number \| null; totalCandidates: number }` so curated-DB key data + match provenance survive across sessions and don't have to re-query AI on history view. |
 
@@ -408,7 +408,7 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
 | Pricing apples-to-apples cards | — | Side-by-side CLZ ($10.94 catalog+pricing) vs CC ($4.99 all-in) |
 | 5 talking points | — | Color-coded cards with floor-pitch delivery cues + pitfall warnings (specifically the cost-reframe trap) |
 | Where CC Wins / Where CLZ Wins / Both Have | — | Verdict tables |
-| Data partnerships section | — | Active CovrPrice conversations, GoCollect API discontinued context, resilience pitch quote, safe-to-say / don't-say guardrails |
+| Data partnerships section | — | CovrPrice queued as a beta tester (no public API today; targeting 2027 roadmap — NOT active conversations), GoCollect API discontinued context, resilience pitch quote, safe-to-say / don't-say guardrails |
 | Common objections | — | Expandable Q&A cards |
 | Pocket cheat sheet | — | Printable comic-style card |
 | Source: `docs/CLZ_COMPARISON_BRIEF.md` | — | Brief is the markdown source of truth; admin page is the rendered version |
@@ -1005,7 +1005,7 @@ Seller's Stripe Express Dashboard shows incoming transfer on 2-5 day payout sche
 | `src/lib/auditLog.ts` | Auction audit log helper; fire-and-forget single + batch variants; 17 wire-ups across `auctionDb.ts`, `mark-shipped` route, and Stripe webhook; writes to `auction_audit_log` table (admin-read RLS, service-role insert) |
 | `src/lib/notificationPreferences.ts` | Per-category email notification gating — `NOTIFICATION_CATEGORY_MAP` (4 categories: transactional/marketplace/social/marketing) covers all 27 notification email types; `isNotificationAllowed()`, `filterRecipientsByPreference()` |
 | `src/lib/concurrency.ts` | `mapWithConcurrency(items, concurrency, fn)` — used by `sendPaymentReminders` + `expireUnpaidAuctions` to cap parallel email prep at 5 while feeding Resend `batch.send()` |
-| `src/lib/hcaptcha.ts` | hCaptcha siteverify helper; 5s timeout; dev/prod key swap via `HCAPTCHA_SECRET`/`NEXT_PUBLIC_HCAPTCHA_SITE_KEY`; invoked on `/api/analyze` for guest scans 4 & 5 |
+| `src/lib/hcaptcha.ts` | hCaptcha siteverify helper; 5s timeout; dev/prod key swap via `HCAPTCHA_SECRET_KEY`/`NEXT_PUBLIC_HCAPTCHA_SITE_KEY`; invoked on `/api/analyze` for guest scans 4 & 5 |
 | `src/lib/uploadLimits.ts` | Shared 10MB image upload cap — `MAX_IMAGE_UPLOAD_BYTES`, `assertImageSize()`, `base64DecodedByteLength()`; wired into `/api/analyze` and `/api/messages/upload-image` |
 | `src/lib/uploadCoverImage.ts` | Client helper used by `/scan` `handleSave()` — converts data URI to Blob, multipart POSTs to `/api/comics/upload-cover`, returns Supabase Storage public URL. Pass-through for already-hosted `http(s)://` URLs; returns `null` on failure (caller decides whether to drop the cover or block save). (Session 46) |
 | `src/lib/variantResolver.ts` | Variant name resolver invoked from `/api/analyze` after barcode parse. Exports `resolveVariant()` (3-tier orchestrator), `lookupApprovedVariantName` (Supabase `barcode_catalog` query for admin-approved rows), and `enrichVariantNameFromAI` (Claude Haiku, prompted with deterministically-derived cover letter from the addon code). Tier 1 catalog → Tier 2 focused AI → Tier 3 deterministic addon-derived fallback. Design principle: barcode trumps AI cover-derived hint (two physically distinct books can share identical cover art but differ in addon code). (Session 46) |
@@ -1200,12 +1200,13 @@ User-uploaded `comics.cover_image_url` is **only** mutated via the manual edit f
 
 ### External APIs
 - `EBAY_APP_ID`
-- `EBAY_CERT_ID`
+- `EBAY_CLIENT_SECRET` (eBay OAuth client secret — formerly documented as `EBAY_CERT_ID`)
+- `EBAY_SANDBOX` (set to `"true"` to target eBay sandbox endpoints; defaults to production)
 - ~~`COMIC_VINE_API_KEY`~~ (removed Session 45b — Comic Vine integration decommissioned alongside orphan `/api/quick-lookup` route; .env.local entry can be deleted)
 - ~~`METRON_USERNAME` / `METRON_PASSWORD`~~ (removed Session 39 — Metron integration decommissioned; .env.local entries can be deleted)
 
 ### Guest Scan Protection
-- `HCAPTCHA_SECRET` (server-side siteverify)
+- `HCAPTCHA_SECRET_KEY` (server-side siteverify)
 - `NEXT_PUBLIC_HCAPTCHA_SITE_KEY` (client widget)
 
 ### Stripe Price IDs
@@ -1225,7 +1226,7 @@ User-uploaded `comics.cover_image_url` is **only** mutated via the manual edit f
 
 | Service | Tier | Cost | Limit |
 |---------|------|------|-------|
-| Netlify | Personal | $9/mo | 1000 build min |
+| Netlify | Personal | $9.54/mo | Hosting + domain + DNS (billed 13th) |
 | Google Gemini | Pay-per-use | ~$0.001/scan | Primary vision AI (Gemini 2.0 Flash) |
 | Anthropic | Pay-per-use | ~$0.015/scan | Prepaid credits (fallback AI) |
 | Stripe | Standard | 2.9% + $0.30 | Per transaction |

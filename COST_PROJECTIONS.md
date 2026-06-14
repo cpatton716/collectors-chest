@@ -90,36 +90,40 @@
 
 ---
 
-### 4. Anthropic Claude API (AI)
+### 4. AI Providers — Gemini (primary) + Anthropic Claude (fallback)
 
-| Model           | Input Cost     | Output Cost    | Typical Scan Cost  |
-|-----------------|----------------|----------------|--------------------|
-| Claude Sonnet 4 | $3/M tokens    | $15/M tokens   | ~$0.01-0.03/scan   |
-| Claude Haiku    | $0.25/M tokens | $1.25/M tokens | ~$0.002-0.005/scan |
+> **Provider order:** Gemini 2.0 Flash is the **PRIMARY** vision provider (`VISION_PROVIDER_ORDER = ["gemini", "anthropic"]` in `src/lib/models.ts`). It is more accurate for comic covers in testing and **~5x cheaper** than Claude. Anthropic Claude Sonnet 4.5 runs only as the **fallback** when Gemini fails. Lightweight text-only lookups/enrichment use Claude Haiku 4.5. AI cost is therefore dominated by Gemini, not Claude.
 
-**Current: Claude Sonnet 4** (vision) + **Claude Haiku 4.5** (`claude-haiku-4-5-20251001`, text-only enrichment)
-**Actual Cost per Action:**
-- Cover scan (vision): ~$0.02-0.05 (image + text)
-- Comic lookup (text): ~$0.01-0.02
-- Price lookup: ~$0.01
+| Model                       | Role             | Input Cost     | Output Cost    | Typical Scan Cost   |
+|-----------------------------|------------------|----------------|----------------|---------------------|
+| Gemini 2.0 Flash            | **Primary** (vision) | ~$0.10/M tokens | ~$0.40/M tokens | ~$0.001-0.006/scan  |
+| Claude Sonnet 4.5           | Fallback (vision)    | $3/M tokens    | $15/M tokens   | ~$0.01-0.03/scan    |
+| Claude Haiku 4.5            | Text-only enrichment | $0.25/M tokens | $1.25/M tokens | ~$0.002-0.005/call  |
+
+**Current: Gemini 2.0 Flash** (primary vision) + **Claude Sonnet 4.5** (`claude-sonnet-4-5-20250929`, vision fallback) + **Claude Haiku 4.5** (`claude-haiku-4-5-20251001`, text-only enrichment)
+**Actual Cost per Action (Gemini-primary economics):**
+- Cover scan (vision, Gemini primary): ~$0.001-0.006; only escalates to ~$0.02-0.05 on the rare scan that falls back to Claude
+- Comic lookup (text): ~$0.001-0.01 (Haiku/Gemini)
+- Price lookup: ~$0.001-0.01
 - **Variant resolver Tier 2 enrichment (Haiku, text-only): ~$0.0008/call** — fires only when barcode `addonVariant` is present, the `barcode_catalog` has no admin-approved name for that `(upc_prefix, addon_issue, addon_variant)` triplet, and the addon implies a variant (not "00"/"01"/"11"). Self-limiting: as admins approve variant names, Tier 1 catalog hits compound and Tier 2 calls drop. Estimated **$0.02–$0.07/day** at current Beta volumes (will rise once the high-res barcode OCR fix lands — see BACKLOG "Variant Detection — Two-Pass High-Res Barcode OCR Option C3").
 
 **With Hybrid Caching (Current):**
-- First lookup: $0.01-0.03
+- First lookup (Gemini primary): ~$0.001-0.006; ~$0.01-0.03 only on Claude fallback
 - Repeat lookups: $0 (cached)
 - Cache hit rate estimate: 60-80% after initial growth
 
-**Projection (with caching):**
+**Projection (with caching, Gemini-primary):** ~5x cheaper than a Claude-primary model. Figures below assume Gemini handles the vast majority of scans, with occasional Claude fallback.
 
 | Users  | Scans/User/Mo | New Lookups | Cached  | AI Cost         |
 |--------|---------------|-------------|---------|-----------------|
-| 100    | 10            | 800         | 200     | $16-24/mo       |
-| 1,000  | 10            | 5,000       | 5,000   | $100-150/mo     |
-| 10,000 | 10            | 20,000      | 80,000  | $400-600/mo     |
-| 50,000 | 10            | 50,000      | 450,000 | $1,000-1,500/mo |
+| 100    | 10            | 800         | 200     | $3-8/mo         |
+| 1,000  | 10            | 5,000       | 5,000   | $20-40/mo       |
+| 10,000 | 10            | 20,000      | 80,000  | $80-150/mo      |
+| 50,000 | 10            | 50,000      | 450,000 | $200-350/mo     |
 
 **Cost Optimization Options:**
-- Switch text lookups to Haiku: -60% on lookup costs
+- Keep Gemini as primary (already the default): ~5x cheaper than Claude-primary
+- Use Haiku for text lookups: -60% on lookup costs vs Sonnet
 - Pre-populate top 5k comics: -30% on new user costs
 - Increase cache TTL: -10-20%
 
@@ -248,15 +252,15 @@
 | Netlify Personal          | $9.54                                              |
 | Supabase                  | $0 (upgrade to Pro $25/mo triggered at ~500 users) |
 | Clerk                     | $0                                                 |
-| Anthropic                 | $10-30                                             |
+| AI (Gemini primary + Claude fallback) | $3-15                                  |
 | Sentry                    | $0                                                 |
 | Analytics (PostHog)       | $0                                                 |
 | Upstash                   | $0                                                 |
 | Resend                    | $0                                                 |
 | hCaptcha                  | $0 (Pro trial → free tier after May 7, 2026)       |
 | eBay API                  | $0                                                 |
-| **Total (today)**         | **~$20-40/mo**                                     |
-| **Total (at ~500 users)** | **~$45-65/mo**                                     |
+| **Total (today)**         | **~$13-25/mo**                                     |
+| **Total (at ~500 users)** | **~$35-55/mo**                                     |
 
 ---
 
@@ -267,14 +271,14 @@
 | Netlify   | $0             |
 | Supabase  | $0             |
 | Clerk     | $0             |
-| Anthropic | $50-100        |
+| AI (Gemini primary + Claude fallback) | $20-40 |
 | Sentry    | $0             |
 | Analytics | $0             |
 | Upstash   | $0-5           |
 | Resend    | $0             |
 | hCaptcha  | $0             |
 | eBay API  | $0             |
-| **Total** | **$50-105/mo** |
+| **Total** | **$20-50/mo**  |
 
 ---
 
@@ -285,14 +289,14 @@
 | Netlify   | $19             |
 | Supabase  | $25             |
 | Clerk     | $0              |
-| Anthropic | $150-300        |
+| AI (Gemini primary + Claude fallback) | $80-150 |
 | Sentry    | $26             |
 | Analytics | $0              |
 | Upstash   | $10             |
 | Resend    | $20             |
 | hCaptcha  | $0              |
 | eBay API  | $0              |
-| **Total** | **$250-400/mo** |
+| **Total** | **$180-250/mo** |
 
 ---
 
@@ -303,14 +307,14 @@
 | Netlify   | $19-99            |
 | Supabase  | $25-50            |
 | Clerk     | $100-800          |
-| Anthropic | $400-1,000        |
+| AI (Gemini primary + Claude fallback) | $200-400 |
 | Sentry    | $80               |
 | Analytics | $50               |
 | Upstash   | $30               |
 | Resend    | $40               |
 | hCaptcha  | $0 (free tier)    |
 | eBay API  | $0                |
-| **Total** | **$750-2,150/mo** |
+| **Total** | **$550-1,550/mo** |
 
 ---
 
@@ -370,7 +374,7 @@ If we implement a premium tier at $5/month:
 
 ## Biggest Cost Drivers
 
-1. **Anthropic AI (40-60% of costs)** - Main variable cost
+1. **AI (Gemini primary, Claude fallback)** - Main variable cost. Gemini-primary keeps this ~5x cheaper than a Claude-primary model would; Claude fallback adds cost only on the rare scan Gemini can't handle.
 2. **Clerk Auth (at scale)** - $0.02/MAU adds up
 3. **Everything else** - Relatively fixed, predictable
 
@@ -381,13 +385,13 @@ If we implement a premium tier at $5/month:
 ### For Launch
 - Stay on all free tiers
 - Add Sentry (free) and PostHog (free)
-- Budget: **$20-30/mo** (just Anthropic)
+- Budget: **$13-25/mo** (mostly Gemini AI + Netlify)
 
 ### For Growth
 - Upgrade Supabase to Pro when needed
 - Add Upstash Redis
 - Implement cost optimizations
-- Budget: **$200-400/mo**
+- Budget: **$180-250/mo**
 
 ### For Scale
 - Negotiate enterprise rates
@@ -404,7 +408,7 @@ If we implement a premium tier at $5/month:
 | Netlify   | 100GB bandwidth      | 5k+ visits/mo                    | Low           |
 | Supabase  | 500MB, 2GB bandwidth | 10k+ comics or 20k+ requests/day | Medium        |
 | Clerk     | 10k MAU              | 10k+ MAU                         | High (costly) |
-| Anthropic | Pay-per-use          | N/A (always pay)                 | Critical      |
+| AI (Gemini + Claude) | Pay-per-use | N/A (always pay; Gemini primary keeps it low) | Critical |
 | Sentry    | 5k errors/mo         | Hitting limits                   | Low           |
 | PostHog   | 1M events/mo         | Rarely                           | Low           |
 | Upstash   | 10k commands/day     | 1k+ daily users                  | Medium        |

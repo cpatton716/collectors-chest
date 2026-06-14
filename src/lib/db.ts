@@ -6,14 +6,55 @@ import { filterCustomKeyInfoForPublic } from "./keyInfoHelpers";
 import { normalizeTitle, normalizeIssueNumber } from "./normalizeTitle";
 import { supabase, supabaseAdmin } from "./supabase";
 
+// Explicit column list for cached/read profiles. Avoids `select *` so a new
+// column added to the table doesn't silently bloat every cached payload (and
+// keeps the CachedProfile type in sync with what we actually read). L-CC21.
+const PROFILE_COLUMNS = `
+  id,
+  clerk_user_id,
+  email,
+  display_name,
+  username,
+  display_preference,
+  subscription_tier,
+  subscription_status,
+  stripe_customer_id,
+  stripe_subscription_id,
+  is_public,
+  public_slug,
+  public_display_name,
+  public_bio,
+  is_admin,
+  is_suspended,
+  suspended_reason,
+  stripe_connect_account_id,
+  stripe_connect_onboarding_complete,
+  completed_sales_count,
+  age_confirmed_at,
+  created_at,
+  updated_at
+`;
+
 // Profile management
 export async function getOrCreateProfile(clerkUserId: string, email?: string) {
+  // Try the profile cache first - getProfileByClerkId is the hot path and many
+  // callers hit getOrCreateProfile on existing users. L-CC23.
+  const cached = await cacheGet<CachedProfile>(clerkUserId, "profile");
+  if (cached) {
+    if (!cached.email && email) {
+      await supabase.from("profiles").update({ email }).eq("id", cached.id);
+      cached.email = email;
+      cacheSet(clerkUserId, cached, "profile").catch(() => {});
+    }
+    return cached;
+  }
+
   // First try to get existing profile
   const { data: existing } = await supabase
     .from("profiles")
-    .select("*")
+    .select(PROFILE_COLUMNS)
     .eq("clerk_user_id", clerkUserId)
-    .single();
+    .maybeSingle();
 
   if (existing) {
     // Backfill email on older profiles that slipped through with email=null
@@ -23,6 +64,7 @@ export async function getOrCreateProfile(clerkUserId: string, email?: string) {
       await supabase.from("profiles").update({ email }).eq("id", existing.id);
       existing.email = email;
     }
+    cacheSet(clerkUserId, existing, "profile").catch(() => {});
     return existing;
   }
 
@@ -30,10 +72,15 @@ export async function getOrCreateProfile(clerkUserId: string, email?: string) {
   const { data: newProfile, error } = await supabase
     .from("profiles")
     .insert({ clerk_user_id: clerkUserId, email })
-    .select()
+    .select(PROFILE_COLUMNS)
     .single();
 
   if (error) throw error;
+
+  // Populate the cache on create so the immediate follow-up read is a hit. L-CC23.
+  if (newProfile) {
+    cacheSet(clerkUserId, newProfile, "profile").catch(() => {});
+  }
   return newProfile;
 }
 
@@ -54,6 +101,10 @@ interface CachedProfile {
   public_display_name: string | null;
   public_bio: string | null;
   is_admin: boolean;
+  // Folded into the cached profile so isUserSuspended can hit cache instead of
+  // re-querying profiles on every gated mutation. L-CC20.
+  is_suspended?: boolean;
+  suspended_reason?: string | null;
   stripe_connect_account_id?: string | null;
   stripe_connect_onboarding_complete?: boolean;
   completed_sales_count?: number;
@@ -69,14 +120,15 @@ export async function getProfileByClerkId(clerkUserId: string): Promise<CachedPr
     return cached;
   }
 
-  // Cache miss - fetch from database
+  // Cache miss - fetch from database. maybeSingle returns null (no error) for
+  // the 0-row case instead of PGRST116, so we don't have to special-case it. L-SC27.
   const { data, error } = await supabase
     .from("profiles")
-    .select("*")
+    .select(PROFILE_COLUMNS)
     .eq("clerk_user_id", clerkUserId)
-    .single();
+    .maybeSingle();
 
-  if (error && error.code !== "PGRST116") throw error; // PGRST116 = not found
+  if (error) throw error;
 
   // Cache the result if found (fire and forget)
   if (data) {
@@ -92,6 +144,22 @@ export async function getProfileByClerkId(clerkUserId: string): Promise<CachedPr
  */
 export async function invalidateProfileCache(clerkUserId: string): Promise<void> {
   await cacheDelete(clerkUserId, "profile");
+}
+
+/**
+ * Invalidate the profile cache when you only have the profile's `id` (not the
+ * clerk_user_id the cache is keyed by). Looks up the clerk id, then deletes.
+ * Best-effort. M-PAY11.
+ */
+export async function invalidateProfileCacheByProfileId(profileId: string): Promise<void> {
+  const { data } = await supabase
+    .from("profiles")
+    .select("clerk_user_id")
+    .eq("id", profileId)
+    .maybeSingle();
+  if (data?.clerk_user_id) {
+    await cacheDelete(data.clerk_user_id, "profile");
+  }
 }
 
 // Comics
@@ -176,7 +244,7 @@ export async function ensureComicInSupabase(
     .from("comics")
     .select("id")
     .eq("id", item.id)
-    .single();
+    .maybeSingle(); // 0 rows = not yet synced; not an error. L-SC27
 
   if (existing) {
     return existing.id;
@@ -211,7 +279,7 @@ export async function updateComic(comicId: string, updates: Partial<CollectionIt
     .from("comics")
     .select("sold_at")
     .eq("id", comicId)
-    .single();
+    .maybeSingle(); // L-SC27
 
   if (existing?.sold_at) {
     throw new ComicSoldError();
@@ -447,59 +515,67 @@ export async function migrateLocalDataToCloud(
     if (list.name === "Passed On") defaultListMap.set("passed-on", list.id);
   });
 
-  // Import custom lists
+  // Import custom lists in a single batch insert, then map old->new IDs by
+  // name+description (batch insert returns all rows). Avoids N round-trips. M-CO12.
   const customLists = lists.filter((l) => !l.isDefault);
-  for (const list of customLists) {
-    const { data } = await supabase
+  if (customLists.length > 0) {
+    const { data: insertedLists } = await supabase
       .from("lists")
-      .insert({
-        user_id: profileId,
-        name: list.name,
-        description: list.description,
-        is_default: false,
-      })
-      .select()
-      .single();
+      .insert(
+        customLists.map((list) => ({
+          user_id: profileId,
+          name: list.name,
+          description: list.description,
+          is_default: false,
+        }))
+      )
+      .select();
 
-    if (data) {
-      defaultListMap.set(list.id, data.id);
-    }
+    // Match inserted rows back to source lists by name (unique per user here).
+    (insertedLists || []).forEach((row) => {
+      const source = customLists.find((l) => l.name === row.name);
+      if (source) defaultListMap.set(source.id, row.id);
+    });
   }
 
-  // Import comics
-  for (const item of comics) {
-    const dbComic = transformCollectionItemToDbComic(item, profileId);
-    const { data: newComic } = await supabase.from("comics").insert(dbComic).select().single();
+  // Import comics in one batch. We preserve each client-generated id (same as
+  // addComic) so we can build the comic_lists join rows without a per-comic
+  // round-trip. M-CO12 / M-CO11.
+  if (comics.length > 0) {
+    const comicRows = comics.map((item) => ({
+      id: item.id,
+      ...transformCollectionItemToDbComic(item, profileId),
+    }));
+    const { error: comicsError } = await supabase.from("comics").insert(comicRows);
+    if (comicsError) throw comicsError;
 
-    if (newComic && item.listIds.length > 0) {
-      const listInserts = item.listIds
+    const listInserts = comics.flatMap((item) =>
+      item.listIds
         .map((oldId) => defaultListMap.get(oldId))
         .filter((newId): newId is string => !!newId)
-        .map((listId) => ({
-          comic_id: newComic.id,
-          list_id: listId,
-        }));
-
-      if (listInserts.length > 0) {
-        await supabase.from("comic_lists").insert(listInserts);
-      }
+        .map((listId) => ({ comic_id: item.id, list_id: listId }))
+    );
+    if (listInserts.length > 0) {
+      await supabase.from("comic_lists").insert(listInserts);
     }
   }
 
-  // Import sales
-  for (const sale of sales) {
-    await supabase.from("sales").insert({
-      user_id: profileId,
-      comic_title: sale.comic.title,
-      comic_issue_number: sale.comic.issueNumber,
-      comic_variant: sale.comic.variant,
-      comic_publisher: sale.comic.publisher,
-      cover_image_url: sanitizeCoverImageUrl(sale.coverImageUrl),
-      purchase_price: sale.purchasePrice,
-      sale_price: sale.salePrice,
-      sale_date: sale.saleDate,
-      profit: sale.profit,
-    });
+  // Import sales in a single batch insert. M-CO12.
+  if (sales.length > 0) {
+    await supabase.from("sales").insert(
+      sales.map((sale) => ({
+        user_id: profileId,
+        comic_title: sale.comic.title,
+        comic_issue_number: sale.comic.issueNumber,
+        comic_variant: sale.comic.variant,
+        comic_publisher: sale.comic.publisher,
+        cover_image_url: sanitizeCoverImageUrl(sale.coverImageUrl),
+        purchase_price: sale.purchasePrice,
+        sale_price: sale.salePrice,
+        sale_date: sale.saleDate,
+        profit: sale.profit,
+      }))
+    );
   }
 
   return { success: true };
@@ -541,8 +617,34 @@ export interface ComicMetadata {
 }
 
 /**
+ * Max age (ms) before a cached metadata row's priceData is considered stale.
+ * Past this we return null so the caller re-fetches fresh eBay pricing. Set to
+ * match the eBay durable price TTL (12h) so durable metadata pricing doesn't
+ * outlive the price cache and serve days-old numbers. H-PR2.
+ */
+export const COMIC_METADATA_PRICE_MAX_AGE_MS = 60 * 60 * 12 * 1000; // 12 hours
+
+/**
+ * Returns true when a metadata row carries priceData old enough that the
+ * caller should fall through to a fresh eBay fetch. Rows without priceData (or
+ * without an updated_at) are never considered stale - there's no price to age.
+ */
+export function isComicMetadataPriceStale(
+  row: { priceData: ComicMetadata["priceData"]; updatedAt: string | null | undefined },
+  now: number = Date.now()
+): boolean {
+  if (!row.priceData) return false;
+  if (!row.updatedAt) return false;
+  const updatedMs = new Date(row.updatedAt).getTime();
+  if (Number.isNaN(updatedMs)) return false;
+  return now - updatedMs > COMIC_METADATA_PRICE_MAX_AGE_MS;
+}
+
+/**
  * Look up comic metadata from the shared repository
- * Returns null if not found (caller should fall back to API)
+ * Returns null if not found (caller should fall back to API).
+ * Also returns null when the cached priceData is stale (see H-PR2) so callers
+ * refresh eBay pricing rather than serving a stale durable price.
  */
 export async function getComicMetadata(
   title: string,
@@ -551,14 +653,20 @@ export async function getComicMetadata(
   const normalizedTitle = normalizeTitle(title);
   const normalizedIssue = normalizeIssueNumber(issueNumber);
 
+  // maybeSingle: 0 rows is the common "not cached yet" case, not an error. L-SC27.
   const { data, error } = await supabase
     .from("comic_metadata")
     .select("*")
     .eq("title", normalizedTitle)
     .eq("issue_number", normalizedIssue)
-    .single();
+    .maybeSingle();
 
   if (error || !data) return null;
+
+  // Fall through to a fresh fetch when the durable price has aged out.
+  if (isComicMetadataPriceStale({ priceData: data.price_data, updatedAt: data.updated_at })) {
+    return null;
+  }
 
   return {
     id: data.id,
@@ -641,19 +749,32 @@ export async function incrementComicLookupCount(title: string, issueNumber: stri
   const normalizedTitle = normalizeTitle(title);
   const normalizedIssue = normalizeIssueNumber(issueNumber);
 
-  // The trigger handles incrementing on update, so we just touch the record
-  await supabase
+  // The trigger handles incrementing on update, so we just touch the record.
+  // Supabase .update() returns NO error when zero rows match, so we explicitly
+  // request the affected count and log a miss - otherwise a normalization drift
+  // (touching a title that doesn't exist) would silently no-op forever. L-CC24.
+  const { count, error } = await supabase
     .from("comic_metadata")
-    .update({ updated_at: new Date().toISOString() })
+    .update({ updated_at: new Date().toISOString() }, { count: "exact" })
     .eq("title", normalizedTitle)
     .eq("issue_number", normalizedIssue);
+
+  if (error) {
+    console.error("[metadata] incrementComicLookupCount update failed:", error);
+    return;
+  }
+  if (!count) {
+    console.warn(
+      `[metadata] incrementComicLookupCount matched 0 rows for "${normalizedTitle}|${normalizedIssue}" - possible normalization drift`
+    );
+  }
 }
 
 // ============================================
 // Helper functions
 // ============================================
 
-function transformDbComicToCollectionItem(dbComic: Record<string, unknown>): CollectionItem {
+export function transformDbComicToCollectionItem(dbComic: Record<string, unknown>): CollectionItem {
   return {
     id: dbComic.id as string,
     comic: {
@@ -700,7 +821,7 @@ function transformDbComicToCollectionItem(dbComic: Record<string, unknown>): Col
   };
 }
 
-function transformCollectionItemToDbComic(item: CollectionItem, profileId: string) {
+export function transformCollectionItemToDbComic(item: CollectionItem, profileId: string) {
   return {
     user_id: profileId,
     title: item.comic.title,
@@ -920,7 +1041,7 @@ export async function togglePublicSharing(
         .select("id")
         .eq("public_slug", customSlug)
         .neq("id", profileId)
-        .single();
+        .maybeSingle(); // 0 rows = slug is free. L-SC27
 
       if (existing) {
         return { success: false, error: "This URL is already taken" };
@@ -955,7 +1076,7 @@ export async function togglePublicSharing(
             .from("profiles")
             .select("id")
             .eq("public_slug", finalSlug)
-            .single();
+            .maybeSingle(); // 0 rows = slug is free, stop incrementing. L-SC27
 
           if (!existingSlug) break;
           counter++;
@@ -975,6 +1096,7 @@ export async function togglePublicSharing(
       return { success: false, error: error.message };
     }
 
+    await invalidateProfileCacheByProfileId(profileId); // M-PAY11
     return { success: true, slug };
   } else {
     // Disable public sharing (keep the slug for reuse)
@@ -987,6 +1109,7 @@ export async function togglePublicSharing(
       return { success: false, error: error.message };
     }
 
+    await invalidateProfileCacheByProfileId(profileId); // M-PAY11
     return { success: true };
   }
 }
@@ -1009,7 +1132,7 @@ export async function updatePublicProfileSettings(
       .select("id")
       .eq("public_slug", settings.publicSlug)
       .neq("id", profileId)
-      .single();
+      .maybeSingle(); // 0 rows = slug is free. L-SC27
 
     if (existing) {
       return { success: false, error: "This URL is already taken" };
@@ -1034,6 +1157,7 @@ export async function updatePublicProfileSettings(
     return { success: false, error: error.message };
   }
 
+  await invalidateProfileCacheByProfileId(profileId); // M-PAY11
   return { success: true };
 }
 
@@ -1050,7 +1174,7 @@ export async function getSharingSettings(profileId: string): Promise<{
     .from("profiles")
     .select("is_public, public_slug, public_display_name, public_bio")
     .eq("id", profileId)
-    .single();
+    .maybeSingle(); // L-SC27
 
   if (error || !data) return null;
 
@@ -1094,6 +1218,12 @@ interface BarcodeCatalogEntry {
    *  surface in Tier-1 lookups. Pass undefined to skip variant contribution
    *  (e.g., when source was 'catalog' -- already known). */
   variantName?: string | null;
+  /** Provenance of variantName for this submission. Request-scoped: it reflects
+   *  how the name was obtained on THIS scan (typed by user, AI-suggested,
+   *  derived from barcode addon, or pulled from the approved catalog). It is
+   *  NOT persisted as a column on comics; it only drives whether/how the name is
+   *  contributed to barcode_catalog (see catalogBarcode -> variant_name_source).
+   *  L-SC26. */
   variantSource?: "user" | "ai" | "derived" | "catalog" | null;
 }
 
@@ -1200,7 +1330,7 @@ export async function lookupBarcodeCatalog(rawBarcode: string): Promise<{
       .eq("raw_barcode", cleanBarcode)
       .in("status", ["auto_approved", "approved"])
       .limit(1)
-      .single();
+      .maybeSingle(); // 0 rows = barcode not catalogued yet, not an error. L-SC27
 
     if (error || !catalogEntry) {
       // Also try without check digit (last digit of main UPC)
@@ -1212,7 +1342,7 @@ export async function lookupBarcodeCatalog(rawBarcode: string): Promise<{
           .like("raw_barcode", `${withoutCheck}%`)
           .in("status", ["auto_approved", "approved"])
           .limit(1)
-          .single();
+          .maybeSingle(); // L-SC27
 
         if (!entry2) return null;
 

@@ -1,15 +1,20 @@
 import {
+  cacheGetOrSet,
   generateAiAnalyzeCacheKey,
   generateComicMetadataCacheKey,
   generateEbayPriceCacheKey,
   hashImageData,
+  isWebhookProcessed,
+  markWebhookProcessed,
 } from "../cache";
+import { redis as mockRedis } from "../redis";
 
 /**
  * Cache utility function tests
  *
- * Tests the pure cache key generation and hashing functions.
- * These don't require Redis mocking since they're synchronous pure functions.
+ * Tests the pure cache key generation and hashing functions, plus the
+ * Redis-backed cacheGetOrSet shouldCache predicate (L-PR14) and the webhook
+ * idempotency helpers (H-PAY1 / M-PAY4).
  */
 
 // Mock Redis to avoid ESM import issues in Jest
@@ -20,6 +25,18 @@ jest.mock("@upstash/redis", () => ({
     del: jest.fn(),
   })),
 }));
+
+// Provide a controllable shared redis client so the Redis-backed helpers run.
+jest.mock("../redis", () => {
+  const client = { get: jest.fn(), set: jest.fn(), del: jest.fn() };
+  return { redis: client, isRedisAvailable: () => true };
+});
+
+const redisClient = mockRedis as unknown as {
+  get: jest.Mock;
+  set: jest.Mock;
+  del: jest.Mock;
+};
 
 describe("Cache Key Generation", () => {
   describe("generateEbayPriceCacheKey", () => {
@@ -215,5 +232,78 @@ describe("Cache TTL Configuration", () => {
     // We can't directly test TTLs without exporting them,
     // but this documents the expected behavior
     expect(true).toBe(true);
+  });
+});
+
+describe("cacheGetOrSet shouldCache predicate (L-PR14)", () => {
+  beforeEach(() => {
+    redisClient.get.mockReset();
+    redisClient.set.mockReset();
+  });
+
+  it("returns cached value without invoking the fetcher on a hit", async () => {
+    redisClient.get.mockResolvedValueOnce({ value: 42 });
+    const fetcher = jest.fn();
+    const { data, cached } = await cacheGetOrSet("k", "ebayPrice", fetcher);
+    expect(cached).toBe(true);
+    expect(data).toEqual({ value: 42 });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it("persists the fetched value when no predicate is supplied", async () => {
+    redisClient.get.mockResolvedValueOnce(null);
+    const { data, cached } = await cacheGetOrSet("k", "ebayPrice", async () => ({ value: 7 }));
+    expect(cached).toBe(false);
+    expect(data).toEqual({ value: 7 });
+    // fire-and-forget set runs on the next microtask
+    await Promise.resolve();
+    expect(redisClient.set).toHaveBeenCalledTimes(1);
+  });
+
+  it("skips persisting when shouldCache returns false (e.g., empty result)", async () => {
+    redisClient.get.mockResolvedValueOnce(null);
+    const { data } = await cacheGetOrSet("k", "ebayPrice", async () => null, {
+      shouldCache: (d) => d !== null,
+    });
+    expect(data).toBeNull();
+    await Promise.resolve();
+    expect(redisClient.set).not.toHaveBeenCalled();
+  });
+
+  it("persists when shouldCache returns true", async () => {
+    redisClient.get.mockResolvedValueOnce(null);
+    await cacheGetOrSet("k", "ebayPrice", async () => ({ value: 99 }), {
+      shouldCache: (d) => d !== null,
+    });
+    await Promise.resolve();
+    expect(redisClient.set).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("webhook idempotency helpers (H-PAY1 / M-PAY4)", () => {
+  beforeEach(() => {
+    redisClient.get.mockReset();
+    redisClient.set.mockReset();
+  });
+
+  it("isWebhookProcessed returns true only when the marker is exactly true", async () => {
+    redisClient.get.mockResolvedValueOnce(true);
+    expect(await isWebhookProcessed("evt_1")).toBe(true);
+  });
+
+  it("isWebhookProcessed returns false on a cache miss (null)", async () => {
+    redisClient.get.mockResolvedValueOnce(null);
+    expect(await isWebhookProcessed("evt_missing")).toBe(false);
+  });
+
+  it("markWebhookProcessed writes a true marker under the webhook prefix", async () => {
+    redisClient.set.mockResolvedValueOnce("OK");
+    await markWebhookProcessed("evt_2");
+    expect(redisClient.set).toHaveBeenCalledTimes(1);
+    const [key, value, opts] = redisClient.set.mock.calls[0];
+    expect(key).toBe("cache:webhook:evt_2");
+    expect(value).toBe(true);
+    // 3-day TTL (M-PAY4): 60 * 60 * 24 * 3 = 259200 seconds
+    expect(opts).toEqual({ ex: 60 * 60 * 24 * 3 });
   });
 });

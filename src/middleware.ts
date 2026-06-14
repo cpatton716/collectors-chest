@@ -1,5 +1,7 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 
+import { checkRateLimit, getRateLimitIdentifier, rateLimiters } from "@/lib/rateLimit";
+
 // Define routes that require authentication
 const isProtectedRoute = createRouteMatcher([
   // Admin routes require authentication
@@ -17,7 +19,26 @@ const isProtectedRoute = createRouteMatcher([
   "/api/auctions/:id/buy-now(.*)",
 ]);
 
+// Public AI-backed lookup endpoints — no auth, so rate limit at the edge to
+// protect against abuse of the expensive AI/eBay calls behind them.
+const isPublicAiLookupRoute = createRouteMatcher([
+  "/api/titles/suggest(.*)",
+  "/api/import-lookup(.*)",
+  "/api/cover-candidates(.*)",
+  "/api/comic-lookup(.*)",
+  "/api/con-mode-lookup(.*)",
+]);
+
 export default clerkMiddleware(async (auth, req) => {
+  if (isPublicAiLookupRoute(req)) {
+    const identifier = getRateLimitIdentifier(
+      null,
+      req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip")
+    );
+    const { success, response } = await checkRateLimit(rateLimiters.lookup, identifier);
+    if (!success && response) return response;
+  }
+
   if (isProtectedRoute(req)) {
     await auth.protect();
   }

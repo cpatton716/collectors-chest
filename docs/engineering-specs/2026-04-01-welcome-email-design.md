@@ -1,7 +1,9 @@
 # Welcome Email Design Spec
 
 **Date:** April 1, 2026
-**Status:** Approved
+**Status:** Implemented (shipped)
+
+> **📎 Related:** Part of the broader email system overhaul — see `docs/engineering-specs/2026-04-01-email-overhaul-design.md` for the shared header/footer templates and per-category preference gating. Welcome email is live in production.
 
 ---
 

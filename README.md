@@ -1,192 +1,130 @@
-# Comic Collector App
+# Collectors Chest
 
-A proof-of-concept web application that uses AI (Claude Vision) to identify comic book covers and manage your collection.
+**Scan comics. Track value. Collect smarter.**
+
+Collectors Chest is a comic book collection tracking app with AI-powered cover recognition and a built-in auction/marketplace. Snap a photo of any cover to identify it, track real-time market value, organize your collection, and buy, sell, and trade with other collectors.
+
+The app is currently in **Private Beta** — public registration is disabled and access is waitlist-only. Live at **[collectors-chest.com](https://collectors-chest.com)**.
+
+> Signed-in users persist their collection to a Supabase database; guests can scan a limited number of covers with data held in browser localStorage until they create an account.
+
+---
 
 ## Features
 
-- **AI-Powered Recognition**: Upload a photo of any comic book cover and the app will automatically identify:
-  - Title
-  - Issue number
-  - Publisher
-  - Cover artist
-  - Writer
-  - Interior artist
-  - Release year
-  - Variant information
+**AI Cover Recognition**
+- Scan a cover photo to identify title, issue number, publisher, creators, release year, and variant
+- Multi-provider AI fallback: **Google Gemini 2.0 Flash** is the primary engine (more accurate for comics and ~5x cheaper); **Anthropic Claude Sonnet 4.5** is the fallback; lightweight text lookups use **Claude Haiku 4.5**
+- Barcode scanning with barcode catalog lookup
 
-- **Collection Management**:
-  - Add comics to your collection
-  - View in grid or list mode
-  - Filter by custom lists (Collection, Want List, For Sale)
-  - Search by title, publisher, or writer
-  - Sort by date, title, value, or issue number
+**Collection Management**
+- Grid and list views with search, filtering, and sorting
+- Custom lists (Collection, Want List, For Sale, and user-defined)
+- Condition tracking for raw books and CGC/CBCS graded slabs
+- Mark-as-sold with profit/loss tracking
+- CSV import/export and public collection sharing
 
-- **Condition Tracking**:
-  - Support for both simple labels (Poor to Mint) and CGC/CBCS numeric grades
-  - Track professionally graded comics
+**Pricing & Valuation**
+- Real-time pricing via the **eBay Browse API**, with grade-aware pricing for CGC/CBCS graded slabs
+- CGC/CBCS certification lookup
+- **Key Hunt** — a convention-optimized, offline price-lookup mode
 
-- **For Sale Listings**:
-  - Mark comics for sale with asking price
-  - Track items in your "For Sale" list
+**Marketplace & Social**
+- Auction listings plus fixed-price (Buy Now) listings and offers
+- **Stripe Connect** seller payouts
+- Book trading, following/social profiles, and peer-to-peer messaging
 
-## Prerequisites
+**Platform**
+- Progressive Web App (installable, with offline support)
+- Email notifications via Resend
+- Subscription billing via Stripe: **$4.99/mo** or **$49.99/yr** premium; free tier includes 10 scans/month; guests get 5 scans
 
-Before you begin, make sure you have:
+---
 
-1. **Node.js** (version 18 or higher)
-   - Download from: https://nodejs.org/
-   - Verify installation: `node --version`
+## Tech Stack
 
-2. **An Anthropic API Key**
-   - Sign up at: https://console.anthropic.com/
-   - Create an API key in your account settings
+| Layer | Technology |
+|-------|-----------|
+| Framework | Next.js (App Router), React, TypeScript |
+| Styling | Tailwind CSS (Lichtenstein pop-art design language) |
+| Database | Supabase (PostgreSQL) with Row-Level Security |
+| Auth | Clerk |
+| Payments | Stripe + Stripe Connect |
+| AI | Google Gemini (primary) + Anthropic Claude (fallback) |
+| Caching / Rate Limiting | Upstash Redis |
+| Email | Resend |
+| Pricing Data | eBay Browse API |
+| Error Tracking | Sentry |
+| Analytics | PostHog |
+| Bot Prevention | hCaptcha |
+| Hosting | Netlify |
 
-## Setup Instructions
+---
 
-### Step 1: Navigate to the project directory
+## Getting Started
+
+### Prerequisites
+- Node.js 18 or higher
+
+### Installation
 
 ```bash
-cd comic-collector-app
-```
-
-### Step 2: Install dependencies
-
-```bash
+git clone <repository-url>
+cd "Comic Tracker"
 npm install
 ```
 
-### Step 3: Set up environment variables
+### Environment Setup
 
-Create a `.env.local` file in the project root:
+Configuration lives in a `.env.local` file in the project root. The app integrates many services, so a number of keys are required — Supabase, Clerk, Stripe, Anthropic, Gemini, Resend, Upstash, Sentry, PostHog, hCaptcha, and eBay among them.
 
-```bash
-cp .env.example .env.local
-```
+Create `.env.local` and populate it with the required keys for the services above. (Without third-party credentials, AI scanning, auth, payments, and pricing features will not function.)
 
-Then edit `.env.local` and add your Anthropic API key:
-
-```
-ANTHROPIC_API_KEY=your_actual_api_key_here
-```
-
-### Step 4: Run the development server
+### Run the Dev Server
 
 ```bash
 npm run dev
 ```
 
-### Step 5: Open in browser
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-Visit [http://localhost:3000](http://localhost:3000) in your web browser.
+---
 
-## How to Use
+## Available Scripts
 
-### Scanning a Comic
+| Script | Purpose |
+|--------|---------|
+| `npm run dev` | Start the development server |
+| `npm test` | Run the Jest test suite |
+| `npm run check` | Typecheck + lint + test |
+| `npm run check:full` | `check` plus a production build |
 
-1. Click "Scan a Comic" on the home page or navigate to `/scan`
-2. Drag and drop an image of your comic cover, or click to select a file
-3. Wait for the AI to analyze the cover (usually 2-5 seconds)
-4. Review the identified details and make any corrections
-5. Add condition, purchase price, and other optional information
-6. Click "Add to Collection" to save
+Deploys target **Netlify**.
 
-### Viewing Your Collection
-
-1. Click "My Collection" in the navigation
-2. Use the filter dropdown to switch between lists
-3. Use the search bar to find specific comics
-4. Click the grid/list icons to toggle view mode
-5. Click any comic to view details (full editing coming soon)
-
-### Manual Entry
-
-If the AI can't identify a comic:
-1. Go to the scan page
-2. Click "Enter details manually" below the upload area
-3. Fill in the comic information by hand
-4. Optionally upload an image of the cover
-5. Save to your collection
+---
 
 ## Project Structure
 
 ```
-comic-collector-app/
-├── src/
-│   ├── app/
-│   │   ├── api/
-│   │   │   └── analyze/
-│   │   │       └── route.ts      # Claude Vision API endpoint
-│   │   ├── collection/
-│   │   │   └── page.tsx          # Collection view page
-│   │   ├── scan/
-│   │   │   └── page.tsx          # Comic scanning page
-│   │   ├── globals.css           # Global styles
-│   │   ├── layout.tsx            # Root layout
-│   │   └── page.tsx              # Home page
-│   ├── components/
-│   │   ├── ComicCard.tsx         # Grid view card
-│   │   ├── ComicDetailsForm.tsx  # Add/edit form
-│   │   ├── ComicListItem.tsx     # List view item
-│   │   ├── ImageUpload.tsx       # Drag-drop uploader
-│   │   └── Navigation.tsx        # Top navigation bar
-│   ├── lib/
-│   │   └── storage.ts            # Local storage utilities
-│   └── types/
-│       └── comic.ts              # TypeScript type definitions
-├── .env.example                  # Environment variables template
-├── package.json                  # Dependencies
-├── tailwind.config.ts            # Tailwind CSS config
-└── tsconfig.json                 # TypeScript config
+src/
+├── app/          # Next.js App Router routes, pages, and API endpoints
+├── components/   # React UI components
+├── lib/          # Service clients, helpers, and business logic
+├── hooks/        # Custom React hooks
+└── types/        # TypeScript type definitions and helpers
+supabase/         # Database schema, migrations, and policies
+docs/             # Architecture, technical specs, design docs, and plans
 ```
 
-## Data Storage
+---
 
-This proof-of-concept uses browser localStorage for data persistence. Your collection data is stored locally in your browser and will persist between sessions.
+## Documentation
 
-**Note**: Clearing your browser data will delete your collection. In a production app, this would be replaced with a proper database (like Supabase).
+- **`ARCHITECTURE.md`** — system map and high-level architecture overview
+- **`docs/TECHNICAL_FEATURES.md`** — feature deep-dives
+- **`docs/`** — design specifications and implementation plans
 
-## Limitations (POC)
-
-This is a proof-of-concept with some limitations:
-
-- **No user accounts**: Data is stored locally per browser
-- **No price data**: Average sales prices are not fetched (would require eBay API integration)
-- **No marketplace**: Buying/selling features are placeholders
-- **No image storage**: Images are stored as base64 in localStorage (not scalable)
-- **No price history charts**: Would require historical data collection
-
-## Next Steps for Production
-
-To turn this into a full production app, you would need to:
-
-1. **Add Supabase** for database, authentication, and file storage
-2. **Integrate eBay API** for real-time price data
-3. **Add Stripe Connect** for marketplace payments
-4. **Implement user profiles** with registration/login
-5. **Add price history tracking** with charts
-6. **Deploy to Vercel** for hosting
-
-## Tech Stack
-
-- **Framework**: Next.js 14 (React)
-- **Styling**: Tailwind CSS
-- **AI**: Claude Vision API (Anthropic)
-- **Icons**: Lucide React
-- **Language**: TypeScript
-
-## Troubleshooting
-
-### "ANTHROPIC_API_KEY not configured"
-Make sure you've created `.env.local` with your API key and restarted the dev server.
-
-### Images not analyzing
-- Ensure the image is JPEG, JPG, or PNG
-- Image should be under 10MB
-- Make sure the comic cover is clearly visible
-
-### Collection not saving
-- Check that localStorage is enabled in your browser
-- Try clearing localStorage and starting fresh
+---
 
 ## License
 

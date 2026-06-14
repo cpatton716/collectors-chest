@@ -16,11 +16,13 @@ const customJestConfig = {
   transformIgnorePatterns: [
     '/node_modules/(?!(@clerk)/)',
   ],
-  // Only collect coverage from files we're testing
+  // Collect coverage from all lib/types/hooks source files
   collectCoverageFrom: [
-    'src/types/auction.ts',
-    'src/lib/subscription.ts',
-    'src/hooks/useGuestScans.ts',
+    'src/lib/**/*.{ts,tsx}',
+    'src/types/**/*.{ts,tsx}',
+    'src/hooks/**/*.{ts,tsx}',
+    '!src/**/*.d.ts',
+    '!src/**/__tests__/**',
   ],
 };
 

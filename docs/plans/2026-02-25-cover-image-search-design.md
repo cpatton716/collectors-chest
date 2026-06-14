@@ -1,5 +1,7 @@
 # Cover Image Search — Design Document
 
+> **⚠️ SUPERSEDED.** This document describes an external cover-image-search approach (Claude-generated Google Custom Search queries → image candidates) that was NOT shipped. Google Custom Search closed to new customers and the Bing replacement was also dropped. The team chose to skip external image search entirely in favor of the community cover database + Open Library + manual URL paste. See `docs/plans/2026-02-26-bing-image-search-design.md` for the final decision and the cover-harvesting / cover-validation pipeline docs for what actually shipped. Retained for historical reference only.
+
 > **Date:** February 25, 2026
 > **Status:** Approved
 > **Scope:** CSV import cover images, community cover database, admin approval

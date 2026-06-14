@@ -1,5 +1,7 @@
 # Phase 1: Core Messaging Implementation Plan
 
+> **✅ STATUS: COMPLETED & SHIPPED.** This is a historical implementation plan retained for reference. The messaging system (conversations, message threads, image attachments, content filtering, and moderation) is live in production. Do not execute these steps — they have already been carried out.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Build the foundational messaging system with database, APIs, and basic UI for text-only conversations between users.

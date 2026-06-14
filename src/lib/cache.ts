@@ -1,14 +1,5 @@
-import { Redis } from "@upstash/redis";
 import { normalizeTitle, normalizeIssueNumber } from "./normalizeTitle";
-
-// Initialize Redis only when environment variables are present
-const redis =
-  process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
-    ? new Redis({
-        url: process.env.UPSTASH_REDIS_REST_URL,
-        token: process.env.UPSTASH_REDIS_REST_TOKEN,
-      })
-    : null;
+import { redis } from "./redis";
 
 // Cache key prefixes for different data types
 const CACHE_PREFIX = {
@@ -32,7 +23,7 @@ const CACHE_TTL = {
   cert: 60 * 60 * 24 * 365, // 1 year (certificates are permanent)
   profile: 60 * 5, // 5 minutes (short for subscription/settings changes)
   titleSuggest: 60 * 60 * 24, // 24 hours (title data is stable)
-  webhook: 60 * 60, // 1 hour (prevent duplicate webhook processing)
+  webhook: 60 * 60 * 24 * 3, // 3 days (prevent duplicate webhook processing; Stripe retries failed events for up to ~3 days)
   popularTitles: 60 * 60, // 1 hour (refresh popular titles hourly)
 } as const;
 
@@ -110,12 +101,16 @@ export async function cacheDelete(key: string, prefix: keyof typeof CACHE_PREFIX
  * @param key - Cache key
  * @param prefix - Cache prefix type
  * @param fetcher - Async function to fetch data if not cached
+ * @param options - Optional `shouldCache` predicate; when it returns false the
+ *   freshly fetched value is NOT persisted (e.g., skip caching empty/error
+ *   results so a transient failure isn't pinned for the full TTL).
  * @returns Cached or freshly fetched data
  */
 export async function cacheGetOrSet<T>(
   key: string,
   prefix: keyof typeof CACHE_PREFIX,
-  fetcher: () => Promise<T>
+  fetcher: () => Promise<T>,
+  options?: { shouldCache?: (data: T) => boolean }
 ): Promise<{ data: T; cached: boolean }> {
   // Try to get from cache first
   const cached = await cacheGet<T>(key, prefix);
@@ -126,10 +121,38 @@ export async function cacheGetOrSet<T>(
   // Fetch fresh data
   const data = await fetcher();
 
-  // Cache it for next time (don't await - fire and forget)
-  cacheSet(key, data, prefix);
+  // Cache it for next time (don't await - fire and forget) unless the caller
+  // opts out via shouldCache (e.g., to avoid persisting empty/error results).
+  if (!options?.shouldCache || options.shouldCache(data)) {
+    cacheSet(key, data, prefix);
+  }
 
   return { data, cached: false };
+}
+
+// ============================================================================
+// Webhook idempotency (Stripe, etc.)
+// ============================================================================
+
+/**
+ * Whether a webhook event has already been fully processed.
+ *
+ * Pair with markWebhookProcessed AFTER the handler succeeds. Marking before
+ * the handler runs (the old pattern) meant a handler that threw still left the
+ * "processed" marker behind, so Stripe's automatic retry was silently dropped
+ * and the event never completed. See H-PAY1.
+ */
+export async function isWebhookProcessed(eventId: string): Promise<boolean> {
+  const seen = await cacheGet<boolean>(eventId, "webhook");
+  return seen === true;
+}
+
+/**
+ * Mark a webhook event as fully processed so retries are deduped. Call this
+ * only after the handler has completed successfully.
+ */
+export async function markWebhookProcessed(eventId: string): Promise<void> {
+  await cacheSet(eventId, true, "webhook");
 }
 
 // ============================================================================

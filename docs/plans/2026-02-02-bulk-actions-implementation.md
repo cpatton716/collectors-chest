@@ -1,5 +1,7 @@
 # Multi-Select Bulk Actions Implementation Plan
 
+> **✅ STATUS: COMPLETED & SHIPPED.** This is a historical implementation plan retained for reference. Multi-select bulk actions (bulk delete, mark for trade, add to list, mark as sold, and the undo toast) are live in the collection page in production. Do not execute these steps — they have already been carried out.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Add multi-select capability to the collection view with bulk delete, mark for trade, add to list, and mark as sold actions.

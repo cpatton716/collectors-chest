@@ -1,7 +1,7 @@
 # Cover Validation: Distinguish "No Cover" from "Unavailable" + Error Path Tests
 
 **Date:** April 7, 2026
-**Status:** Design approved
+**Status:** Implemented (shipped)
 **Backlog Items:** #7 (Cover Validation: Test Coverage for Error Paths), #8 (Cover Validation: Distinguish "No Cover" from "Unavailable")
 
 > **Apr 23, 2026 update:** Metron verification was fully removed from the scan flow this session. The `"metron"` value in the `coverSource` union type below is retained only to keep legacy cached rows valid — no new rows are written with that source. The `validated` field semantics below are unchanged.

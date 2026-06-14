@@ -1,5 +1,7 @@
 # Scan Resilience: Multi-Provider Fallback — Implementation Plan
 
+> **📎 Canonical design:** The authoritative architecture for this feature is `docs/plans/2026-02-27-scan-resilience-design.md`. This is an implementation/execution plan that supports it. Scan resilience shipped (multi-provider AI fallback — Gemini primary, Anthropic fallback — deployed Mar 3, 2026); plan retained for historical reference.
+
 > **Apr 23, 2026 update:** Provider-fallback task list below is unchanged. Adjacent scan-flow additions also shipped: pre-harvest aspect-ratio guard (`src/lib/coverCropValidator.ts`), hCaptcha gate on guest scans 4-5, 10MB upload cap, updated slab prompt with EXCLUDE/CROP markers, and Metron verification removed from the pipeline.
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.

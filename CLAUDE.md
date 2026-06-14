@@ -166,7 +166,7 @@ For ad-hoc use during development:
 | **Marvel API** | ~~Comic metadata, covers, creators~~ | ~~Free, 3K calls/day~~ — Developer program deprecated, no longer available (Feb 2026) |
 | **eBay Browse API** | Real-time pricing | Free tier, rate limited |
 | **CGC/CBCS** | Cert verification | Web scraping for grade details |
-| **ZenRows** | Scraping proxy for CGC cert lookup | Env var `ZENROWS_API_KEY` configured — **deferred post-launch** pending ROI review; no current cost |
+| **ZenRows** | Scraping proxy for CGC cert lookup | Env var `ZENROWS_API_KEY` is **provisioned but not yet referenced by any code** — feature **deferred post-launch** pending ROI review; no current cost |
 
 ### Project Costs
 
@@ -180,7 +180,7 @@ For ad-hoc use during development:
 **Variable Costs:**
 | Service | Cost | Notes |
 |---------|------|-------|
-| Anthropic API — Sonnet 4 (cover scan, vision) | ~$0.015/scan | Prepaid credits ($10 loaded) |
+| Anthropic API — Sonnet 4.5 (cover scan, vision — fallback provider; Gemini is primary) | ~$0.015/scan | Prepaid credits ($10 loaded) |
 | Anthropic API — Haiku 4.5 (variant resolver Tier 2 enrichment) | ~$0.0008/call | Text-only, ~150 in / ~96 out tokens. Fires only when barcode `addonVariant` present AND `barcode_catalog` has no admin-approved name AND addon implies a variant. Estimated $0.02–$0.07/day at Beta volumes; rises after the high-res barcode OCR fix lands (see BACKLOG). |
 | Stripe | 2.9% + $0.30 | Per transaction |
 

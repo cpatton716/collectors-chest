@@ -1,5 +1,7 @@
 # Email System Overhaul Implementation Plan
 
+> **✅ STATUS: COMPLETED & SHIPPED.** This is a historical implementation plan retained for reference. The email overhaul (trial reminder email, offer/listing email sends, pop-art branded templates, per-category preferences, and `batch.send()` fan-out) shipped and is live in production. Do not execute these steps — they have already been carried out.
+
 > **Apr 23, 2026 update:** `sendNotificationEmail()` now checks the recipient's per-category email preference before dispatching, and fan-out sends use Resend's `batch.send()` API. See the email overhaul design spec for the category-to-template mapping. Tasks in this plan are otherwise unchanged.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.

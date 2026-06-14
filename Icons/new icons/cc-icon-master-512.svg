@@ -1,0 +1,26 @@
+<svg width="512" height="512" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <!-- Chest body - Bright Comic Blue -->
+  <rect x="14" y="54" width="100" height="58" rx="5" fill="#3388FF" stroke="#1a1a1a" stroke-width="5.5"/>
+  <!-- Chest lid - Darker blue -->
+  <path d="M14 58 Q14 30 64 25 Q114 30 114 58" fill="#2266DD" stroke="#1a1a1a" stroke-width="5.5" stroke-linejoin="round"/>
+  <!-- Lid highlight -->
+  <path d="M24 54 Q24 34 64 30 Q80 32 88 36" fill="none" stroke="#88BBFF" stroke-width="2.5" stroke-linecap="round" opacity="0.45"/>
+  <!-- Lid seam -->
+  <line x1="14" y1="58" x2="114" y2="58" stroke="#1a1a1a" stroke-width="4.5"/>
+  <!-- Chest band -->
+  <rect x="14" y="74" width="100" height="9" fill="#1a1a1a"/>
+  <!-- Lock plate - Gold -->
+  <rect x="47" y="62" width="34" height="30" rx="4" fill="#FFD700" stroke="#1a1a1a" stroke-width="4"/>
+  <!-- Lock plate inner bevel -->
+  <rect x="51" y="65" width="26" height="24" rx="3" fill="#E8B800" opacity="0.4"/>
+  <!-- Keyhole -->
+  <circle cx="64" cy="73" r="5" fill="#1a1a1a"/>
+  <rect x="61" y="76" width="6" height="10" rx="1.5" fill="#1a1a1a"/>
+  <!-- Comic sparkle top-right - Red -->
+  <polygon points="105,18 108.5,27 117,23 110.5,29.5 119,34 110.5,33 108.5,41 106.5,33 98,34 104,29.5 99,23 106.5,27" fill="#FF3333" stroke="#1a1a1a" stroke-width="1.5"/>
+  <!-- Small sparkle top-left - Gold -->
+  <polygon points="22,22 24,27 28,25 25,28 29,31 25,30 24,34 23,30 19,31 22,28 19,25 23,27" fill="#FFD700" stroke="#1a1a1a" stroke-width="1" opacity="0.7"/>
+  <!-- Body highlights -->
+  <line x1="20" y1="96" x2="20" y2="106" stroke="#88BBFF" stroke-width="2" stroke-linecap="round" opacity="0.3"/>
+  <line x1="24" y1="94" x2="24" y2="108" stroke="#88BBFF" stroke-width="2" stroke-linecap="round" opacity="0.25"/>
+</svg>

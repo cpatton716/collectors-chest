@@ -7,7 +7,7 @@
 ---
 
 ## 1. AI Cover Recognition & Multi-Provider Fallback
-Camera capture → image compression (400KB target) → Claude Vision (primary) → Gemini (fallback) → structured comic identification. Two independent AI calls: image analysis (12s timeout) + verification/enrichment (8s timeout). Per-call fallback logic, non-retryable error detection, cost tracking ($0.02-0.03/scan Anthropic, $0.004-0.006 Gemini).
+Camera capture → image compression (400KB target) → Gemini 2.0 Flash (primary) → Claude Sonnet 4.5 (fallback) → structured comic identification. Two independent AI calls: image analysis (12s timeout) + verification/enrichment (8s timeout). Per-call fallback logic, non-retryable error detection, cost tracking ($0.001-0.006/scan Gemini primary, $0.01-0.03/scan Anthropic on fallback). Gemini is primary because it tests more accurately for comic covers and is ~5x cheaper than Claude.
 
 **Session 31 additions — Slab detection AI calls:**
 - `detectSlab()` — Quick binary classification: is this a slabbed comic? Returns `SlabDetectionResult` with confidence score
@@ -107,7 +107,7 @@ Guest: 5 scans (client-side + server header validation, +5 via email capture). F
 - 10MB image upload cap via `src/lib/uploadLimits.ts` (`MAX_IMAGE_UPLOAD_BYTES`, `assertImageSize()`, `base64DecodedByteLength()`). Returns HTTP 413 on oversize. Shared by `/api/analyze` and `/api/messages/upload-image`. Client-side pre-validation in `ImageUpload.tsx` and `MessageComposer.tsx`.
 - Scan-slot reservation leak fix: 413 (too large) and 400 (no image) error branches now release the reserved slot so users aren't billed a scan for a malformed request.
 
-**Session 39 addition — hCaptcha Guest Scan Protection:** Invisible hCaptcha gates guest scans **4 and 5 only** (the last two free scans before the limit). Client via `@hcaptcha/react-hcaptcha` with floating badge (`src/components/GuestCaptcha.tsx`), server helper at `src/lib/hcaptcha.ts` with 5s siteverify timeout and dev/prod key swap. Env vars: `HCAPTCHA_SECRET` + `NEXT_PUBLIC_HCAPTCHA_SITE_KEY`.
+**Session 39 addition — hCaptcha Guest Scan Protection:** Invisible hCaptcha gates guest scans **4 and 5 only** (the last two free scans before the limit). Client via `@hcaptcha/react-hcaptcha` with floating badge (`src/components/GuestCaptcha.tsx`), server helper at `src/lib/hcaptcha.ts` with 5s siteverify timeout and dev/prod key swap. Env vars: `HCAPTCHA_SECRET_KEY` + `NEXT_PUBLIC_HCAPTCHA_SITE_KEY`.
 
 **Key files:** `src/lib/subscription.ts`, `src/lib/uploadLimits.ts`, `src/lib/hcaptcha.ts`, `src/hooks/useGuestScans.ts`, `src/components/GuestCaptcha.tsx`, `src/app/api/analyze/route.ts`
 
@@ -205,9 +205,9 @@ Mobile-first quick-lookup designed for the convention floor: scan a cover, get t
 **Step 1 — Cover image → AI vision (`POST /api/analyze`).**
 - `src/app/key-hunt/page.tsx:153` POSTs `{image: base64, mediaType}` to `/api/analyze`
 - `src/app/api/analyze/route.ts` enforces auth + scan-limit (guest 5 / free 10/mo / premium ∞)
-- Image goes to **Anthropic Claude vision** (Sonnet 4.5 primary; Gemini fallback on 5xx)
-- Claude returns `{title, issueNumber, publisher, releaseYear, isSlabbed, grade?}`
-- **`lookupKeyInfo()` consulted** with the recognized title+issue+year — pulls key facts from the curated `src/lib/keyComicsDatabase.ts` (945 entries as of Session 44) and attaches them to the response
+- Image goes to **Gemini 2.0 Flash vision** (primary; Claude Sonnet 4.5 fallback on 5xx)
+- The provider returns `{title, issueNumber, publisher, releaseYear, isSlabbed, grade?}`
+- **`lookupKeyInfo()` consulted** with the recognized title+issue+year — pulls key facts from the curated `src/lib/keyComicsDatabase.ts` (1,132 entries) and attaches them to the response
 - `recordScanAnalytics()` logs the scan to the `scan_analytics` table (cost ~$0.015, latency, AI calls, cache hit/miss, tier)
 - Returns `ComicDetails` to the client
 

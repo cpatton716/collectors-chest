@@ -1,5 +1,7 @@
 # Finish Scan Resilience Implementation Plan
 
+> **📎 Canonical design:** The authoritative architecture for this feature is `docs/plans/2026-02-27-scan-resilience-design.md`. This is an implementation/execution plan that supports it. Scan resilience shipped (multi-provider AI fallback — Gemini primary, Anthropic fallback — deployed Mar 3, 2026); plan retained for historical reference.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Complete scan resilience deployment readiness — fallback rate alerting, provider health checks, frontend analytics enhancement, and deploy.

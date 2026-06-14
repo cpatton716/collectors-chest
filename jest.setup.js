@@ -11,6 +11,38 @@ jest.mock('@clerk/nextjs', () => ({
   ClerkProvider: ({ children }) => children,
 }));
 
+// Mock @supabase/supabase-js so importing lib modules never spins up a real
+// client (no network, no env-key requirements) during unit tests.
+jest.mock('@supabase/supabase-js', () => {
+  const createClient = jest.fn(() => {
+    const chain = {
+      select: jest.fn(() => chain),
+      insert: jest.fn(() => chain),
+      update: jest.fn(() => chain),
+      upsert: jest.fn(() => chain),
+      delete: jest.fn(() => chain),
+      eq: jest.fn(() => chain),
+      in: jest.fn(() => chain),
+      order: jest.fn(() => chain),
+      limit: jest.fn(() => chain),
+      range: jest.fn(() => chain),
+      single: jest.fn(() => Promise.resolve({ data: null, error: null })),
+      maybeSingle: jest.fn(() => Promise.resolve({ data: null, error: null })),
+      then: undefined,
+    };
+    return {
+      from: jest.fn(() => chain),
+      rpc: jest.fn(() => Promise.resolve({ data: null, error: null })),
+      auth: { getUser: jest.fn(() => Promise.resolve({ data: { user: null }, error: null })) },
+      storage: { from: jest.fn(() => ({ upload: jest.fn(), getPublicUrl: jest.fn() })) },
+    };
+  });
+  return {
+    createClient,
+    SupabaseClient: class {},
+  };
+});
+
 // Mock environment variables for Supabase
 process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://test.supabase.co';
 process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'test-anon-key';

@@ -1,25 +1,19 @@
 import { NextResponse } from "next/server";
 
 import { Ratelimit } from "@upstash/ratelimit";
-import { Redis } from "@upstash/redis";
 
-// Initialize Redis only when environment variables are present
-const redis =
-  process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
-    ? new Redis({
-        url: process.env.UPSTASH_REDIS_REST_URL,
-        token: process.env.UPSTASH_REDIS_REST_TOKEN,
-      })
-    : null;
+import { redis } from "./redis";
 
 // Rate limiters for different endpoint types
+// analytics:false on all limiters - the analytics writes double the Upstash
+// command count (one per limit() call) and we don't consume the dashboards.
 export const rateLimiters = {
   // AI endpoints - expensive, strict limits (5 per minute)
   analyze: redis
     ? new Ratelimit({
         redis,
         limiter: Ratelimit.slidingWindow(5, "1 m"),
-        analytics: true,
+        analytics: false,
         prefix: "ratelimit:analyze",
       })
     : null,
@@ -29,7 +23,7 @@ export const rateLimiters = {
     ? new Ratelimit({
         redis,
         limiter: Ratelimit.slidingWindow(30, "1 m"),
-        analytics: true,
+        analytics: false,
         prefix: "ratelimit:api",
       })
     : null,
@@ -39,7 +33,7 @@ export const rateLimiters = {
     ? new Ratelimit({
         redis,
         limiter: Ratelimit.slidingWindow(3, "1 m"),
-        analytics: true,
+        analytics: false,
         prefix: "ratelimit:bidding",
       })
     : null,
@@ -49,7 +43,7 @@ export const rateLimiters = {
     ? new Ratelimit({
         redis,
         limiter: Ratelimit.slidingWindow(20, "1 m"),
-        analytics: true,
+        analytics: false,
         prefix: "ratelimit:lookup",
       })
     : null,

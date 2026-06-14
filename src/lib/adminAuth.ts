@@ -4,6 +4,7 @@
  */
 import { auth } from "@clerk/nextjs/server";
 
+import { getProfileByClerkId } from "./db";
 import { supabaseAdmin } from "./supabase";
 
 // Admin action types for audit logging
@@ -15,7 +16,29 @@ export type AdminAction =
   | "suspend"
   | "unsuspend"
   | "view_reports"
-  | "update_report";
+  | "update_report"
+  // Mutating content-moderation actions (barcode/cover review queues, curated
+  // key-comics DB). Logged for accountability the same as user actions.
+  | "approve_barcode"
+  | "reject_barcode"
+  | "approve_cover"
+  | "reject_cover"
+  | "add_key_comic"
+  | "update_key_comic"
+  | "delete_key_comic";
+
+/**
+ * Actions where a missing audit-log entry is unacceptable: if logging fails we
+ * surface the error to the caller instead of swallowing it. These are the
+ * irreversible / high-impact mutations.
+ */
+const HIGH_IMPACT_ACTIONS: ReadonlySet<AdminAction> = new Set<AdminAction>([
+  "grant_premium",
+  "suspend",
+  "unsuspend",
+  "reset_trial",
+  "delete_key_comic",
+]);
 
 export interface AdminProfile {
   id: string;
@@ -53,42 +76,12 @@ export async function getAdminProfile(): Promise<AdminProfile | null> {
 }
 
 /**
- * Check if a user (by profile ID) is an admin
- */
-export async function isAdmin(profileId: string): Promise<boolean> {
-  const { data, error } = await supabaseAdmin
-    .from("profiles")
-    .select("is_admin")
-    .eq("id", profileId)
-    .single();
-
-  if (error || !data) {
-    return false;
-  }
-
-  return data.is_admin === true;
-}
-
-/**
- * Check if a user (by Clerk user ID) is an admin
- */
-export async function isAdminByClerkId(clerkUserId: string): Promise<boolean> {
-  const { data, error } = await supabaseAdmin
-    .from("profiles")
-    .select("is_admin")
-    .eq("clerk_user_id", clerkUserId)
-    .single();
-
-  if (error || !data) {
-    return false;
-  }
-
-  return data.is_admin === true;
-}
-
-/**
- * Log an admin action to the audit log
- * Call this after every admin action for accountability
+ * Log an admin action to the audit log.
+ * Call this after every admin action for accountability.
+ *
+ * For low-impact actions a logging failure is swallowed (logged + Sentry) so it
+ * never blocks the operation. For HIGH_IMPACT_ACTIONS we re-throw so the caller
+ * can abort - an unauditable irreversible mutation must not silently proceed.
  */
 export async function logAdminAction(
   adminId: string,
@@ -96,16 +89,48 @@ export async function logAdminAction(
   targetUserId?: string,
   details?: Record<string, unknown>
 ): Promise<void> {
-  const { error } = await supabaseAdmin.from("admin_audit_log").insert({
-    admin_id: adminId,
-    action,
-    target_user_id: targetUserId || null,
-    details: details || null,
-  });
+  let caught: unknown = null;
 
-  if (error) {
-    // Log error but don't fail the request - audit logging shouldn't break operations
-    console.error("Failed to log admin action:", error);
+  try {
+    const { error } = await supabaseAdmin.from("admin_audit_log").insert({
+      admin_id: adminId,
+      action,
+      target_user_id: targetUserId || null,
+      details: details || null,
+    });
+    if (error) caught = error;
+  } catch (err) {
+    caught = err;
+  }
+
+  if (caught) {
+    console.error("Failed to log admin action:", caught);
+    reportAdminLogFailure(caught, { adminId, action, targetUserId });
+
+    if (HIGH_IMPACT_ACTIONS.has(action)) {
+      throw caught instanceof Error
+        ? caught
+        : new Error(`Failed to record audit log for high-impact action "${action}"`);
+    }
+  }
+}
+
+/**
+ * Route an audit-log failure to Sentry (best-effort, lazily imported so the
+ * SDK isn't pulled into bundles that never log admin actions).
+ */
+function reportAdminLogFailure(
+  error: unknown,
+  context: { adminId: string; action: AdminAction; targetUserId?: string }
+): void {
+  try {
+    const Sentry = require("@sentry/nextjs");
+    Sentry.captureException(error, {
+      tags: { area: "admin_audit_log", admin_action: context.action },
+      extra: { adminId: context.adminId, targetUserId: context.targetUserId },
+    });
+  } catch {
+    // Sentry unavailable (e.g., tests) - console.error above is the fallback.
   }
 }
 
@@ -291,18 +316,20 @@ export async function isUserSuspended(clerkUserId: string): Promise<{
   suspended: boolean;
   reason?: string;
 }> {
-  const { data, error } = await supabaseAdmin
-    .from("profiles")
-    .select("is_suspended, suspended_reason")
-    .eq("clerk_user_id", clerkUserId)
-    .single();
-
-  if (error || !data) {
+  // Use the cached profile (5 min TTL, includes is_suspended/suspended_reason)
+  // so gated mutations don't re-query profiles on every request. Suspension is
+  // invalidated via invalidateProfileCache when an admin toggles it. L-CC20.
+  try {
+    const profile = await getProfileByClerkId(clerkUserId);
+    if (!profile) {
+      return { suspended: false };
+    }
+    return {
+      suspended: profile.is_suspended === true,
+      reason: profile.suspended_reason || undefined,
+    };
+  } catch {
+    // Fail open on a lookup error rather than locking a legitimate user out.
     return { suspended: false };
   }
-
-  return {
-    suspended: data.is_suspended === true,
-    reason: data.suspended_reason || undefined,
-  };
 }
