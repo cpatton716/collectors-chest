@@ -14,12 +14,27 @@ After those: pick from the standing pre-launch list below (FMV graceful fallback
 
 ## Pre-Launch — Critical / High Priority
 
-### Execute Audit Remediation Test Suite (2026-06-14)
-**Priority:** High (Pre-Launch — highest priority; the 2026-06-14 audit fixes are unreleased until verified)
+### Apply 2026-06-14 Closeout Migration + Residual Owner Steps
+**Priority:** High (Pre-Launch — top-tier; the closeout build is committed locally but unreleased until these owner steps are done)
 **Status:** Pending
 **Added:** Jun 14, 2026
 
-Manual/device verification of the ~211 autonomous audit fixes shipped 2026-06-14 (commits 04c19f6, e1e6dfe, 43fa943). Full test plan with per-test device targets (Web / Mobile iOS→Android / Both) is in TEST_CASES.md → "Audit Remediation Test Plan — 2026-06-14". Highest regression risk: money paths (Stripe webhook idempotency, atomic Buy-It-Now, offer auto-reject, Connect IDOR), security (rate-limited public endpoints, profanity-username fix), cover WebP upload, a11y, and PWA/service-worker changes. Until verified, these changes are unreleased.
+The audit close-out build implemented all owner-dependent items except the 6 large refactors (5 closeout commits, committed locally, unreleased). What remains is an owner residual checklist — full detail in **CLOSEOUT_RESIDUAL_2026-06-14.md**. Summary of required steps:
+- **Apply the migration** `supabase/migrations/20260614_audit_closeout.sql` (13 required + 2 optional blocks) via Supabase SQL Editor. Until applied, the new code ships SAFE FALLBACKS (degrades gracefully, no crashes).
+- **Verify 5 schema assumptions before running:** (1) money units — `sales.platform_fee`/`seller_net` are DECIMAL dollars, switch to BIGINT if the webhook writes cents; (2) winning-bid unique index — run the de-dupe query first if any auction has >1 `is_winning=true`; (3) `complete_trade()` owner/participant + Clerk-id-join assumptions vs tradingDb.ts; (4) `review_barcode()` `p_admin_id` = `profiles.id`; (5) `sum_seller_platform_fees()` seller = `sales.user_id`. After applying, set `profiles.promo_trial_eligible=true` for accounts that should get the 30-day QR promo trial (gate fails closed).
+- **Env vars** (all optional — fall back to `CLERK_SECRET_KEY`): `GUEST_SCAN_SECRET`, `PROMO_TRIAL_SECRET`, `UNSUBSCRIBE_SECRET`, plus `SUPPORT_EMAIL` (placeholder in email.ts — required for real unsubscribe mailto/footer) and `TEST_EMAIL_RECIPIENT`.
+- **Dashboard verifies:** complete the Netlify env-var list (CLAUDE.md was missing ~10 vars the code reads — EBAY_*, STRIPE_PRICE_*, CRON_SECRET, ADMIN_EMAIL, RESEND_*_AUDIENCE_ID, NEXT_PUBLIC_APP_URL, NEXT_PUBLIC_POSTHOG_HOST, NEXT_PUBLIC_SUPABASE_ANON_KEY); subscribe `account.updated` on prod Stripe webhook + Connect test (M-MK14); confirm `comic-covers` bucket cleanup; confirm zero traffic on deprecated `/api/listings/[id]/purchase`; rating-count integrity spot-check; ZenRows on/off decision; pin Node version (.nvmrc/engines.node).
+- **Owner-supplied content:** real `/about` copy (origin story, team bios, contact/social — still placeholder); support/unsubscribe inbox address (SUPPORT_EMAIL).
+- **Device/smoke tests:** see TEST_CASES.md → "Closeout Test Plan — 2026-06-14" (Clerk auth after SDK bump, live AI scan after Anthropic SDK bump, next/image iOS Safari grid, MobileNav restyle, pinch-zoom, guest-scan cap, destination-charge sale, bulk Mark-as-Sold + unpriced disclaimers).
+
+---
+
+### Execute Audit Remediation + Closeout Test Suite (2026-06-14)
+**Priority:** High (Pre-Launch — highest priority; the 2026-06-14 audit fixes AND closeout changes are unreleased until verified)
+**Status:** Pending
+**Added:** Jun 14, 2026
+
+Manual/device verification of the ~211 autonomous audit fixes shipped 2026-06-14 (commits 04c19f6, e1e6dfe, 43fa943) **plus the audit close-out changes (5 closeout commits)**. TEST_CASES.md now holds **both** an "Audit Remediation Test Plan — 2026-06-14" and a "Closeout Test Plan — 2026-06-14" (per-test device targets: Web / Mobile iOS→Android / Both). Highest regression risk: money paths (Stripe webhook idempotency, atomic Buy-It-Now, offer auto-reject, Connect IDOR, destination-charge sale), security (rate-limited public endpoints, profanity-username fix, guest-scan cap), cover WebP upload, a11y, PWA/service-worker, and the closeout SDK bumps (Clerk auth, Anthropic scan) + pop-art MobileNav / pinch-zoom / iOS-Safari grid changes. Until verified, these changes are unreleased. Note: the closeout test pass is gated on applying the migration first — see "Apply 2026-06-14 Closeout Migration + Residual Owner Steps".
 
 ---
 
@@ -307,12 +322,15 @@ Deferred from the 2026-06-14 audit remediation (high regression risk, no user-fa
 
 ---
 
-### Triage audit Partial/No items (owner-dependent)
-**Priority:** Medium (Post-Launch — owner-dependent steps surfaced by the 2026-06-14 audit)
-**Status:** Pending
+### Audit Partial/No items — implemented this session; residual = owner checklist
+**Priority:** High (Pre-Launch — the implementation is committed locally; only the owner residual steps remain)
+**Status:** Mostly done — code implemented Jun 14, 2026; residual is the owner checklist
 **Added:** Jun 14, 2026
+**Updated:** Jun 14, 2026 (closeout build)
 
-The 2026-06-14 audit surfaced 64 'Partial' + 4 'No' findings requiring an owner step (DB migrations for atomic-bid unique index / FOR UPDATE RPC, schema NOT-NULL/RLS changes, env vars, Stripe dashboard config, product/copy decisions). Full detail in AUDIT_2026-06-14.md → Findings by Priority. Triage and schedule.
+The 2026-06-14 audit surfaced 64 'Partial' + 4 'No' findings requiring an owner step (DB migrations for atomic-bid unique index / FOR UPDATE RPC, schema NOT-NULL/RLS changes, env vars, Stripe dashboard config, product/copy decisions; full detail in AUDIT_2026-06-14.md → Findings by Priority). **The audit close-out build (5 commits, committed locally, unreleased) implemented all of these owner-dependent items in code except the 6 large refactors** (tracked separately under "Complete 6 deferred audit refactors"). The migration changes are written into `supabase/migrations/20260614_audit_closeout.sql` and the code ships SAFE FALLBACKS until it's applied.
+
+**What remains is the residual owner checklist** — apply the migration (+ 5 schema-assumption checks), set the optional env-var secrets, complete the dashboard verifies (Netlify env vars, Stripe `account.updated`, bucket/route/rating-count checks, ZenRows + Node decisions), and supply the `/about` copy + support-inbox address. All steps are itemized in **CLOSEOUT_RESIDUAL_2026-06-14.md** and rolled up under "Apply 2026-06-14 Closeout Migration + Residual Owner Steps" above.
 
 ---
 

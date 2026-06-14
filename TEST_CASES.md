@@ -2342,4 +2342,147 @@ If you encounter bugs or unexpected behavior:
 
 ---
 
+## Closeout Test Plan — 2026-06-14
+
+> Test plan for the **owner-dependent close-out** build (commits `7e81620`, `20d01d3`, `3ba698a`, `1350e41`, `a65584c`). Cases are grouped by feature area, each with a stable test ID, a one-line check, brief steps, expected result, and a Device tag. **Device convention:** `Web` = desktop browser; `Mobile` = phone; `Both` = run on Web and Mobile. Where a case runs on Mobile/Both, **test iOS first, then Android**. Accessibility cases run **VoiceOver (iOS) first, then TalkBack (Android)**.
+
+> ### ⚠️ MIGRATION GATE — read before testing
+> **Several features require the `supabase/migrations/20260614_audit_closeout.sql` migration to be applied first.** Until it is applied, the code ships **safe fallbacks** (it does not crash — it degrades), so a "pass" before the migration may be masking the real durable behavior. **Apply the migration, then re-run the migration-gated cases below.** A migration-gated case should be verified **both** pre-migration (fallback behaves safely) and post-migration (durable/atomic path is active).
+>
+> **Migration-gated test cases (and the block they depend on):**
+> - **T-CO-DEST-1, T-CO-DEST-2** — destination-charge fee persistence (`sales.platform_fee` / `sales.seller_net`, block 2) and Connect "total fees" SUM RPC (block 13).
+> - **T-CO-PACK-1** — idempotent scan-pack credit (`processed_stripe_sessions` + `credit_scan_pack()` RPC, block 7).
+> - **T-CO-SOLD-1, T-CO-SOLD-2, T-CO-SOLD-3** — `sale_price_recorded` flag + "N unpriced" revenue/profit disclaimers (`sales.sale_price_recorded` + nullable `sale_price`, block 1).
+> - **T-CO-TRADE-1** — atomic `complete_trade()` two-party ownership swap + hunt-list cleanup (block 9).
+> - **T-CO-PROMO-1, T-CO-PROMO-2** — QR promo-trial grant + one-time consumption (`profiles.promo_trial_eligible` / `promo_trial_used_at`, block 3).
+> - **T-CO-CONN-1** — Connect status DB mirror (`profiles.stripe_connect_charges_enabled` / `_payouts_enabled`, block 5) — fast path; functionally correct via Stripe reconcile pre-migration.
+> - **T-CO-CUST-1** — Stripe-customer dedup (partial UNIQUE index on `profiles.stripe_customer_id`, block 6) — graceful multi-row picker pre-migration.
+> - **T-CO-COMP-1** — comped account reads as "granted", not "trialing" (`profiles.comp_granted`, block 4).
+>
+> All other closeout cases are **NOT** migration-gated (code-only changes — guest scans, admin gate, branding, frontend, image allowlist, unsubscribe, pagination, orphan cleanup).
+
+### Summary
+
+**Total closeout test cases: 36**
+
+| Area | Count |
+|------|-------|
+| Payments / Marketplace charges | 6 |
+| Scanning / Guest | 6 |
+| Collection / Sales | 6 |
+| Marketplace / Messaging | 4 |
+| Admin | 4 |
+| Frontend / PWA | 6 |
+| Branding | 1 |
+| Email / Security | 2 |
+| Promo | 1 |
+
+**Device tally:** Web = 17 · Mobile = 3 · Both = 16
+
+---
+
+### CO-A. Payments / Marketplace Charges
+
+> **Stripe test mode:** card `4242 4242 4242 4242`, any future expiry/CVC. Trigger/resend webhooks via Stripe Dashboard or `stripe trigger <event>`.
+
+| ID | Verify | Steps | Expected Result | Device |
+|----|--------|-------|-----------------|--------|
+| **T-CO-DEST-1** | Marketplace sale uses a **destination charge** — seller is merchant-of-record, platform nets only the application fee | As Buyer B, complete a test-mode purchase of Seller A's $5 (+shipping) Buy-Now listing. In Stripe → Payment Intents, open the latest PI. | PI has `on_behalf_of` = Seller A's Connect account and `application_fee_amount` = platform fee (≥ $0.75 floor); Stripe's 2.9%+$0.30 settles on the **seller**, not the platform. Charge succeeds. | Web |
+| **T-CO-DEST-2** | Destination-charge fee/seller-net **persisted** to the sale row (migration-gated) | After T-CO-DEST-1 completes, inspect the resulting `sales` row for that sale. | `platform_fee` and `seller_net` are populated (decimal dollars). **Pre-migration:** columns absent → sale still records, fee captured in fallback (audit/JSONB) and disclaimers don't break. **Post-migration:** both columns persisted. | Web |
+| **T-CO-PACK-1** | Scan-pack credit is **idempotent** on webhook replay (migration-gated) | Buy a scan pack (e.g. 10 scans). Note the `checkout.session.completed` event. Manually **resend** that same webhook event from Stripe. | First delivery credits +10 scans; the replay credits **0** more (balance stays +10). **Post-migration:** `credit_scan_pack()` RPC + `processed_stripe_sessions` make it replay-safe. **Pre-migration:** fallback `addPurchasedScans` is non-idempotent — note double-credit risk until migration applied. | Web |
+| **T-CO-ACCT-1** | `account.updated` webhook confirms a row matched and stores capability flags | Trigger `account.updated` for Seller A's Connect account (`stripe trigger account.updated`). | Handler updates the matched profile (`charges_enabled` / `payouts_enabled` mirrored; onboarding flag refreshed) and returns a row match. If **zero** rows match a webhook account id, a warning is logged (never throws / never silently no-ops). | Web |
+| **T-CO-CUST-1** | Subscription webhook tolerates duplicate/missing Stripe-customer rows (migration-gated) | (Pre-migration) Seed two `profiles` rows sharing one `stripe_customer_id`, then fire `customer.subscription.updated`. (Post-migration) attempt to insert a second row with the same customer id. | **Pre-migration:** webhook does not crash — picks the most-recent profile and logs a warning (`.maybeSingle`/picker, not `.single`). **Post-migration:** the partial UNIQUE index rejects the duplicate insert, guaranteeing at-most-one row. | Web |
+| **T-CO-COMP-1** | Admin-comped account reads as **granted**, not **trialing** (migration-gated) | Admin-grant complimentary premium to a test account, then load that user's subscription state (`/api/subscription` or account page). | User shows premium access with `isComp: true` and `isTrialing: false` — not labeled "on trial." **Pre-migration:** `comp_granted` column absent → access still works via trial dates but may read as "trialing" (cosmetic); flag makes intent explicit post-migration. | Web |
+
+---
+
+### CO-B. Scanning / Guest
+
+> Guest enforcement is server-side (signed `cc_guest` cookie + Redis). `GUEST_SCAN_LIMIT` = 5 base; bonus = up to +5 (cap 10); CAPTCHA gated to scans 4–5. **None of these are migration-gated.**
+
+| ID | Verify | Steps | Expected Result | Device |
+|----|--------|-------|-----------------|--------|
+| **T-CO-GUEST-1** | Guest scan limit is **server-enforced**, not client-trusted | As a guest, perform 5 scans, then attempt a 6th. | First 5 succeed; the 6th is rejected (`guest_limit_reached`) with a "create an account to continue" prompt. The authoritative count comes from the server (Redis), keyed off the signed cookie. | Both (Web; Mobile iOS → Android) |
+| **T-CO-GUEST-2** | Limit bypass attempts fail (header tamper / cookie tamper / cookie clear) | At scan #6: (a) send `x-guest-scan-count: 0`; (b) alter the signed `cc_guest` cookie value; (c) delete the cookie entirely. | (a) header ignored — still blocked; (b) tampered cookie rejected — treated as a fresh guest (cannot resume a higher count); (c) clearing the cookie issues a brand-new guest id with a fresh 5-scan allowance only (no unlimited loophole). | Web |
+| **T-CO-GUEST-3** | Bonus scans (email capture) are honored **server-side** | As a guest at the 5-scan limit, complete the email-capture/verification bonus flow, then continue scanning. | Allowance grows to 10 (5 base + 5 bonus) and scans 6–10 succeed on the **server** (no client/server mismatch where the UI grants but the server rejects); scan #11 is blocked. Bonus is clamped at +5 even if the client claims more. | Both (Web; Mobile iOS → Android) |
+| **T-CO-SCAN-1** | Cert-first slab ordering — raw books make only one vision call | Scan a raw (un-slabbed) comic, then scan a CGC/CBCS-slabbed comic. | Raw scan runs a single image-analysis vision call (no extra slab-detection call); slabbed scan takes the cert-lookup path first and rebuilds details from cert data (no redundant slab vision call). Both identify correctly; raw scans feel at least as fast. | Both (Web; Mobile iOS → Android) |
+| **T-CO-SCAN-2** | Low-confidence rescan escalation is gated to **signed-in** users | Scan an ambiguous/low-confidence cover (a) as a guest, then (b) signed-in. | Guest: result returned at low confidence with **no** automatic second (expensive) re-scan. Signed-in: system may auto-escalate once to the other provider for a better result. Guests never burn the extra AI call. | Both (Web; Mobile iOS → Android) |
+| **T-CO-SCAN-3** | Image-cache hits re-resolve the barcode catalog (no stale variant names) | Scan a comic so its result caches (note the variant name). Have an admin change that barcode's catalog variant name. Re-upload the **same** image. | Second scan is a cache hit (skips AI) but still re-runs the barcode_catalog + variant resolver, so the **updated** variant name is shown — cached scans never serve a stale variant. | Web |
+
+---
+
+### CO-C. Collection / Sales
+
+| ID | Verify | Steps | Expected Result | Device |
+|----|--------|-------|-----------------|--------|
+| **T-CO-SOLD-1** | Bulk Mark-as-Sold with a **price entered** records a real sale (migration-gated) | Collection → Select 2–3 comics → "Mark as Sold" → enter a price for each → confirm. | Each becomes a sold row with the entered price and `sale_price_recorded = true`; prices appear on the Sales page and count toward revenue/profit. | Both (Web; Mobile iOS → Android) |
+| **T-CO-SOLD-2** | Bulk Mark-as-Sold with pricing **skipped** records an unpriced sale (migration-gated) | Same flow, but skip the price prompt (leave blank / "Skip Pricing"). | Items record as sold with `sale_price_recorded = false` (price null/0) and show a "Not recorded" / unpriced indicator; they do **not** inflate revenue/profit. **Pre-migration:** fallback records a $0 sale with the app-state flag so totals still exclude it. | Both (Web; Mobile iOS → Android) |
+| **T-CO-SOLD-3** | "N unpriced" disclaimers on Sales page + collection stats (migration-gated) | With at least one priced and one skipped sale, view the Sales page summary cards and the collection/stats financial summary. | Revenue/Profit/Avg show only priced sales, with an asterisk + footnote like "Excludes N sold book(s) with no recorded sale price" (singular/plural correct). With zero unpriced sales, no asterisk/footnote appears. | Both (Web; Mobile iOS → Android) |
+| **T-CO-PAGE-1** | Collection list "Load more" pagination | On an account with > 200 comics, open Collection, scroll to the bottom, click "Load more". | First page shows ~200 items; "Load more (N left)" appends the next batch in place (no full reload); the button disappears once all rows are loaded. | Both (Web; Mobile iOS → Android) |
+| **T-CO-ORPH-1** | Orphan-cover cleanup on **hard delete** | Add a comic with a user-uploaded cover (in the `comic-covers` bucket); note its storage path. Permanently delete that comic (single-item hard delete). | Comic row is deleted **and** the cover object is removed from the `comic-covers` bucket. Externally-harvested/shared cover URLs are not deleted. Cleanup is best-effort: a cleanup failure is logged but does not fail the delete. | Web |
+| **T-CO-KEYC-1** | Key-comic pricing is DB-primary with static fallback | Look up / price a comic that exists in the key-comics DB; then one only in the static list. | DB-backed key data is used when present; the static dataset still answers when the DB has no entry — no regression in key-info or estimated value. | Web |
+
+---
+
+### CO-D. Marketplace / Messaging
+
+| ID | Verify | Steps | Expected Result | Device |
+|----|--------|-------|-----------------|--------|
+| **T-CO-TRADE-1** | Trade completion atomically swaps ownership + cleans hunt lists (migration-gated) | Run an accepted trade (A↔B) to both-parties-received. Have A's offered book on B's hunt list beforehand. Confirm final receipt. | Trade → `completed`; the two comics swap owners (`acquired_via = trade`, `for_trade = false`); matching hunt-list entries are removed. **Post-migration:** `complete_trade()` RPC makes it atomic. **Pre-migration:** per-step fallback completes the swap but is non-atomic — interruption can leave a partial swap. | Both (Web; Mobile iOS → Android) |
+| **T-CO-WANT-1** | "Want count" shown on for-trade comics (N+1 eliminated) | Open Shop → For Trade with many tradeable comics; some are on other users' hunt lists. | Each comic shows an accurate count of how many other users want it (owner excluded; 0 when none); the page loads from a single batched lookup, not one query per comic. | Both (Web; Mobile iOS → Android) |
+| **T-CO-INBOX-1** | Inbox + total-unread load from a single batched call (N+1 eliminated) | With several conversations and known unread counts, open the Messages inbox. | Conversation previews show correct per-thread unread counts; the nav badge `totalUnread` matches the sum and is derived from the same inbox response (not a separate scan); inbox loads quickly with no per-conversation profile fetches. | Both (Web; Mobile iOS → Android) |
+| **T-CO-CONN-1** | Seller Connect status (charges/payouts) + total fees (migration-gated) | As a connected seller, open Connect/seller status; reload within 5 minutes. | Shows `chargesEnabled` / `payoutsEnabled` and a real "total fees paid" total. **Post-migration:** served from the DB mirror (block 5) + `sum_seller_platform_fees()` SUM (block 13), with a 5-min cache (second load makes no Stripe call). **Pre-migration:** correct values via Stripe reconcile + JS tally (no cache). | Web |
+
+---
+
+### CO-E. Admin
+
+| ID | Verify | Steps | Expected Result | Device |
+|----|--------|-------|-----------------|--------|
+| **T-CO-ADMIN-1** | Non-admin is redirected from `/admin/*` (server-side gate) | Signed in as a non-admin (free/premium), navigate directly to an `/admin/*` URL. | Immediate server-side redirect to `/`; no admin chrome flickers. Admin status comes from `is_admin` in Supabase profiles (not an env var). | Both (Web; Mobile iOS → Android) |
+| **T-CO-ADMIN-2** | Admin pages never render HTML for non-admins (defense-in-depth) | As a non-admin, view page source / DevTools for an `/admin/*` route. | No admin layout/content is ever produced for a non-admin — both middleware **and** the server layout enforce the gate; admin-only API routes independently return 403. | Web |
+| **T-CO-ADMIN-3** | CLZ comparison page gated to admins | (a) As non-admin, open `/admin/clz-comparison`; (b) as admin, open it. | (a) Blocked/redirected — the competitive playbook content never loads. (b) Renders fully (talking points, comparison table, objections). | Web |
+| **T-CO-ADMIN-4** | Admin cost/usage metrics are real (not fabricated) + efficient | As admin, open the usage/cost dashboard; cross-check a couple of figures against the DB. | Scan counts come from scan analytics (not comic created-at), submission status counts (pending/approved/rejected) are real, and platform-fee totals reflect actual data; queries are batched (no obvious multi-query loops). | Web |
+
+---
+
+### CO-F. Frontend / PWA
+
+| ID | Verify | Steps | Expected Result | Device |
+|----|--------|-------|-----------------|--------|
+| **T-CO-FE-1** | MobileNav + FAB pop-art restyle | On a phone, view the mobile bottom nav and the "+" FAB. | Both use the Lichtenstein/pop-art palette (pop-yellow/blue/red/black/white, bold borders, comic shadow) — no legacy `primary-*` token look; visually consistent with desktop nav. | Mobile (iOS → Android) |
+| **T-CO-FE-2** | Pinch-to-zoom works app-wide but is **locked** on scan/camera | On a phone, pinch-zoom the homepage/collection; then go to `/scan` and pinch over the camera viewport; then leave `/scan` and pinch again. | Zoom works everywhere normally; on `/scan` the camera surface does **not** zoom; zoom is restored after leaving `/scan`. | Mobile (iOS → Android) |
+| **T-CO-FE-3** | Collection grid covers render fully on first paint (iOS Safari repaint fix) | On iOS Safari, open Collection (hard-reload to bypass cache); also revisit with covers cached. | Covers render fully and fade in cleanly on first paint — no blank/half-painted covers; cached covers appear immediately. Grid uses `next/image` (no raw `<img>`). | Mobile (iOS → Android) |
+| **T-CO-FE-4** | Homepage fabricated price cards removed | View the signed-in homepage/dashboard. | No fake "Biggest Increase" / "Biggest Decline" insight cards; only genuine, data-backed cards remain. | Both (Web; Mobile iOS → Android) |
+| **T-CO-FE-5** | Manifest rebrand reflected in PWA install | Inspect the PWA install prompt / add to home screen / installed icon + name. | App installs as "Collectors Chest" with correct icons, theme color, and splash branding (manifest updated). | Both (Web; Mobile iOS → Android) |
+| **T-CO-A11Y-1** | WCAG-AA contrast on restyled nav/FAB | With a contrast checker (Lighthouse/WebAIM) and a screen reader, evaluate the restyled MobileNav and FAB text/icons. | Text meets ≥ 4.5:1 and graphics ≥ 3:1; interactive elements are labeled and legible. | Both (Web; Mobile iOS → Android; VoiceOver iOS → TalkBack Android) |
+
+---
+
+### CO-G. Branding
+
+| ID | Verify | Steps | Expected Result | Device |
+|----|--------|-------|-----------------|--------|
+| **T-CO-BRAND-1** | "Technopathic" wording is used in all user-facing copy | Spot-check homepage hero, FAQ (nav + Ask the Professor), sign-up benefits, comic detail modal + details form ("no eBay data" estimate note), Key Hunt estimate labels, and subscription/tier copy. | Every user-facing spot reads "Technopathic" (not "AI") consistently; no leftover "AI recognition/estimate" strings in those locations. | Both (Web; Mobile iOS → Android) |
+
+---
+
+### CO-H. Email / Security
+
+| ID | Verify | Steps | Expected Result | Device |
+|----|--------|-------|-----------------|--------|
+| **T-CO-EMAIL-1** | List-Unsubscribe header + one-click unsubscribe | Trigger a non-transactional email; inspect raw headers; click the native unsubscribe (and the footer "manage preferences" link); then try a forged/altered token. | Email carries `List-Unsubscribe` + `List-Unsubscribe-Post: List-Unsubscribe=One-Click`; the native one-click opts the user out without a site visit; the GET link lands on settings with success status; a forged/tampered token is rejected (`unsubscribe=invalid`, no opt-out applied). | Web |
+| **T-CO-IMG-1** | Cover-image host allowlist (sanitizer + next/image) | Try to save a comic cover from a non-allowlisted host (e.g. `https://evil.com/x.jpg`), plus spoof attempts (`evil-i.ebayimg.com`, `localhost`, `<supabase-host>.evil.com`). Then save from an allowlisted host (Supabase / eBay / Clerk / Open Library). | Non-allowlisted and spoofed hosts are rejected (cover not stored / placeholder shown); only allowlisted hosts are accepted and rendered. `next/image` `remotePatterns` has no `**` wildcard. | Web |
+
+---
+
+### CO-I. Promo
+
+| ID | Verify | Steps | Expected Result | Device |
+|----|--------|-------|-----------------|--------|
+| **T-CO-PROMO-1** | QR-exclusive 30-day promo trial requires a valid signed token (migration-gated) | (a) Scan the QR / open `/join/trial` and proceed to checkout. (b) Forge a token (alter payload) or POST checkout with `{ promoTrial: true }` and **no** valid token. | (a) Eligible account redeems the 30-day trial. (b) Forged/missing token is rejected — no trial granted; a random client POST cannot self-grant. Only the signed, server-minted promo token unlocks the 30-day trial. | Both (Web; Mobile iOS → Android) |
+| **T-CO-PROMO-2** | Promo trial is one-time per account (migration-gated) | Redeem the promo trial once on a test account, then attempt to redeem again with a fresh token. | First redemption activates (sets `promo_trial_used_at` / consumes `promo_trial_eligible`); the second attempt is refused. **Pre-migration:** columns absent → eligibility fails **closed** (trial not granted) until the migration is applied. | Web |
+
+---
+
 *Last Updated: June 14, 2026*
