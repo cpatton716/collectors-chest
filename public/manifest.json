@@ -1,7 +1,7 @@
 {
   "name": "Collectors Chest",
-  "short_name": "Collectors",
-  "description": "Track your comic book collection",
+  "short_name": "Chest",
+  "description": "Scan comics. Track value. Collect smarter.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0066FF",

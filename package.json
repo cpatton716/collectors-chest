@@ -28,8 +28,8 @@
     "depcheck": "depcheck --ignores='@eslint/eslintrc,@jest/globals,@testing-library/react,@types/jest,@types/react-dom,autoprefixer,eslint-config-next,jest-environment-jsdom,postcss,ts-jest,@trivago/prettier-plugin-sort-imports,madge,knip,@next/bundle-analyzer,prettier'"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.52.0",
-    "@clerk/nextjs": "^6.36.6",
+    "@anthropic-ai/sdk": "^0.104.0",
+    "@clerk/nextjs": "^6.39.5",
     "@google/generative-ai": "^0.24.1",
     "@hcaptcha/react-hcaptcha": "^2.0.2",
     "@sentry/nextjs": "^10.57.0",
@@ -68,6 +68,7 @@
     "@typescript-eslint/parser": "^8.52.0",
     "autoprefixer": "^10.4.20",
     "depcheck": "^1.4.7",
+    "dotenv": "^16.4.7",
     "eslint": "^9.0.0",
     "eslint-config-next": "^16.1.1",
     "eslint-plugin-react": "^7.37.5",

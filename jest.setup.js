@@ -1,5 +1,18 @@
 import '@testing-library/jest-dom';
 
+// Polyfill TextEncoder/TextDecoder for the jsdom test environment.
+// jsdom does not expose these as globals, but @anthropic-ai/sdk >= 0.104
+// references TextEncoder at module-load time (lib/middleware.ts), which would
+// otherwise throw "TextEncoder is not defined" when importing modules that
+// use the SDK (e.g. variantResolver). Node provides them via `util`.
+const { TextEncoder, TextDecoder } = require('util');
+if (typeof global.TextEncoder === 'undefined') {
+  global.TextEncoder = TextEncoder;
+}
+if (typeof global.TextDecoder === 'undefined') {
+  global.TextDecoder = TextDecoder;
+}
+
 // Mock @clerk/nextjs before any imports
 jest.mock('@clerk/nextjs', () => ({
   useAuth: jest.fn(() => ({
