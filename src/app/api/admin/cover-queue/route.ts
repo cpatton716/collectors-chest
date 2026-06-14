@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getAdminProfile } from "@/lib/adminAuth";
+import { getAdminProfile, logAdminAction } from "@/lib/adminAuth";
 import {
   getPendingCovers,
   approveCover,
@@ -79,8 +79,11 @@ export async function PATCH(request: NextRequest) {
         // Credit failure must not block the approval
         console.error("[cover-queue] Failed to award Creator Credit:", creditError);
       }
+
+      await logAdminAction(adminProfile.id, "approve_cover", undefined, { coverId });
     } else {
       await rejectCover(coverId);
+      await logAdminAction(adminProfile.id, "reject_cover", undefined, { coverId });
     }
 
     return NextResponse.json({ success: true, action });

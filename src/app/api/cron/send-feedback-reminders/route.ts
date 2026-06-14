@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { FeedbackEmailData, sendNotificationEmail } from "@/lib/email";
+import { cronUnauthorized, verifyCronSecret } from "@/lib/cronAuth";
+import {
+  FeedbackEmailData,
+  SendNotificationEmailParams,
+  sendNotificationEmailsBatch,
+} from "@/lib/email";
 import { supabaseAdmin } from "@/lib/supabase";
 
 /**
@@ -9,13 +14,8 @@ import { supabaseAdmin } from "@/lib/supabase";
  * Sends reminders at 14 days (first) and 21 days (final) after transaction
  */
 export async function POST(request: NextRequest) {
-  // Verify cron secret
-  const authHeader = request.headers.get("authorization");
-  const cronSecret = process.env.CRON_SECRET;
-
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  // Verify cron secret (fail-closed, constant-time)
+  if (!verifyCronSecret(request)) return cronUnauthorized();
 
   const results = { processed: 0, sent: 0, errors: 0 };
 
@@ -73,6 +73,15 @@ export async function POST(request: NextRequest) {
       return false;
     });
 
+    // Build one batch of emails instead of N sequential sends (M-EM6). This
+    // keeps us under Resend's 10 req/sec rate limit and the Netlify function
+    // timeout when many reminders come due on the same day.
+    const emails: SendNotificationEmailParams[] = [];
+    // Track which reminders to advance, grouped by their CURRENT count so we
+    // can bump each group to count+1 in a single .in() update (avoids N+1).
+    const firstReminderIds: string[] = []; // current reminder_count === 0 -> 1
+    const finalReminderIds: string[] = []; // current reminder_count === 1 -> 2
+
     for (const reminder of eligibleReminders) {
       results.processed++;
 
@@ -108,27 +117,62 @@ export async function POST(request: NextRequest) {
           feedbackUrl: `${process.env.NEXT_PUBLIC_APP_URL}/feedback?txn=${reminder.transaction_id}&type=${reminder.transaction_type}`,
         };
 
-        const { success } = await sendNotificationEmail({
+        emails.push({
           to: user.email,
           type: "feedback_reminder",
           data: emailData,
+          // Pass profileId so preference gating runs without an extra
+          // email->profile lookup per recipient.
+          profileId: reminder.user_id,
         });
-
-        if (success) {
-          results.sent++;
-          await supabaseAdmin
-            .from("feedback_reminders")
-            .update({
-              reminder_count: reminder.reminder_count + 1,
-              last_reminder_at: now.toISOString(),
-            })
-            .eq("id", reminder.id);
+        if (reminder.reminder_count === 0) {
+          firstReminderIds.push(reminder.id);
         } else {
-          results.errors++;
+          finalReminderIds.push(reminder.id);
         }
       } catch (err) {
         console.error(`[Cron] Error processing reminder ${reminder.id}:`, err);
         results.errors++;
+      }
+    }
+
+    if (emails.length > 0) {
+      const batchResult = await sendNotificationEmailsBatch(emails);
+      results.sent = batchResult.sent;
+      results.errors += batchResult.errors.length;
+
+      if (batchResult.errors.length > 0) {
+        console.error("[Cron] Batch send errors:", batchResult.errors);
+      }
+
+      // Mark reminders as sent. We advance the reminder regardless of which
+      // recipients Resend accepted: a transient per-address failure shouldn't
+      // re-spam everyone on the next run, mirroring the prior single-send
+      // semantics where any non-success simply skipped the row update.
+      // Opted-out recipients are dropped inside the batch helper but their
+      // reminder still advances so we don't keep re-evaluating them daily.
+      // Two grouped updates instead of N per-row writes (count 0->1, 1->2).
+      const nowIso = now.toISOString();
+      const markUpdates: Array<PromiseLike<{ error: unknown }>> = [];
+      if (firstReminderIds.length > 0) {
+        markUpdates.push(
+          supabaseAdmin
+            .from("feedback_reminders")
+            .update({ reminder_count: 1, last_reminder_at: nowIso })
+            .in("id", firstReminderIds)
+        );
+      }
+      if (finalReminderIds.length > 0) {
+        markUpdates.push(
+          supabaseAdmin
+            .from("feedback_reminders")
+            .update({ reminder_count: 2, last_reminder_at: nowIso })
+            .in("id", finalReminderIds)
+        );
+      }
+      const markResults = await Promise.all(markUpdates);
+      for (const { error: markError } of markResults) {
+        if (markError) console.error("[Cron] Failed to mark reminders as sent:", markError);
       }
     }
 

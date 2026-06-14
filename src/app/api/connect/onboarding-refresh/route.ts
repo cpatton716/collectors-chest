@@ -1,12 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import Stripe from "stripe";
+import { auth } from "@clerk/nextjs/server";
 import { z } from "zod";
-
-const stripe = process.env.STRIPE_SECRET_KEY
-  ? new Stripe(process.env.STRIPE_SECRET_KEY, {
-      apiVersion: "2025-12-15.clover",
-    })
-  : null;
+import { stripe } from "@/lib/stripe";
+import { supabaseAdmin } from "@/lib/supabase";
 
 // Stripe Connect account IDs follow `acct_XXXX...` format (not a UUID).
 const onboardingRefreshQuerySchema = z.object({
@@ -23,6 +19,13 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(new URL("/profile?connect=error", req.url));
   }
 
+  // M-PAY12: require auth and confirm the account belongs to the caller before
+  // minting an onboarding link for it.
+  const { userId } = await auth();
+  if (!userId) {
+    return NextResponse.redirect(new URL("/sign-in", req.url));
+  }
+
   const parsed = onboardingRefreshQuerySchema.safeParse(
     Object.fromEntries(req.nextUrl.searchParams.entries())
   );
@@ -32,6 +35,16 @@ export async function GET(req: NextRequest) {
   const accountId = parsed.data.account_id;
 
   try {
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("stripe_connect_account_id")
+      .eq("clerk_user_id", userId)
+      .maybeSingle();
+
+    if (!profile || profile.stripe_connect_account_id !== accountId) {
+      return NextResponse.redirect(new URL("/profile?connect=error", req.url));
+    }
+
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || req.nextUrl.origin;
 
     const accountLink = await stripe.accountLinks.create({

@@ -74,6 +74,32 @@ const defaultFeatures = {
   cloudSync: false,
 };
 
+/**
+ * Pure scan-limit display derivation (L-PAY19). Extracted from the hook so the
+ * boundary cases (unlimited, exhausted, purchased-only, over-limit) are
+ * unit-testable without rendering. A null `monthlyLimit` means unlimited.
+ */
+export function deriveScanDisplay(input: {
+  scansUsed: number;
+  scansRemaining: number;
+  monthlyLimit: number | null;
+}): {
+  used: number;
+  remaining: number;
+  limit: number | null;
+  isUnlimited: boolean;
+  isExhausted: boolean;
+} {
+  const isUnlimited = input.monthlyLimit === null;
+  return {
+    used: Math.max(0, input.scansUsed),
+    remaining: isUnlimited ? Infinity : Math.max(0, input.scansRemaining),
+    limit: input.monthlyLimit,
+    isUnlimited,
+    isExhausted: !isUnlimited && input.scansRemaining <= 0,
+  };
+}
+
 export function useSubscription(): SubscriptionState {
   const { isSignedIn, isLoaded } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
@@ -348,11 +374,15 @@ export function useScanLimits(): {
   const { scansUsed, scansRemaining, monthlyLimit, monthResetDate, canScan, isLoading } =
     useSubscription();
 
+  const display = deriveScanDisplay({ scansUsed, scansRemaining, monthlyLimit });
+
   return {
-    used: scansUsed,
-    remaining: scansRemaining,
-    limit: monthlyLimit,
-    isUnlimited: monthlyLimit === null,
+    used: display.used,
+    // Preserve the raw remaining count for unlimited tiers (the server sends a
+    // large sentinel); deriveScanDisplay's Infinity is for display/test logic.
+    remaining: display.isUnlimited ? scansRemaining : display.remaining,
+    limit: display.limit,
+    isUnlimited: display.isUnlimited,
     resetDate: monthResetDate,
     canScan,
     isLoading,

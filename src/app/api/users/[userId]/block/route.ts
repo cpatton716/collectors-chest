@@ -33,6 +33,18 @@ export async function POST(
       return NextResponse.json({ error: "Cannot block yourself" }, { status: 400 });
     }
 
+    // Confirm the block target actually exists before inserting (L-SO8).
+    const { data: target, error: targetError } = await supabaseAdmin
+      .from("profiles")
+      .select("id")
+      .eq("id", blockedId)
+      .maybeSingle();
+
+    if (targetError) throw targetError;
+    if (!target) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
     const { error } = await supabaseAdmin.from("user_blocks").insert({
       blocker_id: profile.id,
       blocked_id: blockedId,

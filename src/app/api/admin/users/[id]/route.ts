@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-import { getAdminProfile, getProfileById, getUserScanCount, logAdminAction } from "@/lib/adminAuth";
+import { getAdminProfile, getProfileById, getUserScanCount } from "@/lib/adminAuth";
 import { supabaseAdmin } from "@/lib/supabase";
 import { schemas, validateParams } from "@/lib/validation";
 
@@ -35,8 +35,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .select("*", { count: "exact", head: true })
       .eq("user_id", id);
 
-    // Log the view action
-    await logAdminAction(adminProfile.id, "view_profile", id);
+    // Read-only profile view: no audit-log write (L-AD2). State-mutating admin
+    // actions (reset trial, grant premium, suspend) are logged in their routes.
 
     // Determine trial status
     let trialStatus: "available" | "active" | "expired" = "available";

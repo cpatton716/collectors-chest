@@ -144,14 +144,42 @@ describe("containsProfanity", () => {
     });
   });
 
-  describe("false positive prevention", () => {
-    it("known limitation: simple substring matching may have false positives", () => {
-      // "ass" is in "classic", "bass", "assassin", etc.
-      // Current implementation uses includes() which triggers on substrings
-      // This documents the current behavior - could be improved with word boundaries
-      expect(containsProfanity("class")).toBe(true); // Contains "ass"
-      expect(containsProfanity("pass")).toBe(true); // Contains "ass"
-      // For usernames, this is acceptable - users can use alternatives
+  describe("false positive prevention (H-SO2 - word-boundary matching)", () => {
+    it("does NOT block innocent words that merely contain a slur as a substring", () => {
+      // Previously these were false positives because matching used includes().
+      // Word-boundary matching means an alphabetic run is never split, so a slur
+      // buried inside a longer word is not flagged.
+      expect(containsProfanity("class")).toBe(false); // contains "ass"
+      expect(containsProfanity("classic")).toBe(false); // contains "ass"
+      expect(containsProfanity("pass")).toBe(false); // contains "ass"
+      expect(containsProfanity("passable")).toBe(false); // contains "ass"
+      expect(containsProfanity("bassist")).toBe(false); // contains "ass"
+      expect(containsProfanity("assassin")).toBe(false); // contains "ass"
+      expect(containsProfanity("analysis")).toBe(false); // contains "anal"
+      expect(containsProfanity("analytics")).toBe(false); // contains "anal"
+      expect(containsProfanity("grape")).toBe(false); // contains "rape"
+      expect(containsProfanity("scunthorpe")).toBe(false); // contains "cunt"
+      expect(containsProfanity("therapist")).toBe(false); // contains "rapist" root vibes
+      expect(containsProfanity("hello")).toBe(false); // contains "hell"
+      expect(containsProfanity("shell")).toBe(false); // contains "hell"
+      expect(containsProfanity("cocktail")).toBe(false); // contains "cock"
+      expect(containsProfanity("dickens")).toBe(false); // contains "dick"
+      expect(containsProfanity("sexagon")).toBe(false); // contains "sex"
+    });
+
+    it("still flags a slur when it stands as its own token", () => {
+      // Boundary = string start/end, underscore, or digit.
+      expect(containsProfanity("shit")).toBe(true);
+      expect(containsProfanity("shit123")).toBe(true); // digit boundary
+      expect(containsProfanity("123shit")).toBe(true); // digit boundary
+      expect(containsProfanity("xx_shit_xx")).toBe(true); // underscore boundary
+      expect(containsProfanity("ass_hat")).toBe(true); // standalone "ass" token
+      expect(containsProfanity("anal_4_life")).toBe(true); // standalone "anal" token
+    });
+
+    it("still matches substring-only roots (masturbat) inside longer words", () => {
+      expect(containsProfanity("masturbation")).toBe(true);
+      expect(containsProfanity("masturbate")).toBe(true);
     });
 
     it("allows comic-related terms", () => {

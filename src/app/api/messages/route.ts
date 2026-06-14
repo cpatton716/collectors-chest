@@ -42,54 +42,48 @@ export async function GET() {
       totalUnread,
     });
   } catch (error: unknown) {
+    // Log full detail server-side; return a generic message to the client so
+    // we never leak stack traces, internal field names, or raw error objects.
     console.error("Error fetching conversations:", error);
-    let errorMessage = "Failed to fetch conversations";
-    let errorDetails: unknown = null;
-
-    if (error instanceof Error) {
-      errorMessage = error.message;
-      errorDetails = error.stack;
-    } else if (typeof error === "object" && error !== null) {
-      errorDetails = error;
-      if ("message" in error) errorMessage = String((error as {message: unknown}).message);
-    }
-
-    return NextResponse.json({
-      error: errorMessage,
-      details: errorDetails
-    }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to fetch conversations" },
+      { status: 500 }
+    );
   }
 }
 
+// User-facing validation errors thrown by sendMessage. These are safe to relay
+// to the client (400); anything else is treated as an unexpected server error.
+const SEND_MESSAGE_USER_ERRORS = new Set<string>([
+  "Message content or image is required",
+  "Message is too long (max 2000 characters)",
+  "Cannot send message to yourself",
+  "You cannot message this user",
+]);
+
 // POST - Send a new message
 export async function POST(request: NextRequest) {
-  let debugStep = "start";
   try {
-    debugStep = "auth";
     const { userId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    debugStep = "suspension-check";
     const suspensionStatus = await isUserSuspended(userId);
     if (suspensionStatus.suspended) {
       return NextResponse.json({ error: "Your account has been suspended." }, { status: 403 });
     }
 
-    debugStep = "get-profile";
     const profile = await getProfileByClerkId(userId);
     if (!profile) {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
-    debugStep = "parse-body";
     const body = await request.json().catch(() => null);
     const validated = validateBody(sendMessageSchema, body);
     if (!validated.success) return validated.response;
     const { recipientId, content, listingId, imageUrls, embeddedListingId } = validated.data;
 
-    debugStep = "send-message";
     const message = await sendMessage(profile.id, {
       recipientId,
       content: content ?? "",
@@ -103,28 +97,21 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ message }, { status: 201 });
   } catch (error: unknown) {
-    // Handle different error types
-    let errorMessage = "Unknown error";
-    let errorDetails: unknown = null;
+    // Log full detail server-side only.
+    console.error("Error sending message:", error);
 
+    // Relay known validation errors (including content-filter block reasons) to
+    // the client; never expose stack traces or internal error shapes.
     if (error instanceof Error) {
-      errorMessage = error.message;
-      errorDetails = error.stack;
-    } else if (typeof error === "object" && error !== null) {
-      errorDetails = error;
-      if ("message" in error) errorMessage = String((error as {message: unknown}).message);
-      else if ("error" in error) errorMessage = String((error as {error: unknown}).error);
-      else errorMessage = JSON.stringify(error);
-    } else if (typeof error === "string") {
-      errorMessage = error;
+      if (
+        SEND_MESSAGE_USER_ERRORS.has(error.message) ||
+        error.message.endsWith("are not allowed in messages") ||
+        error.message === "Message not allowed"
+      ) {
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
     }
 
-    return NextResponse.json({
-      error: errorMessage,
-      debugStep,
-      details: errorDetails,
-      errorType: typeof error,
-      errorConstructor: error?.constructor?.name
-    }, { status: 500 });
+    return NextResponse.json({ error: "Failed to send message" }, { status: 500 });
   }
 }

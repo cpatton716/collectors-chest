@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -35,7 +36,7 @@ import { CollectionItem } from "@/types/comic";
 type DurationDays = 30 | 60 | 90;
 
 
-interface InsightBook {
+export interface InsightBook {
   item: CollectionItem;
   change: number;
   changePercent: number;
@@ -43,12 +44,112 @@ interface InsightBook {
   previousValue: number;
 }
 
-interface BestBuyBook {
+export interface BestBuyBook {
   item: CollectionItem;
   roi: number;
   purchasePrice: number;
   currentValue: number;
   profit: number;
+}
+
+export interface HomeStats {
+  totalComics: number;
+  totalValue: number;
+  unpricedCount: number;
+  totalCost: number;
+  profitLoss: number;
+  profitLossPercent: number;
+}
+
+// ---------------------------------------------------------------------------
+// Pure collection-insight calculations. Extracted to module scope so they are
+// referentially stable (no per-render closures) and unit-testable. The
+// component memoizes their results via useMemo. See audit refs M-FE5 / L-FE16.
+// ---------------------------------------------------------------------------
+
+/** Roll up collection totals, cost basis, and profit/loss. */
+export function computeHomeStats(collection: CollectionItem[]): HomeStats {
+  const collectionValue = calculateCollectionValue(collection);
+  const totalCost = collection.reduce((sum, item) => sum + (item.purchasePrice || 0), 0);
+  const profitLoss = collectionValue.totalValue - totalCost;
+  const profitLossPercent = totalCost > 0 ? (profitLoss / totalCost) * 100 : 0;
+  return {
+    totalComics: collection.length,
+    totalValue: collectionValue.totalValue,
+    unpricedCount: collectionValue.unpricedCount,
+    totalCost,
+    profitLoss,
+    profitLossPercent,
+  };
+}
+
+// Simulate historical value change based on the selected lookback window.
+// In production this would use actual price history from the database.
+export function getBiggestIncrease(
+  collection: CollectionItem[],
+  days: DurationDays
+): InsightBook | null {
+  const booksWithValue = collection.filter(
+    (item) => item.comic.priceData?.estimatedValue && item.comic.priceData.estimatedValue > 0
+  );
+  if (booksWithValue.length === 0) return null;
+
+  const multiplier = days === 30 ? 0.92 : days === 60 ? 0.88 : 0.82;
+  let biggest: InsightBook | null = null;
+
+  for (const item of booksWithValue) {
+    const currentValue = getComicValue(item);
+    const previousValue = currentValue * multiplier;
+    const change = currentValue - previousValue;
+    const changePercent = previousValue > 0 ? (change / previousValue) * 100 : 0;
+    if (!biggest || change > biggest.change) {
+      biggest = { item, change, changePercent, currentValue, previousValue };
+    }
+  }
+  return biggest;
+}
+
+export function getBiggestDecline(
+  collection: CollectionItem[],
+  days: DurationDays
+): InsightBook | null {
+  const booksWithValue = collection.filter(
+    (item) => item.comic.priceData?.estimatedValue && item.comic.priceData.estimatedValue > 0
+  );
+  if (booksWithValue.length === 0) return null;
+
+  const declineMultiplier = days === 30 ? 1.05 : days === 60 ? 1.1 : 1.15;
+  let biggest: InsightBook | null = null;
+
+  for (const item of booksWithValue) {
+    const currentValue = getComicValue(item);
+    const previousValue = currentValue * declineMultiplier;
+    const change = currentValue - previousValue; // negative
+    const changePercent = previousValue > 0 ? (change / previousValue) * 100 : 0;
+    if (!biggest || change < biggest.change) {
+      biggest = { item, change, changePercent, currentValue, previousValue };
+    }
+  }
+  return biggest;
+}
+
+export function getBestBuy(collection: CollectionItem[]): BestBuyBook | null {
+  const booksWithPurchasePrice = collection.filter(
+    (item) => item.purchasePrice && item.purchasePrice > 0 && item.comic.priceData?.estimatedValue
+  );
+  if (booksWithPurchasePrice.length === 0) return null;
+
+  let best: BestBuyBook | null = null;
+  for (const item of booksWithPurchasePrice) {
+    const currentValue = getComicValue(item);
+    const purchasePrice = item.purchasePrice!;
+    const profit = currentValue - purchasePrice;
+    const roi = (profit / purchasePrice) * 100;
+    if (!best || roi > best.roi) {
+      best = { item, roi, purchasePrice, currentValue, profit };
+    }
+  }
+  return best;
 }
 
 
@@ -67,7 +168,10 @@ export default function Home() {
   const [increaseDuration, setIncreaseDuration] = useState<DurationDays>(30);
   const [declineDuration, setDeclineDuration] = useState<DurationDays>(30);
 
-  // Redirect signed-in users to their collection
+  // Redirect signed-in users to their collection. Runs before any heavy
+  // collection/insight work below so we don't render-and-discard the guest
+  // marketing view (or compute insights) for a user we're about to navigate
+  // away. See audit ref M-FE6.
   useEffect(() => {
     if (isLoaded && isSignedIn) {
       router.replace("/collection");
@@ -88,103 +192,28 @@ export default function Home() {
     }
   }, [isLoaded, isSignedIn]);
 
-  // Calculate stats from collection using grade-aware pricing
-  const collectionValue = calculateCollectionValue(collection);
-  const stats = {
-    totalComics: collection.length,
-    totalValue: collectionValue.totalValue,
-    unpricedCount: collectionValue.unpricedCount,
-    totalCost: collection.reduce((sum, item) => sum + (item.purchasePrice || 0), 0),
-  };
-  const profitLoss = stats.totalValue - stats.totalCost;
-  const profitLossPercent = stats.totalCost > 0 ? (profitLoss / stats.totalCost) * 100 : 0;
+  // Calculate stats from collection using grade-aware pricing. Memoized so the
+  // O(n) roll-up only re-runs when the collection actually changes, not on
+  // every unrelated re-render (modal open/close, duration toggle). M-FE5.
+  const stats = useMemo(() => computeHomeStats(collection), [collection]);
+  const profitLoss = stats.profitLoss;
+  const profitLossPercent = stats.profitLossPercent;
 
-  // Calculate biggest increase (simulated based on current value vs "historical")
-  // In production, this would use actual price history data
-  const getBiggestIncrease = (days: DurationDays): InsightBook | null => {
-    const booksWithValue = collection.filter(
-      (item) => item.comic.priceData?.estimatedValue && item.comic.priceData.estimatedValue > 0
-    );
+  const biggestIncrease = useMemo(
+    () => getBiggestIncrease(collection, increaseDuration),
+    [collection, increaseDuration]
+  );
+  const biggestDecline = useMemo(
+    () => getBiggestDecline(collection, declineDuration),
+    [collection, declineDuration]
+  );
+  const bestBuy = useMemo(() => getBestBuy(collection), [collection]);
 
-    if (booksWithValue.length === 0) return null;
-
-    // Simulate historical value change based on days
-    // In production, use actual price history from database
-    const multiplier = days === 30 ? 0.92 : days === 60 ? 0.88 : 0.82;
-
-    let biggest: InsightBook | null = null;
-
-    for (const item of booksWithValue) {
-      const currentValue = getComicValue(item);
-      // Simulate previous value (in production, fetch from price history)
-      const previousValue = currentValue * multiplier;
-      const change = currentValue - previousValue;
-      const changePercent = previousValue > 0 ? (change / previousValue) * 100 : 0;
-
-      if (!biggest || change > biggest.change) {
-        biggest = { item, change, changePercent, currentValue, previousValue };
-      }
-    }
-
-    return biggest;
-  };
-
-  // Calculate biggest decline
-  const getBiggestDecline = (days: DurationDays): InsightBook | null => {
-    const booksWithValue = collection.filter(
-      (item) => item.comic.priceData?.estimatedValue && item.comic.priceData.estimatedValue > 0
-    );
-
-    if (booksWithValue.length === 0) return null;
-
-    // Simulate some books declining in value
-    // In production, use actual price history from database
-    const declineMultiplier = days === 30 ? 1.05 : days === 60 ? 1.1 : 1.15;
-
-    let biggest: InsightBook | null = null;
-
-    for (const item of booksWithValue) {
-      const currentValue = getComicValue(item);
-      // Simulate previous value being higher (decline)
-      const previousValue = currentValue * declineMultiplier;
-      const change = currentValue - previousValue; // This will be negative
-      const changePercent = previousValue > 0 ? (change / previousValue) * 100 : 0;
-
-      if (!biggest || change < biggest.change) {
-        biggest = { item, change, changePercent, currentValue, previousValue };
-      }
-    }
-
-    return biggest;
-  };
-
-  // Calculate best buy (best ROI)
-  const getBestBuy = (): BestBuyBook | null => {
-    const booksWithPurchasePrice = collection.filter(
-      (item) => item.purchasePrice && item.purchasePrice > 0 && item.comic.priceData?.estimatedValue
-    );
-
-    if (booksWithPurchasePrice.length === 0) return null;
-
-    let best: BestBuyBook | null = null;
-
-    for (const item of booksWithPurchasePrice) {
-      const currentValue = getComicValue(item);
-      const purchasePrice = item.purchasePrice!;
-      const profit = currentValue - purchasePrice;
-      const roi = (profit / purchasePrice) * 100;
-
-      if (!best || roi > best.roi) {
-        best = { item, roi, purchasePrice, currentValue, profit };
-      }
-    }
-
-    return best;
-  };
-
-  const biggestIncrease = getBiggestIncrease(increaseDuration);
-  const biggestDecline = getBiggestDecline(declineDuration);
-  const bestBuy = getBestBuy();
+  // While the signed-in redirect is in flight, skip the heavy guest/dashboard
+  // render entirely. M-FE6.
+  if (isLoaded && isSignedIn) {
+    return null;
+  }
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -236,6 +265,7 @@ export default function Home() {
             {biggestIncrease && (
               <button
                 onClick={() => setShowBiggestIncrease(true)}
+                aria-label={`Biggest increase: ${biggestIncrease.item.comic.title} #${biggestIncrease.item.comic.issueNumber}, up $${biggestIncrease.change.toFixed(2)}. View details.`}
                 className="comic-panel bg-pop-white p-4 text-left hover:shadow-comic-lg"
               >
                 <div className="flex items-center gap-3 mb-3">
@@ -251,9 +281,11 @@ export default function Home() {
                 </div>
                 <div className="flex items-center gap-2">
                   {biggestIncrease.item.coverImageUrl && (
-                    <img
+                    <Image
                       src={biggestIncrease.item.coverImageUrl}
                       alt=""
+                      width={40}
+                      height={56}
                       className="w-10 h-14 object-cover border-2 border-pop-black"
                     />
                   )}
@@ -273,6 +305,7 @@ export default function Home() {
             {bestBuy && (
               <button
                 onClick={() => setShowBestBuy(true)}
+                aria-label={`Best buy: ${bestBuy.item.comic.title} #${bestBuy.item.comic.issueNumber}, ${bestBuy.roi.toFixed(0)} percent ROI. View details.`}
                 className="comic-panel bg-pop-white p-4 text-left hover:shadow-comic-lg"
               >
                 <div className="flex items-center gap-3 mb-3">
@@ -288,9 +321,11 @@ export default function Home() {
                 </div>
                 <div className="flex items-center gap-2">
                   {bestBuy.item.coverImageUrl && (
-                    <img
+                    <Image
                       src={bestBuy.item.coverImageUrl}
                       alt=""
+                      width={40}
+                      height={56}
                       className="w-10 h-14 object-cover border-2 border-pop-black"
                     />
                   )}
@@ -310,6 +345,7 @@ export default function Home() {
             {biggestDecline && (
               <button
                 onClick={() => setShowBiggestDecline(true)}
+                aria-label={`Biggest decline: ${biggestDecline.item.comic.title} #${biggestDecline.item.comic.issueNumber}, down $${Math.abs(biggestDecline.change).toFixed(2)}. View details.`}
                 className="comic-panel bg-pop-white p-4 text-left hover:shadow-comic-lg"
               >
                 <div className="flex items-center gap-3 mb-3">
@@ -325,9 +361,11 @@ export default function Home() {
                 </div>
                 <div className="flex items-center gap-2">
                   {biggestDecline.item.coverImageUrl && (
-                    <img
+                    <Image
                       src={biggestDecline.item.coverImageUrl}
                       alt=""
+                      width={40}
+                      height={56}
                       className="w-10 h-14 object-cover border-2 border-pop-black"
                     />
                   )}
@@ -601,10 +639,12 @@ export default function Home() {
               >
                 <div className="aspect-[2/3] bg-pop-cream relative border-b-3 border-pop-black">
                   {item.coverImageUrl ? (
-                    <img
+                    <Image
                       src={item.coverImageUrl}
                       alt={`${item.comic.title} #${item.comic.issueNumber}`}
-                      className="w-full h-full object-cover"
+                      fill
+                      sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, 20vw"
+                      className="object-cover"
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center dots-red">
@@ -675,9 +715,11 @@ export default function Home() {
             {/* Book Info */}
             <div className="flex gap-4 mb-4">
               {biggestIncrease.item.coverImageUrl && (
-                <img
+                <Image
                   src={biggestIncrease.item.coverImageUrl}
                   alt=""
+                  width={96}
+                  height={144}
                   className="w-24 h-36 object-cover border-3 border-pop-black shadow-comic"
                 />
               )}
@@ -731,9 +773,11 @@ export default function Home() {
             {/* Book Info */}
             <div className="flex gap-4 mb-4">
               {bestBuy.item.coverImageUrl && (
-                <img
+                <Image
                   src={bestBuy.item.coverImageUrl}
                   alt=""
+                  width={96}
+                  height={144}
                   className="w-24 h-36 object-cover border-3 border-pop-black shadow-comic"
                 />
               )}
@@ -804,9 +848,11 @@ export default function Home() {
             {/* Book Info */}
             <div className="flex gap-4 mb-4">
               {biggestDecline.item.coverImageUrl && (
-                <img
+                <Image
                   src={biggestDecline.item.coverImageUrl}
                   alt=""
+                  width={96}
+                  height={144}
                   className="w-24 h-36 object-cover border-3 border-pop-black shadow-comic"
                 />
               )}

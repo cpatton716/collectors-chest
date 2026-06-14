@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { z } from "zod";
 
+import { logAdminAction } from "@/lib/adminAuth";
 import { supabaseAdmin } from "@/lib/supabase";
 import { schemas, validateBody, validateQuery } from "@/lib/validation";
 
@@ -146,6 +147,11 @@ export async function PATCH(request: NextRequest) {
         })
         .eq("id", review.barcode_catalog_id);
 
+      await logAdminAction(profile.id, "approve_barcode", undefined, {
+        reviewId,
+        barcodeCatalogId: review.barcode_catalog_id,
+      });
+
     } else if (action === "correct") {
       // correctedUpc is guaranteed present here thanks to the Zod refine above.
       // Parse corrected UPC
@@ -179,6 +185,15 @@ export async function PATCH(request: NextRequest) {
         })
         .eq("id", review.barcode_catalog_id);
 
+      // "Correct" resolves the barcode to an approved (corrected) state; log it
+      // as an approval with the corrected UPC captured in details.
+      await logAdminAction(profile.id, "approve_barcode", undefined, {
+        reviewId,
+        barcodeCatalogId: review.barcode_catalog_id,
+        corrected: true,
+        correctedUpc,
+      });
+
     } else if (action === "reject") {
       // Update review status
       await supabaseAdmin
@@ -196,6 +211,11 @@ export async function PATCH(request: NextRequest) {
         .from("barcode_catalog")
         .delete()
         .eq("id", review.barcode_catalog_id);
+
+      await logAdminAction(profile.id, "reject_barcode", undefined, {
+        reviewId,
+        barcodeCatalogId: review.barcode_catalog_id,
+      });
     }
 
     return NextResponse.json({ success: true });

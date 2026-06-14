@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { Resend } from "resend";
 import { z } from "zod";
 
+import { sendNotificationEmail } from "@/lib/email";
 import { generateVerificationToken, validateEmail } from "@/lib/emailValidation";
 import { checkRateLimit, getRateLimitIdentifier, rateLimiters } from "@/lib/rateLimit";
 import { supabaseAdmin } from "@/lib/supabase";
@@ -14,8 +14,6 @@ const emailCaptureSchema = z.object({
   email: z.string().min(1, "Email is required").max(320, "Email is too long"),
   honeypot: z.string().optional(),
 });
-
-const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Token expiration: 24 hours
 const TOKEN_EXPIRY_HOURS = 24;
@@ -68,7 +66,7 @@ export async function POST(request: NextRequest) {
       .from("bonus_scan_claims")
       .select("id, verified_at")
       .eq("email_normalized", normalizedEmail)
-      .single();
+      .maybeSingle();
 
     if (existingClaim) {
       if (existingClaim.verified_at) {
@@ -90,7 +88,7 @@ export async function POST(request: NextRequest) {
       .select("id, verified_at")
       .eq("ip_address", ip)
       .not("verified_at", "is", null)
-      .single();
+      .maybeSingle();
 
     if (ipClaim) {
       return NextResponse.json(
@@ -121,37 +119,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Send verification email
+    // Send verification email through the shared template system (branded
+    // header/footer, unified From identity for DKIM alignment). Guests have no
+    // profile so preference gating is bypassed (no profileId passed).
     const verifyUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://collectors-chest.com"}/api/email-capture/verify?token=${verificationToken}`;
 
     if (process.env.RESEND_API_KEY) {
-      try {
-        await resend.emails.send({
-          from: "Collectors Chest <noreply@collectors-chest.com>",
-          to: normalizedEmail,
-          subject: "Verify your email for 5 bonus scans",
-          html: `
-            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-              <h1 style="color: #d97706;">Almost there!</h1>
-              <p>Click the button below to verify your email and unlock 5 bonus scans:</p>
-              <p style="margin: 32px 0;">
-                <a href="${verifyUrl}"
-                   style="background-color: #4f46e5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">
-                  Verify Email & Get Bonus Scans
-                </a>
-              </p>
-              <p style="color: #6b7280; font-size: 14px;">
-                This link expires in 24 hours. If you didn't request this, you can ignore this email.
-              </p>
-              <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 32px 0;">
-              <p style="color: #6b7280; font-size: 12px;">
-                Collectors Chest - Track your comic collection
-              </p>
-            </div>
-          `,
-        });
-      } catch (emailError) {
-        console.error("[EmailCapture] Failed to send verification email:", emailError);
+      const { success } = await sendNotificationEmail({
+        to: normalizedEmail,
+        type: "bonus_scan_verify",
+        data: { verifyUrl },
+      });
+
+      if (!success) {
+        console.error("[EmailCapture] Failed to send verification email");
         // Clean up the claim since we couldn't send the email
         await supabaseAdmin
           .from("bonus_scan_claims")

@@ -1,8 +1,12 @@
-"use client";
-
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { ArrowLeft } from "lucide-react";
+
+export const metadata: Metadata = {
+  title: "Acceptable Use Policy - Collectors Chest",
+  description: "The rules and prohibited conduct for using Collectors Chest.",
+};
 
 export default function AcceptableUsePolicyPage() {
   return (

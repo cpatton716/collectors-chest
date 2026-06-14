@@ -3,11 +3,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { z } from "zod";
 
-import Stripe from "stripe";
-
 import { getAuction } from "@/lib/auctionDb";
 import { getProfileByClerkId } from "@/lib/db";
 import { supabaseAdmin } from "@/lib/supabase";
+import { mapStripeError, stripe } from "@/lib/stripe";
 import { calculateDestinationAmount } from "@/lib/stripeConnect";
 import { schemas, validateBody } from "@/lib/validation";
 
@@ -21,13 +20,6 @@ const checkoutBodySchema = z
   .refine((data) => data.auctionId || data.listingId, {
     message: "auctionId or listingId is required",
   });
-
-// Initialize Stripe (conditionally - only if key exists)
-const stripe = process.env.STRIPE_SECRET_KEY
-  ? new Stripe(process.env.STRIPE_SECRET_KEY, {
-      apiVersion: "2025-12-15.clover",
-    })
-  : null;
 
 // POST - Create Stripe Checkout session for marketplace payment.
 // Accepts EITHER `{ auctionId }` (auction winner flow) OR `{ listingId }` (Buy Now flow).
@@ -116,12 +108,29 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Fetch seller's Connect account
-    const { data: sellerProfile } = await supabaseAdmin
-      .from("profiles")
-      .select("stripe_connect_account_id, stripe_connect_onboarding_complete")
-      .eq("id", listing.sellerId)
-      .single();
+    // Fetch the listing's platform fee percent AND the seller's Connect fields
+    // in a single joined query (M-PAY13) - previously two separate round-trips.
+    const { data: listingRow } = await supabaseAdmin
+      .from("auctions")
+      .select(
+        `
+        platform_fee_percent,
+        seller:profiles!auctions_seller_id_fkey(
+          stripe_connect_account_id,
+          stripe_connect_onboarding_complete
+        )
+      `
+      )
+      .eq("id", targetId)
+      .maybeSingle();
+
+    // Supabase types the joined relation as an array; normalize to a single row.
+    const sellerJoin = listingRow?.seller as
+      | { stripe_connect_account_id: string | null; stripe_connect_onboarding_complete: boolean | null }
+      | { stripe_connect_account_id: string | null; stripe_connect_onboarding_complete: boolean | null }[]
+      | null
+      | undefined;
+    const sellerProfile = Array.isArray(sellerJoin) ? sellerJoin[0] : sellerJoin;
 
     if (
       !sellerProfile?.stripe_connect_account_id ||
@@ -132,13 +141,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-
-    // Fetch platform fee percent from the listing row
-    const { data: listingRow } = await supabaseAdmin
-      .from("auctions")
-      .select("platform_fee_percent")
-      .eq("id", targetId)
-      .single();
 
     // Calculate total price:
     // - Buy Now: starting_price is the fixed price
@@ -187,6 +189,15 @@ export async function POST(request: NextRequest) {
           destination: sellerProfile.stripe_connect_account_id,
           amount: sellerAmount,
         },
+        // Mirror context onto the PaymentIntent so refund/dispute webhooks
+        // (which carry the PaymentIntent, not the Checkout Session) can reverse
+        // the right sale without a stored payment_intent column. M-MK17.
+        metadata: {
+          auctionId: targetId,
+          buyerId: profile.id,
+          sellerId: listing.sellerId,
+          listingType: isBuyNow ? "buy_now" : "auction",
+        },
       },
       // On success, send the buyer to their Transactions page with the
       // purchase highlighted. On cancel, back to the listing so they can
@@ -205,7 +216,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ url: session.url });
   } catch (error) {
+    // Full error to the server log; mapped status/message to the client. L-PAY18.
     console.error("Error creating checkout session:", error);
-    return NextResponse.json({ error: "Failed to create checkout session" }, { status: 500 });
+    const { status, message } = mapStripeError(error);
+    return NextResponse.json({ error: message }, { status });
   }
 }

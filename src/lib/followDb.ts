@@ -24,7 +24,7 @@ interface UserFollowRow {
   created_at: string;
 }
 
-interface ProfileRow {
+export interface ProfileRow {
   id: string;
   username: string | null;
   display_name: string | null;
@@ -43,14 +43,14 @@ interface FollowCountsRow {
 /**
  * Build display name from profile data
  */
-function buildDisplayName(profile: ProfileRow): string | null {
+export function buildDisplayName(profile: ProfileRow): string | null {
   return profile.display_name || null;
 }
 
 /**
  * Transform profile row to FollowUser type
  */
-function transformToFollowUser(profile: ProfileRow, isFollowing?: boolean): FollowUser {
+export function transformToFollowUser(profile: ProfileRow, isFollowing?: boolean): FollowUser {
   return {
     id: profile.id,
     username: profile.username,
@@ -58,6 +58,36 @@ function transformToFollowUser(profile: ProfileRow, isFollowing?: boolean): Foll
     avatarUrl: profile.avatar_url,
     isFollowing,
   };
+}
+
+/**
+ * Return the subset of `targetIds` that `currentUserId` follows.
+ *
+ * This is used to compute the per-row `isFollowing` flag for a single page of
+ * followers/following. Scoping the lookup to the page's IDs (a bounded `.in`
+ * query) avoids an unbounded full scan of the current user's entire following
+ * list on every page request. (M-SO5)
+ */
+async function getFollowingSubset(
+  currentUserId: string,
+  targetIds: string[]
+): Promise<Set<string>> {
+  if (targetIds.length === 0) {
+    return new Set();
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("user_follows")
+    .select("following_id")
+    .eq("follower_id", currentUserId)
+    .in("following_id", targetIds);
+
+  if (error) {
+    console.error("[followDb] Failed to get following subset:", error);
+    return new Set();
+  }
+
+  return new Set((data || []).map((row) => row.following_id));
 }
 
 // ============================================================================
@@ -183,16 +213,22 @@ export async function getFollowers(
     return { users: [], total: 0, limit, offset };
   }
 
-  // Get IDs of users the current user follows (for isFollowing flag)
+  const profiles = (followRecords || []).map(
+    (record) => record.follower as unknown as ProfileRow
+  );
+
+  // Get the subset of THIS page's profiles that the current user follows
+  // (scoped lookup rather than a full following-list scan). (M-SO5)
   let currentUserFollowingIds: Set<string> = new Set();
   if (currentUserId) {
-    const followingIds = await getFollowingIds(currentUserId);
-    currentUserFollowingIds = new Set(followingIds);
+    currentUserFollowingIds = await getFollowingSubset(
+      currentUserId,
+      profiles.map((p) => p.id)
+    );
   }
 
   // Transform to FollowUser array
-  const users: FollowUser[] = (followRecords || []).map((record) => {
-    const profile = record.follower as unknown as ProfileRow;
+  const users: FollowUser[] = profiles.map((profile) => {
     const isFollowing = currentUserId ? currentUserFollowingIds.has(profile.id) : undefined;
     return transformToFollowUser(profile, isFollowing);
   });
@@ -239,16 +275,22 @@ export async function getFollowing(
     return { users: [], total: 0, limit, offset };
   }
 
-  // Get IDs of users the current user follows (for isFollowing flag)
+  const profiles = (followRecords || []).map(
+    (record) => record.following as unknown as ProfileRow
+  );
+
+  // Get the subset of THIS page's profiles that the current user follows
+  // (scoped lookup rather than a full following-list scan). (M-SO5)
   let currentUserFollowingIds: Set<string> = new Set();
   if (currentUserId) {
-    const followingIds = await getFollowingIds(currentUserId);
-    currentUserFollowingIds = new Set(followingIds);
+    currentUserFollowingIds = await getFollowingSubset(
+      currentUserId,
+      profiles.map((p) => p.id)
+    );
   }
 
   // Transform to FollowUser array
-  const users: FollowUser[] = (followRecords || []).map((record) => {
-    const profile = record.following as unknown as ProfileRow;
+  const users: FollowUser[] = profiles.map((profile) => {
     const isFollowing = currentUserId ? currentUserFollowingIds.has(profile.id) : undefined;
     return transformToFollowUser(profile, isFollowing);
   });

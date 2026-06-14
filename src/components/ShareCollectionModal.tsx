@@ -49,6 +49,9 @@ export function ShareCollectionModal({ onClose }: ShareCollectionModalProps) {
         setBio(data.publicBio || "");
         setCustomSlug(data.publicSlug || "");
       } catch (err) {
+        // Log the underlying cause for debugging before showing the friendly
+        // message — previously the error was swallowed silently. L-FE23.
+        console.error("[ShareCollectionModal] Failed to load sharing settings:", err);
         setError("Failed to load sharing settings");
       } finally {
         setIsLoading(false);

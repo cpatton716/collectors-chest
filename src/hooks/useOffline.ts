@@ -106,10 +106,30 @@ export function useOffline(): UseOfflineReturn {
     setPendingActionsCount(getOfflineQueue().length);
   }, []);
 
-  // Set up interval to check pending count
+  // Refresh the pending count on explicit queue-change events instead of
+  // polling every second (M-FE4). The offline cache dispatches
+  // `cc:offline-queue-changed` whenever it mutates the queue; we also listen
+  // for cross-tab `storage` events (another tab editing the same queue) and a
+  // window focus (queue may have changed while the tab was backgrounded).
   useEffect(() => {
-    const interval = setInterval(updatePendingCount, 1000);
-    return () => clearInterval(interval);
+    if (typeof window === "undefined") return;
+
+    const handleStorage = (e: StorageEvent) => {
+      // Only react to the offline-queue key (or a full clear, key === null).
+      if (e.key === null || e.key.includes("offline")) {
+        updatePendingCount();
+      }
+    };
+
+    window.addEventListener("cc:offline-queue-changed", updatePendingCount);
+    window.addEventListener("storage", handleStorage);
+    window.addEventListener("focus", updatePendingCount);
+
+    return () => {
+      window.removeEventListener("cc:offline-queue-changed", updatePendingCount);
+      window.removeEventListener("storage", handleStorage);
+      window.removeEventListener("focus", updatePendingCount);
+    };
   }, [updatePendingCount]);
 
   return {

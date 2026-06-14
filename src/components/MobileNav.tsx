@@ -8,113 +8,32 @@ import { usePathname, useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 
 import {
-  ArrowLeftRight,
-  BarChart3,
-  Bell,
-  BookOpen,
-  DollarSign,
-  Gavel,
-  Home,
   KeyRound,
-  Layers,
   Lock,
-  MessageSquare,
   MoreHorizontal,
   Shield,
-  ShoppingBag,
-  Wallet,
   X,
 } from "lucide-react";
 
+import { getMobileNavItems, isNavLinkActive } from "@/lib/navLinks";
+
 import { useSubscription } from "@/hooks/useSubscription";
-import { supabase } from "@/lib/supabase";
 import AdminAlertBadge from "@/components/AdminAlertBadge";
-
-interface NavItem {
-  href: string;
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  locked?: boolean;
-}
-
-interface DrawerItem {
-  href: string;
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  requiresAuth?: boolean;
-}
+import { useUnreadMessages } from "@/components/Providers";
 
 export function MobileNav() {
   const pathname = usePathname();
   const router = useRouter();
   const { isSignedIn } = useUser();
   const { tier, isTrialing, isAdmin } = useSubscription();
+  const unreadCount = useUnreadMessages();
   const [isVisible, setIsVisible] = useState(true);
   const [selectionMode, setSelectionMode] = useState(false);
   const [showDrawer, setShowDrawer] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
   const lastScrollY = useRef(0);
   const scrollThreshold = 10;
 
   const isPremium = tier === "premium" || isTrialing;
-
-  const [profileId, setProfileId] = useState<string | null>(null);
-
-  // Fetch profile ID for broadcast subscription
-  useEffect(() => {
-    if (!isSignedIn) return;
-    fetch("/api/username/current")
-      .then((r) => r.ok ? r.json() : null)
-      .then((data) => { if (data?.profileId) setProfileId(data.profileId); })
-      .catch(() => {});
-  }, [isSignedIn]);
-
-  // Fetch unread message count
-  useEffect(() => {
-    if (!isSignedIn) return;
-
-    const fetchUnread = async () => {
-      try {
-        const res = await fetch("/api/messages/unread-count");
-        if (res.ok) {
-          const data = await res.json();
-          setUnreadCount(data.count);
-        }
-      } catch {
-        // Ignore errors silently
-      }
-    };
-
-    fetchUnread();
-  }, [isSignedIn]);
-
-  // Subscribe to broadcast for unread message updates
-  useEffect(() => {
-    if (!profileId) return;
-
-    const fetchUnread = async () => {
-      try {
-        const res = await fetch("/api/messages/unread-count");
-        if (res.ok) {
-          const data = await res.json();
-          setUnreadCount(data.count);
-        }
-      } catch {
-        // Ignore errors silently
-      }
-    };
-
-    const channel = supabase
-      .channel(`user:${profileId}:messages`)
-      .on("broadcast", { event: "unread-update" }, () => {
-        fetchUnread();
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [profileId]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -153,43 +72,9 @@ export function MobileNav() {
     return () => window.removeEventListener("cc:selection-mode", handleSelectionMode);
   }, []);
 
-  // Guest nav items: Home, Collection, Shop, More
-  const guestNavItems: NavItem[] = [
-    { href: "/", icon: Home, label: "Home" },
-    { href: "/collection", icon: BookOpen, label: "Collection" },
-    { href: "/shop", icon: ShoppingBag, label: "Shop" },
-  ];
-
-  // Registered nav items: Collection, Shop, More, Key Hunt
-  const registeredNavItems: NavItem[] = [
-    { href: "/collection", icon: BookOpen, label: "Collection" },
-    { href: "/shop", icon: ShoppingBag, label: "Shop" },
-  ];
-
-  // Guest drawer items (all redirect to sign-in)
-  const guestDrawerItems: DrawerItem[] = [
-    { href: "/sign-in?redirect=/messages", icon: MessageSquare, label: "Messages", requiresAuth: true },
-    { href: "/sign-in?redirect=/transactions", icon: Wallet, label: "Transactions", requiresAuth: true },
-    { href: "/sign-in?redirect=/my-auctions", icon: Gavel, label: "My Listings", requiresAuth: true },
-    { href: "/sign-in?redirect=/trades", icon: ArrowLeftRight, label: "Trades", requiresAuth: true },
-    { href: "/sign-in?redirect=/stats", icon: BarChart3, label: "Stats", requiresAuth: true },
-    { href: "/sign-in?redirect=/collection", icon: Layers, label: "Lists", requiresAuth: true },
-  ];
-
-  // Registered drawer items
-  const registeredDrawerItems: DrawerItem[] = [
-    { href: "/notifications", icon: Bell, label: "Inbox" },
-    { href: "/messages", icon: MessageSquare, label: "Messages" },
-    { href: "/transactions", icon: Wallet, label: "Transactions" },
-    { href: "/sales", icon: DollarSign, label: "Sales" },
-    { href: "/trades", icon: ArrowLeftRight, label: "Trades" },
-    { href: "/collection", icon: Layers, label: "Lists" },
-    { href: "/my-auctions", icon: Gavel, label: "My Listings" },
-    { href: "/stats", icon: BarChart3, label: "Stats" },
-  ];
-
-  const navItems = isSignedIn ? registeredNavItems : guestNavItems;
-  const drawerItems = isSignedIn ? registeredDrawerItems : guestDrawerItems;
+  // Nav item + drawer tables are shared with the desktop Navigation via
+  // @/lib/navLinks so the two navs stay in sync (L-FE18).
+  const { navItems, drawerItems } = getMobileNavItems(!!isSignedIn);
 
   const handleKeyHuntClick = () => {
     if (!isSignedIn) {
@@ -203,6 +88,7 @@ export function MobileNav() {
     <>
       {/* Bottom Navigation Bar */}
       <nav
+        aria-label="Primary"
         className={`fixed bottom-0 left-0 right-0 md:hidden z-50 transition-transform duration-300 ease-in-out ${
           isVisible && !selectionMode ? "translate-y-0" : "translate-y-full"
         }`}
@@ -211,13 +97,14 @@ export function MobileNav() {
           <div className="flex items-center justify-around py-2 px-1">
             {/* Regular nav items */}
             {navItems.map((item) => {
-              const isActive = pathname === item.href || (item.href === "/" && pathname === "/");
+              const isActive = isNavLinkActive(pathname, item.href);
               const Icon = item.icon;
 
               return (
                 <Link
                   key={item.href}
                   href={item.href}
+                  aria-current={isActive ? "page" : undefined}
                   className={`relative flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl transition-all duration-200 ${
                     isActive
                       ? "bg-primary-100 text-primary-600"
@@ -235,6 +122,9 @@ export function MobileNav() {
             {/* More button */}
             <button
               onClick={() => setShowDrawer(true)}
+              aria-haspopup="menu"
+              aria-expanded={showDrawer}
+              aria-label="More navigation"
               className={`relative flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl transition-all duration-200 ${
                 showDrawer
                   ? "bg-primary-100 text-primary-600"
@@ -245,7 +135,8 @@ export function MobileNav() {
                 <MoreHorizontal className="w-5 h-5" />
                 {isSignedIn && unreadCount > 0 && (
                   <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[8px] font-bold rounded-full h-4 w-4 flex items-center justify-center">
-                    {unreadCount > 9 ? "9+" : unreadCount}
+                    <span aria-hidden="true">{unreadCount > 9 ? "9+" : unreadCount}</span>
+                    <span className="sr-only">{unreadCount} unread messages</span>
                   </span>
                 )}
               </div>
@@ -304,17 +195,18 @@ export function MobileNav() {
             </div>
 
             {/* Menu Items */}
-            <div className="py-2">
+            <div role="menu" className="py-2">
               {drawerItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = pathname === item.href;
-                const isMessages = item.label === "Messages";
 
                 return (
                   <Link
                     key={item.href}
                     href={item.href}
                     onClick={() => setShowDrawer(false)}
+                    role="menuitem"
+                    aria-current={isActive ? "page" : undefined}
                     className={`flex items-center gap-3 px-4 py-3 transition-colors ${
                       isActive
                         ? "bg-primary-50 text-primary-600"
@@ -323,9 +215,10 @@ export function MobileNav() {
                   >
                     <Icon className="w-5 h-5" />
                     <span className="font-medium">{item.label}</span>
-                    {isMessages && unreadCount > 0 && (
+                    {item.showBadge && unreadCount > 0 && (
                       <span className="ml-auto bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
-                        {unreadCount > 9 ? "9+" : unreadCount}
+                        <span aria-hidden="true">{unreadCount > 9 ? "9+" : unreadCount}</span>
+                        <span className="sr-only">{unreadCount} unread messages</span>
                       </span>
                     )}
                     {item.requiresAuth && (
@@ -340,6 +233,8 @@ export function MobileNav() {
                 <Link
                   href="/admin/users"
                   onClick={() => setShowDrawer(false)}
+                  role="menuitem"
+                  aria-current={pathname.startsWith("/admin") ? "page" : undefined}
                   className={`flex items-center gap-3 px-4 py-3 border-t border-gray-100 transition-colors ${
                     pathname.startsWith("/admin")
                       ? "bg-red-50 text-red-600"

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
 import { z } from "zod";
 
+import { sendNotificationEmail } from "@/lib/email";
 import { supabaseAdmin } from "@/lib/supabase";
 import { validateQuery } from "@/lib/validation";
 
@@ -88,37 +89,21 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Send confirmation email
+    // Send confirmation email through the shared template system (branded
+    // header/footer, unified From identity). Non-critical: the user already
+    // got their scans, so a send failure is logged, not surfaced.
     if (process.env.RESEND_API_KEY) {
-      try {
-        await resend.emails.send({
-          from: "Collectors Chest <noreply@collectors-chest.com>",
-          to: claim.email_normalized,
-          subject: "You unlocked 5 bonus scans!",
-          html: `
-            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-              <h1 style="color: #d97706;">You got 5 bonus scans!</h1>
-              <p>Your email has been verified and you now have 5 extra scans to explore your comic collection.</p>
-              <p>Here's what you can do:</p>
-              <ul>
-                <li>Scan comic covers for instant AI recognition</li>
-                <li>Get real-time eBay price estimates</li>
-                <li>See key issue information and first appearances</li>
-              </ul>
-              <p style="margin: 32px 0;">
-                <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://collectors-chest.com"}/scan"
-                   style="background-color: #4f46e5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">
-                  Start Scanning
-                </a>
-              </p>
-              <p>Want unlimited scans? <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://collectors-chest.com"}/sign-up" style="color: #4f46e5;">Create a free account</a> to get 10 scans per month, plus cloud sync and more!</p>
-              <p style="color: #6b7280; font-size: 14px; margin-top: 32px;">Happy collecting!<br>The Collectors Chest Team</p>
-            </div>
-          `,
-        });
-      } catch (emailError) {
-        // Non-critical - user already got their scans
-        console.error("[EmailVerify] Failed to send confirmation email:", emailError);
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://collectors-chest.com";
+      const { success: confirmSent } = await sendNotificationEmail({
+        to: claim.email_normalized,
+        type: "bonus_scan_granted",
+        data: {
+          scanUrl: `${appUrl}/scan`,
+          signUpUrl: `${appUrl}/sign-up`,
+        },
+      });
+      if (!confirmSent) {
+        console.error("[EmailVerify] Failed to send confirmation email");
       }
     }
 

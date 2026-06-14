@@ -6,6 +6,11 @@ import { emailHeader, emailFooter } from "@/lib/email";
  * Dev-only endpoint for iterating on email styling without deploying
  */
 export async function GET() {
+  // Dev-only: never expose the template preview in production.
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json({ error: "Not allowed in production" }, { status: 403 });
+  }
+
   const html = `
     <!DOCTYPE html>
     <html>

@@ -177,11 +177,45 @@ export function validateUsernameFormat(username: string): UsernameValidationResu
 }
 
 /**
- * Check if text contains any word from the profanity list
+ * A few profanity entries are intentionally matched as substrings because they
+ * are roots that only appear inside longer words (e.g. "masturbat" -> ...e/ion).
+ * Everything else is matched on word boundaries to avoid the "Scunthorpe
+ * problem" - i.e. innocent usernames like "classic", "passable", "analysis",
+ * "grape", or "scunthorpe" must NOT be blocked just because a slur is a
+ * substring. (H-SO2)
+ */
+const SUBSTRING_PROFANITY = new Set(["masturbat"]);
+
+/**
+ * Escape a string for safe use inside a RegExp.
+ */
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Check if text contains any word from the profanity list.
+ *
+ * Matching is boundary-aware: a profane word is only flagged when it stands as
+ * its own token. In a username, token separators are the start/end of the
+ * string, underscores, and digits (since "shit123" / "123shit" / "xx_shit_xx"
+ * are still abuse, but "classic" / "grape" / "scunthorpe" are not). A small
+ * allowlist of roots (SUBSTRING_PROFANITY) is still matched as a substring.
  */
 function isProfane(text: string): boolean {
   const lowerText = text.toLowerCase();
-  return PROFANITY_LIST.some((word) => lowerText.includes(word));
+
+  return PROFANITY_LIST.some((word) => {
+    if (SUBSTRING_PROFANITY.has(word)) {
+      return lowerText.includes(word);
+    }
+    // (^|[^a-z])  = start of string OR a non-letter boundary before the word
+    // ([^a-z]|$)  = a non-letter boundary after the word OR end of string
+    // This treats letters as the only "word" characters, so digits and
+    // underscores act as separators while alphabetic runs do not.
+    const pattern = new RegExp(`(^|[^a-z])${escapeRegExp(word)}([^a-z]|$)`);
+    return pattern.test(lowerText);
+  });
 }
 
 /**
@@ -201,9 +235,18 @@ export function containsProfanity(username: string): boolean {
     return true;
   }
 
-  // Check with underscores removed (catches "f_u_c_k" patterns)
+  // Check with underscores removed (catches "f_u_c_k" patterns). After removing
+  // the separators the slur becomes a contiguous token, so the boundary check
+  // still flags it (e.g. "f_u_c_k" -> "fuck"), while innocent words remain safe.
   const noUnderscores = normalized.replace(/_/g, "");
   if (isProfane(noUnderscores)) {
+    return true;
+  }
+
+  // Also run the boundary check against the leet-normalized, underscore-stripped
+  // form to catch separated leetspeak like "5_h_1_t" -> "shit".
+  const leetNoUnderscores = normalizeLeetspeak(noUnderscores);
+  if (isProfane(leetNoUnderscores)) {
     return true;
   }
 

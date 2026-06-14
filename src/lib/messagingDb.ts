@@ -1,5 +1,4 @@
 import {
-  Conversation,
   ConversationPreview,
   Message,
   MessagesResponse,
@@ -9,7 +8,8 @@ import {
 import { getSellerProfile } from "./auctionDb";
 import { checkMessageContent } from "./contentFilter";
 import { sendNotificationEmail } from "./email";
-import { supabase, supabaseAdmin } from "./supabase";
+import { isRedisAvailable, redis } from "./redis";
+import { supabaseAdmin } from "./supabase";
 
 // ============================================================================
 // CONVERSATION HELPERS
@@ -107,7 +107,10 @@ export async function getUserConversations(userId: string): Promise<Conversation
 }
 
 /**
- * Get unread message count for a user
+ * Get unread message count for a user (uncached, hits the database).
+ *
+ * Two bounded queries: the conversation IDs the user participates in, then a
+ * head-only count of unread messages they did not send.
  */
 export async function getUnreadMessageCount(userId: string): Promise<number> {
   // Get all conversations for user
@@ -133,9 +136,102 @@ export async function getUnreadMessageCount(userId: string): Promise<number> {
   return count || 0;
 }
 
+// Redis key + short TTL for the shared unread-message badge count. Kept short
+// so the badge self-corrects quickly; writes/reads invalidate it explicitly.
+const UNREAD_COUNT_REDIS_PREFIX = "cache:msg:unread:";
+const UNREAD_COUNT_TTL_SECONDS = 60;
+
+/**
+ * Shared unread-count accessor with an optional Redis cache.
+ *
+ * The Navigation and MobileNav components both render the unread badge; routing
+ * them through this helper (instead of each issuing its own DB round-trip)
+ * collapses duplicate work. When Redis is unavailable it transparently falls
+ * back to the live query. The cache is best-effort: failures never block.
+ *
+ * NOTE: the cross-component nav wiring (sharing this value via a context/hook)
+ * is owned by the frontend batch (M-MS4). This helper only provides the
+ * efficient cached query the wiring will consume.
+ */
+export async function getCachedUnreadMessageCount(userId: string): Promise<number> {
+  if (isRedisAvailable() && redis) {
+    try {
+      const cached = await redis.get<number>(`${UNREAD_COUNT_REDIS_PREFIX}${userId}`);
+      if (typeof cached === "number") return cached;
+    } catch (err) {
+      console.error("[messagingDb] unread-count cache read failed:", err);
+    }
+  }
+
+  const count = await getUnreadMessageCount(userId);
+
+  if (isRedisAvailable() && redis) {
+    try {
+      await redis.set(`${UNREAD_COUNT_REDIS_PREFIX}${userId}`, count, {
+        ex: UNREAD_COUNT_TTL_SECONDS,
+      });
+    } catch (err) {
+      console.error("[messagingDb] unread-count cache write failed:", err);
+    }
+  }
+
+  return count;
+}
+
+/**
+ * Invalidate the cached unread count for a user. Call after a message is sent to
+ * them or after they read messages, so the badge updates without waiting for TTL.
+ */
+export async function invalidateUnreadMessageCount(userId: string): Promise<void> {
+  if (!isRedisAvailable() || !redis) return;
+  try {
+    await redis.del(`${UNREAD_COUNT_REDIS_PREFIX}${userId}`);
+  } catch (err) {
+    console.error("[messagingDb] unread-count cache invalidation failed:", err);
+  }
+}
+
 // ============================================================================
 // MESSAGE HELPERS
 // ============================================================================
+
+/**
+ * Default number of messages returned per conversation page. Bounds the
+ * payload so a long-running conversation cannot return thousands of rows.
+ */
+export const DEFAULT_MESSAGE_PAGE_SIZE = 50;
+export const MAX_MESSAGE_PAGE_SIZE = 100;
+
+// Explicit message columns (avoids `messages.*` over-fetch) plus the joined
+// listing/embedded-listing relations used by the transform below.
+const MESSAGE_SELECT_COLUMNS = `
+  id,
+  conversation_id,
+  sender_id,
+  content,
+  listing_id,
+  is_read,
+  created_at,
+  updated_at,
+  image_urls,
+  embedded_listing_id,
+  auctions:listing_id (
+    id,
+    comics (
+      title,
+      cover_image_url
+    )
+  ),
+  embedded_auctions:embedded_listing_id (
+    id,
+    current_bid,
+    status,
+    comics (
+      title,
+      cover_image_url
+    )
+  )
+`;
 
 /**
  * Mark all unread messages in a conversation as read for a specific user.
@@ -151,6 +247,9 @@ export async function markMessagesAsRead(
     .eq("conversation_id", conversationId)
     .neq("sender_id", userId)
     .eq("is_read", false);
+
+  // The reader's unread badge just dropped; clear any cached count.
+  await invalidateUnreadMessageCount(userId);
 }
 
 /**
@@ -158,8 +257,11 @@ export async function markMessagesAsRead(
  */
 export async function getConversationMessages(
   conversationId: string,
-  userId: string
+  userId: string,
+  limit: number = DEFAULT_MESSAGE_PAGE_SIZE
 ): Promise<MessagesResponse> {
+  // Clamp the requested page size to a safe range.
+  const pageSize = Math.min(Math.max(1, Math.floor(limit) || DEFAULT_MESSAGE_PAGE_SIZE), MAX_MESSAGE_PAGE_SIZE);
   // Get conversation
   const { data: conv, error: convError } = await supabaseAdmin
     .from("conversations")
@@ -181,37 +283,22 @@ export async function getConversationMessages(
   const otherParticipant = await getSellerProfile(otherUserId);
   if (!otherParticipant) throw new Error("Other participant not found");
 
-  // Get messages
+  // Get the most recent `pageSize` messages (descending), then present them
+  // in chronological order. This bounds the payload for long conversations.
   const { data: messages, error: msgError } = await supabaseAdmin
     .from("messages")
-    .select(
-      `
-      *,
-      auctions:listing_id (
-        id,
-        comics (
-          title,
-          cover_image_url
-        )
-      ),
-      embedded_auctions:embedded_listing_id (
-        id,
-        current_bid,
-        status,
-        comics (
-          title,
-          cover_image_url
-        )
-      )
-    `
-    )
+    .select(MESSAGE_SELECT_COLUMNS)
     .eq("conversation_id", conversationId)
-    .order("created_at", { ascending: true });
+    .order("created_at", { ascending: false })
+    .limit(pageSize);
 
   if (msgError) throw msgError;
 
+  // Restore chronological (ascending) order for display.
+  const orderedMessages = (messages || []).slice().reverse();
+
   // Transform messages
-  const transformedMessages: Message[] = (messages || []).map((msg) => ({
+  const transformedMessages: Message[] = orderedMessages.map((msg: any) => ({
     id: msg.id,
     conversationId: msg.conversation_id,
     senderId: msg.sender_id,
@@ -316,6 +403,10 @@ export async function sendMessage(senderId: string, input: SendMessageInput): Pr
     .single();
 
   if (error) throw error;
+
+  // The recipient just gained an unread message; clear their cached count so
+  // the badge reflects it on next read (best-effort, non-blocking).
+  void invalidateUnreadMessageCount(recipientId);
 
   // Send email notification (fire and forget)
   void (async () => {

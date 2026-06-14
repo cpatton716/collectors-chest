@@ -1,16 +1,12 @@
 import { NextResponse } from "next/server";
 
+import { cronUnauthorized, verifyCronSecret } from "@/lib/cronAuth";
 import { supabaseAdmin } from "@/lib/supabase";
 import { sendNotificationEmail } from "@/lib/email";
 
 export async function POST(request: Request) {
-  // Auth check
-  const authHeader = request.headers.get("authorization");
-  const cronSecret = process.env.CRON_SECRET;
-
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  // Auth check (fail-closed, constant-time)
+  if (!verifyCronSecret(request)) return cronUnauthorized();
 
   try {
     // Find users with trials expiring within 3 days who haven't been reminded

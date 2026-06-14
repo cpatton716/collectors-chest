@@ -8,35 +8,21 @@ import { usePathname } from "next/navigation";
 import { SignedIn, UserButton, useUser } from "@clerk/nextjs";
 
 import {
-  ArrowLeftRight,
-  BarChart3,
-  Bell,
-  BookOpen,
   Brain,
-  Camera,
   ChevronDown,
   ChevronUp,
-  DollarSign,
-  UserCheck,
-  Gavel,
-  Home,
-  KeyRound,
-  Layers,
   LogIn,
-  MessageSquare,
-  Info,
   MoreHorizontal,
   Shield,
-  ShoppingBag,
-  Wallet,
   X,
 } from "lucide-react";
 
-import { supabase } from "@/lib/supabase";
+import { getNavLinks, isNavLinkActive } from "@/lib/navLinks";
 
 import { useSubscription } from "@/hooks/useSubscription";
 
 import AdminAlertBadge from "@/components/AdminAlertBadge";
+import { useUnreadMessages } from "@/components/Providers";
 import { NotificationBell } from "./NotificationBell";
 import { ChestIcon } from "./icons/ChestIcon";
 
@@ -194,12 +180,11 @@ const faqs = [
 
 export function Navigation() {
   const pathname = usePathname();
-  const { user, isSignedIn } = useUser();
+  const { isSignedIn } = useUser();
   const { isAdmin } = useSubscription();
+  const unreadCount = useUnreadMessages();
   const [showProfessor, setShowProfessor] = useState(false);
   const [expandedFAQ, setExpandedFAQ] = useState<number | null>(null);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [profileId, setProfileId] = useState<string | null>(null);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
   // Hydration-safe mount flag. Server-render is always auth-unaware, so any
@@ -243,113 +228,21 @@ export function Navigation() {
     };
   }, [showMoreMenu]);
 
-  // Fetch profile ID for broadcast subscription
-  useEffect(() => {
-    if (!isSignedIn) return;
-    fetch("/api/username/current")
-      .then((r) => r.ok ? r.json() : null)
-      .then((data) => { if (data?.profileId) setProfileId(data.profileId); })
-      .catch(() => {});
-  }, [isSignedIn]);
-
-  // Fetch initial unread count
-  useEffect(() => {
-    if (!isSignedIn) return;
-
-    const fetchUnread = async () => {
-      try {
-        const res = await fetch("/api/messages/unread-count");
-        if (res.ok) {
-          const data = await res.json();
-          setUnreadCount(data.count);
-        }
-      } catch {
-        // Ignore errors silently
-      }
-    };
-
-    fetchUnread();
-  }, [isSignedIn]);
-
-  // Subscribe to broadcast for unread message updates
-  useEffect(() => {
-    if (!profileId) return;
-
-    const fetchUnread = async () => {
-      try {
-        const res = await fetch("/api/messages/unread-count");
-        if (res.ok) {
-          const data = await res.json();
-          setUnreadCount(data.count);
-        }
-      } catch {
-        // Ignore errors silently
-      }
-    };
-
-    const channel = supabase
-      .channel(`user:${profileId}:messages`)
-      .on("broadcast", { event: "unread-update" }, () => {
-        fetchUnread();
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [profileId]);
-
-  // Guest primary nav links
-  const guestPrimaryLinks = [
-    { href: "/", label: "Home", icon: Home },
-    { href: "/scan", label: "Scan", icon: Camera },
-    { href: "/collection", label: "Collection", icon: BookOpen },
-    { href: "/shop", label: "Shop", icon: ShoppingBag },
-  ];
-
-  // Guest "More" dropdown - all redirect to sign-in
-  const guestSecondaryLinks = [
-    { href: "/sign-in?redirect=/messages", label: "Messages", icon: MessageSquare },
-    { href: "/sign-in?redirect=/transactions", label: "Transactions", icon: Wallet },
-    { href: "/sign-in?redirect=/my-auctions", label: "My Listings", icon: Gavel },
-    { href: "/sign-in?redirect=/trades", label: "Trades", icon: ArrowLeftRight },
-    { href: "/sign-in?redirect=/stats", label: "Stats", icon: BarChart3 },
-    { href: "/sign-in?redirect=/collection", label: "Lists", icon: Layers },
-    { href: "/about", label: "About", icon: Info },
-  ];
-
-  // Registered user primary nav links
-  const registeredPrimaryLinks = [
-    { href: "/collection", label: "Collection", icon: BookOpen },
-    { href: "/shop", label: "Shop", icon: ShoppingBag },
-    { href: "/stats", label: "Stats", icon: BarChart3 },
-  ];
-
-  // Registered user "More" dropdown
-  const registeredSecondaryLinks = [
-    { href: "/notifications", label: "Inbox", icon: Bell },
-    { href: "/messages", label: "Messages", icon: MessageSquare, showBadge: true },
-    { href: "/transactions", label: "Transactions", icon: Wallet },
-    { href: "/sales", label: "Sales", icon: DollarSign },
-    { href: "/trades", label: "Trades", icon: ArrowLeftRight },
-    { href: "/following", label: "Following", icon: UserCheck },
-    { href: "/collection", label: "Lists", icon: Layers },
-    { href: "/my-auctions", label: "My Listings", icon: Gavel },
-    { href: "/key-hunt", label: "Key Hunt", icon: KeyRound },
-    { href: "/about", label: "About", icon: Info },
-  ];
-
-  // Use appropriate links based on auth state
-  const primaryLinks = isSignedIn ? registeredPrimaryLinks : guestPrimaryLinks;
-  const secondaryLinks = isSignedIn ? registeredSecondaryLinks : guestSecondaryLinks;
+  // Nav link tables are shared with MobileNav via @/lib/navLinks so the two
+  // navs can't drift apart (L-FE18). Unread count + realtime are hoisted into
+  // the shared UnreadMessagesProvider (M-FE9 / M-MS4).
+  const { primary: primaryLinks, secondary: secondaryLinks } = getNavLinks(!!isSignedIn);
 
   return (
     <>
-      <nav className="bg-pop-yellow border-b-4 border-pop-black shadow-comic">
+      <nav
+        aria-label="Primary"
+        className="bg-pop-yellow border-b-4 border-pop-black shadow-comic"
+      >
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
-            <Link href="/" className="flex items-center space-x-2 group" style={{ WebkitTapHighlightColor: "transparent" }}>
+            <Link href="/" aria-label="Collectors Chest home" className="flex items-center space-x-2 group" style={{ WebkitTapHighlightColor: "transparent" }}>
               <ChestIcon size={56} />
               <span className="font-comic text-xl md:text-2xl text-pop-black tracking-wide md:group-hover:text-pop-red transition-colors whitespace-nowrap">
                 COLLECTORS CHEST
@@ -361,11 +254,12 @@ export function Navigation() {
               {/* Primary navigation links */}
               {primaryLinks.map((link) => {
                 const Icon = link.icon;
-                const isActive = pathname === link.href || (link.href === "/" && pathname === "/");
+                const isActive = isNavLinkActive(pathname, link.href);
                 return (
                   <Link
                     key={link.href}
                     href={link.href}
+                    aria-current={isActive ? "page" : undefined}
                     className={`nav-link-pop flex items-center space-x-2 px-3 py-1.5 transition-all ${
                       isActive
                         ? "bg-pop-white text-pop-black border-2 border-pop-black shadow-comic-sm"
@@ -384,6 +278,9 @@ export function Navigation() {
               <div className="relative" ref={moreMenuRef}>
                 <button
                   onClick={() => setShowMoreMenu(!showMoreMenu)}
+                  aria-haspopup="menu"
+                  aria-expanded={showMoreMenu}
+                  aria-label="More navigation"
                   className={`nav-link-pop flex items-center space-x-2 px-3 py-1.5 transition-all ${
                     secondaryLinks.some((l) => pathname === l.href && !primaryLinks.some((p) => p.href === l.href)) || pathname.startsWith("/admin")
                       ? "bg-pop-white text-pop-black border-2 border-pop-black shadow-comic-sm"
@@ -394,14 +291,15 @@ export function Navigation() {
                   <span className="font-comic text-sm tracking-wide">MORE</span>
                   {isSignedIn && unreadCount > 0 && (
                     <span className="absolute -top-1 -right-1 bg-pop-red text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center border border-pop-black">
-                      {unreadCount > 9 ? "9+" : unreadCount}
+                      <span aria-hidden="true">{unreadCount > 9 ? "9+" : unreadCount}</span>
+                      <span className="sr-only">{unreadCount} unread messages</span>
                     </span>
                   )}
                 </button>
 
                 {/* Dropdown menu */}
                 {showMoreMenu && (
-                  <div className="absolute top-full right-0 mt-2 w-48 bg-pop-white border-3 border-pop-black shadow-comic z-50 max-h-[calc(100vh-120px)] overflow-y-auto">
+                  <div role="menu" className="absolute top-full right-0 mt-2 w-48 bg-pop-white border-3 border-pop-black shadow-comic z-50 max-h-[calc(100vh-120px)] overflow-y-auto">
                     {secondaryLinks.map((link) => {
                       const Icon = link.icon;
                       const isActive = pathname === link.href && !primaryLinks.some((p) => p.href === link.href);
@@ -410,6 +308,8 @@ export function Navigation() {
                           key={link.href}
                           href={link.href}
                           onClick={() => setShowMoreMenu(false)}
+                          role="menuitem"
+                          aria-current={isActive ? "page" : undefined}
                           className={`relative flex items-center space-x-3 px-4 py-3 transition-all border-b border-pop-black/20 last:border-b-0 ${
                             isActive
                               ? "bg-pop-yellow text-pop-black"
@@ -420,9 +320,10 @@ export function Navigation() {
                           <span className="font-comic text-sm tracking-wide">
                             {link.label.toUpperCase()}
                           </span>
-                          {"showBadge" in link && (link as { showBadge?: boolean }).showBadge && unreadCount > 0 && (
+                          {link.showBadge && unreadCount > 0 && (
                             <span className="ml-auto bg-pop-red text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center border border-pop-black">
-                              {unreadCount > 9 ? "9+" : unreadCount}
+                              <span aria-hidden="true">{unreadCount > 9 ? "9+" : unreadCount}</span>
+                              <span className="sr-only">{unreadCount} unread messages</span>
                             </span>
                           )}
                         </Link>
@@ -433,6 +334,8 @@ export function Navigation() {
                       <Link
                         href="/admin/users"
                         onClick={() => setShowMoreMenu(false)}
+                        role="menuitem"
+                        aria-current={pathname.startsWith("/admin") ? "page" : undefined}
                         className={`relative flex items-center space-x-3 px-4 py-3 transition-all border-t border-pop-black/20 ${
                           pathname.startsWith("/admin")
                             ? "bg-pop-red text-pop-white"
@@ -565,6 +468,7 @@ export function Navigation() {
                   >
                     <button
                       onClick={() => setExpandedFAQ(expandedFAQ === index ? null : index)}
+                      aria-expanded={expandedFAQ === index}
                       className="w-full flex items-center justify-between p-4 text-left hover:bg-pop-yellow/20 transition-colors"
                     >
                       <span className="font-sans font-medium text-pop-black pr-4 normal-case">{faq.question}</span>

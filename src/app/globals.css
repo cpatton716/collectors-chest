@@ -407,6 +407,38 @@ body {
 }
 
 /* ============================================
+   FOCUS-VISIBLE (KEYBOARD) INDICATOR
+   ============================================ */
+
+/*
+ * A consistent, high-contrast keyboard focus ring. Uses :focus-visible so it
+ * only appears for keyboard/AT navigation, never on mouse click — preserving
+ * the clean pop-art look for pointer users while making interactive controls
+ * (including the collection filter controls) clearly focusable. Audit refs
+ * M-CO19 / M-CO20.
+ */
+:focus-visible {
+  outline: 3px solid var(--pop-blue);
+  outline-offset: 2px;
+}
+
+/* Pop-art controls already carry their own borders/shadows; give them a yellow
+   ring against the blue/black palette so the focus state reads clearly. */
+.btn-pop:focus-visible,
+.nav-link-pop:focus-visible {
+  outline: 3px solid var(--pop-yellow);
+  outline-offset: 2px;
+}
+
+/* Inputs/selects already swap to a blue shadow on :focus; reinforce keyboard
+   focus with an explicit ring so it survives high-contrast and forced-colors. */
+.input-pop:focus-visible,
+.select-pop:focus-visible {
+  outline: 3px solid var(--pop-blue);
+  outline-offset: 1px;
+}
+
+/* ============================================
    CUSTOM SCROLLBAR - POP ART
    ============================================ */
 
@@ -564,5 +596,32 @@ body {
 
   .border-pop-thick {
     border: 6px solid var(--pop-black);
+  }
+}
+
+/* ============================================
+   REDUCED MOTION
+   ============================================ */
+
+/*
+ * Respect the user's "reduce motion" OS setting. The pop-art animations
+ * (slide-in, pop-in, shake, shimmer, hover translate) are decorative; users who
+ * opt out of motion should get an instant, motion-free experience. We
+ * near-zero all animation/transition durations and disable the skeleton
+ * shimmer and smooth scrolling globally. Audit ref H-CC5.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .skeleton {
+    animation: none !important;
+    background: var(--pop-cream);
   }
 }

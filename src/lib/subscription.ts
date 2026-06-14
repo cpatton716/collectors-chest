@@ -1,3 +1,4 @@
+import { computePlatformFeeDollars, feePercentForTier } from "./stripeConnect";
 import { supabaseAdmin } from "./supabase";
 
 // ============================================
@@ -36,6 +37,89 @@ export interface ScanResult {
 export const GUEST_SCAN_LIMIT = 5;
 export const FREE_MONTHLY_SCAN_LIMIT = 10;
 export const SCAN_PACK_AMOUNT = 10;
+
+// "Unlimited" sentinel surfaced to clients for premium/trialing users.
+export const UNLIMITED_SCANS = 999999;
+
+// Stripe subscription statuses that should NOT be treated as an active
+// (entitlement-granting) subscription. `incomplete`/`incomplete_expired` mean
+// the initial payment never succeeded; `paused` means billing is suspended.
+// M-PAY7. Used by the webhook status mapper and the double-subscription guard.
+export const NON_ACTIVE_STRIPE_STATUSES = [
+  "incomplete",
+  "incomplete_expired",
+  "paused",
+  "canceled",
+  "unpaid",
+] as const;
+
+// ============================================
+// Pure derivation helpers (unit-tested; H-PAY3)
+// ============================================
+
+/**
+ * Derive how many scans a user has left. Premium and trialing users are
+ * unlimited; free users get the monthly allowance (never negative) plus any
+ * purchased scans. Extracted as a pure function so the boundary cases are
+ * unit-testable without a DB. H-PAY3.
+ */
+export function deriveScansRemaining(params: {
+  isPremium: boolean;
+  isTrialing: boolean;
+  scansUsed: number;
+  purchasedScans: number;
+}): number {
+  const { isPremium, isTrialing, scansUsed, purchasedScans } = params;
+  if (isPremium || isTrialing) return UNLIMITED_SCANS;
+  return Math.max(0, FREE_MONTHLY_SCAN_LIMIT - scansUsed) + Math.max(0, purchasedScans);
+}
+
+/**
+ * Whether the user may perform another scan, given their derived remaining
+ * count. Pure companion to {@link deriveScansRemaining}. H-PAY3.
+ */
+export function deriveCanScan(params: {
+  isPremium: boolean;
+  isTrialing: boolean;
+  scansRemaining: number;
+}): boolean {
+  return params.isPremium || params.isTrialing || params.scansRemaining > 0;
+}
+
+/**
+ * Map a raw Stripe subscription status to our internal status. Statuses that
+ * don't grant entitlement (incomplete / incomplete_expired / paused) must NOT
+ * map to "active". M-PAY7 / M-PAY9.
+ *
+ * @param cancelAtPeriodEnd - when true, an otherwise-active subscription is
+ *   reported as "canceled" so the UI can show the wind-down state. M-PAY9.
+ */
+export function mapStripeSubscriptionStatus(
+  stripeStatus: string,
+  cancelAtPeriodEnd: boolean = false
+): SubscriptionStatus {
+  switch (stripeStatus) {
+    case "trialing":
+      return "trialing";
+    case "past_due":
+      return "past_due";
+    case "canceled":
+    case "unpaid":
+    case "incomplete_expired":
+      return "canceled";
+    case "incomplete":
+    case "paused":
+      // Not entitlement-granting and not yet a clean cancellation. Surface as
+      // past_due so the UI nudges the user to fix payment without granting
+      // premium access. M-PAY7.
+      return "past_due";
+    case "active":
+    default:
+      // A still-active subscription flagged to cancel at period end is shown
+      // as canceled (access continues until currentPeriodEnd). M-PAY9.
+      return cancelAtPeriodEnd ? "canceled" : "active";
+  }
+}
 
 // ============================================
 // Core Subscription Functions
@@ -90,15 +174,15 @@ export async function getSubscriptionStatus(profileId: string): Promise<Subscrip
   const isPremium = tier === "premium";
   const purchasedScans = profile.purchased_scans || 0;
 
-  // Calculate remaining scans
-  let scansRemaining: number;
-  if (isPremium || isTrialing) {
-    scansRemaining = 999999; // Unlimited
-  } else {
-    scansRemaining = Math.max(0, FREE_MONTHLY_SCAN_LIMIT - scansUsed) + purchasedScans;
-  }
+  // Calculate remaining scans via the shared pure derivation (H-PAY3).
+  const scansRemaining = deriveScansRemaining({
+    isPremium,
+    isTrialing,
+    scansUsed,
+    purchasedScans,
+  });
 
-  const canScan = isPremium || isTrialing || scansRemaining > 0;
+  const canScan = deriveCanScan({ isPremium, isTrialing, scansRemaining });
 
   // Calculate next reset date (1st of next month)
   const monthResetDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
@@ -157,7 +241,7 @@ export async function reserveScanSlot(
   // Premium and trialing users have unlimited scans - no reservation needed
   if (status.tier === "premium" || status.isTrialing) {
     await logScanUsage(profileId, source);
-    return { success: true, remaining: 999999 };
+    return { success: true, remaining: UNLIMITED_SCANS };
   }
 
   // Check if monthly reset is needed by querying the raw DB value
@@ -597,6 +681,35 @@ export async function updateSubscriptionStatus(
 }
 
 // ============================================
+// Duplicate-subscription guard (H-PAY2)
+// ============================================
+
+/**
+ * Stripe subscription statuses that represent a live, entitlement-granting (or
+ * about-to-be) subscription. Creating a second checkout while one of these is
+ * present would double-bill the customer. H-PAY2.
+ */
+const LIVE_SUBSCRIPTION_STATUSES = new Set([
+  "active",
+  "trialing",
+  "past_due",
+  "incomplete", // payment in progress - don't start a second one on top
+]);
+
+/**
+ * Given a list of a customer's Stripe subscriptions, decide whether starting a
+ * NEW subscription checkout should be rejected because a live one already
+ * exists. Pure so it can be unit-tested without the Stripe SDK. H-PAY2.
+ *
+ * Accepts a minimal shape (`{ status }`) so tests don't need full Stripe types.
+ */
+export function hasLiveSubscription(
+  subscriptions: ReadonlyArray<{ status: string }>
+): boolean {
+  return subscriptions.some((s) => LIVE_SUBSCRIPTION_STATUSES.has(s.status));
+}
+
+// ============================================
 // Listing Limit Functions
 // ============================================
 
@@ -650,27 +763,25 @@ export async function canCreateListing(
 // ============================================
 
 /**
- * Get transaction fee percentage for a user
+ * Get transaction fee percentage for a user. Delegates to the shared
+ * tier→percent helper so the 5/8 split lives in exactly one place. M-PAY10.
  */
 export async function getTransactionFeePercent(profileId: string): Promise<number> {
   const status = await getSubscriptionStatus(profileId);
-
-  // Premium: 5%, Free: 8%
-  if (status?.tier === "premium" || status?.isTrialing) {
-    return 5;
-  }
-  return 8;
+  return feePercentForTier(status?.tier, status?.isTrialing ?? false);
 }
 
 /**
- * Calculate platform fee for a sale
+ * Calculate platform fee for a sale (dollar amounts). Routes through the
+ * canonical cents-based floored fee function so rounding matches checkout
+ * and the fees-paid summary exactly. M-PAY10.
  */
 export async function calculatePlatformFee(
   profileId: string,
   saleAmount: number
 ): Promise<{ feePercent: number; feeAmount: number; sellerReceives: number }> {
   const feePercent = await getTransactionFeePercent(profileId);
-  const feeAmount = Math.round(saleAmount * (feePercent / 100) * 100) / 100;
+  const feeAmount = computePlatformFeeDollars(saleAmount, feePercent);
   const sellerReceives = saleAmount - feeAmount;
 
   return { feePercent, feeAmount, sellerReceives };

@@ -7,7 +7,13 @@ import Stripe from "stripe";
 
 import { isUserSuspended } from "@/lib/adminAuth";
 import { getOrCreateProfile } from "@/lib/db";
-import { getSubscriptionStatus, hasUsedTrial, setStripeCustomerId } from "@/lib/subscription";
+import { mapStripeError, stripe } from "@/lib/stripe";
+import {
+  getSubscriptionStatus,
+  hasLiveSubscription,
+  hasUsedTrial,
+  setStripeCustomerId,
+} from "@/lib/subscription";
 import { validateBody } from "@/lib/validation";
 
 const billingCheckoutBodySchema = z
@@ -17,13 +23,6 @@ const billingCheckoutBodySchema = z
     promoTrial: z.boolean().optional(),
   })
   .strict();
-
-// Initialize Stripe
-const stripe = process.env.STRIPE_SECRET_KEY
-  ? new Stripe(process.env.STRIPE_SECRET_KEY, {
-      apiVersion: "2025-12-15.clover",
-    })
-  : null;
 
 // Price IDs from environment
 const PRICES = {
@@ -110,13 +109,29 @@ export async function POST(request: NextRequest) {
       trialDays = 7;
     }
 
-    // Check if already premium
+    // Subscription checkouts only: reject if a live subscription already
+    // exists, both locally and at Stripe. Checking only our local tier missed
+    // the window between Stripe creating the subscription and the webhook
+    // landing - a quick double-click could create two paid subscriptions.
+    // H-PAY2: list the customer's Stripe subscriptions and reject duplicates.
     if (effectivePriceType !== "scan_pack") {
       const status = await getSubscriptionStatus(profile.id);
       if (status?.tier === "premium") {
         return NextResponse.json(
           { error: "You already have a Premium subscription" },
           { status: 400 }
+        );
+      }
+
+      const existingSubs = await stripe.subscriptions.list({
+        customer: stripeCustomerId,
+        status: "all",
+        limit: 100,
+      });
+      if (hasLiveSubscription(existingSubs.data)) {
+        return NextResponse.json(
+          { error: "You already have an active or pending subscription" },
+          { status: 409 }
         );
       }
     }
@@ -148,10 +163,20 @@ export async function POST(request: NextRequest) {
         priceType: effectivePriceType,
         ...(promoTrial ? { promoTrial: "true" } : {}),
       },
+      // Always collect a payment method, even for trials. Otherwise a trial
+      // that ends without a card on file silently fails to convert and the
+      // subscription lands in `incomplete`, leaving the user unexpectedly
+      // un-premium. M-PAY6.
+      ...(isSubscription ? { payment_method_collection: "always" as const } : {}),
       ...(trialDays
         ? {
             subscription_data: {
               trial_period_days: trialDays,
+              // If the trial ends with no usable payment method, cancel the
+              // subscription rather than leaving it `incomplete`. M-PAY6.
+              trial_settings: {
+                end_behavior: { missing_payment_method: "cancel" as const },
+              },
               metadata: {
                 profileId: profile.id,
                 ...(promoTrial ? { promoTrial: "true" } : {}),
@@ -173,7 +198,10 @@ export async function POST(request: NextRequest) {
       sessionId: session.id,
     });
   } catch (error) {
+    // Log the full error server-side; surface a mapped status/message to the
+    // client (card declines vs. invalid requests vs. generic). L-PAY18.
     console.error("Error creating billing checkout session:", error);
-    return NextResponse.json({ error: "Failed to create checkout session" }, { status: 500 });
+    const { status, message } = mapStripeError(error);
+    return NextResponse.json({ error: message }, { status });
   }
 }

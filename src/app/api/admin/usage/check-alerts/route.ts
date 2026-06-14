@@ -2,11 +2,19 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { createClient } from "@supabase/supabase-js";
 
-import { Redis } from "@upstash/redis";
-
 import { Resend } from "resend";
 
+import { redis } from "@/lib/redis";
 import { supabaseAdmin } from "@/lib/supabase";
+import {
+  ALERT_THRESHOLDS,
+  SCAN_SPEND_LIMITS_CENTS,
+  SERVICE_LIMITS,
+  coverHaikuCostCents,
+  coverHaikuKeys,
+  getUsageWindows,
+  sumScanCostCents,
+} from "@/lib/usageLimits";
 import { calculateFallbackRate, AlertMetric } from "./fallbackRate";
 
 // This endpoint can be called by a cron job to check usage and send alerts
@@ -14,24 +22,6 @@ import { calculateFallbackRate, AlertMetric } from "./fallbackRate";
 
 const CRON_SECRET = process.env.CRON_SECRET;
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "admin@collectors-chest.com";
-
-// Service limits
-const LIMITS = {
-  supabase: { database: 500 * 1024 * 1024 },
-  upstash: { commandsPerDay: 10000 },
-  anthropic: { monthlyBudget: 10 },
-  coverSearch: {
-    monthlyBudgetCents: 1000,
-  },
-  netlify: {
-    bandwidthGB: 100,
-  },
-};
-
-const ALERT_THRESHOLDS = {
-  warning: 0.7,
-  critical: 0.9,
-};
 
 export async function GET(request: NextRequest) {
   try {
@@ -51,12 +41,12 @@ export async function GET(request: NextRequest) {
     try {
       const { data: sizeData } = await supabase.rpc("get_database_size");
       if (sizeData !== null) {
-        const percentage = sizeData / LIMITS.supabase.database;
+        const percentage = sizeData / SERVICE_LIMITS.supabase.database;
         if (percentage >= ALERT_THRESHOLDS.critical) {
           alerts.push({
             name: "Supabase Database",
             current: sizeData,
-            limit: LIMITS.supabase.database,
+            limit: SERVICE_LIMITS.supabase.database,
             percentage,
             alertType: "critical",
           });
@@ -64,7 +54,7 @@ export async function GET(request: NextRequest) {
           alerts.push({
             name: "Supabase Database",
             current: sizeData,
-            limit: LIMITS.supabase.database,
+            limit: SERVICE_LIMITS.supabase.database,
             percentage,
             alertType: "warning",
           });
@@ -76,55 +66,52 @@ export async function GET(request: NextRequest) {
 
     // 2. Check Redis usage
     try {
-      const redis = new Redis({
-        url: process.env.UPSTASH_REDIS_REST_URL!,
-        token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-      });
+      if (redis) {
+        const today = new Date().toISOString().split("T")[0];
+        const dailyKey = `usage:commands:${today}`;
+        const commandCount = (await redis.get<number>(dailyKey)) || 0;
+        const percentage = commandCount / SERVICE_LIMITS.upstash.commandsPerDay;
 
-      const today = new Date().toISOString().split("T")[0];
-      const dailyKey = `usage:commands:${today}`;
-      const commandCount = (await redis.get<number>(dailyKey)) || 0;
-      const percentage = commandCount / LIMITS.upstash.commandsPerDay;
-
-      if (percentage >= ALERT_THRESHOLDS.critical) {
-        alerts.push({
-          name: "Upstash Redis Commands",
-          current: commandCount,
-          limit: LIMITS.upstash.commandsPerDay,
-          percentage,
-          alertType: "critical",
-        });
-      } else if (percentage >= ALERT_THRESHOLDS.warning) {
-        alerts.push({
-          name: "Upstash Redis Commands",
-          current: commandCount,
-          limit: LIMITS.upstash.commandsPerDay,
-          percentage,
-          alertType: "warning",
-        });
+        if (percentage >= ALERT_THRESHOLDS.critical) {
+          alerts.push({
+            name: "Upstash Redis Commands",
+            current: commandCount,
+            limit: SERVICE_LIMITS.upstash.commandsPerDay,
+            percentage,
+            alertType: "critical",
+          });
+        } else if (percentage >= ALERT_THRESHOLDS.warning) {
+          alerts.push({
+            name: "Upstash Redis Commands",
+            current: commandCount,
+            limit: SERVICE_LIMITS.upstash.commandsPerDay,
+            percentage,
+            alertType: "warning",
+          });
+        }
       }
     } catch (e) {
       console.error("Error checking Redis usage:", e);
     }
 
-    // 3. Check API costs (last 30 days)
+    // 3. Check API costs (last 30 days) -- summed from actual scan_analytics
+    //    estimated_cost_cents instead of a comics-count proxy (M-AD3).
     try {
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const { thirtyDaysAgo } = getUsageWindows();
 
-      const { count: recentScans } = await supabase
-        .from("comics")
-        .select("*", { count: "exact", head: true })
-        .gte("created_at", thirtyDaysAgo.toISOString());
+      const { data: scanRows } = await supabase
+        .from("scan_analytics")
+        .select("estimated_cost_cents")
+        .gte("scanned_at", thirtyDaysAgo);
 
-      const estimatedCost = (recentScans || 0) * 0.015;
-      const percentage = estimatedCost / LIMITS.anthropic.monthlyBudget;
+      const estimatedCost = sumScanCostCents(scanRows || []) / 100;
+      const percentage = estimatedCost / SERVICE_LIMITS.anthropic.monthlyBudget;
 
       if (percentage >= ALERT_THRESHOLDS.critical) {
         alerts.push({
           name: "Anthropic API Cost",
           current: estimatedCost,
-          limit: LIMITS.anthropic.monthlyBudget,
+          limit: SERVICE_LIMITS.anthropic.monthlyBudget,
           percentage,
           alertType: "critical",
         });
@@ -132,7 +119,7 @@ export async function GET(request: NextRequest) {
         alerts.push({
           name: "Anthropic API Cost",
           current: estimatedCost,
-          limit: LIMITS.anthropic.monthlyBudget,
+          limit: SERVICE_LIMITS.anthropic.monthlyBudget,
           percentage,
           alertType: "warning",
         });
@@ -141,42 +128,37 @@ export async function GET(request: NextRequest) {
       console.error("Error checking API costs:", e);
     }
 
-    // 4. Check Cover Search cost (last 30 days)
+    // 4. Check Cover Search cost (last 30 days) -- single mget instead of 30
+    //    sequential GETs (M-AD4).
     try {
-      const redis = new Redis({
-        url: process.env.UPSTASH_REDIS_REST_URL!,
-        token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-      });
+      if (redis) {
+        const keys = coverHaikuKeys();
+        const counts = (await redis.mget<(number | null)[]>(...keys)) ?? [];
+        const totalHaikuCalls = counts.reduce<number>(
+          (sum, c) => sum + (Number(c) || 0),
+          0
+        );
+        const coverCostCents = coverHaikuCostCents(totalHaikuCalls);
+        const coverPercentage =
+          coverCostCents / SERVICE_LIMITS.coverSearch.monthlyBudgetCents;
 
-      let totalHaikuCalls = 0;
-      const now = new Date();
-      for (let i = 0; i < 30; i++) {
-        const date = new Date(now);
-        date.setDate(date.getDate() - i);
-        const key = `usage:cover-haiku:${date.toISOString().split("T")[0]}`;
-        const count = (await redis.get<number>(key)) || 0;
-        totalHaikuCalls += count;
-      }
-      const coverCostCents = totalHaikuCalls * 0.2;
-      const coverPercentage =
-        coverCostCents / LIMITS.coverSearch.monthlyBudgetCents;
-
-      if (coverPercentage >= ALERT_THRESHOLDS.critical) {
-        alerts.push({
-          name: "Cover Search Cost (30d)",
-          current: coverCostCents / 100,
-          limit: LIMITS.coverSearch.monthlyBudgetCents / 100,
-          percentage: coverPercentage,
-          alertType: "critical" as const,
-        });
-      } else if (coverPercentage >= ALERT_THRESHOLDS.warning) {
-        alerts.push({
-          name: "Cover Search Cost (30d)",
-          current: coverCostCents / 100,
-          limit: LIMITS.coverSearch.monthlyBudgetCents / 100,
-          percentage: coverPercentage,
-          alertType: "warning" as const,
-        });
+        if (coverPercentage >= ALERT_THRESHOLDS.critical) {
+          alerts.push({
+            name: "Cover Search Cost (30d)",
+            current: coverCostCents / 100,
+            limit: SERVICE_LIMITS.coverSearch.monthlyBudgetCents / 100,
+            percentage: coverPercentage,
+            alertType: "critical" as const,
+          });
+        } else if (coverPercentage >= ALERT_THRESHOLDS.warning) {
+          alerts.push({
+            name: "Cover Search Cost (30d)",
+            current: coverCostCents / 100,
+            limit: SERVICE_LIMITS.coverSearch.monthlyBudgetCents / 100,
+            percentage: coverPercentage,
+            alertType: "warning" as const,
+          });
+        }
       }
     } catch (e) {
       console.error("Error checking cover search costs:", e);
@@ -196,13 +178,13 @@ export async function GET(request: NextRequest) {
         if (accountRes.ok) {
           const bwData = await accountRes.json();
           const usedGB = (bwData.used || 0) / (1024 * 1024 * 1024);
-          const percentage = usedGB / LIMITS.netlify.bandwidthGB;
+          const percentage = usedGB / SERVICE_LIMITS.netlify.bandwidthGB;
 
           if (percentage >= ALERT_THRESHOLDS.critical) {
             alerts.push({
               name: "Netlify Bandwidth",
               current: Math.round(usedGB * 100) / 100,
-              limit: LIMITS.netlify.bandwidthGB,
+              limit: SERVICE_LIMITS.netlify.bandwidthGB,
               percentage,
               alertType: "critical" as const,
             });
@@ -210,7 +192,7 @@ export async function GET(request: NextRequest) {
             alerts.push({
               name: "Netlify Bandwidth",
               current: Math.round(usedGB * 100) / 100,
-              limit: LIMITS.netlify.bandwidthGB,
+              limit: SERVICE_LIMITS.netlify.bandwidthGB,
               percentage,
               alertType: "warning" as const,
             });
@@ -223,11 +205,7 @@ export async function GET(request: NextRequest) {
 
     // 6. Scan Cost Alerts (from scan_analytics table)
     try {
-      const now = new Date();
-      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-      // getDate() - getDay() can produce negative values at month boundaries.
-      // JavaScript Date handles this correctly, rolling back to the previous month.
-      const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay()).toISOString();
+      const { todayStart, weekStart } = getUsageWindows();
 
       // Today's scan spend
       const { data: todayScans } = await supabaseAdmin
@@ -235,10 +213,8 @@ export async function GET(request: NextRequest) {
         .select("estimated_cost_cents")
         .gte("scanned_at", todayStart);
 
-      const todaySpendCents = (todayScans || []).reduce(
-        (sum, s) => sum + Number(s.estimated_cost_cents), 0
-      );
-      const dailyLimitCents = 300; // $3.00
+      const todaySpendCents = sumScanCostCents(todayScans || []);
+      const dailyLimitCents = SCAN_SPEND_LIMITS_CENTS.daily; // $3.00
 
       if (todaySpendCents >= dailyLimitCents) {
         alerts.push({
@@ -256,10 +232,8 @@ export async function GET(request: NextRequest) {
         .select("estimated_cost_cents")
         .gte("scanned_at", weekStart);
 
-      const weekSpendCents = (weekScans || []).reduce(
-        (sum, s) => sum + Number(s.estimated_cost_cents), 0
-      );
-      const weeklyLimitCents = 1500; // $15.00
+      const weekSpendCents = sumScanCostCents(weekScans || []);
+      const weeklyLimitCents = SCAN_SPEND_LIMITS_CENTS.weekly; // $15.00
 
       if (weekSpendCents >= weeklyLimitCents) {
         alerts.push({

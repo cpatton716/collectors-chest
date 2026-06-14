@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-import { getAdminProfile } from "@/lib/adminAuth";
+import { getAdminProfile, logAdminAction } from "@/lib/adminAuth";
 import { createKeyComic, searchKeyComics } from "@/lib/keyComicsDb";
 import { validateBody, validateQuery } from "@/lib/validation";
 
@@ -68,6 +68,12 @@ export async function POST(request: NextRequest) {
     if (!result.success) {
       return NextResponse.json({ error: result.error }, { status: 400 });
     }
+
+    await logAdminAction(adminProfile.id, "add_key_comic", undefined, {
+      keyComicId: result.id,
+      title,
+      issueNumber,
+    });
 
     return NextResponse.json({ id: result.id }, { status: 201 });
   } catch (error) {

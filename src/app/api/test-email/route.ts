@@ -13,12 +13,16 @@ export async function GET() {
     return NextResponse.json({ error: "RESEND_API_KEY not configured" }, { status: 500 });
   }
 
+  // Recipient comes from TEST_EMAIL_RECIPIENT so no personal address is
+  // hardcoded in source. Falls back to a safe placeholder if unset.
+  const recipient = process.env.TEST_EMAIL_RECIPIENT || "delivered@resend.dev";
+
   const resend = new Resend(process.env.RESEND_API_KEY);
 
   try {
     const { data, error } = await resend.emails.send({
       from: "Collectors Chest <notifications@collectors-chest.com>",
-      to: "chrispatton716@gmail.com", // Your email from the screenshot
+      to: recipient,
       subject: "Test Email from Collectors Chest",
       html: `
         <h2>Email is working!</h2>

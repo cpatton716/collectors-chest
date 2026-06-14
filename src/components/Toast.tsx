@@ -74,23 +74,38 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastContext.Provider value={{ showToast }}>
       {children}
 
-      {/* Toast Container */}
-      <div className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none">
-        {toasts.map((toast) => (
-          <div
-            key={toast.id}
-            className={`pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-lg border shadow-lg animate-slide-in ${getStyles(toast.type)}`}
-          >
-            {getIcon(toast.type)}
-            <p className="text-sm font-medium">{toast.message}</p>
-            <button
-              onClick={() => dismissToast(toast.id)}
-              className="ml-2 p-1 hover:bg-black/5 rounded transition-colors"
+      {/*
+        Toast Container — announced to assistive tech. Errors/warnings use the
+        assertive live region (interrupts) while success/info use polite. Each
+        toast is a status role; the dismiss control has an explicit label so
+        it's not announced as an unlabeled button. Audit ref H-CC6.
+      */}
+      <div
+        aria-live="polite"
+        aria-atomic="false"
+        className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none"
+      >
+        {toasts.map((toast) => {
+          const assertive = toast.type === "error" || toast.type === "warning";
+          return (
+            <div
+              key={toast.id}
+              role="status"
+              aria-live={assertive ? "assertive" : "polite"}
+              className={`pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-lg border shadow-lg animate-slide-in ${getStyles(toast.type)}`}
             >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        ))}
+              {getIcon(toast.type)}
+              <p className="text-sm font-medium">{toast.message}</p>
+              <button
+                onClick={() => dismissToast(toast.id)}
+                aria-label="Dismiss notification"
+                className="ml-2 p-1 hover:bg-black/5 rounded transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          );
+        })}
       </div>
     </ToastContext.Provider>
   );

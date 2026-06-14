@@ -12,9 +12,10 @@ import {
 } from "@/lib/usernameValidation";
 import { validateBody, validateQuery } from "@/lib/validation";
 
-// Supabase DB constraint: username must match ^[a-z0-9_]{3,20}$
-// Surfacing the regex here gives clean 400 errors instead of DB constraint violations.
-const USERNAME_REGEX = /^[a-z0-9_]{3,20}$/;
+// Format/length/character rules (mirroring the Supabase DB constraint
+// ^[a-z0-9_]{3,20}$) plus profanity and reserved-name checks all live in
+// validateUsernameComplete - we rely on it here rather than re-implementing a
+// standalone regex pass. (L-SO9)
 
 const usernameQuerySchema = z.object({
   username: z
@@ -66,15 +67,8 @@ export async function GET(request: NextRequest) {
     const { username } = validated.data;
     const normalized = normalizeUsername(username);
 
-    // Post-normalization regex check mirrors the Supabase DB constraint.
-    if (!USERNAME_REGEX.test(normalized)) {
-      return NextResponse.json({
-        available: false,
-        error: "Username must be 3-20 lowercase letters, digits, or underscores",
-      });
-    }
-
-    // Validate format and check profanity
+    // Validate format (length/characters mirroring the DB constraint), profanity,
+    // and reserved names in one pass.
     const validation = validateUsernameComplete(normalized);
     if (!validation.isValid) {
       return NextResponse.json({
@@ -135,15 +129,8 @@ export async function POST(request: NextRequest) {
     const { username, displayPreference } = validated.data;
     const normalized = normalizeUsername(username);
 
-    // Post-normalization regex check mirrors the Supabase DB constraint (^[a-z0-9_]{3,20}$).
-    if (!USERNAME_REGEX.test(normalized)) {
-      return NextResponse.json(
-        { error: "Username must be 3-20 lowercase letters, digits, or underscores" },
-        { status: 400 }
-      );
-    }
-
-    // Validate format and check profanity (includes the regex above plus profanity + reserved)
+    // Validate format (length/characters mirroring the DB constraint), profanity,
+    // and reserved names in one pass.
     const validation = validateUsernameComplete(normalized);
     if (!validation.isValid) {
       return NextResponse.json({ error: validation.error }, { status: 400 });

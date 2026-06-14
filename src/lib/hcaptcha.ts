@@ -4,7 +4,9 @@ export const HCAPTCHA_SITE_KEY = IS_DEV
   ? "10000000-ffff-ffff-ffff-000000000001"
   : (process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY ?? "");
 
-const HCAPTCHA_SECRET = IS_DEV
+// Named to mirror the underlying env var (HCAPTCHA_SECRET_KEY) so the local
+// constant and the configured secret can't be confused. Audit ref M-DOC7.
+const HCAPTCHA_SECRET_KEY = IS_DEV
   ? "0x0000000000000000000000000000000000000000"
   : (process.env.HCAPTCHA_SECRET_KEY ?? "");
 
@@ -55,12 +57,12 @@ export async function verifyCaptchaToken(
   if (!token) {
     return { valid: false, reason: "missing_token" };
   }
-  if (!HCAPTCHA_SECRET) {
+  if (!HCAPTCHA_SECRET_KEY) {
     return { valid: false, reason: "not_configured" };
   }
 
   const params = new URLSearchParams();
-  params.set("secret", HCAPTCHA_SECRET);
+  params.set("secret", HCAPTCHA_SECRET_KEY);
   params.set("response", token);
   if (clientIp) params.set("remoteip", clientIp);
   params.set("sitekey", HCAPTCHA_SITE_KEY);

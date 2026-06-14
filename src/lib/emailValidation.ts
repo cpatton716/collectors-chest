@@ -7,8 +7,16 @@ import { promisify } from "util";
 
 const resolveMx = promisify(dns.resolveMx);
 
-// Common disposable email domains to block
+// Best-effort disposable email blocklist.
+//
+// NOTE: This is intentionally a curated, hand-maintained list — NOT a complete
+// defense. New disposable providers appear constantly, so this list will always
+// lag. It exists to cheaply filter the most common throwaway domains used to
+// farm bonus scans. The MX-record check in `validateEmail` is the broader gate.
+// If abuse pressure grows, vendor a maintained list (e.g. the
+// `disposable-email-domains` package) instead of expanding this by hand.
 const DISPOSABLE_DOMAINS = new Set([
+  // Original set
   "mailinator.com",
   "guerrillamail.com",
   "tempmail.com",
@@ -24,6 +32,53 @@ const DISPOSABLE_DOMAINS = new Set([
   "tempail.com",
   "mohmal.com",
   "emailondeck.com",
+  // Common Mailinator / GuerrillaMail aliases
+  "guerrillamail.net",
+  "guerrillamail.org",
+  "guerrillamail.biz",
+  "guerrillamail.de",
+  "sharklasers.com",
+  "grr.la",
+  "spam4.me",
+  "pokemail.net",
+  // 10minutemail / temp-mail families
+  "10minutemail.net",
+  "10minutemail.org",
+  "20minutemail.com",
+  "temp-mail.io",
+  "tempmail.io",
+  "tempmailo.com",
+  "tempr.email",
+  "tmail.com",
+  "mintemail.com",
+  "moakt.com",
+  "trbvm.com",
+  // Other widely-used throwaway providers
+  "mailnesia.com",
+  "mailcatch.com",
+  "spambox.us",
+  "spambog.com",
+  "fakemailgenerator.com",
+  "discard.email",
+  "discardmail.com",
+  "getairmail.com",
+  "throwawaymail.com",
+  "tempinbox.com",
+  "inboxbear.com",
+  "harakirimail.com",
+  "maileater.com",
+  "mvrht.com",
+  "nwytg.net",
+  "tmpmail.org",
+  "tmpmail.net",
+  "1secmail.com",
+  "1secmail.org",
+  "1secmail.net",
+  "emltmp.com",
+  "burnermail.io",
+  "mailpoof.com",
+  "luxusmail.org",
+  "byom.de",
 ]);
 
 export interface EmailValidationResult {
@@ -33,17 +88,19 @@ export interface EmailValidationResult {
 }
 
 /**
- * Validate email format using regex
+ * Validate email format using regex.
+ * Exported for unit testing of the pure format logic.
  */
-function isValidEmailFormat(email: string): boolean {
+export function isValidEmailFormat(email: string): boolean {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email);
 }
 
 /**
- * Check if email domain is a known disposable email provider
+ * Check if email domain is a known disposable email provider.
+ * Exported for unit testing of the pure blocklist logic.
  */
-function isDisposableEmail(email: string): boolean {
+export function isDisposableEmail(email: string): boolean {
   const domain = email.split("@")[1]?.toLowerCase();
   return domain ? DISPOSABLE_DOMAINS.has(domain) : false;
 }

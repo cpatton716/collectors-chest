@@ -7,9 +7,13 @@
 
 // Patterns that BLOCK the message from being sent
 const BLOCKED_PATTERNS: { pattern: RegExp; reason: string }[] = [
-  // Phone numbers (various formats)
+  // Phone numbers with explicit separators (e.g. 555-123-4567, (555) 123 4567,
+  // +1 555.123.4567). Requiring a separator between the area code and the
+  // remaining groups avoids matching plain 10-digit runs such as order IDs,
+  // ISBNs, or comic catalog numbers. Word boundaries prevent matching the
+  // middle of a longer digit string.
   {
-    pattern: /(\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/,
+    pattern: /(?<!\d)(?:\+?\d{1,3}[-.\s]+)?\(?\d{3}\)?[-.\s]+\d{3}[-.\s]+\d{4}(?!\d)/,
     reason: "Phone numbers are not allowed in messages",
   },
   // Email addresses
@@ -21,6 +25,14 @@ const BLOCKED_PATTERNS: { pattern: RegExp; reason: string }[] = [
 
 // Patterns that FLAG the message for review (but still send it)
 const FLAG_PATTERNS: { pattern: RegExp; reason: string }[] = [
+  // Ambiguous contact-like number runs: a bare 10-digit sequence (no
+  // separators) could be a phone number but is just as likely an order ID,
+  // ISBN, or catalog number. Downgrade to FLAG rather than BLOCK to reduce
+  // false positives while still surfacing for review.
+  {
+    pattern: /(?<!\d)\d{10}(?!\d)/,
+    reason: "Possible contact number - flagged for review",
+  },
   // Payment apps
   {
     pattern: /\b(venmo|zelle|paypal|cashapp|cash\s*app)\b/i,

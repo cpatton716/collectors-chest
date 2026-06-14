@@ -81,16 +81,24 @@ export async function DELETE(_request: NextRequest, context: RouteParams) {
 }
 
 // GET - Check follow status and get counts
-export async function GET(_request: NextRequest, context: RouteParams) {
+export async function GET(request: NextRequest, context: RouteParams) {
   try {
-    const { userId: clerkId } = await auth();
     const rawParams = await context.params;
     const paramsResult = validateParams(paramsSchema, rawParams);
     if (!paramsResult.success) return paramsResult.response;
     const { userId } = paramsResult.data;
 
-    // Fetch counts in parallel (always available, even for unauthenticated users)
+    // Lightweight path: callers that only need follower/following counts (e.g.
+    // the settings page showing your own counts) can pass ?countsOnly=true to
+    // skip the auth round-trip, profile lookup, and follow-status check. (L-SO11)
+    const countsOnly = request.nextUrl.searchParams.get("countsOnly") === "true";
     const counts = await getFollowCounts(userId);
+
+    if (countsOnly) {
+      return NextResponse.json({ ...counts });
+    }
+
+    const { userId: clerkId } = await auth();
 
     // If not authenticated, return not following but include counts
     if (!clerkId) {

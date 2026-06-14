@@ -1,13 +1,9 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import Stripe from "stripe";
+import { invalidateProfileCacheByProfileId } from "@/lib/db";
+import { stripe } from "@/lib/stripe";
+import { computePlatformFeeDollars } from "@/lib/stripeConnect";
 import { supabaseAdmin } from "@/lib/supabase";
-
-const stripe = process.env.STRIPE_SECRET_KEY
-  ? new Stripe(process.env.STRIPE_SECRET_KEY, {
-      apiVersion: "2025-12-15.clover",
-    })
-  : null;
 
 export async function GET() {
   try {
@@ -36,11 +32,13 @@ export async function GET() {
       .eq("seller_id", profile.id)
       .eq("status", "sold");
 
+    // Route fee math through the canonical cents-based floored helper so the
+    // fees-paid summary matches what was actually charged at checkout. M-PAY10.
     const totalFeesPaid = (soldAuctions || []).reduce(
       (sum: number, auction: { winning_bid: number | null; current_bid: number | null; starting_price: number | null; platform_fee_percent: number | null }) => {
         const salePrice = auction.winning_bid || auction.current_bid || auction.starting_price || 0;
         const feePercent = auction.platform_fee_percent || 8;
-        return sum + Math.round(salePrice * (feePercent / 100) * 100) / 100;
+        return sum + computePlatformFeeDollars(salePrice, feePercent);
       },
       0
     );
@@ -70,6 +68,7 @@ export async function GET() {
         .from("profiles")
         .update({ stripe_connect_onboarding_complete: isComplete })
         .eq("stripe_connect_account_id", profile.stripe_connect_account_id);
+      await invalidateProfileCacheByProfileId(profile.id); // M-PAY11
     }
 
     return NextResponse.json({

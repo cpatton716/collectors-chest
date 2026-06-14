@@ -1,13 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import Stripe from "stripe";
+import { auth } from "@clerk/nextjs/server";
 import { z } from "zod";
+import { invalidateProfileCacheByProfileId } from "@/lib/db";
+import { stripe } from "@/lib/stripe";
 import { supabaseAdmin } from "@/lib/supabase";
-
-const stripe = process.env.STRIPE_SECRET_KEY
-  ? new Stripe(process.env.STRIPE_SECRET_KEY, {
-      apiVersion: "2025-12-15.clover",
-    })
-  : null;
 
 // Stripe Connect account IDs follow `acct_XXXX...` format (not a UUID).
 const onboardingReturnQuerySchema = z.object({
@@ -24,6 +20,16 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(new URL("/profile?connect=error", req.url));
   }
 
+  // M-PAY12: require authentication. Previously this route updated the profile
+  // matching `account_id` with no auth, so any logged-out caller could flip
+  // another seller's onboarding flag (IDOR). We now require a session and only
+  // update the row owned by the authenticated user, AND verify the account_id
+  // actually belongs to that user.
+  const { userId } = await auth();
+  if (!userId) {
+    return NextResponse.redirect(new URL("/sign-in", req.url));
+  }
+
   const parsed = onboardingReturnQuerySchema.safeParse(
     Object.fromEntries(req.nextUrl.searchParams.entries())
   );
@@ -33,13 +39,28 @@ export async function GET(req: NextRequest) {
   const accountId = parsed.data.account_id;
 
   try {
+    // Confirm the Connect account belongs to the authenticated user before we
+    // touch anything.
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("id, stripe_connect_account_id")
+      .eq("clerk_user_id", userId)
+      .maybeSingle();
+
+    if (!profile || profile.stripe_connect_account_id !== accountId) {
+      return NextResponse.redirect(new URL("/profile?connect=error", req.url));
+    }
+
     const account = await stripe.accounts.retrieve(accountId);
     const isComplete = account.charges_enabled && account.details_submitted;
 
+    // Filter the update by the authenticated user's own id (M-PAY12).
     await supabaseAdmin
       .from("profiles")
       .update({ stripe_connect_onboarding_complete: isComplete })
-      .eq("stripe_connect_account_id", accountId);
+      .eq("id", profile.id);
+
+    await invalidateProfileCacheByProfileId(profile.id); // M-PAY11
 
     const status = isComplete ? "success" : "incomplete";
     return NextResponse.redirect(

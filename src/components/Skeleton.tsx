@@ -4,8 +4,11 @@ interface SkeletonProps {
   className?: string;
 }
 
+// The base shimmer block is purely decorative — the surrounding container
+// carries the role=status/aria-busy announcement (see CollectionPageSkeleton),
+// so each individual bar is hidden from assistive tech to avoid noise. L-CC37.
 export function Skeleton({ className = "" }: SkeletonProps) {
-  return <div className={`skeleton rounded ${className}`} />;
+  return <div aria-hidden="true" className={`skeleton rounded ${className}`} />;
 }
 
 export function ComicCardSkeleton() {
@@ -53,7 +56,8 @@ export function StatsCardSkeleton() {
 
 export function CollectionPageSkeleton() {
   return (
-    <div className="max-w-7xl mx-auto">
+    <div role="status" aria-busy="true" className="max-w-7xl mx-auto">
+      <span className="sr-only">Loading collection…</span>
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div className="space-y-2">

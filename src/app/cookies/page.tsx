@@ -1,8 +1,12 @@
-"use client";
-
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { ArrowLeft } from "lucide-react";
+
+export const metadata: Metadata = {
+  title: "Cookie & Tracking Policy - Collectors Chest",
+  description: "How Collectors Chest uses cookies and tracking technologies.",
+};
 
 export default function CookieTrackingPolicyPage() {
   return (

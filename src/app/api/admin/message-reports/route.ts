@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-import { getAdminProfile, logAdminAction } from "@/lib/adminAuth";
+import { getAdminProfile } from "@/lib/adminAuth";
 import { supabaseAdmin } from "@/lib/supabase";
 import { validateQuery } from "@/lib/validation";
 
@@ -54,7 +54,8 @@ export async function GET(request: NextRequest) {
 
     if (error) throw error;
 
-    await logAdminAction(adminProfile.id, "view_reports", undefined);
+    // Read-only listing: no audit-log write (L-AD2). Mutating actions on a
+    // report (status changes) are logged where the mutation happens.
 
     return NextResponse.json({
       reports: data,

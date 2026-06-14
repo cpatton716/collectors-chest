@@ -56,6 +56,55 @@ const tabs: Tab[] = [
   { id: "billing", label: "Billing", icon: CreditCard },
 ];
 
+// Target square dimension (px) for uploaded avatars. Clerk renders avatars at
+// small sizes, so anything larger than this is wasted bytes. (L-SO10)
+const AVATAR_TARGET_SIZE = 256;
+const AVATAR_JPEG_QUALITY = 0.85;
+
+/**
+ * Downscale + center-crop an image file to a square AVATAR_TARGET_SIZE canvas
+ * and re-encode as JPEG before upload. Falls back to the original file if the
+ * browser canvas pipeline is unavailable or the image fails to decode. (L-SO10)
+ */
+async function downscaleAvatar(file: File): Promise<File> {
+  try {
+    const bitmapUrl = URL.createObjectURL(file);
+    try {
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const image = new window.Image();
+        image.onload = () => resolve(image);
+        image.onerror = reject;
+        image.src = bitmapUrl;
+      });
+
+      const canvas = document.createElement("canvas");
+      canvas.width = AVATAR_TARGET_SIZE;
+      canvas.height = AVATAR_TARGET_SIZE;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return file;
+
+      // Center-crop to a square, then scale into the target canvas.
+      const side = Math.min(img.width, img.height);
+      const sx = (img.width - side) / 2;
+      const sy = (img.height - side) / 2;
+      ctx.drawImage(img, sx, sy, side, side, 0, 0, AVATAR_TARGET_SIZE, AVATAR_TARGET_SIZE);
+
+      const blob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob(resolve, "image/jpeg", AVATAR_JPEG_QUALITY)
+      );
+      if (!blob) return file;
+
+      const name = file.name.replace(/\.[^.]+$/, "") || "avatar";
+      return new File([blob], `${name}.jpg`, { type: "image/jpeg" });
+    } finally {
+      URL.revokeObjectURL(bitmapUrl);
+    }
+  } catch (error) {
+    console.error("Avatar downscale failed, uploading original:", error);
+    return file;
+  }
+}
+
 // Username availability state
 interface UsernameAvailability {
   available: boolean;
@@ -243,7 +292,8 @@ export function CustomProfilePage() {
       if (!profileId) return;
       setIsLoadingFollowCounts(true);
       try {
-        const res = await fetch(`/api/follows/${profileId}`);
+        // Counts-only path skips the follow-status check / auth round-trip (L-SO11).
+        const res = await fetch(`/api/follows/${profileId}?countsOnly=true`);
         if (res.ok) {
           const data = await res.json();
           setFollowerCount(data.followerCount || 0);
@@ -375,7 +425,11 @@ export function CustomProfilePage() {
           const data = await res.json();
           setShowFinancials(data.showFinancials ?? true);
         }
-      } catch {}
+      } catch (error) {
+        // Non-fatal: fall back to the default (financials shown). Log so the
+        // failure is visible rather than silently swallowed (M-SC15).
+        console.error("Failed to fetch display preferences:", error);
+      }
       setPrefsFetched(true);
     }
     fetchPreferences();
@@ -475,7 +529,9 @@ export function CustomProfilePage() {
     setAvatarError(null);
 
     try {
-      await user.setProfileImage({ file });
+      // Downscale/compress to a 256px square before upload (L-SO10).
+      const optimized = await downscaleAvatar(file);
+      await user.setProfileImage({ file: optimized });
     } catch (error) {
       console.error("Failed to upload avatar:", error);
       setAvatarError("Failed to upload avatar");

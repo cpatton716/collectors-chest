@@ -159,20 +159,11 @@ export async function submitFeedback(
     return { feedback: null, error: eligibility.reason || "Not eligible to leave feedback" };
   }
 
-  // Check if feedback already exists
-  const { data: existing } = await supabaseAdmin
-    .from("transaction_feedback")
-    .select("id")
-    .eq("transaction_id", input.transactionId)
-    .eq("transaction_type", input.transactionType)
-    .eq("reviewer_id", reviewerId)
-    .single();
-
-  if (existing) {
-    return { feedback: null, error: "Feedback already submitted for this transaction" };
-  }
-
-  // Insert feedback
+  // No separate "does feedback already exist?" SELECT here - the
+  // (transaction_id, transaction_type, reviewer_id) unique constraint is the
+  // source of truth, and checkFeedbackEligibility already short-circuits the
+  // common duplicate case above. We rely on the 23505 violation to handle the
+  // race where two submissions land at once. (L-SO7)
   const { data, error } = await supabaseAdmin
     .from("transaction_feedback")
     .insert({
@@ -192,6 +183,9 @@ export async function submitFeedback(
     .single();
 
   if (error) {
+    if (error.code === "23505") {
+      return { feedback: null, error: "Feedback already submitted for this transaction" };
+    }
     console.error("[creatorCreditsDb] Failed to submit feedback:", error);
     return { feedback: null, error: "Failed to submit feedback" };
   }
@@ -361,24 +355,24 @@ export async function getUserFeedback(
   limit: number = 20,
   offset: number = 0
 ): Promise<{ feedback: TransactionFeedback[]; total: number; error: string | null }> {
-  // Get total count
-  const { count } = await supabaseAdmin
-    .from("transaction_feedback")
-    .select("*", { count: "exact", head: true })
-    .eq("reviewee_id", userId);
-
-  // Get paginated feedback
-  const { data, error } = await supabaseAdmin
-    .from("transaction_feedback")
-    .select(
-      `
+  // Run the count and the paginated select in parallel rather than serially (L-SO6).
+  const [{ count }, { data, error }] = await Promise.all([
+    supabaseAdmin
+      .from("transaction_feedback")
+      .select("*", { count: "exact", head: true })
+      .eq("reviewee_id", userId),
+    supabaseAdmin
+      .from("transaction_feedback")
+      .select(
+        `
       *,
       reviewer:profiles!reviewer_id(display_name, username)
     `
-    )
-    .eq("reviewee_id", userId)
-    .order("created_at", { ascending: false })
-    .range(offset, offset + limit - 1);
+      )
+      .eq("reviewee_id", userId)
+      .order("created_at", { ascending: false })
+      .range(offset, offset + limit - 1),
+  ]);
 
   if (error) {
     console.error("[creatorCreditsDb] Failed to get user feedback:", error);

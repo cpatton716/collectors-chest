@@ -66,36 +66,47 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // For each flagged user, look up actual strikes inside the rolling
-    // window from the audit log (source of truth for "was this offense
-    // recent?"). Keep the work bounded - up to `limit` users per page.
+    // Look up actual strikes inside the rolling window from the audit log
+    // (source of truth for "was this offense recent?"). Replace the per-user
+    // N+1 count loop with a single grouped query for this page's users, then
+    // tally per actor in memory (L-AD4).
     const windowStart = new Date(
       Date.now() - PAYMENT_MISS_WINDOW_DAYS * 24 * 60 * 60 * 1000
     ).toISOString();
 
-    const enriched = await Promise.all(
-      (flaggedUsers ?? []).map(async (user) => {
-        const { count: strikesInWindow } = await supabaseAdmin
-          .from("auction_audit_log")
-          .select("id", { count: "exact", head: true })
-          .eq("actor_profile_id", user.id)
-          .eq("event_type", "auction_payment_expired")
-          .gte("created_at", windowStart);
+    const pageUserIds = (flaggedUsers ?? []).map((u) => u.id);
+    const strikeCounts = new Map<string, number>();
 
-        return {
-          id: user.id,
-          clerkUserId: user.clerk_user_id,
-          username: user.username,
-          displayName: user.display_name,
-          email: user.email,
-          bidRestrictedAt: user.bid_restricted_at,
-          bidRestrictedReason: user.bid_restricted_reason,
-          paymentMissedCount: user.payment_missed_count ?? 0,
-          paymentMissedAt: user.payment_missed_at,
-          strikesInWindow: strikesInWindow ?? 0,
-        };
-      })
-    );
+    if (pageUserIds.length > 0) {
+      const { data: strikeRows, error: strikeError } = await supabaseAdmin
+        .from("auction_audit_log")
+        .select("actor_profile_id")
+        .in("actor_profile_id", pageUserIds)
+        .eq("event_type", "auction_payment_expired")
+        .gte("created_at", windowStart);
+
+      if (strikeError) {
+        console.error("Error fetching strike counts:", strikeError);
+      } else {
+        for (const row of strikeRows ?? []) {
+          const actorId = row.actor_profile_id as string;
+          strikeCounts.set(actorId, (strikeCounts.get(actorId) ?? 0) + 1);
+        }
+      }
+    }
+
+    const enriched = (flaggedUsers ?? []).map((user) => ({
+      id: user.id,
+      clerkUserId: user.clerk_user_id,
+      username: user.username,
+      displayName: user.display_name,
+      email: user.email,
+      bidRestrictedAt: user.bid_restricted_at,
+      bidRestrictedReason: user.bid_restricted_reason,
+      paymentMissedCount: user.payment_missed_count ?? 0,
+      paymentMissedAt: user.payment_missed_at,
+      strikesInWindow: strikeCounts.get(user.id) ?? 0,
+    }));
 
     return NextResponse.json({
       users: enriched,

@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Offline — Collectors Chest</title>
+    <link rel="icon" href="/favicon.png" type="image/png" />
+    <style>
+      :root {
+        --pop-red: #ed1c24;
+        --pop-yellow: #fff200;
+        --pop-blue: #0066ff;
+        --pop-black: #000000;
+        --pop-white: #ffffff;
+        --pop-cream: #fff8e7;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1.5rem;
+        background-color: var(--pop-cream);
+        background-image: radial-gradient(rgba(0, 102, 255, 0.18) 20%, transparent 20%);
+        background-size: 14px 14px;
+        font-family: "Comic Sans MS", "Comic Neue", sans-serif;
+        color: var(--pop-black);
+        text-align: center;
+      }
+      .panel {
+        max-width: 28rem;
+        width: 100%;
+        background: var(--pop-white);
+        border: 4px solid var(--pop-black);
+        box-shadow: 8px 8px 0 var(--pop-black);
+        padding: 2.5rem 1.75rem;
+      }
+      .badge {
+        display: inline-block;
+        background: var(--pop-yellow);
+        border: 3px solid var(--pop-black);
+        box-shadow: 3px 3px 0 var(--pop-black);
+        padding: 0.4rem 1rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        transform: rotate(-3deg);
+        margin-bottom: 1.5rem;
+        font-size: 0.9rem;
+      }
+      h1 {
+        font-family: Impact, "Bangers", sans-serif;
+        font-size: 2.75rem;
+        line-height: 1;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        color: var(--pop-yellow);
+        text-shadow: -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000,
+          2px 2px 0 #000, 4px 4px 0 #000;
+        margin-bottom: 1.25rem;
+      }
+      p {
+        font-size: 1.05rem;
+        line-height: 1.5;
+        margin-bottom: 1.75rem;
+      }
+      button {
+        font-family: Impact, "Bangers", sans-serif;
+        font-size: 1.1rem;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        background: var(--pop-blue);
+        color: var(--pop-white);
+        border: 4px solid var(--pop-black);
+        box-shadow: 4px 4px 0 var(--pop-black);
+        padding: 0.75rem 1.75rem;
+        cursor: pointer;
+        transition: transform 0.1s ease, box-shadow 0.1s ease;
+      }
+      button:hover {
+        transform: translate(-2px, -2px);
+        box-shadow: 6px 6px 0 var(--pop-black);
+      }
+      button:active {
+        transform: translate(2px, 2px);
+        box-shadow: 2px 2px 0 var(--pop-black);
+      }
+      @media (prefers-reduced-motion: reduce) {
+        button {
+          transition: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="panel">
+      <span class="badge">No Signal!</span>
+      <h1>You're Offline</h1>
+      <p>
+        Looks like you've lost your connection. Some saved Key Hunt lookups may
+        still work, but you'll need to reconnect to scan covers and sync your
+        collection.
+      </p>
+      <button type="button" onclick="window.location.reload()">Try Again</button>
+    </main>
+  </body>
+</html>

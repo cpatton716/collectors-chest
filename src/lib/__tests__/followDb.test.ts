@@ -1,115 +1,91 @@
 /**
  * Follow Database Helper Tests
  *
- * Tests for pure helper functions in followDb.ts
- * Database functions are tested via integration tests (require Supabase)
+ * Tests the REAL pure helpers exported from followDb.ts (no longer a stale
+ * re-implementation - M-SO3) plus the scoped isFollowing lookup (M-SO5).
+ *
+ * Supabase is mocked so importing followDb.ts never constructs a real client.
  */
 
-// Re-implement the pure functions for testing (they're not exported)
-// These tests ensure the logic is correct
+// Mock @upstash/redis (imported transitively via supabase -> cache chain).
+jest.mock("@upstash/redis", () => ({
+  Redis: jest.fn().mockImplementation(() => ({ get: jest.fn(), set: jest.fn(), del: jest.fn() })),
+}));
 
-interface ProfileRow {
-  id: string;
-  username: string | null;
-  first_name: string | null;
-  last_name: string | null;
-  avatar_url: string | null;
-}
+// Controllable supabase mock. Each query builds a fresh chain whose terminal
+// result we can program per-test via mockInResult.
+let mockInResult: { data: unknown; error: unknown } = { data: [], error: null };
+const inSpy = jest.fn();
 
-interface FollowUser {
-  id: string;
-  username: string | null;
-  displayName: string | null;
-  avatarUrl: string | null;
-  isFollowing?: boolean;
-}
-
-function buildDisplayName(profile: ProfileRow): string | null {
-  if (profile.first_name && profile.last_name) {
-    return `${profile.first_name} ${profile.last_name}`;
-  }
-  return profile.first_name || profile.last_name || null;
-}
-
-function transformToFollowUser(
-  profile: ProfileRow,
-  isFollowing?: boolean
-): FollowUser {
-  return {
-    id: profile.id,
-    username: profile.username,
-    displayName: buildDisplayName(profile),
-    avatarUrl: profile.avatar_url,
-    isFollowing,
+jest.mock("../supabase", () => {
+  const makeChain = () => {
+    const chain: Record<string, unknown> = {};
+    chain.select = jest.fn(() => chain);
+    chain.eq = jest.fn(() => chain);
+    chain.in = jest.fn((col: string, ids: string[]) => {
+      inSpy(col, ids);
+      return Promise.resolve(mockInResult);
+    });
+    return chain;
   };
-}
+  return {
+    supabase: { from: jest.fn(() => makeChain()) },
+    supabaseAdmin: { from: jest.fn(() => makeChain()) },
+  };
+});
 
-describe("followDb helpers", () => {
+import {
+  buildDisplayName,
+  transformToFollowUser,
+  followUser,
+  type ProfileRow,
+} from "../followDb";
+
+beforeEach(() => {
+  mockInResult = { data: [], error: null };
+  inSpy.mockClear();
+});
+
+describe("followDb helpers (real implementation)", () => {
   describe("buildDisplayName", () => {
-    it("returns full name when both first and last name exist", () => {
+    it("returns the display_name when present", () => {
       const profile: ProfileRow = {
         id: "123",
         username: "johndoe",
-        first_name: "John",
-        last_name: "Doe",
+        display_name: "John Doe",
         avatar_url: null,
       };
       expect(buildDisplayName(profile)).toBe("John Doe");
     });
 
-    it("returns first name only when last name is missing", () => {
+    it("returns null when display_name is missing", () => {
       const profile: ProfileRow = {
         id: "123",
         username: "johndoe",
-        first_name: "John",
-        last_name: null,
-        avatar_url: null,
-      };
-      expect(buildDisplayName(profile)).toBe("John");
-    });
-
-    it("returns last name only when first name is missing", () => {
-      const profile: ProfileRow = {
-        id: "123",
-        username: "johndoe",
-        first_name: null,
-        last_name: "Doe",
-        avatar_url: null,
-      };
-      expect(buildDisplayName(profile)).toBe("Doe");
-    });
-
-    it("returns null when both names are missing", () => {
-      const profile: ProfileRow = {
-        id: "123",
-        username: "johndoe",
-        first_name: null,
-        last_name: null,
+        display_name: null,
         avatar_url: null,
       };
       expect(buildDisplayName(profile)).toBeNull();
     });
 
-    it("returns null when both names are empty strings", () => {
+    it("returns null when display_name is an empty string", () => {
       const profile: ProfileRow = {
         id: "123",
         username: "johndoe",
-        first_name: "",
-        last_name: "",
+        display_name: "",
         avatar_url: null,
       };
-      // Empty strings are falsy, so this returns null
+      // Empty string is falsy -> null
       expect(buildDisplayName(profile)).toBeNull();
     });
   });
 
   describe("transformToFollowUser", () => {
-    it("transforms profile with all fields populated", () => {
+    it("transforms a profile with all fields populated", () => {
       const profile: ProfileRow = {
         id: "user-123",
         username: "spiderfan",
-        first_name: "Peter",
-        last_name: "Parker",
+        display_name: "Peter Parker",
         avatar_url: "https://example.com/avatar.jpg",
       };
 
@@ -124,12 +100,11 @@ describe("followDb helpers", () => {
       });
     });
 
-    it("transforms profile with minimal fields", () => {
+    it("transforms a profile with minimal fields", () => {
       const profile: ProfileRow = {
         id: "user-456",
         username: null,
-        first_name: null,
-        last_name: null,
+        display_name: null,
         avatar_url: null,
       };
 
@@ -144,12 +119,11 @@ describe("followDb helpers", () => {
       });
     });
 
-    it("handles undefined isFollowing", () => {
+    it("leaves isFollowing undefined when not provided", () => {
       const profile: ProfileRow = {
         id: "user-789",
         username: "collector",
-        first_name: "Tony",
-        last_name: null,
+        display_name: "Tony",
         avatar_url: null,
       };
 
@@ -161,56 +135,67 @@ describe("followDb helpers", () => {
   });
 });
 
-describe("follow business logic", () => {
-  describe("self-follow prevention", () => {
-    it("should prevent users from following themselves", () => {
-      const followerId = "user-123";
-      const followingId = "user-123";
-
-      // This mirrors the check in followUser()
-      const canFollow = followerId !== followingId;
-
-      expect(canFollow).toBe(false);
-    });
-
-    it("should allow following different users", () => {
-      const followerId = "user-123" as string;
-      const followingId = "user-456" as string;
-
-      const canFollow = followerId !== followingId;
-
-      expect(canFollow).toBe(true);
-    });
+describe("self-follow prevention (real followUser)", () => {
+  it("rejects following yourself without touching the database", async () => {
+    const result = await followUser("user-123", "user-123");
+    expect(result).toEqual({ success: false, error: "Cannot follow yourself" });
+    // No .in query (and more importantly, no insert) should occur.
+    expect(inSpy).not.toHaveBeenCalled();
   });
+});
 
-  describe("optimistic count updates", () => {
-    it("increments follower count on follow", () => {
-      const currentCount = 10;
-      const isFollowing = true;
-
-      const newCount = isFollowing ? currentCount + 1 : currentCount - 1;
-
-      expect(newCount).toBe(11);
+describe("getFollowers isFollowing scoping (M-SO5)", () => {
+  it("scopes the isFollowing lookup to the page's profile IDs, not a full scan", async () => {
+    // followRecords: two followers on this page.
+    let call = 0;
+    const supabaseAdmin = jest.requireMock("../supabase").supabaseAdmin as {
+      from: jest.Mock;
+    };
+    supabaseAdmin.from.mockImplementation(() => {
+      const chain: Record<string, unknown> = {};
+      chain.select = jest.fn(() => chain);
+      chain.eq = jest.fn(() => chain);
+      chain.order = jest.fn(() => chain);
+      chain.range = jest.fn(() =>
+        Promise.resolve({
+          data: [
+            { follower: { id: "a", username: "a", display_name: "A", avatar_url: null } },
+            { follower: { id: "b", username: "b", display_name: "B", avatar_url: null } },
+          ],
+          error: null,
+        })
+      );
+      chain.in = jest.fn((col: string, ids: string[]) => {
+        inSpy(col, ids);
+        return Promise.resolve({ data: [{ following_id: "a" }], error: null });
+      });
+      // count head query: first .eq() resolves a count object via `then`
+      chain.then = undefined;
+      // Make head-count select resolve to a count.
+      const select = chain.select as jest.Mock;
+      select.mockImplementation((_cols?: string, opts?: { head?: boolean }) => {
+        if (opts?.head) {
+          return {
+            eq: jest.fn(() => Promise.resolve({ count: 2 })),
+          };
+        }
+        call++;
+        return chain;
+      });
+      return chain;
     });
 
-    it("decrements follower count on unfollow", () => {
-      const currentCount = 10;
-      const isFollowing = false;
+    const { getFollowers } = await import("../followDb");
+    const res = await getFollowers("target-user", "current-user", 20, 0);
 
-      const newCount = isFollowing ? currentCount + 1 : currentCount - 1;
+    // The scoped lookup was called with EXACTLY this page's two profile IDs.
+    expect(inSpy).toHaveBeenCalledWith("following_id", ["a", "b"]);
 
-      expect(newCount).toBe(9);
-    });
-
-    it("never goes below zero on unfollow", () => {
-      const currentCount = 0;
-      const isFollowing = false;
-
-      const newCount = isFollowing
-        ? currentCount + 1
-        : Math.max(0, currentCount - 1);
-
-      expect(newCount).toBe(0);
-    });
+    // isFollowing reflects only the scoped result: a=true, b=false.
+    const a = res.users.find((u) => u.id === "a");
+    const b = res.users.find((u) => u.id === "b");
+    expect(a?.isFollowing).toBe(true);
+    expect(b?.isFollowing).toBe(false);
+    expect(call).toBeGreaterThanOrEqual(0);
   });
 });

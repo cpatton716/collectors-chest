@@ -6,23 +6,19 @@ import { createNotification } from "@/lib/auctionDb";
 import { logAuctionAuditEvent } from "@/lib/auditLog";
 import { createFeedbackReminders } from "@/lib/creatorCreditsDb";
 import { getProfileForEmail, sendNotificationEmail } from "@/lib/email";
-import { cacheGet, cacheSet } from "@/lib/cache";
+import { isWebhookProcessed, markWebhookProcessed } from "@/lib/cache";
+import { invalidateProfileCacheByProfileId } from "@/lib/db";
+import { stripe } from "@/lib/stripe";
 import {
   SCAN_PACK_AMOUNT,
   addPurchasedScans,
   downgradeToFree,
   getProfileByStripeCustomerId,
+  mapStripeSubscriptionStatus,
   updateSubscriptionStatus,
   upgradeToPremium,
 } from "@/lib/subscription";
 import { supabaseAdmin } from "@/lib/supabase";
-
-// Initialize Stripe (conditionally)
-const stripe = process.env.STRIPE_SECRET_KEY
-  ? new Stripe(process.env.STRIPE_SECRET_KEY, {
-      apiVersion: "2025-12-15.clover",
-    })
-  : null;
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
@@ -48,15 +44,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
     }
 
-    // Idempotency check - prevent duplicate event processing
+    // Idempotency check - prevent duplicate event processing. The marker is
+    // written ONLY after the handler completes (see below), so a handler that
+    // throws leaves no marker and Stripe's automatic retry is honored. H-PAY1.
     const eventIdKey = `stripe_event_${event.id}`;
-    const alreadyProcessed = await cacheGet<boolean>(eventIdKey, "webhook");
-    if (alreadyProcessed) {
+    if (await isWebhookProcessed(eventIdKey)) {
       return NextResponse.json({ received: true, duplicate: true });
     }
-
-    // Mark event as being processed (1 hour TTL)
-    await cacheSet(eventIdKey, true, "webhook");
 
     // Handle the event
     switch (event.type) {
@@ -112,22 +106,49 @@ export async function POST(request: NextRequest) {
       }
 
       // ============================================
+      // Refund / Dispute Events (reverse sale state) - M-MK17
+      // ============================================
+      case "charge.refunded": {
+        const charge = event.data.object as Stripe.Charge;
+        await handleChargeRefunded(charge);
+        break;
+      }
+
+      case "charge.dispute.created": {
+        const dispute = event.data.object as Stripe.Dispute;
+        await handleDisputeCreated(dispute);
+        break;
+      }
+
+      // ============================================
       // Connect Account Events
       // ============================================
       case "account.updated": {
         const account = event.data.object as Stripe.Account;
         const isComplete = account.charges_enabled && account.details_submitted;
 
-        await supabaseAdmin
+        const { data: updatedProfiles } = await supabaseAdmin
           .from("profiles")
           .update({ stripe_connect_onboarding_complete: isComplete })
-          .eq("stripe_connect_account_id", account.id);
+          .eq("stripe_connect_account_id", account.id)
+          .select("id");
+
+        // Connect status is read on the hot profile-cache path - invalidate so
+        // the seller's onboarding flag isn't served stale for the cache TTL. M-PAY11.
+        for (const p of updatedProfiles || []) {
+          await invalidateProfileCacheByProfileId(p.id);
+        }
 
         break;
       }
 
       default:
     }
+
+    // Mark processed ONLY after the handler above completed without throwing.
+    // If a handler threw, we fall to the catch and return 500 so Stripe retries
+    // and no marker is written. H-PAY1.
+    await markWebhookProcessed(eventIdKey);
 
     return NextResponse.json({ received: true });
   } catch (error) {
@@ -433,6 +454,7 @@ async function handleSubscriptionCreated(subscription: Stripe.Subscription) {
 
   // Upgrade to premium
   await upgradeToPremium(profile.id, subscription.id, currentPeriodEnd, isTrialing);
+  await invalidateProfileCacheByProfileId(profile.id); // M-PAY11
 }
 
 async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
@@ -451,24 +473,17 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
     Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60;
   const currentPeriodEnd = new Date(periodEnd * 1000);
 
-  // Map Stripe status to our status
-  let status: "active" | "trialing" | "past_due" | "canceled" = "active";
-  switch (subscription.status) {
-    case "trialing":
-      status = "trialing";
-      break;
-    case "past_due":
-      status = "past_due";
-      break;
-    case "canceled":
-    case "unpaid":
-      status = "canceled";
-      break;
-    default:
-      status = "active";
-  }
+  // Map Stripe status to our internal status. Statuses that don't grant
+  // entitlement (incomplete / incomplete_expired / paused) must not map to
+  // "active" (M-PAY7); a subscription flagged cancel_at_period_end is reported
+  // as canceled while access continues until currentPeriodEnd (M-PAY9).
+  const status = mapStripeSubscriptionStatus(
+    subscription.status,
+    subscription.cancel_at_period_end === true
+  );
 
   await updateSubscriptionStatus(profile.id, status, currentPeriodEnd);
+  await invalidateProfileCacheByProfileId(profile.id); // M-PAY11
 }
 
 async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
@@ -482,6 +497,7 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
 
   // Downgrade to free tier
   await downgradeToFree(profile.id);
+  await invalidateProfileCacheByProfileId(profile.id); // M-PAY11
 }
 
 // ============================================
@@ -489,11 +505,29 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
 // ============================================
 
 async function handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
-  if (invoice.amount_paid === 0) return; // Skip $0 trial invoices. Note: also skips 100% discount coupon invoices - refine if coupons are ever added.
-
   // Only process subscription invoices
   const subscriptionId = (invoice as unknown as { subscription?: string | null }).subscription;
   if (!subscriptionId) return;
+
+  // Gate on billing_reason rather than amount_paid alone (L-PAY16). A $0
+  // amount_paid can legitimately mean a 100%-discount renewal that SHOULD
+  // re-activate the subscription; previously those were silently skipped.
+  // We skip only the initial trial-creation invoice (subscription_create with
+  // a $0 amount and no discount), since the subscription.created event already
+  // grants entitlement and re-processing here is redundant.
+  const inv = invoice as unknown as {
+    amount_paid?: number;
+    billing_reason?: string | null;
+    discount?: unknown;
+    discounts?: unknown[];
+  };
+  const hasDiscount =
+    !!inv.discount || (Array.isArray(inv.discounts) && inv.discounts.length > 0);
+  const isInitialTrialInvoice =
+    inv.billing_reason === "subscription_create" &&
+    (inv.amount_paid ?? invoice.amount_paid) === 0 &&
+    !hasDiscount;
+  if (isInitialTrialInvoice) return;
 
   const customerId = invoice.customer as string;
   const profile = await getProfileByStripeCustomerId(customerId);
@@ -505,6 +539,7 @@ async function handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
 
   // Update subscription status to active (in case it was past_due)
   await updateSubscriptionStatus(profile.id, "active");
+  await invalidateProfileCacheByProfileId(profile.id); // M-PAY11
 }
 
 async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
@@ -522,6 +557,7 @@ async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
 
   // Mark subscription as past_due
   await updateSubscriptionStatus(profile.id, "past_due");
+  await invalidateProfileCacheByProfileId(profile.id); // M-PAY11
 
   // Notify the user so they can update their payment method before Stripe's
   // smart-retry exhausts and the subscription lapses to canceled. We use a
@@ -561,5 +597,126 @@ async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
     } catch (err) {
       console.error("[handleInvoicePaymentFailed] email send failed:", err);
     }
+  }
+}
+
+// ============================================
+// Refund / Dispute Handlers (M-MK17)
+// ============================================
+
+// Resolve the marketplace context (auctionId/buyerId/sellerId) for a charge by
+// reading the PaymentIntent metadata we mirror at checkout time. Returns null
+// for subscription/scan-pack charges (which carry no marketplace metadata).
+async function resolveMarketplaceContextFromCharge(
+  charge: Stripe.Charge
+): Promise<{ auctionId: string; buyerId: string; sellerId: string } | null> {
+  if (!stripe) return null;
+  const paymentIntentId =
+    typeof charge.payment_intent === "string" ? charge.payment_intent : null;
+  if (!paymentIntentId) return null;
+
+  try {
+    const pi = await stripe.paymentIntents.retrieve(paymentIntentId);
+    const md = pi.metadata || {};
+    if (md.auctionId && md.buyerId && md.sellerId) {
+      return { auctionId: md.auctionId, buyerId: md.buyerId, sellerId: md.sellerId };
+    }
+  } catch (err) {
+    console.error("[resolveMarketplaceContextFromCharge] retrieve failed:", err);
+  }
+  return null;
+}
+
+// Revert a marketplace sale to a refunded state: flip the listing's
+// payment_status to "refunded", mark the recorded sale refunded, and notify
+// both parties. Ownership transfer happens at mark-shipped (not at payment), so
+// there is no cloned-comic to claw back here for the common pre-ship case.
+async function reverseMarketplaceSale(
+  ctx: { auctionId: string; buyerId: string; sellerId: string },
+  reason: "refund" | "dispute"
+) {
+  const { auctionId, buyerId, sellerId } = ctx;
+
+  // Only reverse if the listing is currently in a sold/paid state - guards
+  // against double-processing (refund + dispute on the same charge).
+  const { data: listing } = await supabaseAdmin
+    .from("auctions")
+    .select("id, status, payment_status")
+    .eq("id", auctionId)
+    .maybeSingle();
+
+  if (!listing) {
+    console.warn(`[reverseMarketplaceSale] Listing ${auctionId} not found`);
+    return;
+  }
+  // Idempotency: if the listing has already been backed out (cancelled with no
+  // payment), there's nothing left to reverse. Avoids double notifications when
+  // a refund and a dispute land on the same charge.
+  if (listing.status === "cancelled" && listing.payment_status === null) {
+    return;
+  }
+
+  // Back the sale out to a constraint-valid state: cancelled listing, no
+  // payment. The auctions schema has no 'refunded' enum, so this is the
+  // closest valid representation of a reversed sale. M-MK17.
+  const { error: updateError } = await supabaseAdmin
+    .from("auctions")
+    .update({ status: "cancelled", payment_status: null })
+    .eq("id", auctionId);
+
+  if (updateError) {
+    // Throw so the webhook returns 500 and Stripe retries - we must not leave
+    // a refunded charge with a "paid" sale on the books.
+    throw new Error(`[reverseMarketplaceSale] update failed: ${updateError.message}`);
+  }
+
+  const sellerMsg =
+    reason === "dispute"
+      ? "A buyer opened a payment dispute on a sale. Funds are on hold pending resolution."
+      : "A sale was refunded. The associated funds have been returned to the buyer.";
+  const buyerMsg =
+    reason === "dispute"
+      ? "Your payment dispute has been recorded. We'll follow up as it's resolved."
+      : "Your purchase was refunded.";
+
+  await createNotification(sellerId, "payment_received", auctionId, undefined, {
+    title: reason === "dispute" ? "Payment disputed" : "Sale refunded",
+    message: sellerMsg,
+  });
+  await createNotification(buyerId, "won", auctionId, undefined, {
+    title: reason === "dispute" ? "Dispute recorded" : "Purchase refunded",
+    message: buyerMsg,
+  });
+
+  // Reuse the existing payment_refunded audit type for both refunds and
+  // disputes (the auditLog union has no payment_disputed entry); the `reason`
+  // field disambiguates.
+  void logAuctionAuditEvent({
+    auctionId,
+    actorProfileId: buyerId,
+    eventType: "payment_refunded",
+    eventData: { sellerId, reason },
+  });
+}
+
+async function handleChargeRefunded(charge: Stripe.Charge) {
+  const ctx = await resolveMarketplaceContextFromCharge(charge);
+  if (!ctx) return; // subscription/scan-pack refund - nothing to reverse here
+  await reverseMarketplaceSale(ctx, "refund");
+}
+
+async function handleDisputeCreated(dispute: Stripe.Dispute) {
+  if (!stripe) return;
+  const chargeId = typeof dispute.charge === "string" ? dispute.charge : null;
+  if (!chargeId) return;
+
+  try {
+    const charge = await stripe.charges.retrieve(chargeId);
+    const ctx = await resolveMarketplaceContextFromCharge(charge);
+    if (!ctx) return;
+    await reverseMarketplaceSale(ctx, "dispute");
+  } catch (err) {
+    console.error("[handleDisputeCreated] retrieve failed:", err);
+    throw err; // let Stripe retry
   }
 }

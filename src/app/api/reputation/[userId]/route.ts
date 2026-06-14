@@ -33,12 +33,11 @@ export async function GET(request: NextRequest, context: RouteContext) {
     const includeFeedback = validatedQuery.data.includeFeedback === "true";
     const feedbackLimit = validatedQuery.data.feedbackLimit ?? 5;
 
-    const reputation = await getUserCreatorProfile(userId);
-
-    let recentFeedback = undefined;
-    if (includeFeedback) {
-      recentFeedback = await getUserFeedback(userId, feedbackLimit);
-    }
+    // Run the profile and feedback reads in parallel rather than serially (L-SO6).
+    const [reputation, recentFeedback] = await Promise.all([
+      getUserCreatorProfile(userId),
+      includeFeedback ? getUserFeedback(userId, feedbackLimit) : Promise.resolve(undefined),
+    ]);
 
     return NextResponse.json({
       reputation,

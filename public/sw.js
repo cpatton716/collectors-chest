@@ -1,37 +1,49 @@
 // Service Worker for Key Hunt Offline Support
-const CACHE_NAME = 'key-hunt-cache-v1';
-const OFFLINE_CACHE_NAME = 'key-hunt-offline-v1';
+//
+// Cache versioning (L-FE20): bump CACHE_VERSION on each meaningful SW change so
+// the activate handler prunes stale caches (including outdated Next.js static
+// chunks) instead of letting them accumulate. The version is embedded in every
+// cache name; activate deletes any of our caches whose name doesn't match the
+// current version.
+const CACHE_VERSION = 'v2';
+const CACHE_NAME = `key-hunt-cache-${CACHE_VERSION}`;
+const OFFLINE_CACHE_NAME = `key-hunt-offline-${CACHE_VERSION}`;
+const CURRENT_CACHES = [CACHE_NAME, OFFLINE_CACHE_NAME];
+
+const OFFLINE_URL = '/offline.html';
 
 // Static assets to cache for Key Hunt
 const STATIC_ASSETS = [
   '/key-hunt',
-  '/offline.html',
+  OFFLINE_URL,
 ];
 
-// API routes to cache responses from
-const CACHEABLE_API_ROUTES = [
-  '/api/con-mode-lookup',
-];
-
-// Install event - cache static assets
+// Install event - cache static assets (including the offline fallback)
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       console.log('[SW] Caching static assets');
-      return cache.addAll(STATIC_ASSETS.filter(url => !url.includes('offline.html')));
+      // Cache each asset independently so one failure (e.g. a not-yet-built
+      // route) doesn't abort the whole install.
+      return Promise.allSettled(STATIC_ASSETS.map((url) => cache.add(url)));
     })
   );
-  // Activate immediately
-  self.skipWaiting();
+  // Note: we no longer skipWaiting() here. The new worker stays in "waiting"
+  // until the page tells it to activate via the SKIP_WAITING message, giving
+  // the client a controlled update flow (L-FE19).
 });
 
-// Activate event - clean up old caches
+// Activate event - clean up old caches (any of ours not on the current version)
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames
-          .filter((name) => (name.startsWith('key-hunt-') || name.startsWith('con-mode-')) && name !== CACHE_NAME && name !== OFFLINE_CACHE_NAME)
+          .filter(
+            (name) =>
+              (name.startsWith('key-hunt-') || name.startsWith('con-mode-')) &&
+              !CURRENT_CACHES.includes(name)
+          )
           .map((name) => {
             console.log('[SW] Deleting old cache:', name);
             return caches.delete(name);
@@ -39,7 +51,8 @@ self.addEventListener('activate', (event) => {
       );
     })
   );
-  // Take control of all clients immediately
+  // Take control of all clients immediately so the controlled-update reload
+  // lands on the new worker.
   self.clients.claim();
 });
 
@@ -65,14 +78,28 @@ self.addEventListener('fetch', (event) => {
           return response;
         })
         .catch(() => {
-          // Return cached version if offline
+          // Return cached version if offline, falling back to offline.html.
           return caches.match(event.request).then((cachedResponse) => {
-            return cachedResponse || new Response('Offline - Key Hunt not available', {
-              status: 503,
-              headers: { 'Content-Type': 'text/plain' }
-            });
+            return cachedResponse || caches.match(OFFLINE_URL);
           });
         })
+    );
+    return;
+  }
+
+  // Offline fallback for any other navigation request.
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request).catch(() =>
+        caches.match(OFFLINE_URL).then(
+          (cached) =>
+            cached ||
+            new Response('Offline', {
+              status: 503,
+              headers: { 'Content-Type': 'text/plain' },
+            })
+        )
+      )
     );
     return;
   }
