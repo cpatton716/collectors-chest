@@ -1,4 +1,4 @@
-import type { SubscriptionTier } from "./subscription";
+import type { SubscriptionTier } from "./subscriptionTypes";
 
 /**
  * Minimum platform fee in cents. Applied as a floor to the percent-based

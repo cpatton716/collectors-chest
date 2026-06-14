@@ -685,7 +685,7 @@ export function ComicDetailsForm({
                   type="button"
                   onClick={async () => {
                     try {
-                      const res = await fetch("/api/admin/publishers", {
+                      const res = await fetch("/api/publishers/suggest", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ publisherName: comic.publisher }),

@@ -161,5 +161,3 @@ export function SecondChanceInboxCard({
     </div>
   );
 }
-
-export default SecondChanceInboxCard;

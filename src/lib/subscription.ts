@@ -5,8 +5,11 @@ import { supabaseAdmin } from "./supabase";
 // Types
 // ============================================
 
-export type SubscriptionTier = "free" | "premium";
-export type SubscriptionStatus = "active" | "trialing" | "past_due" | "canceled";
+// Re-exported from the neutral types module so existing
+// `import { SubscriptionTier } from "@/lib/subscription"` callers keep working
+// while breaking the subscription <-> stripeConnect import cycle. L-PAY10.
+export type { SubscriptionTier, SubscriptionStatus } from "./subscriptionTypes";
+import type { SubscriptionTier, SubscriptionStatus } from "./subscriptionTypes";
 
 export interface SubscriptionInfo {
   tier: SubscriptionTier;

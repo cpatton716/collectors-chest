@@ -13,7 +13,8 @@ import { AlertCircle, CheckCircle, Clock, Gavel, Loader2, ShoppingBag, Trophy, W
 import type { BidRow, OfferRow, TransactionRow } from "@/app/api/transactions/route";
 
 import PaymentDeadlineCountdown from "@/components/PaymentDeadlineCountdown";
-import SecondChanceInboxCard, {
+import {
+  SecondChanceInboxCard,
   type SecondChanceInboxItem,
 } from "@/components/auction/SecondChanceInboxCard";
 import { formatPrice } from "@/types/auction";
