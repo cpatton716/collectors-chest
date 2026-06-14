@@ -39,7 +39,7 @@ export interface CertLookupResult {
  * Look up a comic by CGC certification number
  * URL format: https://www.cgccomics.com/certlookup/{certNumber}/
  */
-export async function lookupCGCCert(certNumber: string): Promise<CertLookupResult> {
+async function lookupCGCCert(certNumber: string): Promise<CertLookupResult> {
   const cleanCert = certNumber.replace(/\D/g, ""); // Remove non-digits
 
   if (!cleanCert || cleanCert.length < 6) {
@@ -257,7 +257,7 @@ export function parseCGCResponse(html: string, certNumber: string): CertLookupRe
  * URL format: https://cbcscomics.com/grading-notes/{certNumber}
  * CBCS cert numbers can contain letters and dashes (e.g., "20-1F9AC96-004")
  */
-export async function lookupCBCSCert(certNumber: string): Promise<CertLookupResult> {
+async function lookupCBCSCert(certNumber: string): Promise<CertLookupResult> {
   // CBCS certs can have alphanumeric format with dashes, so don't strip non-digits
   const cleanCert = certNumber.trim();
 
@@ -443,7 +443,7 @@ export function parseCBCSResponse(html: string, certNumber: string): CertLookupR
  * Look up a comic by PGX certification number
  * URL format: https://www.pgxcomics.com/cert/verify/{certNumber}
  */
-export async function lookupPGXCert(certNumber: string): Promise<CertLookupResult> {
+async function lookupPGXCert(certNumber: string): Promise<CertLookupResult> {
   const cleanCert = certNumber.replace(/\D/g, "");
 
   if (!cleanCert || cleanCert.length < 5) {

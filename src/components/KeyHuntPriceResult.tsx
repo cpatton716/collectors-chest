@@ -56,7 +56,7 @@ interface KeyHuntPriceResultProps {
   /**
    * Confidence metadata for the curated keyInfo lookup. Drives the volume
    * verification advisory shown beneath the KEY ISSUE chips. Absent for
-   * non-curated key info (AI fallback) and for non-key books.
+   * non-curated key info (technopathic fallback) and for non-key books.
    */
   keyInfoMeta?: {
     matchType: "exact" | "year-resolved";

@@ -24,16 +24,24 @@ export function buildScanEventProps(
   };
 }
 
+// Sample session recordings at 10% to stay within plan limits (M-CC12).
+// posthog-js has no client-init sample_rate option (that lives in the project's
+// server-side recording config), so we gate recording at init with a 10% roll.
+// This keeps PostHog recording enabled while only capturing ~1 in 10 sessions.
+const SESSION_RECORDING_SAMPLE_RATE = 0.1;
+
 // Initialize PostHog only on client side
 if (typeof window !== "undefined" && process.env.NEXT_PUBLIC_POSTHOG_KEY) {
+  const recordThisSession = Math.random() < SESSION_RECORDING_SAMPLE_RATE;
+
   posthog.init(process.env.NEXT_PUBLIC_POSTHOG_KEY, {
     api_host: process.env.NEXT_PUBLIC_POSTHOG_HOST || "https://us.i.posthog.com",
     // Capture pageviews automatically
     capture_pageview: true,
     // Capture pageleaves for session duration
     capture_pageleave: true,
-    // Enable session recording (free tier includes this)
-    disable_session_recording: false,
+    // Keep PostHog recording enabled, but only for the 10% sampled in (M-CC12)
+    disable_session_recording: !recordThisSession,
     // Respect Do Not Track
     respect_dnt: true,
     // Only load in production or when key is set

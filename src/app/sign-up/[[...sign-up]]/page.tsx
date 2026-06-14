@@ -39,7 +39,7 @@ export default function SignUpPage() {
                   <Camera className="w-4 h-4 text-pop-white" />
                 </div>
                 <span className="font-body text-sm text-pop-black/90">
-                  AI-powered comic cover recognition
+                  Technopathic comic cover recognition
                 </span>
               </li>
               <li className="flex items-center gap-3">

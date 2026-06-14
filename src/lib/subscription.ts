@@ -15,6 +15,12 @@ export interface SubscriptionInfo {
   tier: SubscriptionTier;
   status: SubscriptionStatus;
   isTrialing: boolean;
+  /**
+   * True when the user was comp'd premium by an admin (`profiles.comp_granted`).
+   * A comp'd user reads as premium (tier === "premium", status "active") rather
+   * than "trialing" even though admin grants populate trial date fields. L-AD5.
+   */
+  isComp: boolean;
   trialEndsAt: Date | null;
   trialDaysRemaining: number;
   scansUsed: number;
@@ -90,6 +96,89 @@ export function deriveCanScan(params: {
 }
 
 /**
+ * Resolved access state for a user, taking the admin-comp flag into account.
+ *
+ * Admin "grant premium" populates the trial date fields (trial_started_at /
+ * trial_ends_at) AND sets `profiles.comp_granted`. Without the comp flag a
+ * granted user would read back as "trialing" (because trial_ends_at is in the
+ * future), which is wrong — a comp is permanent (until revoked), not a clock-
+ * limited trial. So when `compGranted` is true we resolve the user as premium
+ * with an "active" status and DO NOT report them as trialing. L-AD5 (read side).
+ *
+ * Pure so the comp / trial / paid resolution is unit-testable without a DB.
+ */
+export function deriveAccessState(params: {
+  /** Raw subscription tier from the row (defaults to "free"). */
+  tier: SubscriptionTier;
+  /** Raw subscription status from the row. */
+  status: SubscriptionStatus;
+  /** Whether the trial window (trial_ends_at) is still in the future. */
+  trialActive: boolean;
+  /** `profiles.comp_granted` (treated as false when the column is absent). */
+  compGranted: boolean;
+}): {
+  tier: SubscriptionTier;
+  status: SubscriptionStatus;
+  isPremium: boolean;
+  isTrialing: boolean;
+  isComp: boolean;
+} {
+  const { tier, status, trialActive, compGranted } = params;
+
+  // A comp'd user is premium, full stop — never "trialing".
+  if (compGranted) {
+    return {
+      tier: "premium",
+      status: "active",
+      isPremium: true,
+      isTrialing: false,
+      isComp: true,
+    };
+  }
+
+  const isPremium = tier === "premium";
+  // Paying/active premium users are not "trialing" even if a stale trial_ends_at
+  // lingers. Only non-premium users with a live trial window read as trialing.
+  const isTrialing = trialActive && !isPremium;
+
+  return { tier, status, isPremium, isTrialing, isComp: false };
+}
+
+/**
+ * Minimal profile shape needed to disambiguate multiple rows sharing a Stripe
+ * customer id. M-PAY8.
+ */
+export interface StripeCustomerProfileRow {
+  id: string;
+  clerk_user_id: string;
+  updated_at?: string | null;
+  created_at?: string | null;
+}
+
+/**
+ * Pick the single profile that should own a Stripe customer id when more than
+ * one row matches. A UNIQUE index makes this a no-op in production (migration
+ * M-PAY8), but until that index lands we may briefly see duplicates after a
+ * customer-id collision. Choosing the most-recently-updated (then most-recently-
+ * created) row is the least-surprising fallback: it follows whichever profile
+ * the webhook most recently touched. Pure so multi-row handling is testable.
+ */
+export function pickProfileByStripeCustomerId<T extends StripeCustomerProfileRow>(
+  rows: ReadonlyArray<T> | null | undefined
+): T | null {
+  if (!rows || rows.length === 0) return null;
+  if (rows.length === 1) return rows[0];
+
+  const ts = (r: T): number => {
+    const v = r.updated_at || r.created_at;
+    const n = v ? new Date(v).getTime() : NaN;
+    return Number.isNaN(n) ? 0 : n;
+  };
+
+  return [...rows].sort((a, b) => ts(b) - ts(a))[0];
+}
+
+/**
  * Map a raw Stripe subscription status to our internal status. Statuses that
  * don't grant entitlement (incomplete / incomplete_expired / paused) must NOT
  * map to "active". M-PAY7 / M-PAY9.
@@ -132,10 +221,11 @@ export function mapStripeSubscriptionStatus(
  * Get full subscription status for a user
  */
 export async function getSubscriptionStatus(profileId: string): Promise<SubscriptionInfo | null> {
-  const { data: profile, error } = await supabaseAdmin
-    .from("profiles")
-    .select(
-      `
+  // Base columns always present. `comp_granted` is migration-gated (L-AD5) —
+  // requesting it on a pre-migration DB returns Postgres 42703 / PostgREST
+  // PGRST204, so we attempt the comp column first and transparently retry
+  // without it. This keeps the build/runtime safe before the migration lands.
+  const baseColumns = `
       subscription_tier,
       subscription_status,
       stripe_customer_id,
@@ -145,26 +235,69 @@ export async function getSubscriptionStatus(profileId: string): Promise<Subscrip
       trial_ends_at,
       scans_used_this_month,
       scan_month_start,
-      purchased_scans
-    `
-    )
+      purchased_scans`;
+
+  type ProfileRow = Record<string, unknown> & { comp_granted?: boolean | null };
+  let profile: ProfileRow | null = null;
+
+  const withComp = await supabaseAdmin
+    .from("profiles")
+    .select(`${baseColumns},\n      comp_granted`)
     .eq("id", profileId)
     .single();
 
-  if (error || !profile) return null;
+  if (withComp.error) {
+    const missingColumn =
+      (withComp.error as { code?: string }).code === "42703" ||
+      (withComp.error as { code?: string }).code === "PGRST204" ||
+      /comp_granted/.test(withComp.error.message || "");
+    if (missingColumn) {
+      // Pre-migration fallback: re-read without the comp column.
+      const fallback = await supabaseAdmin
+        .from("profiles")
+        .select(baseColumns)
+        .eq("id", profileId)
+        .single();
+      if (fallback.error || !fallback.data) return null;
+      profile = fallback.data as unknown as ProfileRow;
+    } else {
+      return null;
+    }
+  } else if (withComp.data) {
+    profile = withComp.data as unknown as ProfileRow;
+  }
+
+  if (!profile) return null;
 
   const now = new Date();
-  const trialEndsAt = profile.trial_ends_at ? new Date(profile.trial_ends_at) : null;
-  const isTrialing = trialEndsAt !== null && trialEndsAt > now;
-  const trialDaysRemaining = isTrialing
+  const trialEndsAt = profile.trial_ends_at
+    ? new Date(profile.trial_ends_at as string)
+    : null;
+  const trialActive = trialEndsAt !== null && trialEndsAt > now;
+
+  // Resolve comp / trial / paid state. comp_granted absent (pre-migration) reads
+  // as false, preserving the previous trial-field behavior. L-AD5 (read side).
+  const compGranted = profile.comp_granted === true;
+  const rawTier = (profile.subscription_tier as SubscriptionTier) || "free";
+  const rawStatus = (profile.subscription_status as SubscriptionStatus) || "active";
+  const access = deriveAccessState({
+    tier: rawTier,
+    status: rawStatus,
+    trialActive,
+    compGranted,
+  });
+
+  // Comp'd users get no trial countdown (they're permanent premium). Otherwise
+  // surface the days left in the live trial window.
+  const trialDaysRemaining = access.isTrialing
     ? Math.ceil((trialEndsAt!.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
     : 0;
 
   // Check if we need to reset monthly scans
-  const scanMonthStart = new Date(profile.scan_month_start);
+  const scanMonthStart = new Date(profile.scan_month_start as string);
   const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-  let scansUsed = profile.scans_used_this_month || 0;
+  let scansUsed = (profile.scans_used_this_month as number) || 0;
 
   // If scan_month_start is before current month, scans should be reset
   if (scanMonthStart < currentMonthStart) {
@@ -173,27 +306,30 @@ export async function getSubscriptionStatus(profileId: string): Promise<Subscrip
     resetUserMonthlyScans(profileId).catch(console.error);
   }
 
-  const tier = (profile.subscription_tier as SubscriptionTier) || "free";
-  const isPremium = tier === "premium";
-  const purchasedScans = profile.purchased_scans || 0;
+  const purchasedScans = (profile.purchased_scans as number) || 0;
 
   // Calculate remaining scans via the shared pure derivation (H-PAY3).
   const scansRemaining = deriveScansRemaining({
-    isPremium,
-    isTrialing,
+    isPremium: access.isPremium,
+    isTrialing: access.isTrialing,
     scansUsed,
     purchasedScans,
   });
 
-  const canScan = deriveCanScan({ isPremium, isTrialing, scansRemaining });
+  const canScan = deriveCanScan({
+    isPremium: access.isPremium,
+    isTrialing: access.isTrialing,
+    scansRemaining,
+  });
 
   // Calculate next reset date (1st of next month)
   const monthResetDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
   return {
-    tier,
-    status: (profile.subscription_status as SubscriptionStatus) || "active",
-    isTrialing,
+    tier: access.tier,
+    status: access.status,
+    isTrialing: access.isTrialing,
+    isComp: access.isComp,
     trialEndsAt,
     trialDaysRemaining,
     scansUsed,
@@ -201,10 +337,10 @@ export async function getSubscriptionStatus(profileId: string): Promise<Subscrip
     purchasedScans,
     canScan,
     monthResetDate,
-    stripeCustomerId: profile.stripe_customer_id,
-    stripeSubscriptionId: profile.stripe_subscription_id,
+    stripeCustomerId: profile.stripe_customer_id as string | null,
+    stripeSubscriptionId: profile.stripe_subscription_id as string | null,
     currentPeriodEnd: profile.subscription_current_period_end
-      ? new Date(profile.subscription_current_period_end)
+      ? new Date(profile.subscription_current_period_end as string)
       : null,
   };
 }
@@ -606,19 +742,41 @@ export async function setStripeCustomerId(
 }
 
 /**
- * Get profile by Stripe customer ID (for webhooks)
+ * Get profile by Stripe customer ID (for webhooks).
+ *
+ * Uses a non-`.single()` read so a duplicate stripe_customer_id (possible until
+ * the UNIQUE index in migration M-PAY8 lands) doesn't throw "multiple rows
+ * returned" and silently drop a webhook. On a multi-row match we log a warning
+ * and deterministically pick the most-recently-updated profile via
+ * {@link pickProfileByStripeCustomerId}. M-PAY8.
  */
 export async function getProfileByStripeCustomerId(
   stripeCustomerId: string
 ): Promise<{ id: string; clerk_user_id: string } | null> {
+  // Try to pull ordering columns so multi-row disambiguation is meaningful;
+  // updated_at/created_at are standard on this table. If they happen to be
+  // absent the picker still works (falls back to first row).
   const { data, error } = await supabaseAdmin
     .from("profiles")
-    .select("id, clerk_user_id")
-    .eq("stripe_customer_id", stripeCustomerId)
-    .single();
+    .select("id, clerk_user_id, updated_at, created_at")
+    .eq("stripe_customer_id", stripeCustomerId);
 
-  if (error || !data) return null;
-  return data;
+  if (error) {
+    console.error("Error fetching profile by stripe customer id:", error);
+    return null;
+  }
+
+  const rows = (data || []) as StripeCustomerProfileRow[];
+  if (rows.length === 0) return null;
+  if (rows.length > 1) {
+    console.warn(
+      `getProfileByStripeCustomerId: ${rows.length} profiles share stripe_customer_id ${stripeCustomerId}; picking most recent. Apply the UNIQUE index (M-PAY8).`
+    );
+  }
+
+  const chosen = pickProfileByStripeCustomerId(rows);
+  if (!chosen) return null;
+  return { id: chosen.id, clerk_user_id: chosen.clerk_user_id };
 }
 
 /**

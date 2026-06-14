@@ -95,7 +95,7 @@ jest.mock("../supabase", () => {
   };
 });
 
-import { markMessagesAsRead, sendMessage } from "../messagingDb";
+import { deriveTotalUnread, markMessagesAsRead, sendMessage } from "../messagingDb";
 import { supabaseAdmin } from "../supabase";
 
 function queueResponse(resp: DbResponse) {
@@ -108,6 +108,22 @@ beforeEach(() => {
   mockState.rpcResponse = { data: "conv-1", error: null };
   mockState.insertedRows.length = 0;
   mockState.lastTable = null;
+});
+
+describe("deriveTotalUnread (M-MS3)", () => {
+  it("sums per-conversation unread counts", () => {
+    expect(
+      deriveTotalUnread([{ unreadCount: 2 }, { unreadCount: 0 }, { unreadCount: 5 }])
+    ).toBe(7);
+  });
+
+  it("returns 0 for an empty inbox", () => {
+    expect(deriveTotalUnread([])).toBe(0);
+  });
+
+  it("treats a missing unreadCount as zero", () => {
+    expect(deriveTotalUnread([{ unreadCount: 3 }, {} as { unreadCount: number }])).toBe(3);
+  });
 });
 
 describe("markMessagesAsRead", () => {

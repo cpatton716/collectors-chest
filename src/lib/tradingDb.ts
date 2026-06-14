@@ -11,6 +11,7 @@ import {
 import { calculateSellerReputation, SellerProfile } from "@/types/auction";
 
 import { createFeedbackReminders } from "./creatorCreditsDb";
+import { normalizeTitle } from "./normalizeTitle";
 import { supabaseAdmin } from "./supabase";
 
 // Default + max page sizes for list queries. Callers may request fewer rows but
@@ -598,9 +599,52 @@ export async function confirmReceipt(tradeId: string, userId: string): Promise<T
 }
 
 /**
- * Complete a trade - swap comic ownership
+ * Complete a trade - swap comic ownership + clean up hunt lists.
+ *
+ * MIGRATION-GATED (M-MK6): prefers the transactional `complete_trade(...)`
+ * SECURITY DEFINER RPC (ownership swap + hunt-list cleanup in ONE transaction)
+ * shipped in the closeout migration. If that function is absent (pre-migration)
+ * we fall back to the original per-step path below so the flow still works.
+ *
+ * The RPC failure is surfaced to the caller BEFORE the trade is marked
+ * completed (confirmReceipt awaits this and only persists the "completed"
+ * status afterward), so a half-swapped trade never reports as completed.
  */
 export async function completeTrade(tradeId: string): Promise<void> {
+  // Try the atomic RPC first.
+  const { error: rpcError } = await supabaseAdmin.rpc("complete_trade", {
+    p_trade_id: tradeId,
+  });
+
+  if (!rpcError) {
+    // Atomic path succeeded.
+    return;
+  }
+
+  // Build-safe fallback: the function does not exist yet (pre-migration). Any
+  // OTHER RPC error (e.g. a real failure inside an existing function) must be
+  // surfaced, not silently retried via the non-atomic path.
+  if (!isMissingFunctionError(rpcError)) {
+    throw rpcError;
+  }
+
+  await completeTradeFallback(tradeId);
+}
+
+/** Postgres "function does not exist" error code (undefined_function). */
+function isMissingFunctionError(error: { code?: string; message?: string }): boolean {
+  if (!error) return false;
+  if (error.code === "42883" || error.code === "PGRST202") return true;
+  const msg = (error.message || "").toLowerCase();
+  return msg.includes("could not find the function") || msg.includes("does not exist");
+}
+
+/**
+ * Pre-migration fallback: original per-step ownership swap + hunt-list cleanup.
+ * NOT atomic (a crash mid-loop can leave a partial swap) - the `complete_trade`
+ * RPC supersedes this once the closeout migration lands.
+ */
+async function completeTradeFallback(tradeId: string): Promise<void> {
   // Get trade items
   const { data: items, error: itemsError } = await supabaseAdmin
     .from("trade_items")
@@ -649,12 +693,14 @@ export async function completeTrade(tradeId: string): Promise<void> {
 
       // Null-safe: skip hunt-list cleanup for comics missing title/issue.
       if (comicDetails && comicDetails.title && comicDetails.issue_number) {
-        // Remove from hunt list (case-insensitive match)
+        // Remove from hunt list. `title_normalized` is stored normalized, so an
+        // `.eq` on the normalized title (index-backed) replaces the prior
+        // leading/contained `.ilike` and matches find_trade_matches' predicate.
         await supabaseAdmin
           .from("key_hunt_lists")
           .delete()
           .eq("user_id", newOwnerProfile.clerk_user_id)
-          .ilike("title_normalized", comicDetails.title.toLowerCase().trim())
+          .eq("title_normalized", normalizeTitle(comicDetails.title))
           .eq("issue_number", comicDetails.issue_number.trim());
       }
     }

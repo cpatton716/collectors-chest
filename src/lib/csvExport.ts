@@ -97,7 +97,7 @@ export function collectionToCSV(items: CollectionItem[]): string {
 /**
  * Triggers a browser download of the CSV file
  */
-export function downloadCSV(csvContent: string, filename: string): void {
+function downloadCSV(csvContent: string, filename: string): void {
   // Create a Blob with the CSV content
   const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
 
@@ -120,7 +120,7 @@ export function downloadCSV(csvContent: string, filename: string): void {
 /**
  * Generates the export filename with current date
  */
-export function generateExportFilename(): string {
+function generateExportFilename(): string {
   const today = new Date();
   const year = today.getFullYear();
   const month = String(today.getMonth() + 1).padStart(2, "0");

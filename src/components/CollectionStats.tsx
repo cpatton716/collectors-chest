@@ -37,6 +37,55 @@ import { CollectionItem } from "@/types/comic";
 
 import { ComicImage } from "./ComicImage";
 
+/**
+ * Minimal structural shape for a sold book used by the sold-value annotation
+ * helpers below. We intentionally do NOT depend on the full `SaleRecord` type
+ * so these helpers stay build-safe before the `sale_price_recorded` column /
+ * `SaleRecord` field exists: a missing/undefined flag is treated as "recorded".
+ *
+ * Owner decision H-CO1: anywhere realized revenue / profit / total-sold value
+ * is displayed, surface a disclaimer when the underlying sales include books
+ * that were marked sold WITHOUT a recorded sale price.
+ */
+export interface SoldValueAnnotationInput {
+  // `false` => price was NOT recorded for this sale. `undefined`/`null`/`true`
+  // all mean the price is recorded (pre-migration / single-item default).
+  salePriceRecorded?: boolean | null;
+}
+
+/**
+ * Count sold books that have NO recorded sale price. Build-safe: only an
+ * explicit `false` counts as unrecorded; anything else (missing flag included)
+ * is treated as recorded.
+ */
+export function countUnrecordedSalePrices(sales: SoldValueAnnotationInput[]): number {
+  if (!Array.isArray(sales)) return 0;
+  return sales.reduce((count, sale) => (sale?.salePriceRecorded === false ? count + 1 : count), 0);
+}
+
+export interface SoldValueAnnotation {
+  hasUnrecorded: boolean;
+  unrecordedCount: number;
+  /** Footnote text, e.g. "* Excludes 3 sold books with no recorded sale price." */
+  footnote: string;
+}
+
+/**
+ * Build the annotation/footnote describing how many sold books lack a recorded
+ * sale price. Returns `null` when every included sale has a recorded price (so
+ * callers can skip rendering the asterisk + footnote entirely).
+ */
+export function getSoldValueAnnotation(sales: SoldValueAnnotationInput[]): SoldValueAnnotation | null {
+  const unrecordedCount = countUnrecordedSalePrices(sales);
+  if (unrecordedCount === 0) return null;
+  const noun = unrecordedCount === 1 ? "sold book" : "sold books";
+  return {
+    hasUnrecorded: true,
+    unrecordedCount,
+    footnote: `* Excludes ${unrecordedCount} ${noun} with no recorded sale price.`,
+  };
+}
+
 interface CollectionStatsProps {
   collection: CollectionItem[];
   onComicClick?: (item: CollectionItem) => void;
@@ -199,7 +248,15 @@ export function CollectionStats({ collection, onComicClick }: CollectionStatsPro
           <div className="w-10 h-10 bg-pop-green border-2 border-pop-black flex items-center justify-center">
             <DollarSign className="w-5 h-5 text-white" />
           </div>
-          <h2 className="text-xl font-black text-pop-black">Financial Summary</h2>
+          <div>
+            <h2 className="text-xl font-black text-pop-black">Financial Summary</h2>
+            {/* H-CO1: clarify these are estimated/unrealized figures for books still
+                in the collection — realized sale proceeds (and any books sold without a
+                recorded price) are summarized on the Sales History page. */}
+            <p className="text-xs text-gray-400">
+              Estimated, unrealized values for owned books. See Sales History for realized totals.
+            </p>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

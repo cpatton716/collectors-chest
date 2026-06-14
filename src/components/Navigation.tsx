@@ -46,17 +46,17 @@ const faqs = [
   {
     question: "How do I add a comic to my collection?",
     answer:
-      "Go to 'Scan' and either upload a photo of the cover for AI recognition or enter details manually. Review the auto-detected title, issue, creator credits, and price estimate, then click 'Add to Collection'.",
+      "Go to 'Scan' and either upload a photo of the cover for technopathic recognition or enter details manually. Review the auto-detected title, issue, creator credits, and price estimate, then click 'Add to Collection'.",
   },
   {
     question: "How does cover scanning work?",
     answer:
-      "Upload or take a photo of a comic cover and our AI identifies the title, issue number, publisher, creators, key info, and estimated value. It works with raw and slabbed comics, and even detects grading labels on slabs.",
+      "Upload or take a photo of a comic cover and our technopathy identifies the title, issue number, publisher, creators, key info, and estimated value. It works with raw and slabbed comics, and even detects grading labels on slabs.",
   },
   {
     question: "Any tips for getting the best scan results?",
     answer:
-      "Good, even lighting makes a huge difference, so avoid harsh shadows and glare, especially on slabbed books. Photograph the full front cover straight-on (no angles or tilting), keep the camera steady, and make sure the image is in focus. A plain background with nothing distracting behind the book helps the AI zero in on the cover.",
+      "Good, even lighting makes a huge difference, so avoid harsh shadows and glare, especially on slabbed books. Photograph the full front cover straight-on (no angles or tilting), keep the camera steady, and make sure the image is in focus. A plain background with nothing distracting behind the book helps the technopathy zero in on the cover.",
   },
   {
     question: "How accurate are the price estimates?",

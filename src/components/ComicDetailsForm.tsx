@@ -740,7 +740,7 @@ export function ComicDetailsForm({
               {comic.variantSource === "catalog"
                 ? "Detected from community barcode catalog"
                 : comic.variantSource === "ai"
-                  ? "Detected from barcode + AI lookup — please confirm or edit"
+                  ? "Detected from barcode + technopathic lookup — please confirm or edit"
                   : "Derived from barcode digits — confirm or replace with the artist/variant name"}
             </p>
           )}
@@ -1033,7 +1033,7 @@ export function ComicDetailsForm({
                     </span>
                   ) : (
                     <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded">
-                      AI
+                      Technopathic
                     </span>
                   )}
                 </div>

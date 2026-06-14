@@ -5,11 +5,13 @@ import {
   SCAN_PACK_AMOUNT,
   UNLIMITED_SCANS,
   calculatePlatformFee,
+  deriveAccessState,
   deriveCanScan,
   deriveScansRemaining,
   getTransactionFeePercent,
   hasLiveSubscription,
   mapStripeSubscriptionStatus,
+  pickProfileByStripeCustomerId,
 } from "../subscription";
 import {
   FREE_FEE_PERCENT,
@@ -19,6 +21,7 @@ import {
   feePercentForTier,
 } from "../stripeConnect";
 import { mapStripeError } from "../stripe";
+import { sign, verify } from "../signedToken";
 
 // ============================================================================
 // Subscription Constants Tests
@@ -333,5 +336,219 @@ describe("mapStripeError (L-PAY18)", () => {
     const result = mapStripeError({ secret: "do-not-leak" });
     expect(result.status).toBe(500);
     expect(JSON.stringify(result)).not.toContain("do-not-leak");
+  });
+});
+
+// ============================================================================
+// Comp / trial / paid access-state resolution (L-AD5 read side)
+// ============================================================================
+
+describe("deriveAccessState (L-AD5)", () => {
+  it("comp'd user reads as premium + active, NOT trialing (even with a live trial window)", () => {
+    const state = deriveAccessState({
+      tier: "free",
+      status: "trialing",
+      trialActive: true, // admin grant populates trial_ends_at in the future
+      compGranted: true,
+    });
+    expect(state.isPremium).toBe(true);
+    expect(state.isTrialing).toBe(false);
+    expect(state.isComp).toBe(true);
+    expect(state.tier).toBe("premium");
+    expect(state.status).toBe("active");
+  });
+
+  it("comp flag wins even when the raw tier is already premium", () => {
+    const state = deriveAccessState({
+      tier: "premium",
+      status: "active",
+      trialActive: false,
+      compGranted: true,
+    });
+    expect(state.isComp).toBe(true);
+    expect(state.isPremium).toBe(true);
+    expect(state.isTrialing).toBe(false);
+  });
+
+  it("non-comp free user with a live trial window reads as trialing", () => {
+    const state = deriveAccessState({
+      tier: "free",
+      status: "trialing",
+      trialActive: true,
+      compGranted: false,
+    });
+    expect(state.isComp).toBe(false);
+    expect(state.isTrialing).toBe(true);
+    expect(state.isPremium).toBe(false);
+    expect(state.tier).toBe("free");
+  });
+
+  it("non-comp free user with no trial window is plain free (no access)", () => {
+    const state = deriveAccessState({
+      tier: "free",
+      status: "active",
+      trialActive: false,
+      compGranted: false,
+    });
+    expect(state.isComp).toBe(false);
+    expect(state.isTrialing).toBe(false);
+    expect(state.isPremium).toBe(false);
+  });
+
+  it("paying premium user is not reported as trialing even with a stale trial window", () => {
+    const state = deriveAccessState({
+      tier: "premium",
+      status: "active",
+      trialActive: true, // lingering trial_ends_at after conversion
+      compGranted: false,
+    });
+    expect(state.isPremium).toBe(true);
+    expect(state.isTrialing).toBe(false);
+    expect(state.isComp).toBe(false);
+  });
+
+  it("missing comp column (pre-migration => false) preserves prior trial behavior", () => {
+    const state = deriveAccessState({
+      tier: "free",
+      status: "trialing",
+      trialActive: true,
+      compGranted: false, // column absent reads as false at the call site
+    });
+    expect(state.isTrialing).toBe(true);
+    expect(state.isComp).toBe(false);
+  });
+});
+
+// ============================================================================
+// Stripe-customer-id multi-row disambiguation (M-PAY8)
+// ============================================================================
+
+describe("pickProfileByStripeCustomerId (M-PAY8)", () => {
+  it("returns null for an empty list (zero-row match)", () => {
+    expect(pickProfileByStripeCustomerId([])).toBeNull();
+  });
+
+  it("returns null for null/undefined input", () => {
+    expect(pickProfileByStripeCustomerId(null)).toBeNull();
+    expect(pickProfileByStripeCustomerId(undefined)).toBeNull();
+  });
+
+  it("returns the only row when exactly one matches", () => {
+    const row = { id: "a", clerk_user_id: "ca" };
+    expect(pickProfileByStripeCustomerId([row])).toBe(row);
+  });
+
+  it("picks the most-recently-updated row on a multi-row collision", () => {
+    const older = {
+      id: "old",
+      clerk_user_id: "c-old",
+      updated_at: "2026-01-01T00:00:00Z",
+    };
+    const newer = {
+      id: "new",
+      clerk_user_id: "c-new",
+      updated_at: "2026-06-01T00:00:00Z",
+    };
+    expect(pickProfileByStripeCustomerId([older, newer])?.id).toBe("new");
+    // order-independent
+    expect(pickProfileByStripeCustomerId([newer, older])?.id).toBe("new");
+  });
+
+  it("falls back to created_at when updated_at is absent", () => {
+    const a = { id: "a", clerk_user_id: "ca", created_at: "2026-02-01T00:00:00Z" };
+    const b = { id: "b", clerk_user_id: "cb", created_at: "2026-05-01T00:00:00Z" };
+    expect(pickProfileByStripeCustomerId([a, b])?.id).toBe("b");
+  });
+
+  it("does not throw when timestamps are missing entirely", () => {
+    const a = { id: "a", clerk_user_id: "ca" };
+    const b = { id: "b", clerk_user_id: "cb" };
+    expect(() => pickProfileByStripeCustomerId([a, b])).not.toThrow();
+    expect(pickProfileByStripeCustomerId([a, b])).not.toBeNull();
+  });
+});
+
+// ============================================================================
+// Promo-trial token gate (L-PAY17)
+//
+// The billing/checkout route accepts ONLY a signed, QR-exclusive promo token and
+// applies the 30-day trial when (and only when) the token verifies with the
+// `promo-trial` purpose marker. These tests lock that gate predicate so a client
+// can't fabricate a trial by POSTing `promoTrial: true` (the old hole). They use
+// the same signedToken primitive the route uses; eligibility persistence
+// (promo_trial_eligible) is a separate DB gate verified at runtime.
+// ============================================================================
+
+describe("promo-trial signed token gate (L-PAY17)", () => {
+  const SECRET_NAME = "PROMO_TRIAL_SECRET";
+  const PURPOSE = "promo-trial";
+  const original = process.env[SECRET_NAME];
+  const originalClerk = process.env.CLERK_SECRET_KEY;
+
+  // Mirror the route's predicate exactly.
+  const accepted = (token: string | undefined): boolean => {
+    if (!token) return false;
+    const r = verify<{ purpose?: string }>(token, SECRET_NAME);
+    return r.valid && r.payload?.purpose === PURPOSE;
+  };
+
+  beforeAll(() => {
+    process.env[SECRET_NAME] = "promo-secret-under-test";
+    process.env.CLERK_SECRET_KEY = "clerk-fallback";
+  });
+
+  afterAll(() => {
+    if (original === undefined) delete process.env[SECRET_NAME];
+    else process.env[SECRET_NAME] = original;
+    if (originalClerk === undefined) delete process.env.CLERK_SECRET_KEY;
+    else process.env.CLERK_SECRET_KEY = originalClerk;
+  });
+
+  it("accepts a properly signed QR token carrying the promo-trial purpose", () => {
+    const token = sign({ purpose: PURPOSE, exp: Date.now() + 60_000 }, SECRET_NAME);
+    expect(accepted(token)).toBe(true);
+  });
+
+  it("rejects a missing/empty token (no client-set promoTrial possible)", () => {
+    expect(accepted(undefined)).toBe(false);
+    expect(accepted("")).toBe(false);
+  });
+
+  it("rejects a forged/unsigned token", () => {
+    expect(accepted("not-a-real-token")).toBe(false);
+    expect(accepted("eyJwdXJwb3NlIjoicHJvbW8tdHJpYWwifQ.bogus")).toBe(false);
+  });
+
+  it("rejects a token signed with the wrong secret", () => {
+    const token = sign({ purpose: PURPOSE }, "SOME_OTHER_SECRET_THAT_RESOLVES_DIFFERENTLY");
+    // Sign with a deliberately different resolved secret value.
+    process.env.SOME_OTHER_SECRET_THAT_RESOLVES_DIFFERENTLY = "different-secret";
+    const tokenWrong = sign({ purpose: PURPOSE }, "SOME_OTHER_SECRET_THAT_RESOLVES_DIFFERENTLY");
+    expect(accepted(tokenWrong)).toBe(false);
+    delete process.env.SOME_OTHER_SECRET_THAT_RESOLVES_DIFFERENTLY;
+    // (token unused intentionally; first sign fell back to clerk secret)
+    expect(token).toBeDefined();
+  });
+
+  it("rejects a validly signed token with the WRONG purpose", () => {
+    const token = sign({ purpose: "unsubscribe", exp: Date.now() + 60_000 }, SECRET_NAME);
+    expect(accepted(token)).toBe(false);
+  });
+
+  it("rejects an expired promo token", () => {
+    const token = sign({ purpose: PURPOSE, exp: Date.now() - 1 }, SECRET_NAME);
+    expect(accepted(token)).toBe(false);
+  });
+
+  it("rejects a token whose payload was tampered after signing", () => {
+    const token = sign({ purpose: "free", exp: Date.now() + 60_000 }, SECRET_NAME);
+    const [, sig] = token.split(".");
+    // Swap in a promo-trial payload but keep the old signature.
+    const forgedPayload = Buffer.from(JSON.stringify({ purpose: PURPOSE }), "utf8")
+      .toString("base64")
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/, "");
+    expect(accepted(`${forgedPayload}.${sig}`)).toBe(false);
   });
 });

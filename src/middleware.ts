@@ -1,8 +1,14 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server";
 
+import { getAdminProfile } from "@/lib/adminAuth";
 import { checkRateLimit, getRateLimitIdentifier, rateLimiters } from "@/lib/rateLimit";
 
-// Define routes that require authentication
+// Define routes that require authentication.
+// NOTE: `/api/analyze` is deliberately NOT here — guest scans are public, with
+// the limit/CAPTCHA enforced server-side against the signed `cc_guest` cookie
+// (H-SC3). Keeping analyze unprotected lets the route handler mint/set that
+// cookie on the first guest scan without Clerk intercepting the request.
 const isProtectedRoute = createRouteMatcher([
   // Admin routes require authentication
   "/admin(.*)",
@@ -19,6 +25,11 @@ const isProtectedRoute = createRouteMatcher([
   "/api/auctions/:id/buy-now(.*)",
 ]);
 
+// Admin PAGE routes (not the JSON API, which guards itself in its handlers).
+// These get an extra server-side `is_admin` check below as defense-in-depth
+// alongside the admin layout's own server gate (M-AD2 / B5).
+const isAdminPageRoute = createRouteMatcher(["/admin(.*)"]);
+
 // Public AI-backed lookup endpoints — no auth, so rate limit at the edge to
 // protect against abuse of the expensive AI/eBay calls behind them.
 const isPublicAiLookupRoute = createRouteMatcher([
@@ -28,6 +39,16 @@ const isPublicAiLookupRoute = createRouteMatcher([
   "/api/comic-lookup(.*)",
   "/api/con-mode-lookup(.*)",
 ]);
+
+/**
+ * Pure helper: decide whether a path needs the middleware admin gate.
+ * Admin PAGE routes (`/admin/*`) are gated here; the admin JSON API
+ * (`/api/admin/*`) authorizes inside its own route handlers (richer 401/403
+ * responses), so it's excluded from the page-redirect gate. Exported for tests.
+ */
+export function shouldGateAdminPath(pathname: string): boolean {
+  return pathname === "/admin" || (pathname.startsWith("/admin/") && !pathname.startsWith("/admin/api"));
+}
 
 export default clerkMiddleware(async (auth, req) => {
   if (isPublicAiLookupRoute(req)) {
@@ -41,6 +62,17 @@ export default clerkMiddleware(async (auth, req) => {
 
   if (isProtectedRoute(req)) {
     await auth.protect();
+  }
+
+  // M-AD2: server-side is_admin gate for admin PAGE routes. auth.protect() above
+  // already guarantees the user is signed in; here we additionally confirm they
+  // are an admin and redirect non-admins to the homepage. Defense-in-depth with
+  // the admin layout's own server gate (B5).
+  if (isAdminPageRoute(req) && shouldGateAdminPath(req.nextUrl.pathname)) {
+    const adminProfile = await getAdminProfile();
+    if (!adminProfile) {
+      return NextResponse.redirect(new URL("/", req.url));
+    }
   }
 });
 

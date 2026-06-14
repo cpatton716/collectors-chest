@@ -3,7 +3,79 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 
 import { getProfileByClerkId } from "@/lib/db";
+import { normalizeTitle } from "@/lib/normalizeTitle";
 import { supabaseAdmin } from "@/lib/supabase";
+
+/**
+ * Build the per-comic "want count" map from a single batched key_hunt_lists
+ * fetch. Counts, for each tradeable comic, how many OTHER users (not the comic
+ * owner) have a matching (normalized title, trimmed issue) hunt-list entry.
+ *
+ * Replaces the previous N+1 (one `count` query per comic). Pure + exported so
+ * the tally logic is unit-tested without a live DB.
+ *
+ * Matching mirrors the DB equality predicates (and the functional indexes added
+ * in the closeout migration): `title_normalized` is stored normalized, so we
+ * compare against `normalizeTitle(title)` and the trimmed issue number.
+ */
+export interface HuntListRow {
+  user_id: string | null;
+  title_normalized: string | null;
+  issue_number: string | null;
+}
+
+export interface WantCountComic {
+  id: string;
+  title: string | null;
+  issue_number: string | null;
+  ownerClerkId: string | null;
+}
+
+export function tallyWantCounts(
+  comics: WantCountComic[],
+  huntRows: HuntListRow[]
+): Map<string, number> {
+  // Index hunt-list entries by their match key -> set of distinct wanter ids.
+  // A user wanting the same book twice (data quirk) is counted once.
+  const wantersByKey = new Map<string, Set<string>>();
+  for (const row of huntRows) {
+    const title = row.title_normalized?.trim();
+    const issue = row.issue_number?.trim();
+    const wanter = row.user_id;
+    if (!title || !issue || !wanter) continue;
+    const key = `${title}|${issue}`;
+    let set = wantersByKey.get(key);
+    if (!set) {
+      set = new Set<string>();
+      wantersByKey.set(key, set);
+    }
+    set.add(wanter);
+  }
+
+  const result = new Map<string, number>();
+  for (const comic of comics) {
+    const title = comic.title?.trim();
+    const issue = comic.issue_number?.trim();
+    if (!title || !issue) {
+      result.set(comic.id, 0);
+      continue;
+    }
+    const key = `${normalizeTitle(title)}|${issue}`;
+    const wanters = wantersByKey.get(key);
+    if (!wanters) {
+      result.set(comic.id, 0);
+      continue;
+    }
+    // Exclude the comic's own owner from the want count.
+    const ownerClerkId = comic.ownerClerkId;
+    let count = 0;
+    for (const wanter of wanters) {
+      if (wanter !== ownerClerkId) count += 1;
+    }
+    result.set(comic.id, count);
+  }
+  return result;
+}
 
 // Raw row shape for a for-trade comic with its joined owner profile. Comic
 // fields are nullable so we surface (and guard) bad data instead of crashing
@@ -91,49 +163,70 @@ export async function GET(_request: NextRequest) {
 
     const comics = (data || []) as unknown as ForTradeComicRow[];
 
-    // Compute want-counts in parallel. Skip comics missing title/issue (can't
-    // match a hunt list) and guard nullable fields before string operations.
-    const comicsWithWantCount = await Promise.all(
-      comics.map(async (comic) => {
-        const title = comic.title?.trim();
-        const issue = comic.issue_number?.trim();
-        const owner = comic.profiles;
+    // Want-counts (H-MK4): one batched fetch of matching key_hunt_lists rows,
+    // then tally in JS. Replaces the previous N+1 (one `count` query per comic).
+    // Build the distinct set of (normalized title, trimmed issue) keys to fetch,
+    // and use `.eq` on the normalized column (the closeout migration's composite
+    // functional index on key_hunt_lists supports this equality lookup).
+    const distinctTitles = new Set<string>();
+    const distinctIssues = new Set<string>();
+    for (const comic of comics) {
+      const title = comic.title?.trim();
+      const issue = comic.issue_number?.trim();
+      if (title && issue) {
+        distinctTitles.add(normalizeTitle(title));
+        distinctIssues.add(issue);
+      }
+    }
 
-        let wantCount = 0;
-        if (title && issue) {
-          const { count } = await supabaseAdmin
-            .from("key_hunt_lists")
-            .select("*", { count: "exact", head: true })
-            .ilike("title_normalized", title.toLowerCase())
-            .eq("issue_number", issue)
-            .neq("user_id", owner?.clerk_user_id || "");
-          wantCount = count || 0;
-        }
+    let huntRows: HuntListRow[] = [];
+    if (distinctTitles.size > 0 && distinctIssues.size > 0) {
+      // Over-fetch by the (title, issue) cross-product then narrow precisely in
+      // JS via tallyWantCounts (exact key match per comic). The `.in()` filters
+      // keep the scan bounded by the page's distinct titles/issues.
+      const { data: hunts } = await supabaseAdmin
+        .from("key_hunt_lists")
+        .select("user_id, title_normalized, issue_number")
+        .in("title_normalized", Array.from(distinctTitles))
+        .in("issue_number", Array.from(distinctIssues));
+      huntRows = (hunts || []) as HuntListRow[];
+    }
 
-        return {
-          id: comic.id,
-          title: comic.title ?? "Unknown Title",
-          issueNumber: comic.issue_number ?? "",
-          publisher: comic.publisher ?? "",
-          coverImageUrl: comic.cover_image_url ?? undefined,
-          grade: comic.grade ?? undefined,
-          estimatedValue: comic.estimated_value ?? undefined,
-          wantCount,
-          owner: {
-            id: owner?.id,
-            displayName: owner?.display_name || "Collector",
-            username: owner?.username,
-            positiveRatings: owner?.positive_ratings || 0,
-            negativeRatings: owner?.negative_ratings || 0,
-            ratingCount: (owner?.positive_ratings || 0) + (owner?.negative_ratings || 0),
-            locationCity: owner?.location_city,
-            locationState: owner?.location_state,
-            locationCountry: owner?.location_country,
-            locationPrivacy: owner?.location_privacy || "state_country",
-          },
-        };
-      })
+    const wantCountMap = tallyWantCounts(
+      comics.map((c) => ({
+        id: c.id,
+        title: c.title,
+        issue_number: c.issue_number,
+        ownerClerkId: c.profiles?.clerk_user_id ?? null,
+      })),
+      huntRows
     );
+
+    const comicsWithWantCount = comics.map((comic) => {
+      const owner = comic.profiles;
+      return {
+        id: comic.id,
+        title: comic.title ?? "Unknown Title",
+        issueNumber: comic.issue_number ?? "",
+        publisher: comic.publisher ?? "",
+        coverImageUrl: comic.cover_image_url ?? undefined,
+        grade: comic.grade ?? undefined,
+        estimatedValue: comic.estimated_value ?? undefined,
+        wantCount: wantCountMap.get(comic.id) ?? 0,
+        owner: {
+          id: owner?.id,
+          displayName: owner?.display_name || "Collector",
+          username: owner?.username,
+          positiveRatings: owner?.positive_ratings || 0,
+          negativeRatings: owner?.negative_ratings || 0,
+          ratingCount: (owner?.positive_ratings || 0) + (owner?.negative_ratings || 0),
+          locationCity: owner?.location_city,
+          locationState: owner?.location_state,
+          locationCountry: owner?.location_country,
+          locationPrivacy: owner?.location_privacy || "state_country",
+        },
+      };
+    });
 
     return NextResponse.json({ comics: comicsWithWantCount });
   } catch (error) {

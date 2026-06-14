@@ -7,48 +7,6 @@
  * 3. Better mobile performance
  */
 
-export interface OptimizedImage {
-  /** Full quality image for detail view (max 800KB) */
-  full: string;
-  /** Thumbnail for list views (max 50KB) */
-  thumbnail: string;
-  /** Original dimensions */
-  originalSize: { width: number; height: number };
-  /** Compressed dimensions */
-  compressedSize: { width: number; height: number };
-  /** Compression stats for debugging */
-  stats: {
-    originalBytes: number;
-    fullBytes: number;
-    thumbnailBytes: number;
-    compressionRatio: number;
-  };
-}
-
-export interface CompressionOptions {
-  /** Max dimension for full image (default: 1200) */
-  maxFullDimension?: number;
-  /** Max dimension for thumbnail (default: 300) */
-  maxThumbnailDimension?: number;
-  /** Target size for full image in bytes (default: 400KB) */
-  targetFullSize?: number;
-  /** Target size for thumbnail in bytes (default: 30KB) */
-  targetThumbnailSize?: number;
-  /** Starting quality 0-1 (default: 0.8) */
-  initialQuality?: number;
-  /** Minimum quality 0-1 (default: 0.4) */
-  minQuality?: number;
-}
-
-const DEFAULT_OPTIONS: Required<CompressionOptions> = {
-  maxFullDimension: 1200,
-  maxThumbnailDimension: 300,
-  targetFullSize: 400 * 1024, // 400KB
-  targetThumbnailSize: 30 * 1024, // 30KB
-  initialQuality: 0.8,
-  minQuality: 0.4,
-};
-
 /**
  * Calculate new dimensions while maintaining aspect ratio
  */
@@ -149,80 +107,8 @@ function loadImage(source: File | string): Promise<HTMLImageElement> {
 }
 
 /**
- * Optimize an image for storage and display
- *
- * @param source - File object or base64 data URL
- * @param options - Compression options
- * @returns Optimized image with full and thumbnail versions
- */
-export async function optimizeImage(
-  source: File | string,
-  options: CompressionOptions = {}
-): Promise<OptimizedImage> {
-  const opts = { ...DEFAULT_OPTIONS, ...options };
-
-  // Load the image
-  const img = await loadImage(source);
-  const originalSize = { width: img.width, height: img.height };
-  const originalBytes = typeof source === "string" ? source.length : source.size;
-
-  // Calculate dimensions for full image
-  const fullDims = calculateDimensions(img.width, img.height, opts.maxFullDimension);
-
-  // Create canvas for full image
-  const fullCanvas = document.createElement("canvas");
-  fullCanvas.width = fullDims.width;
-  fullCanvas.height = fullDims.height;
-  const fullCtx = fullCanvas.getContext("2d");
-  if (!fullCtx) throw new Error("Could not get canvas context");
-
-  // Enable image smoothing for better quality
-  fullCtx.imageSmoothingEnabled = true;
-  fullCtx.imageSmoothingQuality = "high";
-  fullCtx.drawImage(img, 0, 0, fullDims.width, fullDims.height);
-
-  // Compress full image
-  const full = compressToTarget(
-    fullCanvas,
-    opts.targetFullSize,
-    opts.initialQuality,
-    opts.minQuality
-  );
-
-  // Calculate dimensions for thumbnail
-  const thumbDims = calculateDimensions(img.width, img.height, opts.maxThumbnailDimension);
-
-  // Create canvas for thumbnail
-  const thumbCanvas = document.createElement("canvas");
-  thumbCanvas.width = thumbDims.width;
-  thumbCanvas.height = thumbDims.height;
-  const thumbCtx = thumbCanvas.getContext("2d");
-  if (!thumbCtx) throw new Error("Could not get canvas context");
-
-  thumbCtx.imageSmoothingEnabled = true;
-  thumbCtx.imageSmoothingQuality = "high";
-  thumbCtx.drawImage(img, 0, 0, thumbDims.width, thumbDims.height);
-
-  // Compress thumbnail more aggressively
-  const thumbnail = compressToTarget(thumbCanvas, opts.targetThumbnailSize, 0.7, 0.3);
-
-  return {
-    full,
-    thumbnail,
-    originalSize,
-    compressedSize: fullDims,
-    stats: {
-      originalBytes,
-      fullBytes: full.length,
-      thumbnailBytes: thumbnail.length,
-      compressionRatio: originalBytes / full.length,
-    },
-  };
-}
-
-/**
  * Quick compress an image (just full version, no thumbnail)
- * Use this for immediate display, then call optimizeImage for storage
+ * Use this for immediate display before any heavier storage processing.
  */
 export async function quickCompress(
   source: File | string,

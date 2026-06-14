@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { useUser } from "@clerk/nextjs";
 
+import { sanitizeCoverImageUrl } from "@/lib/coverImageUrlSanitizer";
 import {
   addComic,
   addComicToList as addComicToListDb,
@@ -19,8 +20,144 @@ import {
   updateComic as updateComicDb,
 } from "@/lib/db";
 import { storage } from "@/lib/storage";
+import { supabase } from "@/lib/supabase";
 
 import { CollectionItem, SaleRecord, UserList } from "@/types/comic";
+
+/**
+ * A sale row may carry the H-CO1 `sale_price_recorded` flag once the closeout
+ * migration lands. `false` means the seller skipped the per-item price during a
+ * bulk "Mark as Sold" — the sale is intentionally recorded with no value so the
+ * skip is auditable rather than silently dropped. Pre-migration the column does
+ * not exist, so the flag is optional everywhere.
+ */
+export interface SaleRecordWithFlag extends SaleRecord {
+  priceRecorded?: boolean;
+}
+
+/**
+ * Pure helper (H-CO1): builds the `sales` insert payload for a recorded sale.
+ *
+ * When `priceRecorded` is true (the single-item default and any bulk sale where
+ * the seller entered a price) the sale stores the real price/profit. When false
+ * (bulk "Mark as Sold" with the price prompt skipped) the sale is recorded with
+ * a zero/null price and `sale_price_recorded = false` so revenue math can treat
+ * it as "no value" while the sale itself stays on the books for audit.
+ *
+ * Kept side-effect free so it can be unit tested without a DB. The caller is
+ * responsible for the migration-gated fallback if `sale_price_recorded` does not
+ * yet exist as a column.
+ */
+export function buildSaleInsertFields(
+  profileId: string,
+  item: CollectionItem,
+  salePrice: number,
+  priceRecorded: boolean,
+  buyerId?: string
+): {
+  user_id: string;
+  comic_title: string | null;
+  comic_issue_number: string | null;
+  comic_variant: string | null;
+  comic_publisher: string | null;
+  cover_image_url: string | null;
+  purchase_price: number | null;
+  sale_price: number | null;
+  profit: number;
+  buyer_id: string | null;
+  sale_price_recorded: boolean;
+} {
+  // A skipped price is recorded as null (auditable absence of value), and never
+  // contributes profit. A recorded price stores the real number + profit.
+  const effectivePrice = priceRecorded ? salePrice : null;
+  const profit = priceRecorded ? salePrice - (item.purchasePrice || 0) : 0;
+
+  return {
+    user_id: profileId,
+    comic_title: item.comic.title,
+    comic_issue_number: item.comic.issueNumber ?? null,
+    comic_variant: item.comic.variant ?? null,
+    comic_publisher: item.comic.publisher ?? null,
+    cover_image_url: sanitizeCoverImageUrl(item.coverImageUrl),
+    purchase_price: item.purchasePrice ?? null,
+    sale_price: effectivePrice,
+    profit,
+    buyer_id: buyerId || null,
+    sale_price_recorded: priceRecorded,
+  };
+}
+
+/**
+ * Pure helper (H-CO1): the revenue value a sale row should contribute to
+ * totals. Rows flagged `sale_price_recorded === false` count as zero ("no
+ * value") so a skipped bulk sale never inflates revenue. Rows with the flag
+ * absent (pre-migration / legacy) fall back to their stored sale price.
+ */
+export function saleRevenueValue(sale: SaleRecordWithFlag): number {
+  if (sale.priceRecorded === false) return 0;
+  return sale.salePrice || 0;
+}
+
+/** True when a sale row was recorded without a price (skipped during bulk sell). */
+export function isSalePriceMissing(sale: SaleRecordWithFlag): boolean {
+  return sale.priceRecorded === false;
+}
+
+// Postgres / PostgREST signals for a column that does not exist yet — used to
+// detect a pre-migration `sales` table that lacks `sale_price_recorded`.
+const MISSING_COLUMN_CODES = new Set(["42703", "PGRST204"]);
+
+function isMissingColumnError(err: unknown): boolean {
+  const code = (err as { code?: string } | null)?.code;
+  return typeof code === "string" && MISSING_COLUMN_CODES.has(code);
+}
+
+/**
+ * Records a bulk "Mark as Sold" sale where the per-item price was skipped
+ * (H-CO1). Writes an enriched `sales` row with `sale_price_recorded = false`
+ * and a null price so the sale is auditable.
+ *
+ * Migration-gated: `sale_price_recorded` (and the now-nullable `sale_price`)
+ * arrive in the closeout migration. If they are not present yet the insert
+ * fails with a missing-column error (42703 / PGRST204); we degrade gracefully
+ * by recording the sale through the existing path as a $0 sale so the book is
+ * still removed from the collection and the sale stays on the books.
+ */
+async function recordSkippedSale(
+  profileId: string,
+  item: CollectionItem,
+  buyerId?: string
+): Promise<SaleRecordWithFlag> {
+  const fields = buildSaleInsertFields(profileId, item, 0, false, buyerId);
+
+  const { data, error } = await supabase.from("sales").insert(fields).select().single();
+
+  if (error) {
+    if (isMissingColumnError(error)) {
+      // Pre-migration fallback: record as a $0 sale via the standard path so the
+      // book still leaves the collection. Flag stays false in app state so
+      // revenue helpers continue to treat it as "no value".
+      const fallback = await recordSaleDb(profileId, item, 0, buyerId);
+      return { ...fallback, priceRecorded: false };
+    }
+    throw error;
+  }
+
+  // Mirror recordSaleDb: the comic leaves the collection once the sale is logged.
+  await deleteComic(item.id);
+
+  return {
+    id: data.id,
+    comic: item.comic,
+    coverImageUrl: item.coverImageUrl,
+    purchasePrice: item.purchasePrice,
+    salePrice: data.sale_price ?? 0,
+    saleDate: data.sale_date,
+    profit: data.profit,
+    buyerId: data.buyer_id,
+    priceRecorded: false,
+  };
+}
 
 export interface CollectionStats {
   totalComics: number;
@@ -62,7 +199,12 @@ export interface UseCollectionReturn {
   getItemsInList: (listId: string) => CollectionItem[];
 
   // Sales
-  recordSale: (item: CollectionItem, salePrice: number, buyerId?: string) => Promise<SaleRecord>;
+  recordSale: (
+    item: CollectionItem,
+    salePrice: number,
+    buyerId?: string,
+    priceRecorded?: boolean
+  ) => Promise<SaleRecord>;
 
   // Stats
   getCollectionStats: () => CollectionStats;
@@ -330,17 +472,36 @@ export function useCollection(): UseCollectionReturn {
 
   // Sales
   const recordSale = useCallback(
-    async (item: CollectionItem, salePrice: number, buyerId?: string): Promise<SaleRecord> => {
+    async (
+      item: CollectionItem,
+      salePrice: number,
+      buyerId?: string,
+      // H-CO1: bulk "Mark as Sold" may skip the per-item price prompt. The
+      // single-item path always records a price, so this defaults to true.
+      priceRecorded: boolean = true
+    ): Promise<SaleRecord> => {
       // Remove from collection optimistically
       setCollection((prev) => prev.filter((i) => i.id !== item.id));
 
       try {
-        let saleRecord: SaleRecord;
+        let saleRecord: SaleRecordWithFlag;
 
         if (profileId) {
-          saleRecord = await recordSaleDb(profileId, item, salePrice, buyerId);
+          if (priceRecorded) {
+            // Standard path — unchanged behavior, no migration dependency.
+            saleRecord = { ...(await recordSaleDb(profileId, item, salePrice, buyerId)), priceRecorded: true };
+          } else {
+            // Skipped-price path: persist an auditable flagged row with a null
+            // price. Migration-gated — `sale_price_recorded` (+ nullable
+            // sale_price) ship in the closeout migration. If the column is not
+            // there yet, fall back so the sale still records (as a $0 sale).
+            saleRecord = await recordSkippedSale(profileId, item, buyerId);
+          }
         } else {
-          saleRecord = storage.recordSale(item, salePrice, buyerId);
+          // Guest/localStorage path: record at face value; the missing-price
+          // flag is a cloud-only audit concern, so a skip stores a $0 sale.
+          const guestPrice = priceRecorded ? salePrice : 0;
+          saleRecord = { ...storage.recordSale(item, guestPrice, buyerId), priceRecorded };
         }
 
         // Add to sales list
@@ -370,9 +531,11 @@ export function useCollection(): UseCollectionReturn {
   }, [collection]);
 
   const getSalesStats = useCallback((): SalesStats => {
+    // H-CO1: sales recorded without a price (skipped bulk sell) must not inflate
+    // revenue — saleRevenueValue() returns 0 for `sale_price_recorded === false`.
     return {
       totalSales: sales.length,
-      totalRevenue: sales.reduce((sum, sale) => sum + sale.salePrice, 0),
+      totalRevenue: sales.reduce((sum, sale) => sum + saleRevenueValue(sale), 0),
       totalProfit: sales.reduce((sum, sale) => sum + sale.profit, 0),
     };
   }, [sales]);

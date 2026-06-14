@@ -2,6 +2,8 @@
 
 import { memo, useEffect, useRef, useState } from "react";
 
+import Image from "next/image";
+
 import { DollarSign, Pencil, Star, Tag, TrendingDown, TrendingUp } from "lucide-react";
 
 import { SelectionCheckbox } from "@/components/collection/SelectionCheckbox";
@@ -92,13 +94,15 @@ function ComicCardComponent({
       {/* Cover Image */}
       <div className="relative aspect-[2/3] bg-pop-cream border-b-3 border-pop-black">
         {coverImageUrl ? (
-          <img
+          <Image
             ref={imgRef}
             src={coverImageUrl}
             alt={`${comic.title} #${comic.issueNumber}`}
+            fill
+            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 200px"
             onLoad={() => setImgReady(true)}
             decoding="async"
-            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-200 ${imgReady ? "opacity-100" : "opacity-0"}`}
+            className={`object-cover transition-opacity duration-200 ${imgReady ? "opacity-100" : "opacity-0"}`}
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center dots-red">

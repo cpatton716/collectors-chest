@@ -31,11 +31,23 @@ interface GuestScanState {
   bonusScans: number;
   hasBonusScans: boolean;
   totalLimit: number;
+  /**
+   * Authoritative remaining scans returned by the server on the last scan
+   * (null until the first server response). The server cookie + Redis counter
+   * are the source of truth (H-SC3 / M-SC4); the localStorage-derived values
+   * above are now only an optimistic display hint and the bonus state is
+   * non-authoritative. Prefer this when present.
+   */
+  serverRemaining: number | null;
+  /** Authoritative total allowance from the server's last response (null until first response). */
+  serverLimit: number | null;
   incrementScan: () => MilestoneType;
   resetScans: () => void;
   checkMilestone: () => MilestoneType;
   markMilestoneShown: (milestone: MilestoneType) => void;
   addBonusScans: () => void;
+  /** Record the server's authoritative remaining/limit from an analyze response. */
+  applyServerScanResult: (result: { remaining?: number; limit?: number }) => void;
 }
 
 // Helper to get milestones from localStorage
@@ -59,10 +71,31 @@ const saveMilestonesShown = (milestones: MilestonesShown) => {
   localStorage.setItem(MILESTONES_SHOWN_KEY, JSON.stringify(milestones));
 };
 
+/**
+ * Normalize the server's authoritative scan accounting (from /api/analyze)
+ * into safe display values. The server returns `guestRemaining`/`guestLimit`
+ * on success and `limit`/`scansUsed` on a 403 limit-reached; this coerces
+ * whatever is present into non-negative integers (or null when absent), so the
+ * UI never renders NaN or a negative count. Pure + exported for testing.
+ */
+export function normalizeServerScanResult(result: {
+  remaining?: number | null;
+  limit?: number | null;
+}): { remaining: number | null; limit: number | null } {
+  const coerce = (v: number | null | undefined): number | null =>
+    typeof v === "number" && Number.isFinite(v) ? Math.max(0, Math.floor(v)) : null;
+  return { remaining: coerce(result.remaining), limit: coerce(result.limit) };
+}
+
 export function useGuestScans(): GuestScanState {
   const { isSignedIn, isLoaded } = useAuth();
   const [scanCount, setScanCount] = useState(0);
   const [bonusScans, setBonusScans] = useState(0);
+  // Server-authoritative remaining/limit (H-SC3 / M-SC4). Null until the first
+  // analyze response; once set, the page renders these instead of the
+  // localStorage-derived optimistic values.
+  const [serverRemaining, setServerRemaining] = useState<number | null>(null);
+  const [serverLimit, setServerLimit] = useState<number | null>(null);
   const [milestonesShown, setMilestonesShown] = useState<MilestonesShown>({
     fiveRemaining: false,
     threeRemaining: false,
@@ -142,12 +175,26 @@ export function useGuestScans(): GuestScanState {
     if (typeof window === "undefined") return;
     setScanCount(0);
     setBonusScans(0);
+    setServerRemaining(null);
+    setServerLimit(null);
     localStorage.removeItem(GUEST_SCAN_KEY);
     localStorage.removeItem(BONUS_SCANS_KEY);
     // Also reset milestones
     setMilestonesShown({ fiveRemaining: false, threeRemaining: false, finalScan: false });
     localStorage.removeItem(MILESTONES_SHOWN_KEY);
   }, []);
+
+  // Record the server's authoritative remaining/limit from an analyze response.
+  // The server cookie + Redis counter are the source of truth; this lets the UI
+  // reflect the real allowance even if localStorage was tampered/cleared.
+  const applyServerScanResult = useCallback(
+    (result: { remaining?: number; limit?: number }) => {
+      const { remaining, limit } = normalizeServerScanResult(result);
+      if (remaining !== null) setServerRemaining(remaining);
+      if (limit !== null) setServerLimit(limit);
+    },
+    []
+  );
 
   // Add bonus scans (called after successful email capture)
   const addBonusScans = useCallback(() => {
@@ -159,8 +206,11 @@ export function useGuestScans(): GuestScanState {
 
   const isGuest = isLoaded && !isSignedIn;
   const totalLimit = MAX_GUEST_SCANS + bonusScans;
-  const remaining = Math.max(0, totalLimit - scanCount);
-  const isLimitReached = isGuest && scanCount >= totalLimit;
+  // Prefer the server-authoritative remaining when we have it (H-SC3 / M-SC4);
+  // otherwise fall back to the optimistic localStorage-derived value.
+  const remaining = serverRemaining !== null ? serverRemaining : Math.max(0, totalLimit - scanCount);
+  // Limit-reached likewise honors the server once it has spoken.
+  const isLimitReached = isGuest && (serverRemaining !== null ? serverRemaining <= 0 : scanCount >= totalLimit);
   const hasBonusScans = bonusScans > 0;
 
   return {
@@ -171,11 +221,14 @@ export function useGuestScans(): GuestScanState {
     bonusScans,
     hasBonusScans,
     totalLimit,
+    serverRemaining,
+    serverLimit,
     incrementScan,
     resetScans,
     checkMilestone,
     markMilestoneShown,
     addBonusScans,
+    applyServerScanResult,
   };
 }
 

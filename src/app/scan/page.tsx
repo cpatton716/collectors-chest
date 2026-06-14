@@ -105,8 +105,15 @@ export default function ScanPage() {
   const router = useRouter();
   const { isSignedIn } = useUser();
   const { showToast } = useToast();
-  const { isLimitReached, isGuest, incrementScan, count, markMilestoneShown, addBonusScans } =
-    useGuestScans();
+  const {
+    isLimitReached,
+    isGuest,
+    incrementScan,
+    count,
+    markMilestoneShown,
+    addBonusScans,
+    applyServerScanResult,
+  } = useGuestScans();
   const { addToCollection, collection, updateCollectionItem } = useCollection();
   const [state, setState] = useState<ScanState>("upload");
   const [imagePreview, setImagePreview] = useState<string>("");
@@ -126,6 +133,10 @@ export default function ScanPage() {
   const reviewSectionRef = useRef<HTMLDivElement>(null);
   const analysisSectionRef = useRef<HTMLDivElement>(null);
   const captchaRef = useRef<GuestCaptchaHandle>(null);
+  // Wraps the camera/scan capture surface. Pinch-to-zoom is re-enabled site-wide
+  // (B14, layout.tsx), but it must stay LOCKED on this surface so a pinch while
+  // aiming the camera/cropping a cover doesn't accidentally zoom the page (H-FE1).
+  const scanSurfaceRef = useRef<HTMLDivElement>(null);
 
   // CAPTCHA is required for guest scans 4 and 5 (but NOT authenticated users
   // or the first 3 scans). `count` is the number of scans ALREADY completed,
@@ -156,6 +167,36 @@ export default function ScanPage() {
     setShowSlowMessage(false);
   }, [state]);
 
+  // H-FE1: lock pinch-to-zoom on the camera/scan capture surface ONLY, while
+  // global zoom stays enabled (B14). Scoped to the upload state — that's when the
+  // camera/cropper is live — so an aiming pinch never zooms the page. We both set
+  // `touch-action: none` (suppresses the browser's built-in pinch/double-tap zoom
+  // on the element) and preventDefault iOS Safari's `gesture*` events, which
+  // ignore touch-action. Listeners are removed when leaving the surface.
+  useEffect(() => {
+    if (state !== "upload") return;
+    const el = scanSurfaceRef.current;
+    if (!el) return;
+
+    const blockMultiTouch = (e: TouchEvent) => {
+      if (e.touches.length > 1) e.preventDefault();
+    };
+    const blockGesture = (e: Event) => e.preventDefault();
+
+    // touchmove must be non-passive for preventDefault to take effect.
+    el.addEventListener("touchmove", blockMultiTouch, { passive: false });
+    el.addEventListener("gesturestart", blockGesture as EventListener);
+    el.addEventListener("gesturechange", blockGesture as EventListener);
+    el.addEventListener("gestureend", blockGesture as EventListener);
+
+    return () => {
+      el.removeEventListener("touchmove", blockMultiTouch);
+      el.removeEventListener("gesturestart", blockGesture as EventListener);
+      el.removeEventListener("gesturechange", blockGesture as EventListener);
+      el.removeEventListener("gestureend", blockGesture as EventListener);
+    };
+  }, [state]);
+
   const handleImageSelect = async (file: File, preview: string) => {
     setImagePreview(preview);
     setState("analyzing");
@@ -182,18 +223,17 @@ export default function ScanPage() {
       }
 
       // Send to our API for Claude Vision analysis.
-      // Guest scan count goes in a header so the server can enforce
-      // CAPTCHA on scans 4-5 and the 5-scan hard limit.
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-      };
-      if (isGuest && !isSignedIn) {
-        headers["x-guest-scan-count"] = String(count);
-      }
-
+      // The guest scan limit + CAPTCHA gate are now enforced entirely server-side
+      // against the signed `cc_guest` cookie + Redis counter (H-SC3). We no longer
+      // send a trusted `x-guest-scan-count` header — the server cookie is the
+      // source of truth and the response carries the authoritative remaining/limit.
       const response = await fetch("/api/analyze", {
         method: "POST",
-        headers,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        // Ensure the browser sends/stores the signed guest cookie on this request.
+        credentials: "same-origin",
         body: JSON.stringify({
           image: preview,
           mediaType,
@@ -206,9 +246,24 @@ export default function ScanPage() {
         const contentType = response.headers.get("content-type");
         if (contentType && contentType.includes("application/json")) {
           const errorData = await response.json();
-          const errorMsg = errorData.error === "scan_limit_reached"
-            ? "You've used all your free scans this month. Upgrade to Premium for unlimited scans!"
-            : errorData.error || "Failed to analyze image";
+          // Surface the server's authoritative allowance when it rejects a guest
+          // for hitting the limit, so the UI's remaining count matches the server.
+          if (errorData.error === "guest_limit_reached" && isGuest && !isSignedIn) {
+            applyServerScanResult({ remaining: 0, limit: errorData.limit });
+          }
+          let errorMsg: string;
+          if (errorData.error === "scan_limit_reached") {
+            errorMsg =
+              "You've used all your free scans this month. Upgrade to Premium for unlimited scans!";
+          } else if (errorData.error === "guest_limit_reached") {
+            errorMsg =
+              errorData.message ||
+              "You've used all your free scans. Create an account to continue.";
+          } else if (errorData.captchaRequired) {
+            errorMsg = errorData.error || "Please complete the CAPTCHA and try again.";
+          } else {
+            errorMsg = errorData.error || "Failed to analyze image";
+          }
           throw new Error(errorMsg);
         } else {
           // Edge function timeout or other non-JSON error
@@ -227,10 +282,23 @@ export default function ScanPage() {
         }
       }
 
-      const { _meta, cerebro_assisted: cerebroFlag, ...details } = await response.json();
+      const {
+        _meta,
+        cerebro_assisted: cerebroFlag,
+        guestRemaining,
+        guestLimit,
+        ...details
+      } = await response.json();
 
       if (_meta?.fallbackUsed) {
         console.info("[scan] Fallback provider used:", _meta);
+      }
+
+      // Record the server's authoritative remaining/limit (H-SC3 / M-SC4). The
+      // server cookie + Redis counter are the source of truth; local state is a
+      // display hint only. Present only for guests.
+      if (isGuest && !isSignedIn && (guestRemaining !== undefined || guestLimit !== undefined)) {
+        applyServerScanResult({ remaining: guestRemaining, limit: guestLimit });
       }
 
       // Add an ID to the comic details
@@ -499,8 +567,11 @@ export default function ScanPage() {
             </div>
           ) : (
             <div
-              className="bg-pop-white border-3 border-pop-black p-8"
-              style={{ boxShadow: "4px 4px 0px #000" }}
+              ref={scanSurfaceRef}
+              className="bg-pop-white border-3 border-pop-black p-8 touch-none"
+              // touch-action:none locks pinch/double-tap zoom on the camera/scan
+              // surface only (H-FE1); the `gesture*` listeners above cover iOS Safari.
+              style={{ boxShadow: "4px 4px 0px #000", touchAction: "none" }}
             >
               <ImageUpload onImageSelect={handleImageSelect} />
 

@@ -6,8 +6,8 @@ Sentry.init({
   // Performance Monitoring
   tracesSampleRate: 0.1, // 10% of transactions
 
-  // Session Replay (optional - for debugging)
-  replaysSessionSampleRate: 0.1, // 10% of sessions
+  // Session Replay (M-CC12): disable always-on session replay; PostHog covers
+  // session recording. Keep on-error replay only (low volume, high debugging value).
   replaysOnErrorSampleRate: 1.0, // 100% when there's an error
 
   // Debug mode (disable in production)

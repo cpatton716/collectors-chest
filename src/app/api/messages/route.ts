@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import { isUserSuspended } from "@/lib/adminAuth";
 import { getProfileByClerkId } from "@/lib/db";
-import { broadcastNewMessage, getUnreadMessageCount, getUserConversations, sendMessage } from "@/lib/messagingDb";
+import { broadcastNewMessage, getUserConversationsWithUnread, sendMessage } from "@/lib/messagingDb";
 import { schemas, validateBody } from "@/lib/validation";
 
 const sendMessageSchema = z
@@ -34,8 +34,10 @@ export async function GET() {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
-    const conversations = await getUserConversations(profile.id);
-    const totalUnread = await getUnreadMessageCount(profile.id);
+    // M-MS3: a single inbox fetch returns the previews AND the unread total
+    // (derived from the per-conversation unread counts), so we no longer make a
+    // second redundant getUnreadMessageCount scan here.
+    const { conversations, totalUnread } = await getUserConversationsWithUnread(profile.id);
 
     return NextResponse.json({
       conversations,

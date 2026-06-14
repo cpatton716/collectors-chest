@@ -12,15 +12,31 @@ import { ArrowLeft, DollarSign, Lock, TrendingDown, TrendingUp } from "lucide-re
 import { useCollection } from "@/hooks/useCollection";
 import { useSubscription } from "@/hooks/useSubscription";
 
+import {
+  getSoldValueAnnotation,
+  type SoldValueAnnotationInput,
+} from "@/components/CollectionStats";
 import { CollectionPageSkeleton } from "@/components/Skeleton";
 
 import { SaleRecord } from "@/types/comic";
+
+const SALES_PAGE_SIZE = 50;
+
+/**
+ * Build-safe accessor for the (migration-staged) `sale_price_recorded` flag.
+ * The `SaleRecord` type does not yet carry this field, so we read it
+ * structurally and treat anything other than an explicit `false` as recorded.
+ */
+function isSalePriceRecorded(sale: SaleRecord): boolean {
+  return (sale as unknown as SoldValueAnnotationInput).salePriceRecorded !== false;
+}
 
 export default function SalesPage() {
   const router = useRouter();
   const { isSignedIn, isLoaded: authLoaded } = useUser();
   const { sales, isLoading } = useCollection();
   const [selectedSale, setSelectedSale] = useState<SaleRecord | null>(null);
+  const [visibleCount, setVisibleCount] = useState(SALES_PAGE_SIZE);
   const { features, tier, isTrialing, startFreeTrial, startCheckout } = useSubscription();
   const hasStatsAccess = features.fullStats;
   const [isStartingUpgrade, setIsStartingUpgrade] = useState(false);
@@ -42,17 +58,41 @@ export default function SalesPage() {
     setIsStartingUpgrade(false);
   };
 
-  // Calculate summary stats. Memoized so the three reduces only re-run when the
-  // sales array actually changes, not on every unrelated re-render.
-  const { totalSales, totalProfit, avgProfit } = useMemo(() => {
-    const totalSalesValue = sales.reduce((sum, sale) => sum + sale.salePrice, 0);
-    const totalProfitValue = sales.reduce((sum, sale) => sum + sale.profit, 0);
+  // Calculate summary stats. Memoized so the reduces only re-run when the sales
+  // array actually changes, not on every unrelated re-render (L-MK23).
+  //
+  // H-CO1: books marked sold WITHOUT a recorded sale price (sale_price_recorded
+  // = false) carry no real money value, so they are EXCLUDED from the revenue /
+  // profit / average math. Totals reflect only books with a recorded price, and
+  // a caveat footnote tells the user how many were excluded. `valuedCount` is
+  // the denominator for the average (not the raw sold count).
+  const { totalSales, totalProfit, avgProfit, valuedCount, soldValueAnnotation } = useMemo(() => {
+    let totalSalesValue = 0;
+    let totalProfitValue = 0;
+    let recordedCount = 0;
+    const annotationInputs: SoldValueAnnotationInput[] = [];
+
+    for (const sale of sales) {
+      const recorded = isSalePriceRecorded(sale);
+      annotationInputs.push({ salePriceRecorded: recorded });
+      if (recorded) {
+        totalSalesValue += sale.salePrice;
+        totalProfitValue += sale.profit;
+        recordedCount++;
+      }
+    }
+
     return {
       totalSales: totalSalesValue,
       totalProfit: totalProfitValue,
-      avgProfit: sales.length > 0 ? totalProfitValue / sales.length : 0,
+      avgProfit: recordedCount > 0 ? totalProfitValue / recordedCount : 0,
+      valuedCount: recordedCount,
+      soldValueAnnotation: getSoldValueAnnotation(annotationInputs),
     };
   }, [sales]);
+
+  const visibleSales = useMemo(() => sales.slice(0, visibleCount), [sales, visibleCount]);
+  const hasMore = sales.length > visibleCount;
 
   const formatPrice = (price: number | null) => {
     if (price === null) return "-";
@@ -127,8 +167,19 @@ export default function SalesPage() {
               </div>
               <span className="text-sm font-bold text-gray-600 uppercase">Total Sales</span>
             </div>
-            <p className="text-3xl font-black text-pop-black">{formatPrice(totalSales)}</p>
-            <p className="text-sm text-gray-500">{sales.length} comics sold</p>
+            <p className="text-3xl font-black text-pop-black">
+              {formatPrice(totalSales)}
+              {soldValueAnnotation && <span className="align-super text-base text-pop-red">*</span>}
+            </p>
+            <p className="text-sm text-gray-500">
+              {sales.length} comics sold
+              {soldValueAnnotation && (
+                <span className="text-gray-400">
+                  {" "}
+                  ({valuedCount} with a price)
+                </span>
+              )}
+            </p>
           </div>
 
           {/* Total Profit */}
@@ -150,9 +201,10 @@ export default function SalesPage() {
             >
               {totalProfit >= 0 ? "+" : ""}
               {formatPrice(totalProfit)}
+              {soldValueAnnotation && <span className="align-super text-base text-pop-red">*</span>}
             </p>
             <p className="text-sm text-gray-500">
-              {totalProfit >= 0 ? "Net gain" : "Net loss"} from all sales
+              {totalProfit >= 0 ? "Net gain" : "Net loss"} from priced sales
             </p>
           </div>
 
@@ -175,10 +227,16 @@ export default function SalesPage() {
             >
               {avgProfit >= 0 ? "+" : ""}
               {formatPrice(avgProfit)}
+              {soldValueAnnotation && <span className="align-super text-base text-pop-red">*</span>}
             </p>
-            <p className="text-sm text-gray-500">Per comic sold</p>
+            <p className="text-sm text-gray-500">Per priced comic sold</p>
           </div>
         </div>
+
+        {/* H-CO1: caveat footnote when some sold books have no recorded price. */}
+        {soldValueAnnotation && (
+          <p className="mt-3 text-xs font-bold text-pop-red">{soldValueAnnotation.footnote}</p>
+        )}
         </div>
 
         {!hasStatsAccess && (
@@ -261,7 +319,7 @@ export default function SalesPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {sales.map((sale, index) => (
+                  {visibleSales.map((sale, index) => (
                     <tr
                       key={sale.id}
                       className={`border-b border-gray-200 transition-colors md:hover:bg-transparent hover:bg-gray-50 md:cursor-default cursor-pointer ${
@@ -303,16 +361,35 @@ export default function SalesPage() {
                         </td>
                       )}
                       <td className="px-4 py-3 text-right font-bold text-pop-black">
-                        {formatPrice(sale.salePrice)}
+                        {isSalePriceRecorded(sale) ? (
+                          formatPrice(sale.salePrice)
+                        ) : (
+                          <span
+                            className="inline-block px-2 py-0.5 text-xs font-bold uppercase bg-pop-yellow border border-pop-black text-pop-black"
+                            title="This comic was marked sold without a recorded sale price."
+                          >
+                            Not recorded
+                          </span>
+                        )}
                       </td>
                       {hasStatsAccess && (
                         <td
                           className={`px-4 py-3 text-right font-bold ${
-                            sale.profit >= 0 ? "text-green-600" : "text-red-600"
+                            !isSalePriceRecorded(sale)
+                              ? "text-gray-400"
+                              : sale.profit >= 0
+                                ? "text-green-600"
+                                : "text-red-600"
                           }`}
                         >
-                          {sale.profit >= 0 ? "+" : ""}
-                          {formatPrice(sale.profit)}
+                          {isSalePriceRecorded(sale) ? (
+                            <>
+                              {sale.profit >= 0 ? "+" : ""}
+                              {formatPrice(sale.profit)}
+                            </>
+                          ) : (
+                            "—"
+                          )}
                         </td>
                       )}
                       <td className="px-4 py-3 text-right text-gray-500 text-sm hidden sm:table-cell">
@@ -323,6 +400,18 @@ export default function SalesPage() {
                 </tbody>
               </table>
             </div>
+            {/* L-MK23: table pagination — reveal more rows in pages. */}
+            {hasMore && (
+              <div className="flex justify-center border-t-2 border-pop-black p-4">
+                <button
+                  onClick={() => setVisibleCount((c) => c + SALES_PAGE_SIZE)}
+                  className="px-6 py-2 bg-pop-blue border-2 border-pop-black text-white font-bold uppercase transition-all hover:shadow-[3px_3px_0px_#000]"
+                  style={{ boxShadow: "2px 2px 0px #000" }}
+                >
+                  Load more ({sales.length - visibleCount} left)
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -339,17 +428,25 @@ export default function SalesPage() {
               )}
               <div>
                 <span className="text-gray-500">Sale:</span>
-                <span className="ml-2 font-bold">{formatPrice(selectedSale.salePrice)}</span>
+                <span className="ml-2 font-bold">
+                  {isSalePriceRecorded(selectedSale)
+                    ? formatPrice(selectedSale.salePrice)
+                    : "Not recorded"}
+                </span>
               </div>
               {hasStatsAccess && (
                 <div>
                   <span className="text-gray-500">Profit:</span>
-                  <span
-                    className={`ml-2 font-bold ${selectedSale.profit >= 0 ? "text-green-600" : "text-red-600"}`}
-                  >
-                    {selectedSale.profit >= 0 ? "+" : ""}
-                    {formatPrice(selectedSale.profit)}
-                  </span>
+                  {isSalePriceRecorded(selectedSale) ? (
+                    <span
+                      className={`ml-2 font-bold ${selectedSale.profit >= 0 ? "text-green-600" : "text-red-600"}`}
+                    >
+                      {selectedSale.profit >= 0 ? "+" : ""}
+                      {formatPrice(selectedSale.profit)}
+                    </span>
+                  ) : (
+                    <span className="ml-2 font-bold text-gray-400">—</span>
+                  )}
                 </div>
               )}
               <div>

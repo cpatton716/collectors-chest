@@ -5,11 +5,65 @@ import {
   SendMessageInput,
 } from "@/types/messaging";
 
+import { calculateSellerReputation, SellerProfile } from "@/types/auction";
+
 import { getSellerProfile } from "./auctionDb";
 import { checkMessageContent } from "./contentFilter";
 import { sendNotificationEmail } from "./email";
 import { isRedisAvailable, redis } from "./redis";
 import { supabaseAdmin } from "./supabase";
+
+// Columns selected for inbox participant previews. Mirrors getSellerProfile's
+// projection so the batched fetch produces the same SellerProfile shape.
+const PARTICIPANT_PROFILE_COLUMNS =
+  "id, display_name, public_display_name, username, display_preference, positive_ratings, negative_ratings, seller_since, location_city, location_state, location_country, location_privacy";
+
+function rowToSellerProfile(data: any): SellerProfile {
+  const { percentage, reputation } = calculateSellerReputation(
+    data.positive_ratings || 0,
+    data.negative_ratings || 0
+  );
+  return {
+    id: data.id,
+    displayName: data.display_name,
+    publicDisplayName: data.public_display_name,
+    username: data.username,
+    displayPreference: data.display_preference,
+    positiveRatings: data.positive_ratings || 0,
+    negativeRatings: data.negative_ratings || 0,
+    sellerSince: data.seller_since,
+    locationCity: data.location_city,
+    locationState: data.location_state,
+    locationCountry: data.location_country,
+    locationPrivacy: data.location_privacy,
+    totalRatings: (data.positive_ratings || 0) + (data.negative_ratings || 0),
+    positivePercentage: percentage,
+    reputation,
+  };
+}
+
+/**
+ * Fetch many participant profiles in ONE query (M-MS1 N+1 fix). Replaces the
+ * per-conversation getSellerProfile() round-trips in the inbox builder.
+ */
+async function getParticipantProfilesByIds(
+  ids: string[]
+): Promise<Map<string, SellerProfile>> {
+  const map = new Map<string, SellerProfile>();
+  const unique = Array.from(new Set(ids.filter(Boolean)));
+  if (unique.length === 0) return map;
+
+  const { data, error } = await supabaseAdmin
+    .from("profiles")
+    .select(PARTICIPANT_PROFILE_COLUMNS)
+    .in("id", unique);
+
+  if (error || !data) return map;
+  for (const row of data) {
+    map.set(row.id, rowToSellerProfile(row));
+  }
+  return map;
+}
 
 // ============================================================================
 // CONVERSATION HELPERS
@@ -32,12 +86,41 @@ export async function getOrCreateConversation(
   return data as string;
 }
 
+/** Max conversations returned per inbox fetch (bounds payload + batch fan-out). */
+const INBOX_CONVERSATION_LIMIT = 50;
+
 /**
- * Get all conversations for a user with previews
+ * Sum the per-preview `unreadCount` to a single inbox total (M-MS3). Pure +
+ * exported so the derivation is unit-tested and the route can avoid a redundant
+ * second unread-count scan.
  */
-export async function getUserConversations(userId: string): Promise<ConversationPreview[]> {
-  // Get conversations where user is a participant
-  // Use supabaseAdmin to bypass RLS (we verify user access via userId param)
+export function deriveTotalUnread(previews: Pick<ConversationPreview, "unreadCount">[]): number {
+  return previews.reduce((sum, p) => sum + (p.unreadCount || 0), 0);
+}
+
+/** Result of an inbox fetch: previews plus the derived unread total. */
+export interface InboxResult {
+  conversations: ConversationPreview[];
+  totalUnread: number;
+}
+
+/**
+ * Get all conversations for a user with previews + the total unread count.
+ *
+ * M-MS1: previously this nested-selected EVERY message per conversation and
+ * issued one getSellerProfile() round-trip per conversation (N+1). Now:
+ *  - the nested `messages` select is CAPPED to the single latest message
+ *    (last_message preview only),
+ *  - other-participant profiles are batched in ONE `.in('id', …)` query,
+ *  - per-conversation unread counts come from ONE batched aggregate query.
+ *
+ * M-MS3: `totalUnread` is DERIVED from the summed preview `unreadCount`s here,
+ * so callers don't need a separate full unread-count scan.
+ */
+export async function getUserConversationsWithUnread(userId: string): Promise<InboxResult> {
+  // Get conversations where user is a participant. Cap the nested messages
+  // select to the latest message only (preview), instead of pulling every row.
+  // Use supabaseAdmin to bypass RLS (we verify user access via userId param).
   const { data: conversations, error } = await supabaseAdmin
     .from("conversations")
     .select(
@@ -57,53 +140,100 @@ export async function getUserConversations(userId: string): Promise<Conversation
     )
     .or(`participant_1_id.eq.${userId},participant_2_id.eq.${userId}`)
     .order("last_message_at", { ascending: false })
-    .limit(50);
+    .order("created_at", { referencedTable: "messages", ascending: false })
+    .limit(1, { referencedTable: "messages" })
+    .limit(INBOX_CONVERSATION_LIMIT);
 
   if (error) throw error;
-  if (!conversations) return [];
+  if (!conversations || conversations.length === 0) {
+    return { conversations: [], totalUnread: 0 };
+  }
 
-  // Build previews with other participant info
+  // Batch the other-participant profile fetch into ONE query (N+1 fix).
+  const otherUserIds = conversations.map((conv) =>
+    conv.participant_1_id === userId ? conv.participant_2_id : conv.participant_1_id
+  );
+  const conversationIds = conversations.map((c) => c.id);
+
+  const [profilesMap, unreadByConversation] = await Promise.all([
+    getParticipantProfilesByIds(otherUserIds),
+    getUnreadCountsByConversation(conversationIds, userId),
+  ]);
+
   const previews: ConversationPreview[] = [];
 
   for (const conv of conversations) {
     const otherUserId =
       conv.participant_1_id === userId ? conv.participant_2_id : conv.participant_1_id;
 
-    // Get other participant's profile
-    const otherParticipant = await getSellerProfile(otherUserId);
+    const otherParticipant = profilesMap.get(otherUserId);
     if (!otherParticipant) continue;
 
-    // Get last message and unread count
-    const messages = conv.messages as Array<{
+    // The capped nested select returns at most the latest message.
+    const messages = (conv.messages || []) as Array<{
       id: string;
       content: string;
       sender_id: string;
       created_at: string;
       is_read: boolean;
     }>;
-
-    // Sort messages by date descending to get latest first
-    messages.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
     const lastMessage = messages[0];
-    const unreadCount = messages.filter((m) => m.sender_id !== userId && !m.is_read).length;
+    if (!lastMessage) continue;
 
-    if (lastMessage) {
-      previews.push({
-        id: conv.id,
-        otherParticipant,
-        lastMessage: {
-          content: lastMessage.content,
-          senderId: lastMessage.sender_id,
-          createdAt: lastMessage.created_at,
-        },
-        unreadCount,
-        lastMessageAt: conv.last_message_at,
-      });
-    }
+    previews.push({
+      id: conv.id,
+      otherParticipant,
+      lastMessage: {
+        content: lastMessage.content,
+        senderId: lastMessage.sender_id,
+        createdAt: lastMessage.created_at,
+      },
+      unreadCount: unreadByConversation.get(conv.id) || 0,
+      lastMessageAt: conv.last_message_at,
+    });
   }
 
-  return previews;
+  return { conversations: previews, totalUnread: deriveTotalUnread(previews) };
+}
+
+/**
+ * Backwards-compatible wrapper returning just the preview list.
+ */
+export async function getUserConversations(userId: string): Promise<ConversationPreview[]> {
+  const { conversations } = await getUserConversationsWithUnread(userId);
+  return conversations;
+}
+
+/**
+ * Count unread messages (not sent by `userId`) per conversation in ONE query,
+ * returning a Map keyed by conversation id. Replaces the per-conversation
+ * in-JS tally over a full message fetch.
+ *
+ * Postgres has no GROUP BY in PostgREST selects, so we fetch the small set of
+ * unread, not-mine message rows (just their conversation_id) across all of the
+ * user's conversations and tally in JS. The result set is bounded by the
+ * number of UNREAD messages (typically tiny), not the full message history.
+ */
+async function getUnreadCountsByConversation(
+  conversationIds: string[],
+  userId: string
+): Promise<Map<string, number>> {
+  const map = new Map<string, number>();
+  if (conversationIds.length === 0) return map;
+
+  const { data, error } = await supabaseAdmin
+    .from("messages")
+    .select("conversation_id")
+    .in("conversation_id", conversationIds)
+    .neq("sender_id", userId)
+    .eq("is_read", false);
+
+  if (error || !data) return map;
+
+  for (const row of data as Array<{ conversation_id: string }>) {
+    map.set(row.conversation_id, (map.get(row.conversation_id) || 0) + 1);
+  }
+  return map;
 }
 
 /**

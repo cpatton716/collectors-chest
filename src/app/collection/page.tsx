@@ -8,6 +8,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 
 import {
+  AlertTriangle,
   ArrowDownRight,
   ArrowLeftRight,
   ArrowUpRight,
@@ -21,6 +22,7 @@ import {
   Filter,
   Grid3X3,
   List,
+  Loader2,
   Plus,
   Receipt,
   Search,
@@ -34,10 +36,11 @@ import {
 
 import { pruneSelection } from "@/lib/bulkActions";
 import { exportCollectionToCSV } from "@/lib/csvExport";
+import { COLLECTION_PAGE_SIZE, getUserComicsPage } from "@/lib/db";
 import { calculateCollectionValue, getComicValue } from "@/lib/gradePrice";
 import { storage } from "@/lib/storage";
 
-import { useCollection } from "@/hooks/useCollection";
+import { isSalePriceMissing, useCollection } from "@/hooks/useCollection";
 import { useSelection } from "@/hooks/useSelection";
 import { useSubscription } from "@/hooks/useSubscription";
 
@@ -80,6 +83,40 @@ type ViewMode = "grid" | "list";
 type SortOption = "date" | "title" | "value" | "value-asc" | "issue" | "grade";
 type FilterOption = "all" | string;
 
+/**
+ * Per-comic instruction for the bulk "Mark as Sold" flow (H-CO1).
+ * `priceRecorded:false` means the sale is logged WITHOUT a value (skip pricing);
+ * the row is persisted with `sale_price_recorded=false` so revenue/PL math can
+ * exclude it instead of treating $0 as a real sale.
+ */
+export interface BulkSaleEntry {
+  id: string;
+  salePrice: number;
+  priceRecorded: boolean;
+}
+
+/**
+ * Pure skip→flag mapping helper (H-CO1, testable in isolation).
+ * Given the selected comic ids and an optional draft of typed prices, build the
+ * per-item sale entries. When `skipped` is true every entry is flagged
+ * price-not-recorded (price 0); otherwise each entry carries its typed price
+ * (defaulting to 0) and is flagged recorded.
+ */
+export function buildBulkSaleEntries(
+  ids: string[],
+  drafts: Record<string, number | undefined>,
+  skipped: boolean
+): BulkSaleEntry[] {
+  return ids.map((id) => {
+    if (skipped) {
+      return { id, salePrice: 0, priceRecorded: false };
+    }
+    const price = drafts[id];
+    const numeric = typeof price === "number" && Number.isFinite(price) ? price : 0;
+    return { id, salePrice: numeric, priceRecorded: true };
+  });
+}
+
 export default function CollectionPage() {
   return (
     <Suspense>
@@ -97,11 +134,12 @@ function CollectionPageContent() {
 
   // Use the collection hook for cloud sync
   const {
-    collection,
+    collection: hookCollection,
     lists,
-    sales: _sales,
+    sales,
     isLoading: collectionLoading,
     isCloudEnabled: _isCloudEnabled,
+    profileId,
     addToCollection: _addToCollection,
     updateCollectionItem: updateItem,
     createList: createNewList,
@@ -112,6 +150,56 @@ function CollectionPageContent() {
     getSalesStats,
     refresh,
   } = useCollection();
+
+  // M-CO9: pagination. The hook loads the first page (COLLECTION_PAGE_SIZE);
+  // additional pages are fetched on demand via `Load more` and appended here so
+  // we never pull the whole collection at once. Reset when the underlying
+  // first-page data reloads (refresh/auth change).
+  const [extraPages, setExtraPages] = useState<CollectionItem[]>([]);
+  const [nextOffset, setNextOffset] = useState(COLLECTION_PAGE_SIZE);
+  const [hasMore, setHasMore] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+
+  // The full working set = hook's first page + any pages we loaded, deduped
+  // (a refresh can re-introduce ids that also live in extraPages).
+  const collection = useMemo(() => {
+    if (extraPages.length === 0) return hookCollection;
+    const seen = new Set(hookCollection.map((i) => i.id));
+    const merged = [...hookCollection];
+    for (const item of extraPages) {
+      if (!seen.has(item.id)) {
+        seen.add(item.id);
+        merged.push(item);
+      }
+    }
+    return merged;
+  }, [hookCollection, extraPages]);
+
+  // When the hook reloads its first page, the first page is "full" (=== page
+  // size) iff more rows may exist. Reset the appended pages + offset cursor.
+  useEffect(() => {
+    setExtraPages([]);
+    setNextOffset(COLLECTION_PAGE_SIZE);
+    setHasMore(hookCollection.length >= COLLECTION_PAGE_SIZE);
+  }, [hookCollection]);
+
+  const handleLoadMore = async () => {
+    if (!profileId || isLoadingMore || !hasMore) return;
+    setIsLoadingMore(true);
+    try {
+      const page = await getUserComicsPage(profileId, {
+        offset: nextOffset,
+        limit: COLLECTION_PAGE_SIZE,
+      });
+      setExtraPages((prev) => [...prev, ...page.items]);
+      setNextOffset(page.nextOffset);
+      setHasMore(page.hasMore);
+    } catch {
+      showToast("Failed to load more comics", "error");
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
 
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [selectedList, setSelectedList] = useState<string>("collection");
@@ -146,12 +234,23 @@ function CollectionPageContent() {
   // Bulk action modals
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [showBulkListPicker, setShowBulkListPicker] = useState(false);
+  // H-CO1: bulk "Mark as Sold" per-item price modal + its draft prices.
+  const [showBulkSoldModal, setShowBulkSoldModal] = useState(false);
+  const [bulkSalePrices, setBulkSalePrices] = useState<Record<string, number | undefined>>({});
+  const [isSubmittingBulkSold, setIsSubmittingBulkSold] = useState(false);
   const [undoState, setUndoState] = useState<{
     message: string;
     comicIds: string[];
   } | null>(null);
 
   const salesStats = getSalesStats();
+  // H-CO1: count sold books with no recorded sale value so revenue/PL stats can
+  // disclose that some sales aren't reflected in the totals. Uses B10's
+  // `isSalePriceMissing` so the definition of "no value" stays single-sourced.
+  const unpricedSalesCount = useMemo(
+    () => sales.filter((sale) => isSalePriceMissing(sale)).length,
+    [sales]
+  );
   const isLoaded = authLoaded && !collectionLoading;
 
   // Read URL search params on mount (for deep links from stats page)
@@ -510,27 +609,68 @@ function CollectionPageContent() {
     }
   };
 
-  // Bulk mark as sold handler
-  const handleBulkMarkSold = async () => {
-    const idsToUpdate = Array.from(selectedIds);
+  // Bulk mark as sold handler (H-CO1). Instead of a blind flag flip, open a
+  // SKIPPABLE per-item price prompt: each selected book gets a sale price field
+  // pre-filled with its FMV estimate (where available). The user can enter
+  // prices and proceed (records a real sale per comic) or skip pricing (records
+  // each sale flagged price-not-recorded so revenue/PL math can exclude it).
+  const handleBulkMarkSold = () => {
+    const prefill: Record<string, number | undefined> = {};
+    for (const item of selectedItems) {
+      const fmv = getComicValue(item);
+      prefill[item.id] = fmv > 0 ? Math.round(fmv * 100) / 100 : undefined;
+    }
+    setBulkSalePrices(prefill);
+    setShowBulkSoldModal(true);
+  };
 
-    try {
-      const response = await fetch("/api/comics/bulk-update", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          comicIds: idsToUpdate,
-          field: "is_sold",
-          value: true,
-        }),
-      });
+  // Records a real sale for every selected comic. `skipped` controls whether
+  // prices are written: false → use the typed/pre-filled prices; true →
+  // persist each sale with priceRecorded=false (sale_price_recorded=false per
+  // migration / B10 shape), so the book is auditable as "sold, no value".
+  const submitBulkSold = async (skipped: boolean) => {
+    if (isSubmittingBulkSold) return;
+    const ids = selectedItems.map((i) => i.id);
+    if (ids.length === 0) {
+      setShowBulkSoldModal(false);
+      return;
+    }
+    setIsSubmittingBulkSold(true);
 
-      if (!response.ok) throw new Error("Failed to update");
+    const entries = buildBulkSaleEntries(ids, bulkSalePrices, skipped);
+    const byId = new Map(selectedItems.map((i) => [i.id, i]));
 
-      exitSelectionMode();
-      refresh();
-      showToast(`${idsToUpdate.length} comics marked as sold`, "success");
-    } catch {
+    let succeeded = 0;
+    let failed = 0;
+    for (const entry of entries) {
+      const item = byId.get(entry.id);
+      if (!item) continue;
+      try {
+        // B10 endpoint shape: recordSale(item, salePrice, buyerId?, priceRecorded?).
+        // priceRecorded=false → backend writes sale_price_recorded=false + null/0 price.
+        await recordSale(item, entry.salePrice, undefined, entry.priceRecorded);
+        succeeded += 1;
+      } catch {
+        failed += 1;
+      }
+    }
+
+    setIsSubmittingBulkSold(false);
+    setShowBulkSoldModal(false);
+    setBulkSalePrices({});
+    exitSelectionMode();
+    refresh();
+
+    if (failed === 0) {
+      showToast(
+        skipped
+          ? `${succeeded} comics marked as sold (price not recorded)`
+          : `${succeeded} comics marked as sold`,
+        "success"
+      );
+    } else if (succeeded > 0) {
+      showToast(`${succeeded} sold, ${failed} failed`, "info");
+    } else {
       showToast("Failed to mark as sold", "error");
     }
   };
@@ -847,6 +987,15 @@ function CollectionPageContent() {
                     maximumFractionDigits: 0,
                   })}
                 </p>
+                {unpricedSalesCount > 0 && (
+                  <p
+                    className="flex items-center gap-1 text-[10px] leading-tight text-pop-black/60 font-bold"
+                    title={`${unpricedSalesCount} sold ${unpricedSalesCount === 1 ? "book has" : "books have"} no recorded sale value and ${unpricedSalesCount === 1 ? "is" : "are"} not counted in revenue / profit-loss totals.`}
+                  >
+                    <AlertTriangle className="w-3 h-3 flex-shrink-0 text-pop-orange" />
+                    {unpricedSalesCount} unpriced
+                  </p>
+                )}
               </div>
             </div>
             <div
@@ -1384,6 +1533,31 @@ function CollectionPageContent() {
         </div>
       )}
 
+      {/* Load More (M-CO9) - fetch the next page on demand instead of pulling
+          the whole collection up front. Only rendered in cloud mode when the
+          server reports more rows past what we've loaded. */}
+      {hasMore && filteredCollection.length > 0 && (
+        <div className="flex justify-center mt-8">
+          <button
+            onClick={handleLoadMore}
+            disabled={isLoadingMore}
+            className="inline-flex items-center gap-2 px-6 py-3 bg-pop-white border-3 border-pop-black text-pop-black font-bold shadow-[3px_3px_0px_#000] hover:shadow-[4px_4px_0px_#000] transition-all disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:shadow-[3px_3px_0px_#000]"
+          >
+            {isLoadingMore ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Loading…
+              </>
+            ) : (
+              <>
+                <Plus className="w-5 h-5" />
+                Load More
+              </>
+            )}
+          </button>
+        </div>
+      )}
+
       {/* Comic Detail Modal */}
       {selectedItem && (
         <ComicDetailModal
@@ -1483,6 +1657,120 @@ function CollectionPageContent() {
           }}
           onCancel={() => setShowBulkListPicker(false)}
         />
+      )}
+
+      {/* Bulk Mark-as-Sold Modal (H-CO1) - SKIPPABLE per-item price prompt.
+          Lists every selected book with a price field pre-filled from its FMV
+          estimate. "Record Sales" posts the typed prices; "Skip Pricing" logs
+          each as sold with no recorded value (auditable). */}
+      {showBulkSoldModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pb-20 md:pb-4">
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => !isSubmittingBulkSold && setShowBulkSoldModal(false)}
+            aria-hidden="true"
+          />
+          <div className="relative bg-pop-white border-3 border-pop-black shadow-[6px_6px_0px_#000] w-full max-w-lg max-h-[85vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b-3 border-pop-black flex-shrink-0">
+              <h2 className="text-lg font-black uppercase font-comic text-pop-black flex items-center gap-2">
+                <DollarSign className="w-5 h-5 text-pop-green" />
+                Mark {selectedItems.length} as Sold
+              </h2>
+              <button
+                onClick={() => setShowBulkSoldModal(false)}
+                disabled={isSubmittingBulkSold}
+                className="p-1.5 border-2 border-pop-black bg-pop-white hover:shadow-[2px_2px_0px_#000] transition-all disabled:opacity-50"
+                aria-label="Close"
+              >
+                <X className="w-5 h-5 text-pop-black" />
+              </button>
+            </div>
+
+            {/* Intro / skip hint */}
+            <div className="px-4 py-3 border-b-2 border-pop-black/20 flex-shrink-0">
+              <p className="text-sm text-gray-700 font-comic">
+                Enter a sale price for each book, or{" "}
+                <span className="font-bold text-pop-black">Skip Pricing</span> to
+                log them as sold without a recorded value.
+              </p>
+            </div>
+
+            {/* Per-item price list */}
+            <div className="overflow-y-auto px-4 py-3 flex flex-col gap-2 flex-1">
+              {selectedItems.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex items-center gap-3 border-2 border-pop-black bg-pop-white p-2"
+                >
+                  <div className="w-9 h-12 flex-shrink-0 overflow-hidden border border-pop-black/30">
+                    <ComicImage
+                      src={item.coverImageUrl}
+                      alt={`${item.comic.title} #${item.comic.issueNumber}`}
+                      aspectRatio="fill"
+                      sizes="36px"
+                    />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold text-sm text-pop-black truncate">
+                      {item.comic.title || "Unknown Title"}
+                    </p>
+                    <p className="text-xs text-gray-500 truncate">
+                      Issue #{item.comic.issueNumber || "?"}
+                    </p>
+                  </div>
+                  <div className="relative flex-shrink-0 w-28">
+                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-sm font-bold text-pop-black/60">
+                      $
+                    </span>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      min="0"
+                      step="0.01"
+                      value={bulkSalePrices[item.id] ?? ""}
+                      placeholder="0.00"
+                      aria-label={`Sale price for ${item.comic.title || "comic"}`}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        setBulkSalePrices((prev) => ({
+                          ...prev,
+                          [item.id]: raw === "" ? undefined : parseFloat(raw),
+                        }));
+                      }}
+                      className="w-full pl-6 pr-2 py-1.5 border-2 border-pop-black bg-pop-white font-comic text-sm text-pop-black focus:outline-none focus-visible:ring-2 focus-visible:ring-pop-blue focus:shadow-[2px_2px_0px_#000] transition-all"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Footer actions */}
+            <div className="flex items-center gap-2 px-4 py-3 border-t-3 border-pop-black bg-pop-white flex-shrink-0">
+              <button
+                onClick={() => submitBulkSold(true)}
+                disabled={isSubmittingBulkSold}
+                className="flex-1 px-4 py-2 border-2 border-pop-black bg-pop-white text-pop-black font-bold text-sm hover:shadow-[2px_2px_0px_#000] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Skip Pricing
+              </button>
+              <button
+                onClick={() => submitBulkSold(false)}
+                disabled={isSubmittingBulkSold}
+                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 border-2 border-pop-black bg-pop-green text-white font-bold text-sm shadow-[2px_2px_0px_#000] hover:shadow-[3px_3px_0px_#000] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSubmittingBulkSold ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Saving…
+                  </>
+                ) : (
+                  "Record Sales"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Undo Toast */}
