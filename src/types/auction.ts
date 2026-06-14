@@ -407,6 +407,19 @@ export function isListingPendingPayment<
   );
 }
 
+/**
+ * A listing can still be claimed (won via Buy It Now or an accepted offer)
+ * only while it is "active". Any other status means a bid finalized it, a
+ * concurrent BIN/offer already sold it, or it was cancelled/ended.
+ *
+ * The authoritative guard is the DB-level `.eq("status", "active")` on the
+ * sale UPDATE (so two buyers can't both win); this predicate mirrors that
+ * rule for cheap client/server pre-checks. H-AU3 / H-MK1.
+ */
+export function isClaimableListingStatus(status: AuctionStatus): boolean {
+  return status === "active";
+}
+
 export function calculateMinimumBid(currentBid: number | null, startingPrice: number): number {
   // If no current bid, minimum is starting price
   if (currentBid === null) {
@@ -705,4 +718,57 @@ export function shouldFlagForPaymentMisses(
   );
   // +1 for the current miss
   return inWindow.length + 1 >= threshold;
+}
+
+/**
+ * Raw shape of an `auction_payment_expired` audit-log row as consumed by the
+ * strike system: a creation timestamp and the auction it belongs to.
+ */
+export interface PaymentMissAuditRow {
+  created_at: string;
+  auction_id: string | null;
+}
+
+/**
+ * Pure core of recordPaymentMissStrike's flag decision (H-AU2).
+ *
+ * Given the user's prior `auction_payment_expired` audit rows, the auction
+ * currently being processed, and the reference time, returns:
+ *   - pastMissTimestamps: prior in-scope miss timestamps (rows for the
+ *     CURRENT auction are excluded so the present miss is counted exactly
+ *     once, via the helper's internal +1).
+ *   - totalStrikesInWindow: in-window prior misses + 1 (for copy strings).
+ *   - shouldFlag: whether the strike threshold is met.
+ *
+ * Extracted so the strike math is unit-testable without a Supabase mock.
+ */
+export function computePaymentMissStrike(
+  priorRows: PaymentMissAuditRow[],
+  currentAuctionId: string,
+  currentMissAt: Date = new Date(),
+  windowDays: number = PAYMENT_MISS_WINDOW_DAYS,
+  threshold: number = PAYMENT_MISS_STRIKE_THRESHOLD
+): {
+  pastMissTimestamps: Date[];
+  totalStrikesInWindow: number;
+  shouldFlag: boolean;
+} {
+  const pastMissTimestamps = priorRows
+    .filter((r) => r.auction_id !== currentAuctionId)
+    .map((r) => new Date(r.created_at));
+
+  const inWindowCount = pastMissTimestamps.filter((t) =>
+    isWithinStrikeWindow(t, currentMissAt, windowDays)
+  ).length;
+
+  return {
+    pastMissTimestamps,
+    totalStrikesInWindow: inWindowCount + 1,
+    shouldFlag: shouldFlagForPaymentMisses(
+      pastMissTimestamps,
+      currentMissAt,
+      windowDays,
+      threshold
+    ),
+  };
 }

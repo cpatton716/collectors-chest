@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { z } from "zod";
 
+import { partitionDeletableIds } from "@/lib/bulkActions";
 import { getOrCreateProfile } from "@/lib/db";
 import { supabase } from "@/lib/supabase";
 import { schemas, validateBody } from "@/lib/validation";
@@ -53,11 +54,11 @@ export async function POST(request: NextRequest) {
       .in("comic_id", ownedIds)
       .in("status", ["active", "ended"]);
 
-    const activeComicIds = new Set(activeListings?.map((a: { comic_id: string }) => a.comic_id) || []);
-    const deletableIds = ownedIds.filter((id: string) => !activeComicIds.has(id));
+    const activeComicIds = activeListings?.map((a: { comic_id: string }) => a.comic_id) || [];
+    const { deletableIds, blockedIds } = partitionDeletableIds(ownedIds, activeComicIds);
 
     // If all comics have active listings, return error
-    if (deletableIds.length === 0 && activeComicIds.size > 0) {
+    if (deletableIds.length === 0 && blockedIds.length > 0) {
       return NextResponse.json(
         {
           error: "active_listing",

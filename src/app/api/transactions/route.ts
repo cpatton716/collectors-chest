@@ -4,11 +4,16 @@ import { auth } from "@clerk/nextjs/server";
 import { z } from "zod";
 
 import { getProfileByClerkId } from "@/lib/db";
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase";
 import { validateQuery } from "@/lib/validation";
+
+const DEFAULT_LIMIT = 50;
+const MAX_LIMIT = 100;
 
 const transactionQuerySchema = z.object({
   type: z.enum(["purchases", "wins", "bids", "offers"]),
+  limit: z.coerce.number().int().min(1).max(MAX_LIMIT).optional(),
+  offset: z.coerce.number().int().min(0).optional(),
 });
 
 // Transaction row shape returned to the client. Kept small + flat so the
@@ -88,9 +93,22 @@ function toTransactionRow(row: Record<string, unknown>): TransactionRow {
   };
 }
 
+// Explicit lean projection for an auctions row joined to its comic + seller.
+// (Avoids comics(*) / auctions(*) over-fetch.)
 const LISTING_SELECT = `
   id, listing_type, seller_id, status, payment_status, payment_deadline,
   starting_price, current_bid, winning_bid, shipping_cost, end_time, created_at,
+  shipped_at, tracking_number, tracking_carrier,
+  comics!auctions_comic_id_fkey(title, issue_number, variant, cover_image_url),
+  seller:profiles!seller_id(display_name, username)
+`;
+
+// Same lean listing projection, but expressed as a nested join under a parent
+// row (bids / offers). Shared by both endpoints so the column list stays in
+// one place (L-MK21).
+const NESTED_LISTING_SELECT = `
+  id, listing_type, seller_id, status, payment_status, payment_deadline,
+  starting_price, current_bid, winning_bid, shipping_cost, end_time, created_at, winner_id,
   shipped_at, tracking_number, tracking_carrier,
   comics!auctions_comic_id_fkey(title, issue_number, variant, cover_image_url),
   seller:profiles!seller_id(display_name, username)
@@ -111,16 +129,20 @@ export async function GET(request: NextRequest) {
     const validatedQuery = validateQuery(transactionQuerySchema, request.nextUrl.searchParams);
     if (!validatedQuery.success) return validatedQuery.response;
     const typeParam = validatedQuery.data.type;
+    const limit = validatedQuery.data.limit ?? DEFAULT_LIMIT;
+    const offset = validatedQuery.data.offset ?? 0;
+    const rangeEnd = offset + limit - 1;
 
     switch (typeParam) {
       case "purchases": {
-        // Buy Now wins
-        const { data, error } = await supabase
+        // Buy Now wins. winner_id == self => admin client is safe + scoped.
+        const { data, error } = await supabaseAdmin
           .from("auctions")
           .select(LISTING_SELECT)
           .eq("winner_id", profile.id)
           .eq("listing_type", "fixed_price")
-          .order("created_at", { ascending: false });
+          .order("created_at", { ascending: false })
+          .range(offset, rangeEnd);
         if (error) throw error;
         return NextResponse.json({
           items: (data || []).map(toTransactionRow),
@@ -128,13 +150,14 @@ export async function GET(request: NextRequest) {
       }
 
       case "wins": {
-        // Auction wins
-        const { data, error } = await supabase
+        // Auction wins. winner_id == self => admin client is safe + scoped.
+        const { data, error } = await supabaseAdmin
           .from("auctions")
           .select(LISTING_SELECT)
           .eq("winner_id", profile.id)
           .eq("listing_type", "auction")
-          .order("created_at", { ascending: false });
+          .order("created_at", { ascending: false })
+          .range(offset, rangeEnd);
         if (error) throw error;
         return NextResponse.json({
           items: (data || []).map(toTransactionRow),
@@ -144,23 +167,17 @@ export async function GET(request: NextRequest) {
       case "bids": {
         // Active bids - most recent bid per auction where the user bid,
         // and the auction is still active (or recently ended awaiting payment).
-        const { data, error } = await supabase
+        const { data, error } = await supabaseAdmin
           .from("bids")
           .select(
             `
             id, bid_amount, is_winning, created_at, auction_id,
-            auctions!inner(
-              id, listing_type, seller_id, status, payment_status, payment_deadline,
-              starting_price, current_bid, winning_bid, shipping_cost, end_time, created_at, winner_id,
-              shipped_at, tracking_number, tracking_carrier,
-              comics!auctions_comic_id_fkey(title, issue_number, variant, cover_image_url),
-              seller:profiles!seller_id(display_name, username)
-            )
+            auctions!inner(${NESTED_LISTING_SELECT})
             `
           )
           .eq("bidder_id", profile.id)
           .order("created_at", { ascending: false })
-          .limit(100); // cap
+          .range(offset, rangeEnd);
 
         if (error) throw error;
 
@@ -183,23 +200,18 @@ export async function GET(request: NextRequest) {
       }
 
       case "offers": {
-        // Offers the user has made
-        const { data, error } = await supabase
+        // Offers the user has made. buyer_id == self => admin client scoped.
+        const { data, error } = await supabaseAdmin
           .from("offers")
           .select(
             `
             id, amount, status, expires_at, created_at,
-            listing:auctions!listing_id(
-              id, listing_type, seller_id, status, payment_status, payment_deadline,
-              starting_price, current_bid, winning_bid, shipping_cost, end_time, created_at,
-              shipped_at, tracking_number, tracking_carrier,
-              comics!auctions_comic_id_fkey(title, issue_number, variant, cover_image_url),
-              seller:profiles!seller_id(display_name, username)
-            )
+            listing:auctions!listing_id(${NESTED_LISTING_SELECT})
             `
           )
           .eq("buyer_id", profile.id)
-          .order("created_at", { ascending: false });
+          .order("created_at", { ascending: false })
+          .range(offset, rangeEnd);
         if (error) throw error;
         const items: OfferRow[] = ((data || []) as Record<string, unknown>[]).map((row) => ({
           offerId: row.id as string,

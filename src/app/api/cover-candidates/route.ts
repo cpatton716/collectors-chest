@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
-import { Redis } from "@upstash/redis";
+import { auth } from "@clerk/nextjs/server";
 import { z } from "zod";
-import { MODEL_LIGHTWEIGHT } from "@/lib/models";
 import { getCommunityCovers } from "@/lib/coverImageDb";
+import { checkRateLimit, getRateLimitIdentifier, rateLimiters } from "@/lib/rateLimit";
 import { validateBody } from "@/lib/validation";
+
+// NOTE: The legacy external image-search design (Bing/Google) was superseded —
+// see docs/plans/2026-02-25-cover-image-search-design.md (Superseded). There is
+// no external image-search provider wired up; this endpoint resolves covers from
+// the community database only and otherwise returns an empty candidate list so
+// the user can paste a URL or skip.
 
 const coverCandidatesSchema = z.object({
   title: z.string().trim().min(1, "Title is required").max(200),
@@ -20,64 +25,33 @@ const coverCandidatesSchema = z.object({
     .nullable(),
 });
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
-
-const redis = Redis.fromEnv();
-
 interface CoverCandidate {
   url: string;
   title: string;
   source: string;
 }
 
-async function generateSearchQuery(
-  title: string,
-  issueNumber: string,
-  publisher?: string,
-  releaseYear?: string
-): Promise<string> {
-  const context = [
-    `Comic: ${title} #${issueNumber}`,
-    publisher && `Publisher: ${publisher}`,
-    releaseYear && `Year: ${releaseYear}`,
-  ]
-    .filter(Boolean)
-    .join(", ");
-
-  const message = await anthropic.messages.create({
-    model: MODEL_LIGHTWEIGHT,
-    max_tokens: 150,
-    messages: [
-      {
-        role: "user",
-        content: `You are a comic book expert. Generate the best image search query to find the COVER IMAGE of this comic book. Include era-specific details, key visual elements, or notable cover artists if you know them. Return ONLY the search query string, nothing else.
-
-${context}`,
-      },
-    ],
-  });
-
-  const text =
-    message.content[0].type === "text" ? message.content[0].text.trim() : "";
-
-  const today = new Date().toISOString().split("T")[0];
-  try {
-    await redis.incr(`usage:cover-haiku:${today}`);
-    await redis.expire(`usage:cover-haiku:${today}`, 86400 * 2);
-  } catch {}
-
-  // Strip quotes if Claude wraps the query
-  return text.replace(/^["']|["']$/g, "");
-}
-
 export async function POST(request: NextRequest) {
   try {
+    // Require an authenticated user — this is a logged-in cover-review feature.
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Rate limit (community DB read; previously also burned a Haiku call)
+    const identifier = getRateLimitIdentifier(
+      userId,
+      request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip")
+    );
+    const { success: rateLimitSuccess, response: rateLimitResponse } =
+      await checkRateLimit(rateLimiters.lookup, identifier);
+    if (!rateLimitSuccess) return rateLimitResponse!;
+
     const rawBody = await request.json().catch(() => null);
     const validated = validateBody(coverCandidatesSchema, rawBody);
     if (!validated.success) return validated.response;
-    const { title, issueNumber, publisher, releaseYear } = validated.data;
+    const { title, issueNumber } = validated.data;
 
     // Step 1: Check community database
     const communityUrl = await getCommunityCovers(title, issueNumber);
@@ -89,21 +63,16 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Step 2: Claude generates search query
-    const searchQuery = await generateSearchQuery(
-      title,
-      issueNumber,
-      publisher ?? undefined,
-      releaseYear ?? undefined
-    );
-
-    // No external image search API available. Relies on community covers + Open Library fallback.
+    // Step 2: No external image-search API available. Return candidates
+    // directly (community covers + Open Library fallback handled client-side).
+    // The prior Haiku "generate search query" call was removed — its output was
+    // unused except as telemetry, so it was pure cost with no benefit.
     const candidates: CoverCandidate[] = [];
 
     return NextResponse.json({
       source: "search",
       candidates,
-      searchQuery,
+      searchQuery: null,
     });
   } catch (error) {
     console.error("Cover candidates error:", error);

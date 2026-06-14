@@ -87,7 +87,7 @@ export async function lookupCGCCert(certNumber: string): Promise<CertLookupResul
  * Grade, Page Quality, Grade Date, Label Category, Art Comments, Key Comments,
  * Grader Notes, Signatures
  */
-function parseCGCResponse(html: string, certNumber: string): CertLookupResult {
+export function parseCGCResponse(html: string, certNumber: string): CertLookupResult {
   try {
     // Check if cert was found
     if (html.includes("not found") || html.includes("No results") || html.includes("invalid")) {
@@ -308,7 +308,7 @@ export async function lookupCBCSCert(certNumber: string): Promise<CertLookupResu
  * CBCS page structure includes: Title #Issue, Publisher, Date, Variant,
  * Grade, Page Quality (under Verified), Signees, Notes (grader notes)
  */
-function parseCBCSResponse(html: string, certNumber: string): CertLookupResult {
+export function parseCBCSResponse(html: string, certNumber: string): CertLookupResult {
   try {
     // Check if cert was found
     if (
@@ -488,7 +488,7 @@ export async function lookupPGXCert(certNumber: string): Promise<CertLookupResul
 /**
  * Parse PGX verification page HTML
  */
-function parsePGXResponse(html: string, certNumber: string): CertLookupResult {
+export function parsePGXResponse(html: string, certNumber: string): CertLookupResult {
   try {
     if (html.includes("not found") || html.includes("No results") || html.includes("invalid")) {
       return {

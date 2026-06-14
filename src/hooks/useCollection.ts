@@ -170,13 +170,13 @@ export function useCollection(): UseCollectionReturn {
 
   const updateCollectionItem = useCallback(
     async (id: string, updates: Partial<CollectionItem>) => {
-      // Store previous state for rollback
-      const prevCollection = collection;
-
-      // Optimistic update
-      setCollection((prev) =>
-        prev.map((item) => (item.id === id ? { ...item, ...updates } : item))
-      );
+      // Capture previous state inside the updater so this callback doesn't
+      // depend on `collection` (avoids stale closures / re-creation churn).
+      let prevCollection: CollectionItem[] = [];
+      setCollection((prev) => {
+        prevCollection = prev;
+        return prev.map((item) => (item.id === id ? { ...item, ...updates } : item));
+      });
 
       try {
         if (profileId) {
@@ -190,16 +190,18 @@ export function useCollection(): UseCollectionReturn {
         throw err;
       }
     },
-    [profileId, collection]
+    [profileId]
   );
 
   const removeFromCollection = useCallback(
     async (id: string) => {
-      // Store item for rollback
-      const removedItem = collection.find((item) => item.id === id);
-
-      // Optimistic update
-      setCollection((prev) => prev.filter((item) => item.id !== id));
+      // Capture the removed item inside the updater so this callback doesn't
+      // depend on `collection`.
+      let removedItem: CollectionItem | undefined;
+      setCollection((prev) => {
+        removedItem = prev.find((item) => item.id === id);
+        return prev.filter((item) => item.id !== id);
+      });
 
       try {
         if (profileId) {
@@ -210,12 +212,12 @@ export function useCollection(): UseCollectionReturn {
       } catch (err) {
         // Rollback on failure
         if (removedItem) {
-          setCollection((prev) => [removedItem, ...prev]);
+          setCollection((prev) => [removedItem!, ...prev]);
         }
         throw err;
       }
     },
-    [profileId, collection]
+    [profileId]
   );
 
   const getCollectionItem = useCallback(

@@ -16,15 +16,33 @@ export function AuctionCountdown({ endTime, onEnd, size = "md" }: AuctionCountdo
   const [timeLeft, setTimeLeft] = useState(calculateTimeRemaining(endTime));
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      const newTimeLeft = calculateTimeRemaining(endTime);
-      setTimeLeft(newTimeLeft);
+    // Adaptive tick rate: only auctions inside the final hour need a 1s tick
+    // for the seconds display. Non-urgent countdowns (>1h) tick once a minute,
+    // cutting needless re-renders by ~60x on Shop/Watchlist grids. L-FE25.
+    let timer: ReturnType<typeof setInterval>;
 
-      if (newTimeLeft.isEnded) {
-        clearInterval(timer);
-        onEnd?.();
-      }
-    }, 1000);
+    const schedule = () => {
+      const initial = calculateTimeRemaining(endTime);
+      const intervalMs = initial.isEndingSoon ? 1000 : 60_000;
+      timer = setInterval(() => {
+        const newTimeLeft = calculateTimeRemaining(endTime);
+        setTimeLeft(newTimeLeft);
+
+        if (newTimeLeft.isEnded) {
+          clearInterval(timer);
+          onEnd?.();
+          return;
+        }
+
+        // Crossed into the final hour while ticking slowly — re-arm at 1s.
+        if (newTimeLeft.isEndingSoon && intervalMs !== 1000) {
+          clearInterval(timer);
+          schedule();
+        }
+      }, intervalMs);
+    };
+
+    schedule();
 
     return () => clearInterval(timer);
   }, [endTime, onEnd]);

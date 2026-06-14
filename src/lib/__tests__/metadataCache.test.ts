@@ -92,6 +92,23 @@ describe("metadataCache helpers", () => {
       expect(result.writer).toBeUndefined();
     });
 
+    it("mutates the passed-in details object in place and returns the same reference", () => {
+      const details: Record<string, unknown> = {
+        title: "Amazing Spider-Man",
+        issueNumber: "300",
+      };
+      const result = mergeMetadataIntoDetails(details, fullMetadata);
+
+      // Returns the same object reference (not a copy)
+      expect(result).toBe(details);
+      // The original reference was mutated, so callers that discard the
+      // return value still see the merged fields on `details`.
+      expect(details.publisher).toBe("Marvel");
+      expect(details.writer).toBe("David Michelinie");
+      expect(details.keyInfo).toEqual(["First appearance of Venom"]);
+      expect(details.keyInfoSource).toBe("cache");
+    });
+
     it("does not add extra properties (id, lookupCount, etc.) from metadata", () => {
       const details: Record<string, unknown> = {
         title: "Amazing Spider-Man",

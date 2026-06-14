@@ -5,9 +5,10 @@ import { z } from "zod";
 
 import { cacheGet, cacheSet, generateComicMetadataCacheKey } from "@/lib/cache";
 import { getComicMetadata, incrementComicLookupCount, saveComicMetadata } from "@/lib/db";
-import { MODEL_PRIMARY } from "@/lib/models";
+import { MODEL_LIGHTWEIGHT } from "@/lib/models";
 import { normalizeTitle, normalizeIssueNumber } from "@/lib/normalizeTitle";
-import { recordScanAnalytics, estimateScanCostCents } from "@/lib/analyticsServer";
+import { recordScanAnalytics, estimateTextLookupCostCents } from "@/lib/analyticsServer";
+import { checkRateLimit, getRateLimitIdentifier, rateLimiters } from "@/lib/rateLimit";
 import { validateBody } from "@/lib/validation";
 
 const comicLookupSchema = z.object({
@@ -39,6 +40,15 @@ export async function POST(request: NextRequest) {
   let aiCallsMade = 0;
 
   try {
+    // Rate limit public AI lookup endpoint (text-only Haiku call)
+    const identifier = getRateLimitIdentifier(
+      null,
+      request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip")
+    );
+    const { success: rateLimitSuccess, response: rateLimitResponse } =
+      await checkRateLimit(rateLimiters.lookup, identifier);
+    if (!rateLimitSuccess) return rateLimitResponse!;
+
     const rawBody = await request.json().catch(() => null);
     const validated = validateBody(comicLookupSchema, rawBody);
     if (!validated.success) return validated.response;
@@ -53,7 +63,7 @@ export async function POST(request: NextRequest) {
       const result = await handlePublisherLookup(normalizedTitle);
 
       // Record scan analytics for publisher lookup (fire-and-forget)
-      const pubCostCents = estimateScanCostCents({ metadataCacheHit: false, aiCallsMade, ebayLookup: false });
+      const pubCostCents = estimateTextLookupCostCents({ aiCallsMade });
       recordScanAnalytics({
         profile_id: null,
         scan_method: "comic-lookup",
@@ -147,7 +157,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Record scan analytics (fire-and-forget)
-    const costCents = estimateScanCostCents({ metadataCacheHit: false, aiCallsMade, ebayLookup: false });
+    const costCents = estimateTextLookupCostCents({ aiCallsMade });
     recordScanAnalytics({
       profile_id: null,
       scan_method: "comic-lookup",
@@ -192,7 +202,7 @@ If you're not sure, return {"publisher": null}`;
 
   try {
     const response = await anthropic.messages.create({
-      model: MODEL_PRIMARY,
+      model: MODEL_LIGHTWEIGHT,
       max_tokens: 256,
       messages: [{ role: "user", content: prompt }],
     });
@@ -248,7 +258,7 @@ Do NOT include: minor character appearances, team roster changes, crossover tie-
 Use null for any field you're not confident about. Most issues should have empty keyInfo array.`;
 
   const response = await anthropic.messages.create({
-    model: MODEL_PRIMARY,
+    model: MODEL_LIGHTWEIGHT,
     max_tokens: 512,
     messages: [{ role: "user", content: prompt }],
   });

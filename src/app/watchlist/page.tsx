@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { useRouter } from "next/navigation";
 
@@ -8,7 +8,8 @@ import { useAuth } from "@clerk/nextjs";
 
 import { Clock, Gavel, Heart } from "lucide-react";
 
-import { AuctionCard, AuctionDetailModal } from "@/components/auction";
+import { AuctionCard } from "@/components/auction/AuctionCard";
+import { AuctionDetailModal } from "@/components/auction/AuctionDetailModal";
 
 import { WatchlistItem, calculateTimeRemaining } from "@/types/auction";
 
@@ -53,6 +54,34 @@ export default function WatchlistPage() {
     }
   };
 
+  // Bucket each item exactly once per render instead of calling
+  // calculateTimeRemaining three times per item across separate filters.
+  // Declared before the loading early-return so the hook order stays stable.
+  // L-MK24.
+  const { endingSoon, others, ended } = useMemo(() => {
+    const soon: WatchlistItem[] = [];
+    const active: WatchlistItem[] = [];
+    const done: WatchlistItem[] = [];
+    const DAY_MS = 24 * 60 * 60 * 1000;
+
+    for (const w of watchlist) {
+      if (!w.auction) {
+        done.push(w);
+        continue;
+      }
+      const remaining = calculateTimeRemaining(w.auction.endTime);
+      if (remaining.isEnded) {
+        done.push(w);
+      } else if (remaining.totalMs <= DAY_MS) {
+        soon.push(w);
+      } else {
+        active.push(w);
+      }
+    }
+
+    return { endingSoon: soon, others: active, ended: done };
+  }, [watchlist]);
+
   if (!isLoaded || !isSignedIn) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -60,24 +89,6 @@ export default function WatchlistPage() {
       </div>
     );
   }
-
-  // Separate ending soon (within 24 hours) from others
-  const endingSoon = watchlist.filter((w) => {
-    if (!w.auction) return false;
-    const remaining = calculateTimeRemaining(w.auction.endTime);
-    return !remaining.isEnded && remaining.totalMs <= 24 * 60 * 60 * 1000;
-  });
-
-  const others = watchlist.filter((w) => {
-    if (!w.auction) return false;
-    const remaining = calculateTimeRemaining(w.auction.endTime);
-    return !remaining.isEnded && remaining.totalMs > 24 * 60 * 60 * 1000;
-  });
-
-  const ended = watchlist.filter((w) => {
-    if (!w.auction) return true;
-    return calculateTimeRemaining(w.auction.endTime).isEnded;
-  });
 
   return (
     <div className="min-h-screen bg-gray-50">

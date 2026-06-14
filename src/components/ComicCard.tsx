@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 
 import { DollarSign, Pencil, Star, Tag, TrendingDown, TrendingUp } from "lucide-react";
 
@@ -18,7 +18,7 @@ interface ComicCardProps {
   onToggleSelect?: (id: string) => void;
 }
 
-export function ComicCard({
+function ComicCardComponent({
   item,
   onClick,
   onToggleStar,
@@ -65,10 +65,29 @@ export function ComicCard({
     }
   };
 
+  const handleCardKeyDown = (e: React.KeyboardEvent) => {
+    // Activate on Enter/Space like a native button; don't hijack other keys.
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      handleCardClick();
+    }
+  };
+
+  const cardLabel = `${comic.title || "Unknown title"} #${comic.issueNumber || "?"}`;
+
   return (
     <div
       onClick={handleCardClick}
-      className={`comic-card cursor-pointer group ${isSelected ? "ring-4 ring-pop-yellow" : ""}`}
+      onKeyDown={handleCardKeyDown}
+      role="button"
+      tabIndex={0}
+      aria-pressed={isSelectionMode ? isSelected : undefined}
+      aria-label={
+        isSelectionMode
+          ? `${isSelected ? "Deselect" : "Select"} ${cardLabel}`
+          : `View details for ${cardLabel}`
+      }
+      className={`comic-card cursor-pointer group focus:outline-none focus-visible:ring-4 focus-visible:ring-pop-blue ${isSelected ? "ring-4 ring-pop-yellow" : ""}`}
     >
       {/* Cover Image */}
       <div className="relative aspect-[2/3] bg-pop-cream border-b-3 border-pop-black">
@@ -90,7 +109,11 @@ export function ComicCard({
         {/* Selection Checkbox */}
         {isSelectionMode && onToggleSelect && (
           <div className="absolute top-2 left-2 z-10">
-            <SelectionCheckbox checked={isSelected} onChange={() => onToggleSelect(item.id)} />
+            <SelectionCheckbox
+              checked={isSelected}
+              onChange={() => onToggleSelect(item.id)}
+              label={cardLabel}
+            />
           </div>
         )}
 
@@ -105,8 +128,8 @@ export function ComicCard({
           {conditionLabel && <span className="badge-pop badge-pop-blue">{conditionLabel}</span>}
         </div>
 
-        {/* Quick Actions - Show on hover */}
-        <div className="absolute top-2 right-2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+        {/* Quick Actions - revealed on hover, keyboard focus, and touch focus */}
+        <div className="absolute top-2 right-2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-within:opacity-100 transition-opacity duration-200">
           {onToggleStar && (
             <button
               onClick={handleStarClick}
@@ -116,6 +139,7 @@ export function ComicCard({
                   : "bg-pop-white text-pop-black hover:bg-pop-yellow"
               }`}
               title={item.isStarred ? "Remove from favorites" : "Add to favorites"}
+              aria-label={item.isStarred ? "Remove from favorites" : "Add to favorites"}
             >
               <Star className={`w-4 h-4 ${item.isStarred ? "fill-current" : ""}`} />
             </button>
@@ -125,6 +149,7 @@ export function ComicCard({
               onClick={handleEditClick}
               className="p-2 bg-pop-white text-pop-black border-2 border-pop-black shadow-comic-sm hover:bg-pop-blue hover:text-pop-white transition-all hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-comic"
               title="Edit details"
+              aria-label="Edit comic details"
             >
               <Pencil className="w-4 h-4" />
             </button>
@@ -179,3 +204,10 @@ export function ComicCard({
     </div>
   );
 }
+
+/**
+ * Memoized so the grid only re-renders cards whose props actually changed.
+ * Parent handlers are stabilized with useCallback on the collection page so
+ * the memo holds (M-CO8).
+ */
+export const ComicCard = memo(ComicCardComponent);

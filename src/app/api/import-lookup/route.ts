@@ -1,12 +1,13 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 
 import { getComicMetadata, saveComicMetadata } from "@/lib/db";
-import { MODEL_PRIMARY } from "@/lib/models";
+import { MODEL_LIGHTWEIGHT } from "@/lib/models";
 import { normalizeTitle, normalizeIssueNumber } from "@/lib/normalizeTitle";
-import { recordScanAnalytics, estimateScanCostCents } from "@/lib/analyticsServer";
+import { recordScanAnalytics, estimateTextLookupCostCents } from "@/lib/analyticsServer";
+import { checkRateLimit, getRateLimitIdentifier, rateLimiters } from "@/lib/rateLimit";
 import { validateBody } from "@/lib/validation";
 
 const importLookupSchema = z.object({
@@ -28,10 +29,19 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   const startTime = Date.now();
 
   try {
+    // Rate limit public AI lookup endpoint (text-only Haiku call)
+    const identifier = getRateLimitIdentifier(
+      null,
+      request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip")
+    );
+    const { success: rateLimitSuccess, response: rateLimitResponse } =
+      await checkRateLimit(rateLimiters.lookup, identifier);
+    if (!rateLimitSuccess) return rateLimitResponse!;
+
     const rawBody = await request.json().catch(() => null);
     const validated = validateBody(importLookupSchema, rawBody);
     if (!validated.success) return validated.response;
@@ -70,7 +80,7 @@ export async function POST(request: Request) {
 
     // Use Claude to get metadata and key info (pricing now handled by eBay Browse API)
     const message = await anthropic.messages.create({
-      model: MODEL_PRIMARY,
+      model: MODEL_LIGHTWEIGHT,
       max_tokens: 512,
       messages: [
         {
@@ -148,10 +158,12 @@ Most issues should have an empty keyInfo array.`,
           console.error("[import-lookup] Failed to save metadata:", err);
         }
       }
-    } catch {}
+    } catch (parseError) {
+      console.error("[import-lookup] Failed to parse AI response:", parseError);
+    }
 
     // Record scan analytics (fire-and-forget)
-    const costCents = estimateScanCostCents({ metadataCacheHit: false, aiCallsMade: 1, ebayLookup: false });
+    const costCents = estimateTextLookupCostCents({ aiCallsMade: 1 });
     recordScanAnalytics({
       profile_id: null,
       scan_method: "import-lookup",

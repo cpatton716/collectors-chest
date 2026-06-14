@@ -3,13 +3,14 @@
 // so both providers ask the same questions in the same format.
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { GEMINI_PRIMARY } from "@/lib/models";
+import { GEMINI_PRIMARY, AI_COST_CENTS } from "@/lib/models";
 import {
   IMAGE_ANALYSIS_PROMPT,
   buildVerificationPrompt,
   SLAB_DETECTION_PROMPT,
   SLAB_DETAIL_EXTRACTION_PROMPT,
   SLAB_COVER_HARVEST_ONLY_PROMPT,
+  SLAB_BARCODE_HARVEST_PROMPT,
 } from "./anthropic";
 import type { GradingCompany } from "@/types/comic";
 import type {
@@ -105,7 +106,10 @@ export class GeminiProvider implements AIProvider {
     req: VerificationRequest,
     opts?: CallOptions
   ): Promise<VerificationResult> {
-    const model = this.genAI.getGenerativeModel({ model: GEMINI_PRIMARY });
+    const model = this.genAI.getGenerativeModel(
+      { model: GEMINI_PRIMARY },
+      { apiVersion: "v1beta" }
+    );
 
     const result = await this.withTimeout(
       model.generateContent(buildVerificationPrompt(req)),
@@ -157,11 +161,18 @@ export class GeminiProvider implements AIProvider {
     req: ImageAnalysisRequest,
     opts?: CallOptions & { skipCreators?: boolean; skipBarcode?: boolean }
   ): Promise<SlabDetailExtractionResult> {
+    // Prompt selection by what we still need (mirrors the Anthropic provider):
+    // - skip creators + skip barcode -> harvest crop only
+    // - skip creators, keep barcode  -> barcode + harvest (no creator reasoning)
+    // - otherwise                    -> full detail extraction
     const isCoverHarvestOnly = opts?.skipCreators && opts?.skipBarcode;
+    const isBarcodeHarvest = opts?.skipCreators && !opts?.skipBarcode;
     const prompt = isCoverHarvestOnly
       ? SLAB_COVER_HARVEST_ONLY_PROMPT
-      : SLAB_DETAIL_EXTRACTION_PROMPT;
-    const maxOutputTokens = isCoverHarvestOnly ? 128 : 384;
+      : isBarcodeHarvest
+        ? SLAB_BARCODE_HARVEST_PROMPT
+        : SLAB_DETAIL_EXTRACTION_PROMPT;
+    const maxOutputTokens = isCoverHarvestOnly ? 128 : isBarcodeHarvest ? 256 : 384;
 
     const model = this.genAI.getGenerativeModel(
       { model: GEMINI_PRIMARY },
@@ -192,12 +203,14 @@ export class GeminiProvider implements AIProvider {
   // ── Cost Estimation ──
 
   estimateCostCents(callType: AICallType): number {
-    // Gemini Flash is very cost-effective
+    // Gemini Flash is very cost-effective.
+    // Per-call costs are centralized in AI_COST_CENTS (models.ts).
     switch (callType) {
       case "imageAnalysis":
-        return 0.3;
+        return AI_COST_CENTS.gemini.imageAnalysis;
       case "verification":
-        return 0.1;
+        return AI_COST_CENTS.gemini.verification;
+      // Slab calls are lighter vision calls.
       case "slabDetection":
         return 0.05;
       case "slabDetailExtraction":

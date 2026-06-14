@@ -41,7 +41,7 @@ export async function getCommunityCovers(
     .eq("status", "approved")
     .order("approved_at", { ascending: false })
     .limit(1)
-    .single();
+    .maybeSingle();
 
   if (error || !data) return null;
   return data.image_url;
@@ -138,7 +138,7 @@ export async function approveCover(
     .from("cover_images")
     .select("title_normalized, issue_number, image_url")
     .eq("id", coverId)
-    .single();
+    .maybeSingle();
 
   if (coverRow) {
     await saveComicMetadata({

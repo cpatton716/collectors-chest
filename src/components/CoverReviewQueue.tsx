@@ -34,7 +34,6 @@ export default function CoverReviewQueue({
 }: CoverReviewQueueProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [candidates, setCandidates] = useState<CoverCandidate[]>([]);
-  const [searchQuery, setSearchQuery] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [selectedUrl, setSelectedUrl] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -48,7 +47,6 @@ export default function CoverReviewQueue({
     setLoading(true);
     setCandidates([]);
     setSelectedUrl(null);
-    setSearchQuery(null);
     setImageErrors(new Set());
 
     try {
@@ -67,7 +65,6 @@ export default function CoverReviewQueue({
       const data = await res.json();
 
       setCandidates(data.candidates || []);
-      setSearchQuery(data.searchQuery);
 
       // Auto-select if community match
       if (data.source === "community" && data.candidates.length === 1) {
@@ -99,7 +96,7 @@ export default function CoverReviewQueue({
           title: current.title,
           issueNumber: current.issueNumber,
           imageUrl: selectedUrl,
-          sourceQuery: searchQuery,
+          sourceQuery: null,
           candidateCount: candidates.length,
         }),
       });

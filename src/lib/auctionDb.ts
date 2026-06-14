@@ -15,7 +15,6 @@ import {
   OfferStatus,
   PAYMENT_MISS_WINDOW_DAYS,
   PAYMENT_REMINDER_WINDOW_HOURS,
-  PAYMENT_MISS_STRIKE_THRESHOLD,
   PlaceBidResult,
   RespondToOfferInput,
   SecondChanceOffer,
@@ -28,6 +27,7 @@ import {
   calculatePaymentDeadline,
   calculateSecondChanceOfferExpiration,
   calculateSellerReputation,
+  computePaymentMissStrike,
   getBidIncrement,
 } from "@/types/auction";
 import { CollectionItem, ConditionLabel, PriceData } from "@/types/comic";
@@ -84,6 +84,92 @@ export function formatDeadlineForEmail(date: Date): string {
 }
 
 // ============================================================================
+// SHARED COLUMN PROJECTIONS
+// ----------------------------------------------------------------------------
+// Explicit column lists for the auctions + joined comics rows, matching every
+// field transformDbAuction reads. Replaces the prior `auctions.*` /
+// `comics(*)` star-selects so list queries pull only what the transform
+// consumes (M-AU8 / L-MK22). Keep these in sync with transformDbAuction.
+// ============================================================================
+
+const AUCTION_COLUMNS = [
+  "id",
+  "seller_id",
+  "comic_id",
+  "listing_type",
+  "starting_price",
+  "current_bid",
+  "buy_it_now_price",
+  "start_time",
+  "end_time",
+  "status",
+  "winner_id",
+  "winning_bid",
+  "shipping_cost",
+  "detail_images",
+  "description",
+  "bid_count",
+  "payment_status",
+  "payment_deadline",
+  "shipped_at",
+  "tracking_number",
+  "tracking_carrier",
+  "accepts_offers",
+  "min_offer_amount",
+  "expires_at",
+  "cancel_reason",
+  "original_end_time",
+  "created_at",
+  "updated_at",
+].join(", ");
+
+const COMIC_COLUMNS = [
+  "id",
+  "title",
+  "issue_number",
+  "variant",
+  "publisher",
+  "cover_artist",
+  "writer",
+  "interior_artist",
+  "release_year",
+  "confidence",
+  "is_slabbed",
+  "grading_company",
+  "grade",
+  "certification_number",
+  "label_type",
+  "page_quality",
+  "is_signature_series",
+  "signed_by",
+  "price_data",
+  "key_info",
+  "grade_date",
+  "grader_notes",
+  "cover_image_url",
+  "condition_grade",
+  "condition_label",
+  "is_graded",
+  "purchase_price",
+  "purchase_date",
+  "notes",
+  "for_sale",
+  "for_trade",
+  "asking_price",
+  "average_price",
+  "date_added",
+  "is_starred",
+  "custom_key_info",
+  "custom_key_info_status",
+].join(", ");
+
+/**
+ * `auctions` row plus the lean joined `comics` projection, for list endpoints
+ * that hydrate full auction cards via transformDbAuction.
+ */
+const AUCTION_WITH_COMIC_SELECT = `${AUCTION_COLUMNS}, comics!auctions_comic_id_fkey(${COMIC_COLUMNS})`;
+
+// ============================================================================
 // AUCTION CRUD
 // ============================================================================
 
@@ -97,7 +183,7 @@ async function hasActiveListing(comicId: string): Promise<boolean> {
     .eq("comic_id", comicId)
     .in("status", ["active", "ended"]) // ended but not sold/cancelled
     .limit(1)
-    .single();
+    .maybeSingle();
 
   return !!data;
 }
@@ -296,8 +382,8 @@ export async function getAuction(auctionId: string, userId?: string): Promise<Au
     .from("auctions")
     .select(
       `
-      *,
-      comics!auctions_comic_id_fkey(*),
+      ${AUCTION_COLUMNS},
+      comics!auctions_comic_id_fkey(${COMIC_COLUMNS}),
       profiles!auctions_seller_id_fkey(id, display_name, public_display_name, email, positive_ratings, negative_ratings, seller_since, username, display_preference, location_city, location_state, location_country, location_privacy)
     `
     )
@@ -306,7 +392,9 @@ export async function getAuction(auctionId: string, userId?: string): Promise<Au
 
   if (error || !data) return null;
 
-  const auction = transformDbAuction(data);
+  // Cast: explicit column-list select defeats Supabase's literal-only type
+  // parser (see getActiveAuctions).
+  const auction = transformDbAuction(data as unknown as Record<string, unknown>);
 
   // Check if user is the seller or watching
   if (userId) {
@@ -317,7 +405,7 @@ export async function getAuction(auctionId: string, userId?: string): Promise<Au
       .select("id")
       .eq("auction_id", auctionId)
       .eq("user_id", userId)
-      .single();
+      .maybeSingle();
 
     auction.isWatching = !!watchData;
 
@@ -329,7 +417,7 @@ export async function getAuction(auctionId: string, userId?: string): Promise<Au
       .eq("bidder_id", userId)
       .order("created_at", { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
 
     if (bidData) {
       auction.userBid = transformDbBid(bidData);
@@ -414,13 +502,9 @@ export async function getActiveAuctions(
   offset = 0,
   followedSellerIds?: string[]
 ): Promise<{ auctions: Auction[]; total: number }> {
-  let query = supabase.from("auctions").select(
-    `
-      *,
-      comics!auctions_comic_id_fkey(*)
-    `,
-    { count: "exact" }
-  );
+  let query = supabase
+    .from("auctions")
+    .select(AUCTION_WITH_COMIC_SELECT, { count: "exact" });
 
   // When filtering by sellerId, show all statuses (for My Listings page)
   // Otherwise, only show active listings (for Shop page)
@@ -509,7 +593,12 @@ export async function getActiveAuctions(
   if (error) throw error;
 
   return {
-    auctions: (data || []).map(transformDbAuction),
+    // Cast: the explicit column-list select is built from a constant string,
+    // which Supabase's literal-only type parser can't introspect, so it
+    // widens rows to a parser-error type. transformDbAuction reads loosely.
+    auctions: ((data as unknown as Record<string, unknown>[]) || []).map(
+      transformDbAuction
+    ),
     total: count || 0,
   };
 }
@@ -517,17 +606,18 @@ export async function getActiveAuctions(
 /**
  * Get auctions by seller
  */
-export async function getSellerAuctions(sellerId: string, status?: string): Promise<Auction[]> {
+export async function getSellerAuctions(
+  sellerId: string,
+  status?: string,
+  limit = 200,
+  offset = 0
+): Promise<Auction[]> {
   let query = supabase
     .from("auctions")
-    .select(
-      `
-      *,
-      comics!auctions_comic_id_fkey(*)
-    `
-    )
+    .select(AUCTION_WITH_COMIC_SELECT)
     .eq("seller_id", sellerId)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .range(offset, offset + limit - 1);
 
   if (status) {
     query = query.eq("status", status);
@@ -537,28 +627,28 @@ export async function getSellerAuctions(sellerId: string, status?: string): Prom
 
   if (error) throw error;
 
-  return (data || []).map(transformDbAuction);
+  return ((data as unknown as Record<string, unknown>[]) || []).map(
+    transformDbAuction
+  );
 }
 
 /**
  * Get auctions won by user
  */
-export async function getWonAuctions(userId: string): Promise<Auction[]> {
+export async function getWonAuctions(userId: string, limit = 200): Promise<Auction[]> {
   const { data, error } = await supabase
     .from("auctions")
-    .select(
-      `
-      *,
-      comics!auctions_comic_id_fkey(*)
-    `
-    )
+    .select(AUCTION_WITH_COMIC_SELECT)
     .eq("winner_id", userId)
     .in("status", ["ended", "sold"])
-    .order("end_time", { ascending: false });
+    .order("end_time", { ascending: false })
+    .limit(limit);
 
   if (error) throw error;
 
-  return (data || []).map(transformDbAuction);
+  return ((data as unknown as Record<string, unknown>[]) || []).map(
+    transformDbAuction
+  );
 }
 
 /**
@@ -601,7 +691,7 @@ export async function cancelAuction(
   // Check for existing bids
   const { data: auction } = await supabase
     .from("auctions")
-    .select("bid_count, listing_type, status")
+    .select("listing_type, status")
     .eq("id", auctionId)
     .eq("seller_id", sellerId)
     .single();
@@ -615,9 +705,19 @@ export async function cancelAuction(
     return { success: true };
   }
 
-  // For auctions, check that there are no bids
-  if (auction.listing_type === "auction" && auction.bid_count > 0) {
-    return { success: false, error: "Cannot cancel auction with bids" };
+  // For auctions, check that there are no bids. Query the bids table directly
+  // rather than trusting the cached bid_count column — a stale/incorrect
+  // counter must never let a seller cancel an auction that actually has bids.
+  // L-AU10.
+  if (auction.listing_type === "auction") {
+    const { count: bidCount } = await supabase
+      .from("bids")
+      .select("id", { count: "exact", head: true })
+      .eq("auction_id", auctionId);
+
+    if ((bidCount ?? 0) > 0) {
+      return { success: false, error: "Cannot cancel auction with bids" };
+    }
   }
 
   // For fixed-price listings, get pending offers to notify buyers
@@ -639,10 +739,13 @@ export async function cancelAuction(
         .eq("listing_id", auctionId)
         .in("status", ["pending", "countered"]);
 
-      // Notify each buyer that the listing was cancelled
-      for (const offer of pendingOffers) {
-        await createNotification(offer.buyer_id, "listing_cancelled", auctionId, offer.id);
-      }
+      // Notify each buyer that the listing was cancelled. Fan out in parallel
+      // rather than awaiting each insert serially. L-AU11.
+      await Promise.all(
+        pendingOffers.map((offer) =>
+          createNotification(offer.buyer_id, "listing_cancelled", auctionId, offer.id)
+        )
+      );
     }
   }
 
@@ -777,13 +880,14 @@ export async function placeBid(
     return { success: false, message: "Bids must be whole dollar amounts" };
   }
 
-  // Get current winning bid
+  // Get current winning bid (none on the first bid → maybeSingle avoids
+  // PGRST116 noise).
   const { data: currentWinningBid } = await supabase
     .from("bids")
     .select("*")
     .eq("auction_id", auctionId)
     .eq("is_winning", true)
-    .single();
+    .maybeSingle();
 
   // Get bidder's existing bids to determine bidder number
   const { data: existingBids } = await supabase
@@ -1037,12 +1141,13 @@ export async function getBidHistory(auctionId: string): Promise<BidHistoryItem[]
 /**
  * Get user's bids across all auctions
  */
-export async function getUserBids(userId: string): Promise<Bid[]> {
+export async function getUserBids(userId: string, limit = 200): Promise<Bid[]> {
   const { data, error } = await supabase
     .from("bids")
     .select("*")
     .eq("bidder_id", userId)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .limit(limit);
 
   if (error) throw error;
 
@@ -1078,7 +1183,14 @@ export async function executeBuyItNow(
   // End auction with buyer as winner
   const paymentDeadline = calculatePaymentDeadline();
 
-  const { error } = await supabase
+  // Atomic status guard: only transition from 'active' to 'sold'. The extra
+  // .eq("status", "active") makes the UPDATE a no-op if a concurrent bid/BIN
+  // already finalized the row, and .select() lets us detect that via zero
+  // rows so two buyers can't both "win" the same Buy It Now. supabaseAdmin
+  // mirrors the rest of the money-path writes (RLS would otherwise block the
+  // buyer-scoped update). A DB-level guard (FOR UPDATE / status-CHECK) is the
+  // fully robust fix but requires a migration — deferred. H-AU3.
+  const { data: soldRows, error } = await supabaseAdmin
     .from("auctions")
     .update({
       status: "sold",
@@ -1087,10 +1199,17 @@ export async function executeBuyItNow(
       payment_status: "pending",
       payment_deadline: paymentDeadline.toISOString(),
     })
-    .eq("id", auctionId);
+    .eq("id", auctionId)
+    .eq("status", "active")
+    .select("id");
 
   if (error) {
     return { success: false, error: error.message };
+  }
+
+  if (!soldRows || soldRows.length === 0) {
+    // Lost the race — another bid or Buy It Now already finalized this listing.
+    return { success: false, error: "This listing is no longer available" };
   }
 
   // Notify seller
@@ -1244,23 +1363,24 @@ export async function removeFromWatchlist(userId: string, auctionId: string): Pr
 export async function getUserWatchlist(userId: string): Promise<WatchlistItem[]> {
   const { data, error } = await supabase
     .from("auction_watchlist")
-    .select(
-      `
-      *,
-      auctions(*, comics!auctions_comic_id_fkey(*))
-    `
-    )
+    .select(`id, user_id, auction_id, created_at, auctions(${AUCTION_WITH_COMIC_SELECT})`)
     .eq("user_id", userId)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .limit(200);
 
   if (error) throw error;
 
-  return (data || []).map((item) => ({
-    id: item.id,
-    userId: item.user_id,
-    auctionId: item.auction_id,
-    createdAt: item.created_at,
-    auction: item.auctions ? transformDbAuction(item.auctions) : undefined,
+  // Cast: explicit column-list select built from a constant string defeats
+  // Supabase's literal-only type parser (see getActiveAuctions).
+  const rows = (data as unknown as Record<string, unknown>[]) || [];
+  return rows.map((item) => ({
+    id: item.id as string,
+    userId: item.user_id as string,
+    auctionId: item.auction_id as string,
+    createdAt: item.created_at as string,
+    auction: item.auctions
+      ? transformDbAuction(item.auctions as Record<string, unknown>)
+      : undefined,
   }));
 }
 
@@ -1273,7 +1393,7 @@ export async function isWatching(userId: string, auctionId: string): Promise<boo
     .select("id")
     .eq("user_id", userId)
     .eq("auction_id", auctionId)
-    .single();
+    .maybeSingle();
 
   return !!data;
 }
@@ -1323,7 +1443,7 @@ export async function createOffer(
     .eq("listing_id", input.listingId)
     .eq("buyer_id", buyerId)
     .in("status", ["pending", "countered"])
-    .single();
+    .maybeSingle();
 
   if (existingOffer) {
     return { success: false, error: "You already have an active offer on this listing" };
@@ -1422,14 +1542,12 @@ export async function respondToOffer(
     // Accept the offer - complete the sale
     const paymentDeadline = calculatePaymentDeadline();
 
-    // Update offer status
-    await supabase
-      .from("offers")
-      .update({ status: "accepted", responded_at: now })
-      .eq("id", input.offerId);
-
-    // Update listing to sold
-    await supabase
+    // Atomic listing-status guard: only flip the listing to sold if it is
+    // still active. The .eq("status", "active") + .select() makes a second
+    // concurrent accept (or a Buy It Now in flight) a no-op we can detect via
+    // zero rows, so the same comic can't be sold twice. Done BEFORE marking
+    // the offer accepted so a failed guard leaves the offer untouched. H-MK1.
+    const { data: soldRows, error: listingError } = await supabaseAdmin
       .from("auctions")
       .update({
         status: "sold",
@@ -1438,7 +1556,34 @@ export async function respondToOffer(
         payment_status: "pending",
         payment_deadline: paymentDeadline.toISOString(),
       })
-      .eq("id", offer.listing_id);
+      .eq("id", offer.listing_id)
+      .eq("status", "active")
+      .select("id");
+
+    if (listingError) {
+      return { success: false, error: listingError.message };
+    }
+    if (!soldRows || soldRows.length === 0) {
+      return {
+        success: false,
+        error: "This listing is no longer available",
+      };
+    }
+
+    // Update accepted offer status
+    await supabase
+      .from("offers")
+      .update({ status: "accepted", responded_at: now })
+      .eq("id", input.offerId);
+
+    // Auto-reject every other still-open offer on this listing — once the
+    // comic is sold, competing offers can never be honored. H-MK1.
+    await supabaseAdmin
+      .from("offers")
+      .update({ status: "auto_rejected", updated_at: now })
+      .eq("listing_id", offer.listing_id)
+      .neq("id", input.offerId)
+      .in("status", ["pending", "countered"]);
 
     // Notify buyer
     await createNotification(offer.buyer_id, "offer_accepted", offer.listing_id, input.offerId);
@@ -1638,13 +1783,10 @@ export async function respondToCounterOffer(
     // Accept the counter-offer
     const paymentDeadline = calculatePaymentDeadline();
 
-    await supabase
-      .from("offers")
-      .update({ status: "accepted", amount: offer.counter_amount, responded_at: now })
-      .eq("id", offerId);
-
-    // Update listing to sold
-    await supabase
+    // Atomic listing-status guard mirroring respondToOffer — only flip to
+    // sold while the listing is still active, detect a lost race via zero
+    // rows. H-MK1.
+    const { data: soldRows, error: listingError } = await supabaseAdmin
       .from("auctions")
       .update({
         status: "sold",
@@ -1653,7 +1795,32 @@ export async function respondToCounterOffer(
         payment_status: "pending",
         payment_deadline: paymentDeadline.toISOString(),
       })
-      .eq("id", offer.listing_id);
+      .eq("id", offer.listing_id)
+      .eq("status", "active")
+      .select("id");
+
+    if (listingError) {
+      return { success: false, error: listingError.message };
+    }
+    if (!soldRows || soldRows.length === 0) {
+      return {
+        success: false,
+        error: "This listing is no longer available",
+      };
+    }
+
+    await supabase
+      .from("offers")
+      .update({ status: "accepted", amount: offer.counter_amount, responded_at: now })
+      .eq("id", offerId);
+
+    // Auto-reject every other still-open offer on this listing. H-MK1.
+    await supabaseAdmin
+      .from("offers")
+      .update({ status: "auto_rejected", updated_at: now })
+      .eq("listing_id", offer.listing_id)
+      .neq("id", offerId)
+      .in("status", ["pending", "countered"]);
 
     // Notify seller
     await createNotification(offer.seller_id, "offer_accepted", offer.listing_id, offerId);
@@ -1998,23 +2165,32 @@ export async function notifyFollowersOfNewListing(
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://collectors-chest.com";
   const listingUrl = `${baseUrl}/shop/${listingId}`;
 
-  // Send emails to each follower (fire and forget, don't block on email sending)
-  for (const follower of followerProfiles) {
-    if (follower.email) {
-      sendNotificationEmail({
-        to: follower.email,
-        type: "new_listing_from_followed",
-        data: {
-          sellerName: sellerDisplayName,
-          sellerUsername,
-          comicTitle,
-          price,
-          listingUrl,
-          coverImageUrl,
-        },
-      }).catch((err) => {
-        console.error(`[auctionDb] Failed to send new listing email to ${follower.email}:`, err);
-      });
+  // Fan out via the Resend batch API in one call rather than N individual
+  // sends. Each param carries profileId so the email layer can attach
+  // unsubscribe context. M-EM2.
+  const emailParams = followerProfiles
+    .filter((f) => !!f.email)
+    .map((f) => ({
+      to: f.email as string,
+      type: "new_listing_from_followed" as const,
+      data: {
+        sellerName: sellerDisplayName,
+        sellerUsername,
+        comicTitle,
+        price,
+        listingUrl,
+        coverImageUrl,
+      },
+      profileId: f.id as string,
+    }));
+
+  if (emailParams.length > 0) {
+    const result = await sendNotificationEmailsBatch(emailParams);
+    if (result.errors.length > 0) {
+      console.error(
+        "[auctionDb] new-listing follower email batch errors:",
+        result.errors
+      );
     }
   }
 }
@@ -2268,7 +2444,7 @@ export async function submitSellerRating(
     .select("id")
     .eq("buyer_id", buyerId)
     .eq("auction_id", input.auctionId)
-    .single();
+    .maybeSingle();
 
   if (existingRating) {
     return { success: false, error: "You have already rated this seller" };
@@ -2371,6 +2547,16 @@ export async function getSellerProfile(sellerId: string): Promise<SellerProfile 
 // ============================================================================
 
 /**
+ * Upper bound on the number of rows any single cron pass will claim per tick.
+ * Cron runs every minute, so a backlog drains across successive ticks rather
+ * than letting one invocation fan out an unbounded number of DB round-trips,
+ * emails, and notifications (which can blow the function time budget). M-AU7 /
+ * M-MK13. The DB-side ORDER BY that would make this deterministic across ticks
+ * for natural-end processing is left as-is; the cap alone bounds blast radius.
+ */
+const CRON_BATCH_LIMIT = 200;
+
+/**
  * Process ended auctions
  * Called by cron job every minute
  */
@@ -2384,12 +2570,18 @@ export async function processEndedAuctions(): Promise<{
   // this out of the per-auction hot path.
   const auditEvents: AuditEventInput[] = [];
 
-  // Get all active auctions that have ended
+  // Get active auctions that have ended (capped per tick — M-AU7). Join the
+  // comic title/issue so the per-auction email path doesn't re-query it via
+  // getListingComicData (M-EM3).
   const { data: endedAuctions, error } = await supabase
     .from("auctions")
-    .select("*")
+    .select(
+      "*, comics!auctions_comic_id_fkey(title, issue_number)"
+    )
     .eq("status", "active")
-    .lt("end_time", new Date().toISOString());
+    .lt("end_time", new Date().toISOString())
+    .order("end_time", { ascending: true })
+    .limit(CRON_BATCH_LIMIT);
 
   if (error) {
     return { processed: 0, errors: [error.message] };
@@ -2397,13 +2589,13 @@ export async function processEndedAuctions(): Promise<{
 
   for (const auction of endedAuctions || []) {
     try {
-      // Get winning bid
+      // Get winning bid (zero bids → maybeSingle avoids PGRST116 noise)
       const { data: winningBid } = await supabase
         .from("bids")
         .select("*")
         .eq("auction_id", auction.id)
         .eq("is_winning", true)
-        .single();
+        .maybeSingle();
 
       if (winningBid) {
         // Anchor the 48h payment window to auction.end_time, not the cron run
@@ -2449,12 +2641,23 @@ export async function processEndedAuctions(): Promise<{
         // Notify seller (in-app) + send auction_sold email
         await createNotification(auction.seller_id, "auction_sold", auction.id);
 
-        // Fire-and-forget emails for winner + seller
+        // Fire-and-forget emails for winner + seller. Comic title/issue come
+        // from the joined candidate row (M-EM3) instead of a per-auction
+        // getListingComicData round-trip.
+        const joinedComic = (auction.comics as
+          | { title?: string | null; issue_number?: string | null }
+          | null) ?? null;
+        const comicData = joinedComic
+          ? {
+              comicTitle: joinedComic.title || "Unknown",
+              issueNumber: joinedComic.issue_number || "",
+              price: Number(auction.starting_price) || 0,
+            }
+          : null;
         (async () => {
-          const [winnerProfile, sellerProfile, comicData] = await Promise.all([
+          const [winnerProfile, sellerProfile] = await Promise.all([
             getProfileForEmail(winnerId),
             getProfileForEmail(auction.seller_id),
-            getListingComicData(auction.id),
           ]);
           if (!comicData) return;
           const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://collectors-chest.com";
@@ -2762,7 +2965,9 @@ export async function expireOffers(): Promise<{ expired: number; errors: string[
     .from("offers")
     .select("id, buyer_id, seller_id, listing_id, amount, status")
     .eq("status", "pending")
-    .lt("expires_at", new Date().toISOString());
+    .lt("expires_at", new Date().toISOString())
+    .order("expires_at", { ascending: true })
+    .limit(CRON_BATCH_LIMIT);
 
   if (fetchError) {
     errors.push(`Failed to fetch expired offers: ${fetchError.message}`);
@@ -2854,7 +3059,9 @@ export async function expireListings(): Promise<{
     .eq("listing_type", "fixed_price")
     .eq("status", "active")
     .gt("expires_at", now.toISOString())
-    .lt("expires_at", oneDayFromNow.toISOString());
+    .lt("expires_at", oneDayFromNow.toISOString())
+    .order("expires_at", { ascending: true })
+    .limit(CRON_BATCH_LIMIT);
 
   let expiringCount = 0;
   if (expiringListings && expiringListings.length > 0) {
@@ -2866,7 +3073,8 @@ export async function expireListings(): Promise<{
           .select("id")
           .eq("auction_id", listing.id)
           .eq("type", "listing_expiring")
-          .single();
+          .limit(1)
+          .maybeSingle();
 
         if (!existingNotif) {
           await createNotification(listing.seller_id, "listing_expiring", listing.id);
@@ -2905,7 +3113,9 @@ export async function expireListings(): Promise<{
     .select("id, seller_id")
     .eq("listing_type", "fixed_price")
     .eq("status", "active")
-    .lt("expires_at", now.toISOString());
+    .lt("expires_at", now.toISOString())
+    .order("expires_at", { ascending: true })
+    .limit(CRON_BATCH_LIMIT);
 
   if (fetchError) {
     errors.push(`Failed to fetch expired listings: ${fetchError.message}`);
@@ -3033,7 +3243,9 @@ export async function sendPaymentReminders(): Promise<{
       .eq("payment_status", "pending")
       .gt("payment_deadline", now.toISOString())
       .lte("payment_deadline", reminderWindowEnd.toISOString())
-      .is("payment_reminder_sent_at", null);
+      .is("payment_reminder_sent_at", null)
+      .order("payment_deadline", { ascending: true })
+      .limit(CRON_BATCH_LIMIT);
 
     if (fetchError) {
       errors.push(`Failed to fetch reminder candidates: ${fetchError.message}`);
@@ -3266,7 +3478,9 @@ export async function sendAuctionEndingSoonReminders(): Promise<{
       .eq("status", "active")
       .gt("end_time", now.toISOString())
       .lte("end_time", windowEnd.toISOString())
-      .is("reminder_sent_at", null);
+      .is("reminder_sent_at", null)
+      .order("end_time", { ascending: true })
+      .limit(CRON_BATCH_LIMIT);
 
     if (fetchError) {
       errors.push(`Failed to fetch ending-soon candidates: ${fetchError.message}`);
@@ -3349,6 +3563,27 @@ export async function sendAuctionEndingSoonReminders(): Promise<{
           const comicData = await getListingComicData(a.id);
           if (!comicData) return null;
 
+          // Batch-fetch every losing bidder's display fields in ONE query
+          // instead of a getProfileForEmail round-trip per bidder. M-SO4.
+          const bidderIds = Array.from(byBidder.keys());
+          const { data: bidderProfiles } = await supabaseAdmin
+            .from("profiles")
+            .select("id, email, display_name, username")
+            .in("id", bidderIds);
+          const profileById = new Map<
+            string,
+            { email: string | null; displayName: string }
+          >();
+          for (const p of bidderProfiles ?? []) {
+            profileById.set(p.id as string, {
+              email: (p.email as string | null) ?? null,
+              displayName:
+                (p.display_name as string | null) ||
+                (p.username as string | null) ||
+                "Collector",
+            });
+          }
+
           const minutesRemaining = Math.max(
             1,
             Math.round((new Date(a.end_time).getTime() - Date.now()) / 60000),
@@ -3377,7 +3612,7 @@ export async function sendAuctionEndingSoonReminders(): Promise<{
               offer_id: null,
             });
 
-            const profile = await getProfileForEmail(bidderId);
+            const profile = profileById.get(bidderId);
             if (profile?.email) {
               emailParams.push({
                 to: profile.email,
@@ -3466,7 +3701,9 @@ export async function expireUnpaidAuctions(): Promise<{
       .eq("status", "ended")
       .eq("payment_status", "pending")
       .lt("payment_deadline", now.toISOString())
-      .is("payment_expired_at", null);
+      .is("payment_expired_at", null)
+      .order("payment_deadline", { ascending: true })
+      .limit(CRON_BATCH_LIMIT);
 
     if (fetchError) {
       errors.push(`Failed to fetch expiry candidates: ${fetchError.message}`);
@@ -3938,7 +4175,7 @@ async function recordPaymentMissStrike(
     .from("profiles")
     .select("payment_missed_count, bid_restricted_at")
     .eq("id", bidderId)
-    .single();
+    .maybeSingle();
 
   const nextCount = ((current?.payment_missed_count as number) || 0) + 1;
   const nowIso = new Date().toISOString();
@@ -3962,27 +4199,38 @@ async function recordPaymentMissStrike(
   // Look up prior auction_payment_expired audit events for this bidder
   // within the rolling window. The current expireUnpaidAuctions pass logs
   // its event fire-and-forget - depending on timing, that row may or may
-  // not be visible yet, so we count it explicitly via `+1` below and only
-  // treat rows with an older timestamp as "prior" here.
+  // not be visible yet, so we exclude any row stamped for THIS auction to
+  // avoid double-counting the current miss, then feed the remaining
+  // timestamps into the shared pure helper (shouldFlagForPaymentMisses),
+  // which re-applies the rolling-window filter and adds +1 for the current
+  // miss. Pulling timestamps (not a COUNT) keeps the flag decision in one
+  // tested code path. H-AU2.
   const windowStart = new Date(
     Date.now() - PAYMENT_MISS_WINDOW_DAYS * 24 * 60 * 60 * 1000
   ).toISOString();
 
-  const { count: priorStrikesRaw } = await supabaseAdmin
+  const { data: priorMissRows } = await supabaseAdmin
     .from("auction_audit_log")
-    .select("id", { count: "exact", head: true })
+    .select("created_at, auction_id")
     .eq("actor_profile_id", bidderId)
     .eq("event_type", "auction_payment_expired")
     .gte("created_at", windowStart);
 
-  const priorStrikes = priorStrikesRaw ?? 0;
-  // +1 for the current miss (it may or may not be in the audit log yet).
-  const totalStrikesInWindow = priorStrikes + 1;
+  // Delegate the flag/count math to the pure, unit-tested helper. It excludes
+  // the current auction's rows so this miss is counted exactly once.
+  const { totalStrikesInWindow, shouldFlag } = computePaymentMissStrike(
+    (priorMissRows ?? []).map((r) => ({
+      created_at: r.created_at as string,
+      auction_id: (r.auction_id as string | null) ?? null,
+    })),
+    auctionId,
+    new Date(nowIso)
+  );
 
   const comicData = await getListingComicData(auctionId).catch(() => null);
   const bidderProfile = await getProfileForEmail(bidderId).catch(() => null);
 
-  if (totalStrikesInWindow < PAYMENT_MISS_STRIKE_THRESHOLD) {
+  if (!shouldFlag) {
     // First offense (inside the window) → warning only.
     await createNotification(bidderId, "payment_missed_warning", auctionId);
     if (bidderProfile?.email && comicData) {
@@ -4459,7 +4707,9 @@ export async function expireSecondChanceOffers(): Promise<{
       .from("second_chance_offers")
       .select("id, auction_id, runner_up_profile_id, offer_price")
       .eq("status", "pending")
-      .lt("expires_at", now.toISOString());
+      .lt("expires_at", now.toISOString())
+      .order("expires_at", { ascending: true })
+      .limit(CRON_BATCH_LIMIT);
 
     if (fetchError) {
       errors.push(`Failed to fetch offers: ${fetchError.message}`);

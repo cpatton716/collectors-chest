@@ -5,6 +5,9 @@ import { submitCoverImage, getCommunityCovers } from "./coverImageDb";
 
 export const SYSTEM_HARVEST_PROFILE_ID = "00000000-0000-0000-0000-000000000001";
 
+/** Longest-edge cap (px) for stored harvested covers — keeps WebP files small. */
+export const MAX_HARVEST_DIMENSION = 1000;
+
 export interface CropCoordinates {
   x: number;
   y: number;
@@ -200,8 +203,19 @@ export async function harvestCoverFromScan(params: HarvestParams): Promise<boole
     return false;
   }
 
-  // 10. Convert to WebP
-  const webpBuffer = await sharp(croppedBuffer).webp({ quality: 85 }).toBuffer();
+  // 10. Resize (cap longest edge) + convert to WebP. Harvested covers are
+  // display thumbnails; capping to MAX_HARVEST_DIMENSION keeps storage small
+  // (~Supabase 1GB bucket pressure) without visible quality loss. withoutEnlargement
+  // avoids upscaling already-small crops.
+  const webpBuffer = await sharp(croppedBuffer)
+    .resize({
+      width: MAX_HARVEST_DIMENSION,
+      height: MAX_HARVEST_DIMENSION,
+      fit: "inside",
+      withoutEnlargement: true,
+    })
+    .webp({ quality: 85 })
+    .toBuffer();
 
   // 11. Upload to Supabase Storage
   const safeTitle = title.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-");

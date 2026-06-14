@@ -10,12 +10,16 @@ import {
   isBrowseApiConfigured,
   searchActiveListings,
 } from "@/lib/ebayBrowse";
+import { checkRateLimit, getRateLimitIdentifier, rateLimiters } from "@/lib/rateLimit";
 import { supabaseAdmin } from "@/lib/supabase";
 import { schemas, validateParams } from "@/lib/validation";
 
 import type { PriceData } from "@/types/comic";
 
 const paramsSchema = z.object({ id: schemas.uuid });
+
+// Negative-cache TTL aligned with the positive eBay price TTL (12h). L-PR12.
+const EBAY_NEGATIVE_TTL_SECONDS = 60 * 60 * 12;
 
 // POST /api/comics/[id]/refresh-value
 // Triggers an eBay price lookup for the owner's comic and persists the
@@ -31,6 +35,13 @@ export async function POST(
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    // Rate limit to protect eBay API quota (H-PR3)
+    const { success: rateLimitSuccess, response: rateLimitResponse } = await checkRateLimit(
+      rateLimiters.lookup,
+      getRateLimitIdentifier(userId, null)
+    );
+    if (!rateLimitSuccess && rateLimitResponse) return rateLimitResponse;
 
     const profile = await getProfileByClerkId(userId);
     if (!profile) {
@@ -107,7 +118,7 @@ export async function POST(
         cacheSet(cacheKey, priceData, "ebayPrice").catch(() => {});
         source = "ebay";
       } else {
-        cacheSet(cacheKey, { noData: true }, "ebayPrice", 60 * 60).catch(() => {});
+        cacheSet(cacheKey, { noData: true }, "ebayPrice", EBAY_NEGATIVE_TTL_SECONDS).catch(() => {});
       }
     }
 

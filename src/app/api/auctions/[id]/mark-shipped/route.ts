@@ -114,20 +114,33 @@ export async function POST(
       );
     }
 
-    // Mark auction as shipped
-    const { error: updateError } = await supabaseAdmin
+    // Mark auction as shipped. Guard on shipped_at IS NULL and detect a
+    // zero-row update via .select() so a concurrent second call (which raced
+    // past the earlier shipped_at check) doesn't re-fire the buyer/rating
+    // notifications. L-MK20.
+    const { data: shippedRows, error: updateError } = await supabaseAdmin
       .from("auctions")
       .update({
         shipped_at: new Date().toISOString(),
         tracking_number: trackingNumber,
         tracking_carrier: trackingCarrier,
       })
-      .eq("id", auctionId);
+      .eq("id", auctionId)
+      .is("shipped_at", null)
+      .select("id");
 
     if (updateError) {
       return NextResponse.json(
         { error: `Failed to update listing: ${updateError.message}` },
         { status: 500 }
+      );
+    }
+
+    if (!shippedRows || shippedRows.length === 0) {
+      // Lost the race — already marked shipped by a concurrent request.
+      return NextResponse.json(
+        { error: "Listing is already marked as shipped" },
+        { status: 400 }
       );
     }
 

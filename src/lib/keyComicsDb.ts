@@ -9,27 +9,16 @@
  * - Fallback to static database
  * - Community contribution support
  */
-import { createClient } from "@supabase/supabase-js";
-
 import { createNotification } from "./auctionDb";
 import { lookupKeyInfo as lookupKeyInfoStatic } from "./keyComicsDatabase";
 import { recordContribution } from "./creatorCreditsDb";
+import { normalizeKeyComicTitle as normalizeTitle } from "./normalizeTitle";
+import { supabaseAdmin } from "./supabase";
 
-// Supabase client for key info lookups
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-const supabase =
-  supabaseUrl && supabaseServiceKey ? createClient(supabaseUrl, supabaseServiceKey) : null;
-
-// Normalize title for database matching
-function normalizeTitle(title: string): string {
-  return title
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, "") // Remove special chars except spaces
-    .replace(/\s+/g, " ") // Normalize whitespace
-    .trim();
-}
+// Shared admin Supabase client for key info lookups (L-CC30). Only treat the
+// DB as available when a service key is configured; otherwise the shared client
+// falls back to the anon role and RLS would block these admin reads/writes.
+const supabase = process.env.SUPABASE_SERVICE_ROLE_KEY ? supabaseAdmin : null;
 
 /**
  * Look up key info from the database with fallback to static file

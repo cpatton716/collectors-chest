@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { lookupCertification } from "@/lib/certLookup";
+import { checkRateLimit, getRateLimitIdentifier, rateLimiters } from "@/lib/rateLimit";
 import { validateBody } from "@/lib/validation";
 
 const certLookupSchema = z.object({
@@ -19,6 +20,17 @@ const certLookupSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limit cert scraping (public endpoint, hits external sites). H-PR3.
+    const identifier = getRateLimitIdentifier(
+      null,
+      request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip")
+    );
+    const { success: rateLimitSuccess, response: rateLimitResponse } = await checkRateLimit(
+      rateLimiters.lookup,
+      identifier
+    );
+    if (!rateLimitSuccess && rateLimitResponse) return rateLimitResponse;
+
     const body = await request.json().catch(() => null);
     const validated = validateBody(certLookupSchema, body);
     if (!validated.success) return validated.response;

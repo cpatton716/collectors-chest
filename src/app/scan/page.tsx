@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useRef, useState } from "react";
 
+import dynamic from "next/dynamic";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -32,7 +33,6 @@ import { useCollection } from "@/hooks/useCollection";
 import { MilestoneType, useGuestScans } from "@/hooks/useGuestScans";
 
 import CoverReviewQueue from "@/components/CoverReviewQueue";
-import { CSVImport } from "@/components/CSVImport";
 import { ComicDetailsForm } from "@/components/ComicDetailsForm";
 import { GuestCaptcha, GuestCaptchaHandle } from "@/components/GuestCaptcha";
 import { GuestLimitBanner } from "@/components/GuestLimitBanner";
@@ -42,6 +42,13 @@ import { SignUpPromptModal } from "@/components/SignUpPromptModal";
 import { useToast } from "@/components/Toast";
 
 import { CollectionItem, ComicDetails } from "@/types/comic";
+
+// CSV import UI is only mounted when the user opens the importer — load it
+// lazily (client-only) so it isn't in the initial scan-page bundle.
+const CSVImport = dynamic(
+  () => import("@/components/CSVImport").then((m) => m.CSVImport),
+  { ssr: false }
+);
 
 // Component that handles bonus scan verification from URL params
 // Must be wrapped in Suspense because it uses useSearchParams
@@ -806,10 +813,12 @@ export default function ScanPage() {
           <div className="w-full max-w-2xl">
             <CSVImport
               onImportComplete={async (items) => {
-                // Save all items to collection
-                for (const item of items) {
-                  await addToCollection(item);
-                }
+                // Save all items to collection. addToCollection uses functional
+                // setState + per-item optimistic persistence, so it's safe to
+                // run concurrently — this replaces the serial for-await loop
+                // (N sequential round-trips) with a single batched await.
+                // (A dedicated bulk-import API route is tracked separately.)
+                await Promise.all(items.map((item) => addToCollection(item)));
 
                 // Create shop listings for items marked as for sale
                 const forSaleItems = items.filter(

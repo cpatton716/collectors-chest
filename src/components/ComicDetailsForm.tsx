@@ -591,6 +591,9 @@ export function ComicDetailsForm({
       {/* Basic Info */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
+          {/* NOTE: TitleAutocomplete does not forward an `id` or `aria-invalid` prop to its
+              underlying input, so this label cannot be programmatically associated via htmlFor
+              and aria-invalid cannot be set here. TitleAutocomplete is not owned by this change. */}
           <label
             className={`block text-sm font-medium mb-1 ${!comic.title && comic.issueNumber ? "text-red-600" : "text-gray-700"}`}
           >
@@ -628,14 +631,17 @@ export function ComicDetailsForm({
 
         <div>
           <label
+            htmlFor="cdf-issue-number"
             className={`block text-sm font-medium mb-1 ${!comic.issueNumber && comic.title ? "text-red-600" : "text-gray-700"}`}
           >
             Issue Number <span className="text-red-500">*</span>
           </label>
           <input
+            id="cdf-issue-number"
             type="text"
             value={comic.issueNumber || ""}
             onChange={(e) => updateComic("issueNumber", e.target.value)}
+            aria-invalid={!comic.issueNumber && !!comic.title}
             className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white text-gray-900 ${
               !comic.issueNumber && comic.title ? "border-red-300 bg-red-50" : "border-gray-300"
             }`}
@@ -651,8 +657,11 @@ export function ComicDetailsForm({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Publisher</label>
+          <label htmlFor="cdf-publisher" className="block text-sm font-medium text-gray-700 mb-1">
+            Publisher
+          </label>
           <select
+            id="cdf-publisher"
             value={comic.publisher && PUBLISHERS.includes(comic.publisher) ? comic.publisher : ""}
             onChange={(e) => updateComic("publisher", e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white text-gray-900"
@@ -700,8 +709,11 @@ export function ComicDetailsForm({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Release Year</label>
+          <label htmlFor="cdf-release-year" className="block text-sm font-medium text-gray-700 mb-1">
+            Release Year
+          </label>
           <input
+            id="cdf-release-year"
             type="text"
             value={comic.releaseYear || ""}
             onChange={(e) => updateComic("releaseYear", e.target.value)}
@@ -711,8 +723,11 @@ export function ComicDetailsForm({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Variant</label>
+          <label htmlFor="cdf-variant" className="block text-sm font-medium text-gray-700 mb-1">
+            Variant
+          </label>
           <input
+            id="cdf-variant"
             type="text"
             value={comic.variant || ""}
             onChange={(e) => updateComic("variant", e.target.value || null)}
@@ -938,8 +953,11 @@ export function ComicDetailsForm({
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Writer</label>
+            <label htmlFor="cdf-writer" className="block text-sm font-medium text-gray-700 mb-1">
+              Writer
+            </label>
             <input
+              id="cdf-writer"
               type="text"
               value={comic.writer || ""}
               onChange={(e) => updateComic("writer", e.target.value || null)}
@@ -949,8 +967,14 @@ export function ComicDetailsForm({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Cover Artist</label>
+            <label
+              htmlFor="cdf-cover-artist"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
+              Cover Artist
+            </label>
             <input
+              id="cdf-cover-artist"
               type="text"
               value={comic.coverArtist || ""}
               onChange={(e) => updateComic("coverArtist", e.target.value || null)}
@@ -960,8 +984,14 @@ export function ComicDetailsForm({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Interior Artist</label>
+            <label
+              htmlFor="cdf-interior-artist"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
+              Interior Artist
+            </label>
             <input
+              id="cdf-interior-artist"
               type="text"
               value={comic.interiorArtist || ""}
               onChange={(e) => updateComic("interiorArtist", e.target.value || null)}
@@ -1098,10 +1128,14 @@ export function ComicDetailsForm({
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label
+                  htmlFor="cdf-grading-company"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
                   Grading Company
                 </label>
                 <select
+                  id="cdf-grading-company"
                   value={gradingCompany}
                   onChange={(e) => setGradingCompany(e.target.value as GradingCompany | "")}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white text-gray-900"
@@ -1116,8 +1150,11 @@ export function ComicDetailsForm({
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Grade</label>
+                <label htmlFor="cdf-grade" className="block text-sm font-medium text-gray-700 mb-1">
+                  Grade
+                </label>
                 <select
+                  id="cdf-grade"
                   value={grade}
                   onChange={(e) => setGrade(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white text-gray-900"
@@ -1134,11 +1171,15 @@ export function ComicDetailsForm({
 
             {/* Certification Number */}
             <div className="mt-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label
+                htmlFor="cdf-cert-number"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
                 Certification Number
               </label>
               <div className="flex gap-2">
                 <input
+                  id="cdf-cert-number"
                   type="text"
                   value={certificationNumber}
                   onChange={(e) => setCertificationNumber(e.target.value)}
@@ -1401,10 +1442,14 @@ export function ComicDetailsForm({
         <h3 className="text-sm font-semibold text-gray-900 mb-3">Purchase Info</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label
+              htmlFor="cdf-purchase-price"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
               Purchase Price ($)
             </label>
             <input
+              id="cdf-purchase-price"
               type="number"
               min="0"
               step="0.01"
@@ -1419,8 +1464,11 @@ export function ComicDetailsForm({
 
       {/* Notes */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+        <label htmlFor="cdf-notes" className="block text-sm font-medium text-gray-700 mb-1">
+          Notes
+        </label>
         <textarea
+          id="cdf-notes"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           rows={3}

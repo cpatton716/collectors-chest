@@ -7,6 +7,7 @@ const RECENTLY_VIEWED_KEY = "comic_recently_viewed";
 
 // Storage quota helpers
 const STORAGE_WARNING_THRESHOLD = 0.8; // Warn at 80% usage
+const STORAGE_FALLBACK_QUOTA = 5 * 1024 * 1024; // 5MB fallback when Storage API is unavailable
 
 export class StorageQuotaError extends Error {
   constructor(message: string) {
@@ -15,9 +16,39 @@ export class StorageQuotaError extends Error {
   }
 }
 
-// Estimate total localStorage usage in bytes
-function getStorageUsage(): { used: number; total: number; percentage: number } {
-  if (typeof window === "undefined") return { used: 0, total: 5 * 1024 * 1024, percentage: 0 };
+// Async quota estimate via the Storage API (navigator.storage.estimate),
+// falling back to a 5MB constant when the API is unavailable, throws, or on SSR.
+export async function estimateStorageQuota(): Promise<{ quota: number; usage: number; remaining: number }> {
+  if (typeof navigator === "undefined" || typeof window === "undefined") {
+    return { quota: STORAGE_FALLBACK_QUOTA, usage: 0, remaining: STORAGE_FALLBACK_QUOTA };
+  }
+
+  if (navigator.storage?.estimate) {
+    try {
+      const { quota, usage } = await navigator.storage.estimate();
+      const resolvedQuota = quota ?? STORAGE_FALLBACK_QUOTA;
+      const resolvedUsage = usage ?? 0;
+      return {
+        quota: resolvedQuota,
+        usage: resolvedUsage,
+        remaining: Math.max(0, resolvedQuota - resolvedUsage),
+      };
+    } catch {
+      // Storage API threw — fall through to the 5MB fallback below
+    }
+  }
+
+  return { quota: STORAGE_FALLBACK_QUOTA, usage: 0, remaining: STORAGE_FALLBACK_QUOTA };
+}
+
+// Estimate total localStorage usage in bytes. Synchronous best-effort: the
+// total can be overridden with a quota obtained from estimateStorageQuota().
+function getStorageUsage(total: number = STORAGE_FALLBACK_QUOTA): {
+  used: number;
+  total: number;
+  percentage: number;
+} {
+  if (typeof window === "undefined") return { used: 0, total, percentage: 0 };
 
   let used = 0;
   for (const key in localStorage) {
@@ -27,9 +58,7 @@ function getStorageUsage(): { used: number; total: number; percentage: number } 
     }
   }
 
-  // localStorage is typically 5MB, but can vary
-  const total = 5 * 1024 * 1024; // 5MB estimate
-  const percentage = used / total;
+  const percentage = total > 0 ? used / total : 0;
 
   return { used, total, percentage };
 }
@@ -56,15 +85,17 @@ function safeSetItem(key: string, value: string): void {
   }
 }
 
-// Check if storage is getting full (for warnings)
-export function checkStorageWarning(): { warning: boolean; message: string } | null {
+// Check if storage is getting full (for warnings). Uses the real Storage API
+// quota when available (via estimateStorageQuota), falling back to ~5MB.
+export async function checkStorageWarning(): Promise<{ warning: boolean; message: string } | null> {
   if (typeof window === "undefined") return null;
 
-  const usage = getStorageUsage();
+  const { quota } = await estimateStorageQuota();
+  const usage = getStorageUsage(quota);
   if (usage.percentage >= STORAGE_WARNING_THRESHOLD) {
     return {
       warning: true,
-      message: `Storage is ${Math.round(usage.percentage * 100)}% full (${formatBytes(usage.used)} of ~5MB). Consider signing in to sync your collection to the cloud.`,
+      message: `Storage is ${Math.round(usage.percentage * 100)}% full (${formatBytes(usage.used)} of ${formatBytes(usage.total)}). Consider signing in to sync your collection to the cloud.`,
     };
   }
   return null;

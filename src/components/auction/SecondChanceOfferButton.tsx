@@ -107,5 +107,3 @@ export function SecondChanceOfferButton({
     </button>
   );
 }
-
-export default SecondChanceOfferButton;

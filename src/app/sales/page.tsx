@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -42,10 +42,17 @@ export default function SalesPage() {
     setIsStartingUpgrade(false);
   };
 
-  // Calculate summary stats
-  const totalSales = sales.reduce((sum, sale) => sum + sale.salePrice, 0);
-  const totalProfit = sales.reduce((sum, sale) => sum + sale.profit, 0);
-  const avgProfit = sales.length > 0 ? totalProfit / sales.length : 0;
+  // Calculate summary stats. Memoized so the three reduces only re-run when the
+  // sales array actually changes, not on every unrelated re-render.
+  const { totalSales, totalProfit, avgProfit } = useMemo(() => {
+    const totalSalesValue = sales.reduce((sum, sale) => sum + sale.salePrice, 0);
+    const totalProfitValue = sales.reduce((sum, sale) => sum + sale.profit, 0);
+    return {
+      totalSales: totalSalesValue,
+      totalProfit: totalProfitValue,
+      avgProfit: sales.length > 0 ? totalProfitValue / sales.length : 0,
+    };
+  }, [sales]);
 
   const formatPrice = (price: number | null) => {
     if (price === null) return "-";

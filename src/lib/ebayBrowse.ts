@@ -3,8 +3,17 @@
  *
  * Handles OAuth authentication, active-listing search, outlier filtering,
  * grade multipliers, and PriceData conversion.
+ *
+ * Environment variables:
+ * - `EBAY_APP_ID`        — eBay OAuth client id (App ID). Required.
+ * - `EBAY_CLIENT_SECRET` — eBay OAuth client secret (Cert ID). Required.
+ *   (Historically referred to as `EBAY_CERT_ID`; the secret is read from
+ *   `EBAY_CLIENT_SECRET` here.)
+ * - `EBAY_SANDBOX`       — set to "true" to target the eBay sandbox host
+ *   instead of production. Optional; defaults to production.
  */
 
+import { gradesEqual } from "@/lib/gradePrice";
 import type { PriceData, GradeEstimate } from "@/types/comic";
 
 // ─── Constants ─────────────────────────────────────────────────────
@@ -202,13 +211,16 @@ export function filterIrrelevantListings(
 }
 
 // ─── Outlier filtering and median calculation ─────────────────────
-export function filterOutliersAndCalculateMedian(prices: number[]): {
+export function filterOutliersAndCalculateMedian(rawPrices: number[]): {
   medianPrice: number | null;
   highPrice: number | null;
   lowPrice: number | null;
   filteredPrices: number[];
   totalResults: number;
 } {
+  // Guard against NaN/Infinity (parseFloat of a malformed eBay price field
+  // yields NaN, which would silently corrupt the median/sort). L-PR16.
+  const prices = rawPrices.filter((p) => Number.isFinite(p) && p > 0);
   const totalResults = prices.length;
 
   if (prices.length === 0) {
@@ -308,7 +320,7 @@ export function convertBrowseToPriceData(
   let basePrice = result.medianPrice;
   if (requestedGrade) {
     const gradeNum = parseFloat(requestedGrade);
-    const gradeInfo = GRADE_MULTIPLIERS.find((g) => g.grade === gradeNum);
+    const gradeInfo = GRADE_MULTIPLIERS.find((g) => gradesEqual(g.grade, gradeNum));
     if (gradeInfo) {
       const multiplier = isSlabbed ? gradeInfo.slabMultiplier : gradeInfo.rawMultiplier;
       basePrice = result.medianPrice / multiplier;

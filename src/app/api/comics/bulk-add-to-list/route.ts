@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { z } from "zod";
 
+import { computeNewListMemberIds } from "@/lib/bulkActions";
 import { getOrCreateProfile } from "@/lib/db";
 import { supabase } from "@/lib/supabase";
 import { schemas, validateBody } from "@/lib/validation";
@@ -66,8 +67,10 @@ export async function POST(request: NextRequest) {
       .eq("list_id", listId)
       .in("comic_id", ownedIds);
 
-    const existingIds = new Set(existing?.map((e) => e.comic_id) || []);
-    const newIds = ownedIds.filter((id) => !existingIds.has(id));
+    const { newIds, skippedCount } = computeNewListMemberIds(
+      ownedIds,
+      existing?.map((e) => e.comic_id) || []
+    );
 
     if (newIds.length === 0) {
       return NextResponse.json({
@@ -93,7 +96,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       addedCount: newIds.length,
-      skippedCount: existingIds.size,
+      skippedCount,
     });
   } catch (error) {
     console.error("Bulk add to list error:", error);

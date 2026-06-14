@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 
 import { useSearchParams } from "next/navigation";
 
@@ -169,30 +169,17 @@ function ShopPageContent() {
   const [tradeSearchQuery, setTradeSearchQuery] = useState("");
   const [selectedTradeComic, setSelectedTradeComic] = useState<TradeableComic | null>(null);
 
-  // Load auctions when tab changes or filters change
-  useEffect(() => {
-    if (activeTab === "auctions") {
-      loadAuctions();
-    }
-  }, [activeTab, auctionSortBy, endingSoonOnly, hasBuyItNow, followingOnlyAuctions]);
+  // Result-set caches keyed by filter signature. Re-selecting a tab or
+  // re-applying a filter combo we've already fetched serves from memory instead
+  // of hitting the network again. `force` (used after a watch/listing mutation)
+  // refetches and refreshes the cache entry. The client-side search input is
+  // NOT part of the signature - it filters in-memory and never triggers a fetch.
+  const auctionsCache = useRef<Map<string, Auction[]>>(new Map());
+  const listingsCache = useRef<Map<string, Auction[]>>(new Map());
+  const tradeableCache = useRef<TradeableComic[] | null>(null);
 
-  // Load listings when tab changes or filters change
-  useEffect(() => {
-    if (activeTab === "buy-now") {
-      loadListings();
-    }
-  }, [activeTab, listingSortBy, followingOnlyListings]);
-
-  // Load tradeable comics when tab changes
-  useEffect(() => {
-    if (activeTab === "for-trade") {
-      loadTradeableComics();
-    }
-  }, [activeTab]);
-
-  const loadAuctions = async () => {
-    setIsLoadingAuctions(true);
-    try {
+  const loadAuctions = useCallback(
+    async (force = false) => {
       const params = new URLSearchParams({
         listingType: "auction",
         sortBy: auctionSortBy,
@@ -200,61 +187,136 @@ function ShopPageContent() {
         ...(hasBuyItNow && { hasBuyItNow: "true" }),
         ...(followingOnlyAuctions && { followingOnly: "true" }),
       });
+      const signature = params.toString();
 
-      const response = await fetch(`/api/auctions?${params}`);
-      if (response.ok) {
-        const data = await response.json();
-        setAuctions(data.auctions || []);
+      if (!force && auctionsCache.current.has(signature)) {
+        setAuctions(auctionsCache.current.get(signature)!);
+        return;
       }
-    } catch (error) {
-      console.error("Error loading auctions:", error);
-    } finally {
-      setIsLoadingAuctions(false);
-    }
-  };
 
-  const loadListings = async () => {
-    setIsLoadingListings(true);
-    try {
+      setIsLoadingAuctions(true);
+      try {
+        const response = await fetch(`/api/auctions?${params}`);
+        if (response.ok) {
+          const data = await response.json();
+          const list = data.auctions || [];
+          auctionsCache.current.set(signature, list);
+          setAuctions(list);
+        }
+      } catch (error) {
+        console.error("Error loading auctions:", error);
+      } finally {
+        setIsLoadingAuctions(false);
+      }
+    },
+    [auctionSortBy, endingSoonOnly, hasBuyItNow, followingOnlyAuctions]
+  );
+
+  const loadListings = useCallback(
+    async (force = false) => {
       const params = new URLSearchParams({
         listingType: "fixed_price",
         sortBy: listingSortBy,
         ...(followingOnlyListings && { followingOnly: "true" }),
       });
+      const signature = params.toString();
 
-      const response = await fetch(`/api/auctions?${params}`);
-      if (response.ok) {
-        const data = await response.json();
-        setListings(data.auctions || []);
+      if (!force && listingsCache.current.has(signature)) {
+        setListings(listingsCache.current.get(signature)!);
+        return;
       }
-    } catch (error) {
-      console.error("Error loading listings:", error);
-    } finally {
-      setIsLoadingListings(false);
-    }
-  };
 
-  const loadTradeableComics = async () => {
+      setIsLoadingListings(true);
+      try {
+        const response = await fetch(`/api/auctions?${params}`);
+        if (response.ok) {
+          const data = await response.json();
+          const list = data.auctions || [];
+          listingsCache.current.set(signature, list);
+          setListings(list);
+        }
+      } catch (error) {
+        console.error("Error loading listings:", error);
+      } finally {
+        setIsLoadingListings(false);
+      }
+    },
+    [listingSortBy, followingOnlyListings]
+  );
+
+  const loadTradeableComics = useCallback(async (force = false) => {
+    if (!force && tradeableCache.current) {
+      setTradeableComics(tradeableCache.current);
+      return;
+    }
     setIsLoadingTradeable(true);
     try {
       const response = await fetch("/api/trades/available");
       if (response.ok) {
         const data = await response.json();
-        setTradeableComics(data.comics || []);
+        const list = data.comics || [];
+        tradeableCache.current = list;
+        setTradeableComics(list);
       }
     } catch (error) {
       console.error("Error loading tradeable comics:", error);
     } finally {
       setIsLoadingTradeable(false);
     }
-  };
+  }, []);
+
+  // Mutation-aware reloaders for the detail modals (always refetch + refresh
+  // the relevant cache entry).
+  const reloadAuctions = useCallback(() => loadAuctions(true), [loadAuctions]);
+  const reloadListings = useCallback(() => loadListings(true), [loadListings]);
+
+  // Load auctions when tab changes or filters change
+  useEffect(() => {
+    if (activeTab === "auctions") {
+      loadAuctions();
+    }
+  }, [activeTab, loadAuctions]);
+
+  // Load listings when tab changes or filters change
+  useEffect(() => {
+    if (activeTab === "buy-now") {
+      loadListings();
+    }
+  }, [activeTab, loadListings]);
+
+  // Load tradeable comics when tab changes
+  useEffect(() => {
+    if (activeTab === "for-trade") {
+      loadTradeableComics();
+    }
+  }, [activeTab, loadTradeableComics]);
 
   const handleAuctionWatchlistChange = (auctionId: string, isWatching: boolean) => {
-    setAuctions((prev) => prev.map((a) => (a.id === auctionId ? { ...a, isWatching } : a)));
+    setAuctions((prev) => {
+      const next = prev.map((a) => (a.id === auctionId ? { ...a, isWatching } : a));
+      // Keep every cached signature in sync so a tab/filter switch doesn't
+      // resurrect the stale watch flag from memory.
+      for (const [sig, list] of auctionsCache.current) {
+        auctionsCache.current.set(
+          sig,
+          list.map((a) => (a.id === auctionId ? { ...a, isWatching } : a))
+        );
+      }
+      return next;
+    });
   };
 
   const handleListingWatchlistChange = (listingId: string, isWatching: boolean) => {
-    setListings((prev) => prev.map((l) => (l.id === listingId ? { ...l, isWatching } : l)));
+    setListings((prev) => {
+      const next = prev.map((l) => (l.id === listingId ? { ...l, isWatching } : l));
+      for (const [sig, list] of listingsCache.current) {
+        listingsCache.current.set(
+          sig,
+          list.map((l) => (l.id === listingId ? { ...l, isWatching } : l))
+        );
+      }
+      return next;
+    });
   };
 
   // Filter auctions by search query (client-side)
@@ -613,7 +675,7 @@ function ShopPageContent() {
         auctionId={selectedAuctionId || ""}
         isOpen={!!selectedAuctionId}
         onClose={() => setSelectedAuctionId(null)}
-        onAuctionUpdated={loadAuctions}
+        onAuctionUpdated={reloadAuctions}
       />
 
       {/* Listing Detail Modal */}
@@ -621,7 +683,7 @@ function ShopPageContent() {
         listingId={selectedListingId || ""}
         isOpen={!!selectedListingId}
         onClose={() => setSelectedListingId(null)}
-        onListingUpdated={loadListings}
+        onListingUpdated={reloadListings}
       />
     </div>
   );

@@ -1,7 +1,8 @@
 /**
  * Key Comics Database
  *
- * Curated list of 400+ key comics with guaranteed accurate key info.
+ * Curated list of 1,130 key comics with guaranteed accurate key info.
+ * (Authoritative count is getKeyComicsCount() === KEY_COMICS.length.)
  * This database is checked FIRST before falling back to AI lookup.
  *
  * To add more keys, add entries to the KEY_COMICS array below.

@@ -52,7 +52,12 @@ const SAVEABLE_FIELDS = [
  * Fill-only merge: cached metadata values only populate fields that are
  * still empty/falsy on `details`. Never overwrites existing data.
  *
- * Returns the modified details object (mutates in place).
+ * MUTATES IN PLACE: this function modifies the passed-in `details` object
+ * directly and returns that same reference (returned for convenience/chaining).
+ * Callers may rely on the original object being updated — see
+ * src/app/api/analyze/route.ts, which discards the return value and reads
+ * fields off the original `comicDetails` reference afterward. Do not change to
+ * a non-mutating implementation without updating those callers.
  */
 export function mergeMetadataIntoDetails(
   details: Record<string, unknown>,

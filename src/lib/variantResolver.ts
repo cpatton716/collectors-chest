@@ -32,6 +32,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 
 import { MODEL_LIGHTWEIGHT } from "@/lib/models";
+import { parseAnthropicJson } from "@/lib/providers/anthropic";
 import { supabaseAdmin } from "@/lib/supabase";
 
 import type { BarcodeData } from "@/types/comic";
@@ -245,7 +246,7 @@ export const enrichVariantNameFromAI: VariantEnricher = async ({
 Book: ${title} #${issueNumber}${yearPart}${publisherPart}
 Variant slot from barcode: ${derivedLabel} (decoded from UPC supplement code "${addonVariant}")
 
-What is the canonical/official name for this specific variant in collector databases (CovrPrice, GoCollect, GCD, CGC census, etc.)?
+What is the canonical/official name for this specific variant in collector databases (CovrPrice, GCD, CGC census, etc.)?
 
 Common formats you might return:
 - "[Artist Name] Variant Cover" (most common — e.g., "Greg Capullo Variant Cover", "Andy Kubert Variant", "Jim Lee Cover")
@@ -273,12 +274,7 @@ Return ONLY a JSON object: {"variantName": "string"} or {"variantName": null}.`;
     const textBlock = response.content.find((b) => b.type === "text");
     if (!textBlock || textBlock.type !== "text") return null;
 
-    let text = textBlock.text.trim();
-    if (text.startsWith("```json")) text = text.slice(7);
-    if (text.startsWith("```")) text = text.slice(3);
-    if (text.endsWith("```")) text = text.slice(0, -3);
-
-    const parsed = JSON.parse(text.trim()) as { variantName: string | null };
+    const parsed = parseAnthropicJson(textBlock.text) as { variantName: string | null };
     const name = parsed.variantName;
     if (!name || typeof name !== "string") return null;
     const trimmed = name.trim();

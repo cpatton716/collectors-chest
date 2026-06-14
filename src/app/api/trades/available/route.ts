@@ -5,8 +5,38 @@ import { auth } from "@clerk/nextjs/server";
 import { getProfileByClerkId } from "@/lib/db";
 import { supabaseAdmin } from "@/lib/supabase";
 
+// Raw row shape for a for-trade comic with its joined owner profile. Comic
+// fields are nullable so we surface (and guard) bad data instead of crashing
+// on `.toLowerCase()` / `.trim()` of an undefined title or issue number.
+interface ForTradeOwnerRow {
+  id: string;
+  clerk_user_id: string | null;
+  display_name: string | null;
+  username: string | null;
+  positive_ratings: number | null;
+  negative_ratings: number | null;
+  location_city: string | null;
+  location_state: string | null;
+  location_country: string | null;
+  location_privacy: string | null;
+}
+
+interface ForTradeComicRow {
+  id: string;
+  title: string | null;
+  issue_number: string | null;
+  publisher: string | null;
+  cover_image_url: string | null;
+  grade: string | null;
+  estimated_value: number | null;
+  user_id: string;
+  profiles: ForTradeOwnerRow | null;
+}
+
+const MAX_TRADEABLE = 100;
+
 // GET - Get all comics marked for trade (excluding user's own)
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     const { userId } = await auth();
 
@@ -48,48 +78,58 @@ export async function GET(request: NextRequest) {
       )
       .eq("for_trade", true)
       .order("updated_at", { ascending: false })
-      .limit(100);
+      .limit(MAX_TRADEABLE);
 
     // Exclude current user's comics
     if (excludeUserId) {
       query = query.neq("user_id", excludeUserId);
     }
 
-    const { data: comics, error } = await query;
+    const { data, error } = await query;
 
     if (error) throw error;
 
-    // Transform to response format with want counts
+    const comics = (data || []) as unknown as ForTradeComicRow[];
+
+    // Compute want-counts in parallel. Skip comics missing title/issue (can't
+    // match a hunt list) and guard nullable fields before string operations.
     const comicsWithWantCount = await Promise.all(
-      (comics || []).map(async (comic: any) => {
-        // Count users who want this comic (excluding the owner)
-        const { count } = await supabaseAdmin
-          .from("key_hunt_lists")
-          .select("*", { count: "exact", head: true })
-          .ilike("title_normalized", comic.title.toLowerCase().trim())
-          .eq("issue_number", comic.issue_number.trim())
-          .neq("user_id", comic.profiles?.clerk_user_id || "");
+      comics.map(async (comic) => {
+        const title = comic.title?.trim();
+        const issue = comic.issue_number?.trim();
+        const owner = comic.profiles;
+
+        let wantCount = 0;
+        if (title && issue) {
+          const { count } = await supabaseAdmin
+            .from("key_hunt_lists")
+            .select("*", { count: "exact", head: true })
+            .ilike("title_normalized", title.toLowerCase())
+            .eq("issue_number", issue)
+            .neq("user_id", owner?.clerk_user_id || "");
+          wantCount = count || 0;
+        }
 
         return {
           id: comic.id,
-          title: comic.title,
-          issueNumber: comic.issue_number,
-          publisher: comic.publisher,
-          coverImageUrl: comic.cover_image_url,
-          grade: comic.grade,
-          estimatedValue: comic.estimated_value,
-          wantCount: count || 0,
+          title: comic.title ?? "Unknown Title",
+          issueNumber: comic.issue_number ?? "",
+          publisher: comic.publisher ?? "",
+          coverImageUrl: comic.cover_image_url ?? undefined,
+          grade: comic.grade ?? undefined,
+          estimatedValue: comic.estimated_value ?? undefined,
+          wantCount,
           owner: {
-            id: comic.profiles?.id,
-            displayName: comic.profiles?.display_name || "Collector",
-            username: comic.profiles?.username,
-            positiveRatings: comic.profiles?.positive_ratings || 0,
-            negativeRatings: comic.profiles?.negative_ratings || 0,
-            ratingCount: (comic.profiles?.positive_ratings || 0) + (comic.profiles?.negative_ratings || 0),
-            locationCity: comic.profiles?.location_city,
-            locationState: comic.profiles?.location_state,
-            locationCountry: comic.profiles?.location_country,
-            locationPrivacy: comic.profiles?.location_privacy || "state_country",
+            id: owner?.id,
+            displayName: owner?.display_name || "Collector",
+            username: owner?.username,
+            positiveRatings: owner?.positive_ratings || 0,
+            negativeRatings: owner?.negative_ratings || 0,
+            ratingCount: (owner?.positive_ratings || 0) + (owner?.negative_ratings || 0),
+            locationCity: owner?.location_city,
+            locationState: owner?.location_state,
+            locationCountry: owner?.location_country,
+            locationPrivacy: owner?.location_privacy || "state_country",
           },
         };
       })

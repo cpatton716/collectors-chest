@@ -4,7 +4,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 
-import { MODEL_PRIMARY } from "@/lib/models";
+import { MODEL_PRIMARY, AI_COST_CENTS } from "@/lib/models";
 
 import type { GradingCompany } from "@/types/comic";
 
@@ -175,6 +175,26 @@ Return ONLY this JSON object, no other text:
   "interiorArtist": null
 }`;
 
+export const SLAB_BARCODE_HARVEST_PROMPT = `You are examining a photo of a professionally graded (slabbed) comic book. The comic's identity AND its creators are already known — do NOT identify creators. Your ONLY tasks are the UPC barcode and the cover-harvest crop.
+
+CRITICAL - A graded comic slab has two distinct stacked regions, and you must crop ONLY the second:
+- TOP (EXCLUDE): The GRADING LABEL - a colored strip (blue, yellow, purple, green, or red) across the top of the slab containing the grade number (e.g., 9.8), book title in text, certification number, and a small barcode. This is NOT the comic cover. Do NOT crop this region. Cropping this region is INCORRECT.
+- BOTTOM (CROP THIS): The COMIC BOOK COVER ART - the illustrated comic book cover (title logo, character art, scene artwork) visible through the clear plastic window BELOW the grading label. THIS is what you must crop.
+
+TASKS:
+1. UPC BARCODE: Look for the comic's UPC barcode on the cover artwork (NOT the cert label barcode on the grading label). It's typically in the bottom-left or bottom-right of the cover art. Read ALL digits (12-17 digits). Report confidence based on clarity.
+2. COVER HARVEST: Is the cover artwork clearly visible through the slab? If yes, provide pixel coordinates of ONLY the illustrated comic book cover art BELOW the grading label. The crop MUST start at the TOP EDGE of the illustrated cover art (immediately below the grading label strip), NOT at the top of the slab case. End at the bottom of the visible cover. EXCLUDE the grading label, grade number, cert number, title text strip, grading-label barcode, plastic case borders, and reflections. If your crop includes the grade number or cert number, it is wrong.
+
+Return ONLY this JSON object, no other text:
+{
+  "barcode": {"raw": "all digits as string", "confidence": "high" | "medium" | "low"} or null if no barcode visible,
+  "coverHarvestable": true or false,
+  "coverCropCoordinates": {"x": number, "y": number, "width": number, "height": number} or null if not harvestable,
+  "writer": null,
+  "coverArtist": null,
+  "interiorArtist": null
+}`;
+
 export function buildVerificationPrompt(req: VerificationRequest): string {
   return `You are a comic book expert. Complete this comic's information.
 
@@ -201,6 +221,27 @@ Rules:
 - Return ONLY valid JSON, no other text.`;
 }
 
+// ── Shared JSON Parser ──
+
+/**
+ * Parse a JSON object from a model text response, tolerating ```json / ```
+ * markdown code fences. Shared by the provider class and other Anthropic
+ * callers (e.g. variantResolver) so the fence-stripping logic lives in one place.
+ */
+export function parseAnthropicJson(raw: string): unknown {
+  let text = raw.trim();
+  if (text.startsWith("```json")) {
+    text = text.slice(7);
+  }
+  if (text.startsWith("```")) {
+    text = text.slice(3);
+  }
+  if (text.endsWith("```")) {
+    text = text.slice(0, -3);
+  }
+  return JSON.parse(text.trim());
+}
+
 // ── Provider Class ──
 
 export class AnthropicProvider implements AIProvider {
@@ -216,17 +257,7 @@ export class AnthropicProvider implements AIProvider {
   // ── JSON Parsing ──
 
   private parseJsonResponse(raw: string): unknown {
-    let text = raw.trim();
-    if (text.startsWith("```json")) {
-      text = text.slice(7);
-    }
-    if (text.startsWith("```")) {
-      text = text.slice(3);
-    }
-    if (text.endsWith("```")) {
-      text = text.slice(0, -3);
-    }
-    return JSON.parse(text.trim());
+    return parseAnthropicJson(raw);
   }
 
   // ── Call 1: Image Analysis ──
@@ -242,7 +273,15 @@ export class AnthropicProvider implements AIProvider {
         messages: [
           {
             role: "user",
+            // Static prompt FIRST as a cacheable prefix (cache_control: ephemeral)
+            // so the large IMAGE_ANALYSIS_PROMPT is cached across scans; the
+            // per-scan image follows the cached prefix.
             content: [
+              {
+                type: "text",
+                text: IMAGE_ANALYSIS_PROMPT,
+                cache_control: { type: "ephemeral" },
+              },
               {
                 type: "image",
                 source: {
@@ -250,10 +289,6 @@ export class AnthropicProvider implements AIProvider {
                   media_type: req.mediaType,
                   data: req.base64Data,
                 },
-              },
-              {
-                type: "text",
-                text: IMAGE_ANALYSIS_PROMPT,
               },
             ],
           },
@@ -313,7 +348,13 @@ export class AnthropicProvider implements AIProvider {
         messages: [
           {
             role: "user",
+            // Static prompt prefix first (cacheable), image after.
             content: [
+              {
+                type: "text",
+                text: SLAB_DETECTION_PROMPT,
+                cache_control: { type: "ephemeral" },
+              },
               {
                 type: "image",
                 source: {
@@ -321,10 +362,6 @@ export class AnthropicProvider implements AIProvider {
                   media_type: req.mediaType,
                   data: req.base64Data,
                 },
-              },
-              {
-                type: "text",
-                text: SLAB_DETECTION_PROMPT,
               },
             ],
           },
@@ -351,11 +388,18 @@ export class AnthropicProvider implements AIProvider {
     req: ImageAnalysisRequest,
     opts?: CallOptions & { skipCreators?: boolean; skipBarcode?: boolean }
   ): Promise<SlabDetailExtractionResult> {
+    // Prompt selection by what we still need:
+    // - skip creators + skip barcode -> harvest crop only (smallest)
+    // - skip creators, keep barcode  -> barcode + harvest (no creator reasoning)
+    // - otherwise                    -> full detail extraction
     const useHarvestOnly = opts?.skipCreators && opts?.skipBarcode;
+    const useBarcodeHarvest = opts?.skipCreators && !opts?.skipBarcode;
     const prompt = useHarvestOnly
       ? SLAB_COVER_HARVEST_ONLY_PROMPT
-      : SLAB_DETAIL_EXTRACTION_PROMPT;
-    const maxTokens = useHarvestOnly ? 128 : 384;
+      : useBarcodeHarvest
+        ? SLAB_BARCODE_HARVEST_PROMPT
+        : SLAB_DETAIL_EXTRACTION_PROMPT;
+    const maxTokens = useHarvestOnly ? 128 : useBarcodeHarvest ? 256 : 384;
 
     const response = await this.client.messages.create(
       {
@@ -364,7 +408,13 @@ export class AnthropicProvider implements AIProvider {
         messages: [
           {
             role: "user",
+            // Static prompt prefix first (cacheable), image after.
             content: [
+              {
+                type: "text",
+                text: prompt,
+                cache_control: { type: "ephemeral" },
+              },
               {
                 type: "image",
                 source: {
@@ -372,10 +422,6 @@ export class AnthropicProvider implements AIProvider {
                   media_type: req.mediaType,
                   data: req.base64Data,
                 },
-              },
-              {
-                type: "text",
-                text: prompt,
               },
             ],
           },
@@ -395,11 +441,14 @@ export class AnthropicProvider implements AIProvider {
   // ── Cost Estimation ──
 
   estimateCostCents(callType: AICallType): number {
+    // Cost constants centralized in AI_COST_CENTS (models.ts). Slab calls are
+    // lighter vision calls so they're priced below a full imageAnalysis.
+    const c = AI_COST_CENTS.anthropic;
     switch (callType) {
       case "imageAnalysis":
-        return 1.5;
+        return c.imageAnalysis;
       case "verification":
-        return 0.6;
+        return c.verification;
       case "slabDetection":
         return 0.2;
       case "slabDetailExtraction":

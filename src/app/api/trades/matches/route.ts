@@ -9,6 +9,8 @@ import { schemas, validateBody, validateQuery } from "@/lib/validation";
 
 const matchesQuerySchema = z.object({
   refresh: z.enum(["true", "false"]).optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional(),
+  offset: z.coerce.number().int().min(0).optional(),
 });
 
 const triggerMatchBodySchema = z
@@ -38,7 +40,10 @@ export async function GET(request: NextRequest) {
       await triggerMatchFinding(profile.id);
     }
 
-    const matches = await getUserMatches(profile.id);
+    const matches = await getUserMatches(profile.id, {
+      limit: validatedQuery.data.limit,
+      offset: validatedQuery.data.offset,
+    });
 
     return NextResponse.json({
       matches,

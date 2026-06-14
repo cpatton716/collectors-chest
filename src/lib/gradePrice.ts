@@ -1,6 +1,21 @@
 import { CollectionItem, GradeEstimate, PriceData } from "@/types/comic";
 
 /**
+ * Tolerance for comparing comic grades. Grades come from many sources (parsed
+ * strings, AI output, float arithmetic) so a strict `===` on floats can miss a
+ * legitimate match (e.g. 9.4 derived as 9.399999999). Compare within epsilon
+ * instead. L-PR15.
+ */
+export const GRADE_EPSILON = 0.001;
+
+/**
+ * Whether two numeric grades are equal within GRADE_EPSILON.
+ */
+export function gradesEqual(a: number, b: number): boolean {
+  return Math.abs(a - b) < GRADE_EPSILON;
+}
+
+/**
  * Calculate the estimated value for a comic at a specific grade
  * Interpolates between grade estimates if the exact grade isn't available
  */
@@ -53,8 +68,8 @@ export function calculateValueAtGrade(
     return Math.round((lowerValue + (upperValue - lowerValue) * position) * 100) / 100;
   }
 
-  // Exact match found
-  const exact = estimates.find((e) => e.grade === grade);
+  // Exact match found (within epsilon — float grades may not compare ===)
+  const exact = estimates.find((e) => gradesEqual(e.grade, grade));
   if (exact) {
     return getValue(exact);
   }

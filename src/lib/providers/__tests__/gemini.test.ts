@@ -12,12 +12,20 @@ jest.mock("@google/generative-ai", () => ({
 
 jest.mock("@/lib/models", () => ({
   GEMINI_PRIMARY: "gemini-2.0-flash",
+  AI_COST_CENTS: {
+    gemini: { imageAnalysis: 0.3, verification: 0.1, text: 0.05, ebay: 0.15 },
+    anthropic: { imageAnalysis: 1.5, verification: 0.6, text: 0.08, ebay: 0.15 },
+  },
 }));
 
 // Mock the imported prompts from anthropic
 jest.mock("../anthropic", () => ({
   IMAGE_ANALYSIS_PROMPT: "mock image prompt",
   buildVerificationPrompt: jest.fn().mockReturnValue("mock verify prompt"),
+  SLAB_DETECTION_PROMPT: "mock slab detection prompt",
+  SLAB_DETAIL_EXTRACTION_PROMPT: "mock slab detail prompt",
+  SLAB_COVER_HARVEST_ONLY_PROMPT: "mock cover harvest prompt",
+  SLAB_BARCODE_HARVEST_PROMPT: "mock barcode harvest prompt",
 }));
 
 describe("GeminiProvider", () => {

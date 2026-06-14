@@ -1,12 +1,15 @@
 import { PostHog } from "posthog-node";
 import { supabaseAdmin } from "@/lib/supabase";
+import { AI_COST_CENTS, type AICostProvider } from "@/lib/models";
 
-// Serverless-optimized: flush immediately, no batching
+// Serverless: small batch buffer so multiple captures in one invocation share a
+// single network flush. We explicitly flush() (not shutdown) after capture so
+// the client stays reusable across warm invocations instead of being torn down.
 const posthogServer =
   process.env.NEXT_PUBLIC_POSTHOG_KEY
     ? new PostHog(process.env.NEXT_PUBLIC_POSTHOG_KEY, {
         host: process.env.NEXT_PUBLIC_POSTHOG_HOST || "https://us.i.posthog.com",
-        flushAt: 1,
+        flushAt: 20,
         flushInterval: 0,
       })
     : null;
@@ -44,26 +47,23 @@ export async function trackScanServer(
     properties,
   });
 
-  await posthogServer.shutdown();
+  // Deferred flush instead of shutdown(): pushes the buffered event without
+  // tearing down the client, so it can be reused across warm invocations.
+  await posthogServer.flush();
 }
-
-// Per-provider cost constants (in cents)
-const PROVIDER_COSTS = {
-  anthropic: { imageAnalysis: 1.5, verification: 0.6, ebay: 0.15 },
-  gemini: { imageAnalysis: 0.3, verification: 0.1, ebay: 0.15 },
-} as const;
 
 /**
  * Estimate the cost of a scan in cents based on what API calls were made.
- * Provider-aware: Gemini costs less per call than Anthropic.
+ * Provider-aware: Gemini (primary) costs less per call than Anthropic (fallback).
+ * Cost constants are centralized in {@link AI_COST_CENTS} (models.ts).
  */
 export function estimateScanCostCents(params: {
   metadataCacheHit: boolean;
   aiCallsMade: number;
   ebayLookup: boolean;
-  provider?: "anthropic" | "gemini";
+  provider?: AICostProvider;
 }): number {
-  const c = PROVIDER_COSTS[params.provider || "anthropic"];
+  const c = AI_COST_CENTS[params.provider || "gemini"];
   let cost = 0;
 
   if (params.aiCallsMade >= 1) {
@@ -77,6 +77,52 @@ export function estimateScanCostCents(params: {
     cost += c.ebay;
   }
 
+  return Math.round(cost * 100) / 100;
+}
+
+export interface ScanCostCall {
+  /** Logical call type — drives which AI_COST_CENTS slot is used. */
+  type: "imageAnalysis" | "verification" | "ebay";
+  /** Provider that actually served this call (Gemini primary, Anthropic fallback). */
+  provider: AICostProvider;
+}
+
+/**
+ * Estimate scan cost from an explicit per-call breakdown rather than a flat
+ * `aiCallsMade` count. This is more accurate for mixed-provider scans (e.g.
+ * Gemini image analysis + Anthropic fallback verification) where each call may
+ * have a different provider/cost. Returns the total in cents.
+ */
+export function estimateScanCostBreakdown(calls: ScanCostCall[]): number {
+  const total = calls.reduce((sum, call) => {
+    const c = AI_COST_CENTS[call.provider];
+    switch (call.type) {
+      case "imageAnalysis":
+        return sum + c.imageAnalysis;
+      case "verification":
+        return sum + c.verification;
+      case "ebay":
+        return sum + c.ebay;
+      default:
+        return sum;
+    }
+  }, 0);
+  return Math.round(total * 100) / 100;
+}
+
+/**
+ * Estimate the cost of a text-only AI lookup (titles, publisher, metadata),
+ * which uses the cheap Haiku-class model rather than a vision call.
+ * Centralizes the per-call text cost so lookup routes stop hardcoding it.
+ */
+export function estimateTextLookupCostCents(params: {
+  aiCallsMade: number;
+  ebayLookup?: boolean;
+  provider?: AICostProvider;
+}): number {
+  const c = AI_COST_CENTS[params.provider || "anthropic"];
+  let cost = params.aiCallsMade * c.text;
+  if (params.ebayLookup) cost += c.ebay;
   return Math.round(cost * 100) / 100;
 }
 
@@ -122,7 +168,7 @@ export async function recordScanAnalytics(
       success: record.success,
       subscription_tier: record.subscription_tier,
       error_type: record.error_type || null,
-      provider: record.provider || "anthropic",
+      provider: record.provider || "gemini",
       fallback_used: record.fallback_used || false,
       fallback_reason: record.fallback_reason || null,
       cover_harvested: record.cover_harvested ?? false,

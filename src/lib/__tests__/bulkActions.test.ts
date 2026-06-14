@@ -5,6 +5,9 @@ import {
   clearSelection,
   isAllSelected,
   getSelectionCount,
+  pruneSelection,
+  partitionDeletableIds,
+  computeNewListMemberIds,
 } from '../bulkActions';
 
 describe('bulkActions', () => {
@@ -96,6 +99,86 @@ describe('bulkActions', () => {
 
     it('returns 0 for empty selection', () => {
       expect(getSelectionCount(new Set())).toBe(0);
+    });
+  });
+
+  describe('pruneSelection', () => {
+    it('drops IDs no longer visible after a filter change', () => {
+      const selected = new Set(['a', 'b', 'c']);
+      const result = pruneSelection(selected, ['a', 'c']);
+      expect([...result].sort()).toEqual(['a', 'c']);
+    });
+
+    it('keeps all IDs when all are still visible', () => {
+      const selected = new Set(['a', 'b']);
+      const result = pruneSelection(selected, ['a', 'b', 'c']);
+      expect(result.size).toBe(2);
+    });
+
+    it('returns empty Set when nothing visible', () => {
+      const result = pruneSelection(new Set(['a', 'b']), []);
+      expect(result.size).toBe(0);
+    });
+
+    it('returns a new Set instance (immutable)', () => {
+      const selected = new Set(['a']);
+      const result = pruneSelection(selected, ['a']);
+      expect(result).not.toBe(selected);
+    });
+  });
+
+  describe('partitionDeletableIds', () => {
+    it('separates blocked (active-listing) IDs from deletable ones', () => {
+      const owned = ['a', 'b', 'c', 'd'];
+      const blocked = ['b', 'd'];
+      const result = partitionDeletableIds(owned, blocked);
+      expect(result.deletableIds).toEqual(['a', 'c']);
+      expect(result.blockedIds).toEqual(['b', 'd']);
+    });
+
+    it('returns all deletable when nothing is blocked', () => {
+      const result = partitionDeletableIds(['a', 'b'], []);
+      expect(result.deletableIds).toEqual(['a', 'b']);
+      expect(result.blockedIds).toEqual([]);
+    });
+
+    it('returns all blocked when every owned id has a listing', () => {
+      const result = partitionDeletableIds(['a', 'b'], ['a', 'b', 'z']);
+      expect(result.deletableIds).toEqual([]);
+      expect(result.blockedIds).toEqual(['a', 'b']);
+    });
+
+    it('preserves input order of owned ids', () => {
+      const result = partitionDeletableIds(['c', 'a', 'b'], ['a']);
+      expect(result.deletableIds).toEqual(['c', 'b']);
+    });
+  });
+
+  describe('computeNewListMemberIds', () => {
+    it('excludes IDs already in the list and counts skips', () => {
+      const owned = ['a', 'b', 'c'];
+      const existing = ['b'];
+      const result = computeNewListMemberIds(owned, existing);
+      expect(result.newIds).toEqual(['a', 'c']);
+      expect(result.skippedCount).toBe(1);
+    });
+
+    it('adds all when the list is empty', () => {
+      const result = computeNewListMemberIds(['a', 'b'], []);
+      expect(result.newIds).toEqual(['a', 'b']);
+      expect(result.skippedCount).toBe(0);
+    });
+
+    it('adds none when every owned id is already present', () => {
+      const result = computeNewListMemberIds(['a', 'b'], ['a', 'b']);
+      expect(result.newIds).toEqual([]);
+      expect(result.skippedCount).toBe(2);
+    });
+
+    it('does not double-count duplicate existing ids', () => {
+      const result = computeNewListMemberIds(['a', 'b'], ['a', 'a']);
+      expect(result.newIds).toEqual(['b']);
+      expect(result.skippedCount).toBe(1);
     });
   });
 });

@@ -1,4 +1,8 @@
-import { normalizeTitle, normalizeIssueNumber } from "../normalizeTitle";
+import {
+  normalizeIssueNumber,
+  normalizeKeyComicTitle,
+  normalizeTitle,
+} from "../normalizeTitle";
 
 describe("normalizeTitle", () => {
   it("lowercases and trims", () => {
@@ -45,5 +49,44 @@ describe("normalizeIssueNumber", () => {
 
   it("handles empty string", () => {
     expect(normalizeIssueNumber("")).toBe("");
+  });
+});
+
+describe("normalizeKeyComicTitle (M-PR7)", () => {
+  // Reference implementation mirroring the Postgres normalize_comic_title()
+  // trigger (supabase/migrations/20250117_key_info_community.sql):
+  //   lower(regexp_replace(regexp_replace(title,'[^a-zA-Z0-9\s]','','g'),'\s+',' ','g'))
+  const sqlTriggerNormalize = (title: string): string =>
+    title
+      .toLowerCase()
+      .replace(/[^a-zA-Z0-9\s]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  it("lowercases", () => {
+    expect(normalizeKeyComicTitle("BATMAN")).toBe("batman");
+  });
+
+  it("strips special characters but keeps spaces", () => {
+    expect(normalizeKeyComicTitle("Spider-Man: No More!")).toBe("spiderman no more");
+  });
+
+  it("collapses whitespace", () => {
+    expect(normalizeKeyComicTitle("Amazing   Spider  Man")).toBe("amazing spider man");
+  });
+
+  it("does NOT strip leading 'The' (unlike the static key map normalizer)", () => {
+    expect(normalizeKeyComicTitle("The Amazing Spider-Man")).toBe("the amazing spiderman");
+  });
+
+  it.each([
+    "Amazing Spider-Man",
+    "X-Men: God Loves, Man Kills",
+    "Batman/Superman",
+    "Marvel's The Avengers (2012)",
+    "  Spawn   #1  ",
+    "Daredevil!!!",
+  ])("matches the SQL trigger output for %s", (title) => {
+    expect(normalizeKeyComicTitle(title)).toBe(sqlTriggerNormalize(title));
   });
 });

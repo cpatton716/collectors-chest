@@ -70,9 +70,16 @@ export async function checkCoverImageHeadStatus(
         try {
           const res = await fetch(row.image_url, {
             method: "HEAD",
+            // redirect:manual — don't transparently follow a redirect to an
+            // arbitrary host (SSRF / dead-CDN masking). A 3xx is treated as a
+            // live URL (alive) below since `res.ok` is false for opaqueredirect.
+            redirect: "manual",
             signal: AbortSignal.timeout(HEAD_TIMEOUT_MS),
           });
-          if (res.ok) {
+          // With redirect:manual a redirect surfaces as an opaqueredirect
+          // response (status 0) rather than being followed — treat it as alive,
+          // not dead, so we don't reject URLs that legitimately 301/302.
+          if (res.ok || res.type === "opaqueredirect" || res.status === 0) {
             result.alive++;
             await supabaseAdmin
               .from("cover_images")

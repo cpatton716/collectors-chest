@@ -6,7 +6,7 @@ import Image from "next/image";
 
 import { Camera, FolderOpen, Image as ImageIcon, Upload, X } from "lucide-react";
 
-import { formatBytes, quickCompress } from "@/lib/imageOptimization";
+import { quickCompress } from "@/lib/imageOptimization";
 import {
   MAX_IMAGE_UPLOAD_BYTES,
   MAX_IMAGE_UPLOAD_LABEL,
@@ -69,14 +69,21 @@ export function ImageUpload({ onImageSelect, disabled }: ImageUploadProps) {
   const compressImage = useCallback(
     async (file: File): Promise<{ file: File; preview: string }> => {
       try {
-        // Use the optimized compression with aggressive settings
+        // Use the optimized compression with aggressive settings.
+        // quickCompress encodes to WebP when the browser supports it, JPEG otherwise.
         const compressedDataUrl = await quickCompress(file, maxDimension, targetSize);
+
+        // Derive the actual encoded format from the data URL so the File's
+        // extension/MIME match what was produced (WebP or JPEG fallback).
+        const mimeMatch = compressedDataUrl.match(/^data:(image\/[a-z+]+);/);
+        const mimeType = mimeMatch?.[1] ?? "image/jpeg";
+        const ext = mimeType === "image/webp" ? ".webp" : ".jpg";
 
         // Convert data URL to File
         const response = await fetch(compressedDataUrl);
         const blob = await response.blob();
-        const compressedFile = new File([blob], file.name.replace(/\.[^.]+$/, ".jpg"), {
-          type: "image/jpeg",
+        const compressedFile = new File([blob], file.name.replace(/\.[^.]+$/, ext), {
+          type: mimeType,
         });
 
         return { file: compressedFile, preview: compressedDataUrl };
@@ -280,44 +287,53 @@ export function ImageUpload({ onImageSelect, disabled }: ImageUploadProps) {
         </div>
       ) : (
         // Desktop: Drag and drop
-        <div
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          onClick={() => !disabled && fileInputRef.current?.click()}
-          className={`
-            drop-zone relative border-2 border-dashed rounded-xl p-8 text-center cursor-pointer
-            transition-all duration-200
-            ${isDragging ? "dragging border-primary-500 bg-primary-50" : "border-gray-300 hover:border-primary-400 hover:bg-gray-50"}
-            ${disabled ? "opacity-50 cursor-not-allowed" : ""}
-          `}
-        >
+        <div className="relative">
+          {/* sr-only (not display:none) so the input stays in the a11y tree and
+              can be programmatically clicked by the focusable button below. */}
           <input
             ref={fileInputRef}
             type="file"
             accept=".jpg,.jpeg,.png"
             onChange={handleFileInput}
-            className="hidden"
+            className="sr-only"
             disabled={disabled}
+            aria-hidden="true"
+            tabIndex={-1}
           />
 
-          <div className="flex flex-col items-center space-y-4">
-            <div className={`p-4 rounded-full ${isDragging ? "bg-primary-100" : "bg-gray-100"}`}>
-              {isDragging ? (
-                <ImageIcon className="w-10 h-10 text-primary-600" />
-              ) : (
-                <Upload className="w-10 h-10 text-gray-400" />
-              )}
-            </div>
+          <button
+            type="button"
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            onClick={() => !disabled && fileInputRef.current?.click()}
+            disabled={disabled}
+            aria-label="Upload a comic book cover. Drag and drop an image here, or activate to choose a file."
+            className={`
+              drop-zone relative w-full border-2 border-dashed rounded-xl p-8 text-center cursor-pointer
+              transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2
+              ${isDragging ? "dragging border-primary-500 bg-primary-50" : "border-gray-300 hover:border-primary-400 hover:bg-gray-50"}
+              ${disabled ? "opacity-50 cursor-not-allowed" : ""}
+            `}
+          >
+            <div className="flex flex-col items-center space-y-4">
+              <div className={`p-4 rounded-full ${isDragging ? "bg-primary-100" : "bg-gray-100"}`}>
+                {isDragging ? (
+                  <ImageIcon className="w-10 h-10 text-primary-600" />
+                ) : (
+                  <Upload className="w-10 h-10 text-gray-400" />
+                )}
+              </div>
 
-            <div>
-              <p className="text-lg font-medium text-gray-700">
-                {isDragging ? "Drop your comic cover here" : "Upload a comic book cover"}
-              </p>
-              <p className="text-sm text-gray-500 mt-1">Drag and drop or click to select</p>
-              <p className="text-xs text-gray-400 mt-2">Supports: JPEG, JPG, PNG (max 10MB)</p>
+              <div>
+                <p className="text-lg font-medium text-gray-700">
+                  {isDragging ? "Drop your comic cover here" : "Upload a comic book cover"}
+                </p>
+                <p className="text-sm text-gray-500 mt-1">Drag and drop or click to select</p>
+                <p className="text-xs text-gray-400 mt-2">Supports: JPEG, JPG, PNG (max 10MB)</p>
+              </div>
             </div>
-          </div>
+          </button>
         </div>
       )}
 

@@ -1,3 +1,14 @@
+/**
+ * Cover-image validation pipeline.
+ *
+ * Validates and sources comic cover images (community → eBay candidates),
+ * applying SSRF-safe URL checks, MIME detection, and Gemini vision verification.
+ *
+ * Status: Implemented (shipped).
+ *
+ * See docs/engineering-specs/2026-03-19-cover-image-validation-design.md and
+ * docs/engineering-specs/2026-04-07-cover-validation-improvements-design.md
+ */
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { GEMINI_PRIMARY } from "@/lib/models";
 import { getCommunityCovers } from "./coverImageDb";

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -9,12 +9,10 @@ import { useAuth } from "@clerk/nextjs";
 
 import { Clock, Gavel, Plus, Tag, Trophy } from "lucide-react";
 
-import {
-  AuctionCard,
-  AuctionDetailModal,
-  ListingCard,
-  ListingDetailModal,
-} from "@/components/auction";
+import { AuctionCard } from "@/components/auction/AuctionCard";
+import { AuctionDetailModal } from "@/components/auction/AuctionDetailModal";
+import { ListingCard } from "@/components/auction/ListingCard";
+import { ListingDetailModal } from "@/components/auction/ListingDetailModal";
 import PremiumSellerUpsell from "@/components/auction/PremiumSellerUpsell";
 
 import { shouldShowPremiumUpsell } from "@/lib/stripeConnect";
@@ -44,11 +42,28 @@ export default function MyListingsPage() {
     }
   }, [isLoaded, isSignedIn, router]);
 
+  const loadListings = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      // Load all seller's listings (both auctions and fixed-price). Explicit
+      // limit keeps the payload bounded for prolific sellers. L-FE26.
+      const response = await fetch("/api/auctions?sellerId=me&limit=200");
+      if (response.ok) {
+        const data = await response.json();
+        setListings(data.auctions || []);
+      }
+    } catch (error) {
+      console.error("Error loading listings:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (isSignedIn) {
       loadListings();
     }
-  }, [isSignedIn]);
+  }, [isSignedIn, loadListings]);
 
   // Check if we should show the premium seller upsell modal
   useEffect(() => {
@@ -78,22 +93,6 @@ export default function MyListingsPage() {
     }
     checkUpsell();
   }, [isSignedIn]);
-
-  const loadListings = async () => {
-    setIsLoading(true);
-    try {
-      // Load all seller's listings (both auctions and fixed-price)
-      const response = await fetch("/api/auctions?sellerId=me");
-      if (response.ok) {
-        const data = await response.json();
-        setListings(data.auctions || []);
-      }
-    } catch (error) {
-      console.error("Error loading listings:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   if (!isLoaded || !isSignedIn) {
     return (

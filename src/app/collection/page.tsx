@@ -1,7 +1,8 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 
+import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { useUser } from "@clerk/nextjs";
@@ -31,6 +32,7 @@ import {
   X,
 } from "lucide-react";
 
+import { pruneSelection } from "@/lib/bulkActions";
 import { exportCollectionToCSV } from "@/lib/csvExport";
 import { calculateCollectionValue, getComicValue } from "@/lib/gradePrice";
 import { storage } from "@/lib/storage";
@@ -39,22 +41,40 @@ import { useCollection } from "@/hooks/useCollection";
 import { useSelection } from "@/hooks/useSelection";
 import { useSubscription } from "@/hooks/useSubscription";
 
-import { BulkDeleteModal } from "@/components/collection/BulkDeleteModal";
-import { BulkListPickerModal } from "@/components/collection/BulkListPickerModal";
 import { SelectionHeader } from "@/components/collection/SelectionHeader";
 import { SelectionToolbar } from "@/components/collection/SelectionToolbar";
 import { UndoToast } from "@/components/collection/UndoToast";
 import { ComicCard } from "@/components/ComicCard";
-import { ComicDetailModal } from "@/components/ComicDetailModal";
-import { ComicDetailsForm } from "@/components/ComicDetailsForm";
 import { ComicImage } from "@/components/ComicImage";
 import { ComicListItem as _ComicListItem } from "@/components/ComicListItem";
 import { FeatureButton } from "@/components/FeatureGate";
-import { ShareCollectionModal } from "@/components/ShareCollectionModal";
 import { CollectionPageSkeleton } from "@/components/Skeleton";
 import { useToast } from "@/components/Toast";
 
 import { CollectionItem } from "@/types/comic";
+
+// Heavy modals/forms are code-split so they only download when first opened.
+// These are client-only overlays, so SSR is disabled.
+const ComicDetailModal = dynamic(
+  () => import("@/components/ComicDetailModal").then((m) => m.ComicDetailModal),
+  { ssr: false }
+);
+const ComicDetailsForm = dynamic(
+  () => import("@/components/ComicDetailsForm").then((m) => m.ComicDetailsForm),
+  { ssr: false }
+);
+const ShareCollectionModal = dynamic(
+  () => import("@/components/ShareCollectionModal").then((m) => m.ShareCollectionModal),
+  { ssr: false }
+);
+const BulkDeleteModal = dynamic(
+  () => import("@/components/collection/BulkDeleteModal").then((m) => m.BulkDeleteModal),
+  { ssr: false }
+);
+const BulkListPickerModal = dynamic(
+  () => import("@/components/collection/BulkListPickerModal").then((m) => m.BulkListPickerModal),
+  { ssr: false }
+);
 
 type ViewMode = "grid" | "list";
 type SortOption = "date" | "title" | "value" | "value-asc" | "issue" | "grade";
@@ -84,7 +104,6 @@ function CollectionPageContent() {
     isCloudEnabled: _isCloudEnabled,
     addToCollection: _addToCollection,
     updateCollectionItem: updateItem,
-    removeFromCollection,
     createList: createNewList,
     addItemToList,
     removeItemFromList,
@@ -201,15 +220,29 @@ function CollectionPageContent() {
   };
 
   // Get unique publishers and titles for filters
-  const uniquePublishers = Array.from(
-    new Set(collection.map((item) => item.comic.publisher).filter((p): p is string => Boolean(p)))
-  ).sort();
-  const uniqueTitles = Array.from(
-    new Set(collection.map((item) => item.comic.title).filter((t): t is string => Boolean(t)))
-  ).sort();
-  const uniqueGradingCompanies = Array.from(
-    new Set(collection.map((item) => item.gradingCompany).filter((g): g is string => Boolean(g)))
-  ).sort();
+  const uniquePublishers = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          collection.map((item) => item.comic.publisher).filter((p): p is string => Boolean(p))
+        )
+      ).sort(),
+    [collection]
+  );
+  const uniqueTitles = useMemo(
+    () =>
+      Array.from(
+        new Set(collection.map((item) => item.comic.title).filter((t): t is string => Boolean(t)))
+      ).sort(),
+    [collection]
+  );
+  const uniqueGradingCompanies = useMemo(
+    () =>
+      Array.from(
+        new Set(collection.map((item) => item.gradingCompany).filter((g): g is string => Boolean(g)))
+      ).sort(),
+    [collection]
+  );
 
   // The "My Collection" primary list is the union view - items present in
   // the collection don't tag themselves with its id. Other auto-seeded
@@ -233,8 +266,11 @@ function CollectionPageContent() {
     uniqueGradingCompanies.length > 0 && gradingCompanyFilter !== "all",
   ].filter(Boolean).length;
 
-  // Filter and sort collection
-  const filteredCollection = collection
+  // Filter and sort collection (memoized so we don't re-walk the whole
+  // collection on every unrelated re-render, e.g. opening a modal).
+  const filteredCollection = useMemo(
+    () =>
+      collection
     .filter((item) => {
       // Filter by list - skip filtering when "My Collection" is selected
       if (!isDefaultListSelected) {
@@ -305,28 +341,67 @@ function CollectionPageContent() {
         default:
           return new Date(b.dateAdded).getTime() - new Date(a.dateAdded).getTime();
       }
-    });
+    }),
+    [
+      collection,
+      isDefaultListSelected,
+      selectedList,
+      showStarredOnly,
+      showForTradeOnly,
+      publisherFilter,
+      titleFilter,
+      gradingCompanyFilter,
+      gradeFilter,
+      searchQuery,
+      sortBy,
+    ]
+  );
 
   // Calculate stats for current view using grade-aware pricing
-  const filteredValue = calculateCollectionValue(filteredCollection);
-  const totalCollectionValue = calculateCollectionValue(collection);
+  const filteredValue = useMemo(
+    () => calculateCollectionValue(filteredCollection),
+    [filteredCollection]
+  );
+  const totalCollectionValue = useMemo(
+    () => calculateCollectionValue(collection),
+    [collection]
+  );
   const isFiltered = filteredCollection.length !== collection.length;
 
-  const stats = {
-    count: filteredCollection.length,
-    totalCount: collection.length,
-    totalValue: filteredValue.totalValue,
-    fullCollectionValue: totalCollectionValue.totalValue,
-    unpricedCount: filteredValue.unpricedCount,
-    totalCost: filteredCollection.reduce((sum, item) => sum + (item.purchasePrice || 0), 0),
-    forSale: filteredCollection.filter((item) => item.forSale).length,
-  };
+  const stats = useMemo(
+    () => ({
+      count: filteredCollection.length,
+      totalCount: collection.length,
+      totalValue: filteredValue.totalValue,
+      fullCollectionValue: totalCollectionValue.totalValue,
+      unpricedCount: filteredValue.unpricedCount,
+      totalCost: filteredCollection.reduce((sum, item) => sum + (item.purchasePrice || 0), 0),
+      forSale: filteredCollection.filter((item) => item.forSale).length,
+    }),
+    [filteredCollection, collection.length, filteredValue, totalCollectionValue]
+  );
   const profitLoss = stats.totalValue - stats.totalCost;
   const _profitLossPercent = stats.totalCost > 0 ? (profitLoss / stats.totalCost) * 100 : 0;
 
   // Get selected items
-  const selectedItems = filteredCollection.filter((item) => selectedIds.has(item.id));
-  const visibleIds = filteredCollection.map((item) => item.id);
+  const selectedItems = useMemo(
+    () => filteredCollection.filter((item) => selectedIds.has(item.id)),
+    [filteredCollection, selectedIds]
+  );
+  const visibleIds = useMemo(
+    () => filteredCollection.map((item) => item.id),
+    [filteredCollection]
+  );
+
+  // Prune selected IDs that scroll out of view when filters/search change so
+  // bulk actions never act on a hidden, still-selected comic (L-CO23).
+  useEffect(() => {
+    if (!isSelectionMode || selectedIds.size === 0) return;
+    const pruned = pruneSelection(selectedIds, visibleIds);
+    if (pruned.size !== selectedIds.size) {
+      selectAllVisible(Array.from(pruned));
+    }
+  }, [isSelectionMode, selectedIds, visibleIds, selectAllVisible]);
 
   // Bulk delete handler
   const handleBulkDelete = async () => {
@@ -460,10 +535,12 @@ function CollectionPageContent() {
     }
   };
 
-  const handleComicClick = (item: CollectionItem) => {
+  // Stable handler identities keep the memoized ComicCard from re-rendering
+  // on unrelated parent state changes (M-CO8).
+  const handleComicClick = useCallback((item: CollectionItem) => {
     setSelectedItem(item);
     storage.addToRecentlyViewed(item.id);
-  };
+  }, []);
 
   const handleCloseModal = () => {
     setSelectedItem(null);
@@ -562,26 +639,29 @@ function CollectionPageContent() {
     }
   };
 
-  const handleToggleStar = async (itemId: string) => {
-    const item = collection.find((c) => c.id === itemId);
-    if (item) {
-      try {
-        await updateItem(itemId, { isStarred: !item.isStarred });
-        showToast(item.isStarred ? "Removed from favorites" : "Added to favorites", "success");
-        // Update selected item if it's the one being toggled
-        if (selectedItem?.id === itemId) {
-          setSelectedItem({ ...item, isStarred: !item.isStarred });
+  const handleToggleStar = useCallback(
+    async (itemId: string) => {
+      const item = collection.find((c) => c.id === itemId);
+      if (item) {
+        try {
+          await updateItem(itemId, { isStarred: !item.isStarred });
+          showToast(item.isStarred ? "Removed from favorites" : "Added to favorites", "success");
+          // Update selected item if it's the one being toggled
+          setSelectedItem((prev) =>
+            prev?.id === itemId ? { ...item, isStarred: !item.isStarred } : prev
+          );
+        } catch {
+          showToast("Failed to update", "error");
         }
-      } catch {
-        showToast("Failed to update", "error");
       }
-    }
-  };
+    },
+    [collection, updateItem, showToast]
+  );
 
-  const handleEdit = (item: CollectionItem) => {
+  const handleEdit = useCallback((item: CollectionItem) => {
     setSelectedItem(null); // Close detail modal
     setEditingItem(item);
-  };
+  }, []);
 
   const handleSaveEdit = async (itemData: Partial<CollectionItem>) => {
     if (editingItem) {
@@ -612,7 +692,12 @@ function CollectionPageContent() {
   };
 
   if (!isLoaded) {
-    return <CollectionPageSkeleton />;
+    return (
+      <div role="status" aria-busy="true">
+        <span className="sr-only">Loading your collection…</span>
+        <CollectionPageSkeleton />
+      </div>
+    );
   }
 
   return (
@@ -819,9 +904,10 @@ function CollectionPageContent() {
               <input
                 type="text"
                 placeholder="Search by title, publisher, writer..."
+                aria-label="Search collection by title, publisher, or writer"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-1.5 border-2 border-pop-black bg-pop-white font-comic text-sm text-pop-black placeholder:text-pop-black/40 focus:outline-none focus:shadow-[2px_2px_0px_#000] transition-all"
+                className="w-full pl-10 pr-4 py-1.5 border-2 border-pop-black bg-pop-white font-comic text-sm text-pop-black placeholder:text-pop-black/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-pop-blue focus:shadow-[2px_2px_0px_#000] transition-all"
               />
             </div>
 
@@ -829,7 +915,9 @@ function CollectionPageContent() {
               <button
                 onClick={() => setViewMode("grid")}
                 title="Grid View - Display comics as cover thumbnails"
-                className={`p-2 rounded-md transition-colors ${
+                aria-label="Grid view"
+                aria-pressed={viewMode === "grid"}
+                className={`p-2 rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pop-blue ${
                   viewMode === "grid"
                     ? "bg-white shadow-sm text-primary-600"
                     : "text-gray-500 hover:text-gray-700"
@@ -840,7 +928,9 @@ function CollectionPageContent() {
               <button
                 onClick={() => setViewMode("list")}
                 title="List View - Display comics in a detailed table format"
-                className={`p-2 rounded-md transition-colors ${
+                aria-label="List view"
+                aria-pressed={viewMode === "list"}
+                className={`p-2 rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pop-blue ${
                   viewMode === "list"
                     ? "bg-white shadow-sm text-primary-600"
                     : "text-gray-500 hover:text-gray-700"
@@ -867,7 +957,7 @@ function CollectionPageContent() {
             <select
               value={selectedList}
               onChange={(e) => setSelectedList(e.target.value)}
-              className="px-3 py-1.5 border-2 border-pop-black bg-pop-white text-sm font-comic font-bold text-pop-black focus:outline-none hover:shadow-[2px_2px_0px_#000] transition-all cursor-pointer"
+              className="px-3 py-1.5 border-2 border-pop-black bg-pop-white text-sm font-comic font-bold text-pop-black focus:outline-none focus-visible:ring-2 focus-visible:ring-pop-blue hover:shadow-[2px_2px_0px_#000] transition-all cursor-pointer"
             >
               {lists.map((list) => {
                 const count = isPrimaryList(list)
@@ -929,7 +1019,8 @@ function CollectionPageContent() {
           <div className="hidden md:flex flex-wrap items-center gap-2">
             <button
               onClick={() => setShowStarredOnly(!showStarredOnly)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 border-2 border-pop-black font-comic text-sm transition-all ${
+              aria-pressed={showStarredOnly}
+              className={`flex items-center gap-1.5 px-3 py-1.5 border-2 border-pop-black font-comic text-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pop-blue ${
                 showStarredOnly
                   ? "bg-pop-yellow text-pop-black shadow-[2px_2px_0px_#000]"
                   : "bg-pop-white text-pop-black hover:shadow-[2px_2px_0px_#000]"
@@ -943,7 +1034,8 @@ function CollectionPageContent() {
 
             <button
               onClick={() => setShowForTradeOnly(!showForTradeOnly)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 border-2 border-pop-black font-comic text-sm transition-all ${
+              aria-pressed={showForTradeOnly}
+              className={`flex items-center gap-1.5 px-3 py-1.5 border-2 border-pop-black font-comic text-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pop-blue ${
                 showForTradeOnly
                   ? "bg-pop-orange text-pop-white shadow-[2px_2px_0px_#000]"
                   : "bg-pop-white text-pop-black hover:shadow-[2px_2px_0px_#000]"
@@ -956,7 +1048,7 @@ function CollectionPageContent() {
             <select
               value={publisherFilter}
               onChange={(e) => setPublisherFilter(e.target.value)}
-              className="px-3 py-1.5 border-2 border-pop-black bg-pop-white text-sm font-comic text-pop-black focus:outline-none hover:shadow-[2px_2px_0px_#000] transition-all cursor-pointer"
+              className="px-3 py-1.5 border-2 border-pop-black bg-pop-white text-sm font-comic text-pop-black focus:outline-none focus-visible:ring-2 focus-visible:ring-pop-blue hover:shadow-[2px_2px_0px_#000] transition-all cursor-pointer"
             >
               <option value="all">Publishers</option>
               {uniquePublishers.map((publisher) => (
@@ -969,7 +1061,7 @@ function CollectionPageContent() {
             <select
               value={titleFilter}
               onChange={(e) => setTitleFilter(e.target.value)}
-              className="px-3 py-1.5 border-2 border-pop-black bg-pop-white text-sm font-comic text-pop-black focus:outline-none hover:shadow-[2px_2px_0px_#000] transition-all cursor-pointer"
+              className="px-3 py-1.5 border-2 border-pop-black bg-pop-white text-sm font-comic text-pop-black focus:outline-none focus-visible:ring-2 focus-visible:ring-pop-blue hover:shadow-[2px_2px_0px_#000] transition-all cursor-pointer"
             >
               <option value="all">Titles</option>
               {uniqueTitles.map((title) => (
@@ -983,7 +1075,7 @@ function CollectionPageContent() {
               <select
                 value={gradingCompanyFilter}
                 onChange={(e) => setGradingCompanyFilter(e.target.value)}
-                className="px-3 py-1.5 border-2 border-pop-black bg-pop-white text-sm font-comic text-pop-black focus:outline-none hover:shadow-[2px_2px_0px_#000] transition-all cursor-pointer"
+                className="px-3 py-1.5 border-2 border-pop-black bg-pop-white text-sm font-comic text-pop-black focus:outline-none focus-visible:ring-2 focus-visible:ring-pop-blue hover:shadow-[2px_2px_0px_#000] transition-all cursor-pointer"
               >
                 <option value="all">Graders</option>
                 {uniqueGradingCompanies.map((company) => (
@@ -1002,7 +1094,7 @@ function CollectionPageContent() {
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as SortOption)}
-                className="px-3 py-1.5 border-2 border-pop-black bg-pop-white text-sm font-comic text-pop-black focus:outline-none hover:shadow-[2px_2px_0px_#000] transition-all cursor-pointer"
+                className="px-3 py-1.5 border-2 border-pop-black bg-pop-white text-sm font-comic text-pop-black focus:outline-none focus-visible:ring-2 focus-visible:ring-pop-blue hover:shadow-[2px_2px_0px_#000] transition-all cursor-pointer"
               >
                 <option value="date">Date Added</option>
                 <option value="title">Title</option>

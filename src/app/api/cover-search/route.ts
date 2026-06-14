@@ -3,9 +3,13 @@ import { z } from "zod";
 
 import { validateBody } from "@/lib/validation";
 
-// Comic Vine API for cover images
-// Note: You'll need a Comic Vine API key for production use
-// For now, we'll use a fallback approach
+// Cover-search fallback route.
+// Despite the name, this does NOT call an image-search API. It builds a Google
+// Images search URL from the title/issue/publisher and returns it so the user
+// can find a cover manually. `coverUrls` is always returned empty (Open Library
+// lookup was removed Session 45 for low single-issue accuracy).
+// Note: overlaps with /api/cover-candidates — candidate for consolidation
+// post-launch.
 
 const coverSearchSchema = z.object({
   title: z.string().trim().min(1, "Please enter a comic title to search for covers.").max(200),

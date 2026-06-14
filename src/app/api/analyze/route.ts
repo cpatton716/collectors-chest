@@ -30,7 +30,7 @@ import {
   lookupApprovedVariantName,
   resolveVariant,
 } from "@/lib/variantResolver";
-import { estimateScanCostCents, trackScanServer, recordScanAnalytics } from "@/lib/analyticsServer";
+import { estimateScanCostCents, estimateScanCostBreakdown, trackScanServer, recordScanAnalytics, type ScanCostCall } from "@/lib/analyticsServer";
 import { harvestCoverFromScan } from "@/lib/coverHarvest";
 import { supabaseAdmin } from "@/lib/supabase";
 import { checkRateLimit, getRateLimitIdentifier, rateLimiters } from "@/lib/rateLimit";
@@ -73,6 +73,29 @@ function normalizeMediaType(raw: string | undefined): SupportedMediaType {
     return raw as SupportedMediaType;
   }
   return "image/jpeg";
+}
+
+// Slab detection only needs to see whether a hard case + grading label are
+// present — it doesn't read the cover art. Downscaling to a small longest-edge
+// (L-SC22) cuts the payload (and Anthropic input-token cost) for this one call
+// without hurting accuracy. Returns the original base64 if sharp/resize fails.
+const SLAB_DETECTION_MAX_DIM = 768;
+async function downscaleForSlabDetection(base64Data: string): Promise<string> {
+  try {
+    const sharp = (await import("sharp")).default;
+    const out = await sharp(Buffer.from(base64Data, "base64"))
+      .rotate()
+      .resize(SLAB_DETECTION_MAX_DIM, SLAB_DETECTION_MAX_DIM, {
+        fit: "inside",
+        withoutEnlargement: true,
+      })
+      .jpeg({ quality: 80 })
+      .toBuffer();
+    return out.toString("base64");
+  } catch (err) {
+    console.warn("[scan] slab-detection downscale failed, using original:", err);
+    return base64Data;
+  }
 }
 
 // Parsed barcode components (UPC-A with optional 5-digit add-on)
@@ -175,7 +198,7 @@ export async function POST(request: NextRequest) {
   let metadataCacheHit = false;
   let aiCallsMade = 0;
   let ebayLookupMade = false;
-  let p1: string = "anthropic"; // Primary provider used - default for catch block
+  let p1: string = "gemini"; // Primary provider used - default for catch block (Gemini-primary per VISION_PROVIDER_ORDER)
 
   try {
     // Rate limit check - protect expensive AI endpoint
@@ -365,7 +388,7 @@ export async function POST(request: NextRequest) {
     const aiProviders = getProviders();
 
     // Provider tracking variables
-    p1 = aiProviders[0]?.name || "anthropic";
+    p1 = aiProviders[0]?.name || "gemini";
     let fb1 = false;
     let fr1: string | null = null;
     let cerebro_assisted = false;
@@ -384,13 +407,15 @@ export async function POST(request: NextRequest) {
       const slabDetStart = Date.now();
       const slabBudget = Math.min(5_000, CERT_FIRST_BUDGET_MS);
       try {
+        // Downscale just for slab detection (it only needs to see the slab/label).
+        const slabDetectImage = await downscaleForSlabDetection(base64Data);
         const {
           result: slabResult,
           provider: slabProvider,
           fallbackUsed: slabFallbackUsed,
         } = await executeSlabDetection(
-          base64Data,
-          normalizeMediaType(mediaType),
+          slabDetectImage,
+          "image/jpeg",
           slabBudget,
           aiProviders
         );
@@ -1155,9 +1180,13 @@ export async function POST(request: NextRequest) {
     // ============================================
     // Save to Metadata Cache (awaited to ensure persistence)
     // ============================================
-    const savePayload = buildMetadataSavePayload(
-      comicDetails as unknown as Record<string, unknown>
-    );
+    // Skip the DB + Redis write entirely when the metadata came from cache —
+    // re-persisting an unchanged cache hit is a redundant round-trip.
+    const savePayload = metadataCacheHit
+      ? null
+      : buildMetadataSavePayload(
+          comicDetails as unknown as Record<string, unknown>
+        );
     if (savePayload) {
       const metaSaveKey = generateComicMetadataCacheKey(
         savePayload.title,
@@ -1177,12 +1206,54 @@ export async function POST(request: NextRequest) {
     // Server-Side Analytics (fire-and-forget)
     // ============================================
     const scanDuration = Date.now() - scanStartTime;
-    const costCents = estimateScanCostCents({
-      metadataCacheHit,
-      aiCallsMade,
-      ebayLookup: ebayLookupMade,
-      provider: p1 as "anthropic" | "gemini",
-    });
+
+    // Track the provider used per call and pick the dominant one for the summary.
+    // A scan can mix providers (e.g. Gemini image analysis + Anthropic fallback
+    // on verification), so the headline provider should reflect the majority,
+    // not just the first call.
+    const callProviders = [
+      certFirstPath ? null : p1,
+      slabDetectionMeta?.provider,
+      slabDetailExtractionMeta?.provider,
+      needsAIVerification ? verificationMeta.provider : null,
+    ].filter((p): p is string => Boolean(p));
+    const providerCounts = callProviders.reduce<Record<string, number>>((acc, p) => {
+      acc[p] = (acc[p] || 0) + 1;
+      return acc;
+    }, {});
+    const dominantProvider =
+      (Object.entries(providerCounts).sort((a, b) => b[1] - a[1])[0]?.[0] as
+        | "anthropic"
+        | "gemini"
+        | undefined) || (p1 as "anthropic" | "gemini");
+
+    // Per-call-type cost breakdown (M-SC12): attribute each AI call to the
+    // provider that served it instead of charging every call at one flat rate.
+    const costBreakdown: ScanCostCall[] = [];
+    if (!certFirstPath) {
+      costBreakdown.push({ type: "imageAnalysis", provider: p1 as "anthropic" | "gemini" });
+    }
+    if (slabDetectionMeta) {
+      costBreakdown.push({ type: "imageAnalysis", provider: slabDetectionMeta.provider as "anthropic" | "gemini" });
+    }
+    if (slabDetailExtractionMeta) {
+      costBreakdown.push({ type: "imageAnalysis", provider: slabDetailExtractionMeta.provider as "anthropic" | "gemini" });
+    }
+    if (needsAIVerification) {
+      costBreakdown.push({ type: "verification", provider: verificationMeta.provider as "anthropic" | "gemini" });
+    }
+    if (ebayLookupMade) {
+      costBreakdown.push({ type: "ebay", provider: dominantProvider });
+    }
+    const costCents =
+      costBreakdown.length > 0
+        ? estimateScanCostBreakdown(costBreakdown)
+        : estimateScanCostCents({
+            metadataCacheHit,
+            aiCallsMade,
+            ebayLookup: ebayLookupMade,
+            provider: dominantProvider,
+          });
 
     if (profileId) {
       trackScanServer(profileId, {
@@ -1197,7 +1268,7 @@ export async function POST(request: NextRequest) {
         success: true,
         userId: profileId,
         subscriptionTier,
-        provider: p1 as "anthropic" | "gemini",
+        provider: dominantProvider,
         fallbackUsed: fb1 || verificationMeta.fallbackUsed,
         fallbackReason: fr1 || verificationMeta.fallbackReason,
       }).catch((err) => {
@@ -1216,7 +1287,7 @@ export async function POST(request: NextRequest) {
       duration_ms: scanDuration,
       success: true,
       subscription_tier: subscriptionTier || "guest",
-      provider: p1,
+      provider: dominantProvider,
       fallback_used: fb1 || verificationMeta.fallbackUsed,
       fallback_reason: fr1 || verificationMeta.fallbackReason,
       scan_path: scanPath,
@@ -1291,7 +1362,7 @@ export async function POST(request: NextRequest) {
 
     // Record the failed scan (failed scans still consume AI credits)
     const failDuration = Date.now() - scanStartTime;
-    const failProvider = p1 || "anthropic";
+    const failProvider = p1 || "gemini";
     const failCostCents = estimateScanCostCents({
       metadataCacheHit: false,
       aiCallsMade,

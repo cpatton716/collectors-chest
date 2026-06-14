@@ -8,9 +8,286 @@ import {
   UpdateTradeInput,
 } from "@/types/trade";
 
-import { getSellerProfile } from "./auctionDb";
+import { calculateSellerReputation, SellerProfile } from "@/types/auction";
+
 import { createFeedbackReminders } from "./creatorCreditsDb";
-import { supabase, supabaseAdmin } from "./supabase";
+import { supabaseAdmin } from "./supabase";
+
+// Default + max page sizes for list queries. Callers may request fewer rows but
+// never more than the hard cap so a single request can't pull an unbounded set.
+export const TRADE_LIST_DEFAULT_LIMIT = 50;
+export const TRADE_LIST_MAX_LIMIT = 100;
+export const MATCH_LIST_DEFAULT_LIMIT = 100;
+export const MATCH_LIST_MAX_LIMIT = 200;
+
+export interface ListOptions {
+  limit?: number;
+  offset?: number;
+}
+
+/** Clamp a requested limit into [1, max], falling back to a default. */
+export function clampLimit(requested: number | undefined, fallback: number, max: number): number {
+  if (requested === undefined || !Number.isFinite(requested)) return fallback;
+  const n = Math.floor(requested);
+  if (n < 1) return 1;
+  if (n > max) return max;
+  return n;
+}
+
+/** Clamp a requested offset to a non-negative integer. */
+export function clampOffset(requested: number | undefined): number {
+  if (requested === undefined || !Number.isFinite(requested)) return 0;
+  const n = Math.floor(requested);
+  return n < 0 ? 0 : n;
+}
+
+// ============================================================================
+// DB ROW TYPES
+// ============================================================================
+
+/** Raw comic columns selected for trade displays. Nullable to surface bad data. */
+export interface TradeComicRow {
+  id: string;
+  title: string | null;
+  issue_number: string | null;
+  publisher: string | null;
+  cover_image_url: string | null;
+  grade: string | null;
+  estimated_value: number | null;
+}
+
+/** Raw trade_items row with optional joined comic. */
+export interface TradeItemRow {
+  id: string;
+  trade_id: string;
+  comic_id: string;
+  owner_id: string;
+  created_at: string;
+  comics?: TradeComicRow | null;
+}
+
+/** Raw trades row with optional joined items. */
+export interface TradeRow {
+  id: string;
+  proposer_id: string;
+  recipient_id: string;
+  status: TradeStatus;
+  proposer_tracking_carrier?: string | null;
+  proposer_tracking_number?: string | null;
+  recipient_tracking_carrier?: string | null;
+  recipient_tracking_number?: string | null;
+  proposer_shipped_at?: string | null;
+  recipient_shipped_at?: string | null;
+  proposer_received_at?: string | null;
+  recipient_received_at?: string | null;
+  completed_at?: string | null;
+  cancelled_at?: string | null;
+  cancel_reason?: string | null;
+  created_at: string;
+  updated_at: string;
+  trade_items?: TradeItemRow[] | null;
+}
+
+// ============================================================================
+// PURE TRADE DECISION HELPERS (unit-tested)
+// ============================================================================
+
+/** Returns true iff the user is a participant in the trade. */
+export function isTradeParticipant(
+  trade: Pick<TradeRow, "proposer_id" | "recipient_id">,
+  userId: string
+): boolean {
+  return trade.proposer_id === userId || trade.recipient_id === userId;
+}
+
+/** Returns true iff the user is the proposer side of the trade. */
+export function isProposerSide(
+  trade: Pick<TradeRow, "proposer_id">,
+  userId: string
+): boolean {
+  return trade.proposer_id === userId;
+}
+
+/**
+ * Build the partial update for a shipping action. Returns the side-specific
+ * tracking fields plus a derived `status` of "shipped" once both parties have
+ * shipped. Pure: takes the current row + actor and returns only changed fields.
+ */
+export function buildShipUpdate(
+  trade: Pick<
+    TradeRow,
+    "proposer_id" | "recipient_id" | "proposer_shipped_at" | "recipient_shipped_at"
+  >,
+  userId: string,
+  shippedAt: string,
+  trackingCarrier?: string,
+  trackingNumber?: string
+): Record<string, unknown> {
+  const isProposer = isProposerSide(trade, userId);
+  const update: Record<string, unknown> = {};
+
+  if (isProposer) {
+    update.proposer_shipped_at = shippedAt;
+    if (trackingCarrier) update.proposer_tracking_carrier = trackingCarrier;
+    if (trackingNumber) update.proposer_tracking_number = trackingNumber;
+  } else {
+    update.recipient_shipped_at = shippedAt;
+    if (trackingCarrier) update.recipient_tracking_carrier = trackingCarrier;
+    if (trackingNumber) update.recipient_tracking_number = trackingNumber;
+  }
+
+  // Both shipped => advance status. The "other" side's prior value drives this.
+  const otherShipped = isProposer ? trade.recipient_shipped_at : trade.proposer_shipped_at;
+  if (otherShipped) {
+    update.status = "shipped";
+  }
+
+  return update;
+}
+
+/**
+ * Build the partial update for a receipt-confirmation action. When both parties
+ * have confirmed receipt the trade completes. Returns `{ update, bothConfirmed }`.
+ */
+export function buildReceiptUpdate(
+  trade: Pick<
+    TradeRow,
+    "proposer_id" | "recipient_id" | "proposer_received_at" | "recipient_received_at"
+  >,
+  userId: string,
+  receivedAt: string
+): { update: Record<string, unknown>; bothConfirmed: boolean } {
+  const isProposer = isProposerSide(trade, userId);
+  const update: Record<string, unknown> = {};
+
+  if (isProposer) {
+    update.proposer_received_at = receivedAt;
+  } else {
+    update.recipient_received_at = receivedAt;
+  }
+
+  const otherReceived = isProposer ? trade.recipient_received_at : trade.proposer_received_at;
+  const bothConfirmed = Boolean(otherReceived);
+  if (bothConfirmed) {
+    update.status = "completed";
+    update.completed_at = receivedAt;
+  }
+
+  return { update, bothConfirmed };
+}
+
+/**
+ * Build the partial update for a generic status change. Stamps the matching
+ * timestamp column for terminal states. Pure.
+ */
+export function buildStatusUpdate(
+  updates: UpdateTradeInput,
+  trade: Pick<TradeRow, "proposer_id">,
+  userId: string,
+  now: string
+): Record<string, unknown> {
+  const update: Record<string, unknown> = {};
+
+  if (updates.status) {
+    update.status = updates.status;
+    if (updates.status === "cancelled") {
+      update.cancelled_at = now;
+      update.cancel_reason = updates.cancelReason;
+    }
+    if (updates.status === "completed") {
+      update.completed_at = now;
+    }
+  }
+
+  if (updates.trackingNumber) {
+    if (isProposerSide(trade, userId)) {
+      update.proposer_tracking_carrier = updates.trackingCarrier;
+      update.proposer_tracking_number = updates.trackingNumber;
+      update.proposer_shipped_at = now;
+    } else {
+      update.recipient_tracking_carrier = updates.trackingCarrier;
+      update.recipient_tracking_number = updates.trackingNumber;
+      update.recipient_shipped_at = now;
+    }
+  }
+
+  return update;
+}
+
+// ============================================================================
+// PROFILE BATCH HELPER (N+1 elimination)
+// ============================================================================
+
+const SELLER_PROFILE_COLUMNS =
+  "id, display_name, public_display_name, username, display_preference, positive_ratings, negative_ratings, seller_since, location_city, location_state, location_country, location_privacy";
+
+function rowToSellerProfile(data: any): SellerProfile {
+  const { percentage, reputation } = calculateSellerReputation(
+    data.positive_ratings || 0,
+    data.negative_ratings || 0
+  );
+  return {
+    id: data.id,
+    displayName: data.display_name,
+    publicDisplayName: data.public_display_name,
+    username: data.username,
+    displayPreference: data.display_preference,
+    positiveRatings: data.positive_ratings || 0,
+    negativeRatings: data.negative_ratings || 0,
+    sellerSince: data.seller_since,
+    locationCity: data.location_city,
+    locationState: data.location_state,
+    locationCountry: data.location_country,
+    locationPrivacy: data.location_privacy,
+    totalRatings: (data.positive_ratings || 0) + (data.negative_ratings || 0),
+    positivePercentage: percentage,
+    reputation,
+  };
+}
+
+/**
+ * Fetch many seller profiles in a single query. Replaces per-row
+ * getSellerProfile() calls (N+1) in trade list/match builders.
+ */
+async function getSellerProfilesByIds(ids: string[]): Promise<Map<string, SellerProfile>> {
+  const map = new Map<string, SellerProfile>();
+  const unique = Array.from(new Set(ids.filter(Boolean)));
+  if (unique.length === 0) return map;
+
+  const { data, error } = await supabaseAdmin
+    .from("profiles")
+    .select(SELLER_PROFILE_COLUMNS)
+    .in("id", unique);
+
+  if (error || !data) return map;
+
+  for (const row of data) {
+    map.set(row.id, rowToSellerProfile(row));
+  }
+  return map;
+}
+
+const TRADE_COMIC_COLUMNS =
+  "id, title, issue_number, publisher, cover_image_url, grade, estimated_value";
+
+/** Fetch many comics (trade-display columns) in a single query. */
+async function getTradeComicsByIds(ids: string[]): Promise<Map<string, TradeComicRow>> {
+  const map = new Map<string, TradeComicRow>();
+  const unique = Array.from(new Set(ids.filter(Boolean)));
+  if (unique.length === 0) return map;
+
+  const { data, error } = await supabaseAdmin
+    .from("comics")
+    .select(TRADE_COMIC_COLUMNS)
+    .in("id", unique);
+
+  if (error || !data) return map;
+
+  for (const row of data as TradeComicRow[]) {
+    map.set(row.id, row);
+  }
+  return map;
+}
 
 // ============================================================================
 // TRADE HELPERS
@@ -57,7 +334,7 @@ export async function createTrade(proposerId: string, input: CreateTradeInput): 
     throw itemsError;
   }
 
-  return transformDbTrade(trade);
+  return transformDbTrade(trade as TradeRow);
 }
 
 /**
@@ -88,31 +365,35 @@ export async function getTradeById(tradeId: string, visitorId: string): Promise<
     `
     )
     .eq("id", tradeId)
-    .single();
+    .maybeSingle();
 
   if (error || !trade) return null;
 
   // Verify visitor is a participant
-  if (trade.proposer_id !== visitorId && trade.recipient_id !== visitorId) {
+  if (!isTradeParticipant(trade as TradeRow, visitorId)) {
     return null;
   }
 
-  // Get participant profiles
-  const [proposer, recipient] = await Promise.all([
-    getSellerProfile(trade.proposer_id),
-    getSellerProfile(trade.recipient_id),
-  ]);
+  // Batch-fetch both participant profiles in one query.
+  const profiles = await getSellerProfilesByIds([trade.proposer_id, trade.recipient_id]);
+  const proposer = profiles.get(trade.proposer_id) || null;
+  const recipient = profiles.get(trade.recipient_id) || null;
 
-  return transformDbTradeWithDetails(trade, proposer, recipient);
+  return transformDbTradeWithDetails(trade as TradeRow, proposer, recipient);
 }
 
 /**
- * Get all trades for a user
+ * Get all trades for a user. Batches the "other user" profile fetch across all
+ * trades (single .in query) instead of one round-trip per trade.
  */
 export async function getUserTrades(
   userId: string,
-  status?: TradeStatus[]
+  status?: TradeStatus[],
+  options: ListOptions = {}
 ): Promise<TradePreview[]> {
+  const limit = clampLimit(options.limit, TRADE_LIST_DEFAULT_LIMIT, TRADE_LIST_MAX_LIMIT);
+  const offset = clampOffset(options.offset);
+
   let query = supabaseAdmin
     .from("trades")
     .select(
@@ -137,7 +418,8 @@ export async function getUserTrades(
     `
     )
     .or(`proposer_id.eq.${userId},recipient_id.eq.${userId}`)
-    .order("updated_at", { ascending: false });
+    .order("updated_at", { ascending: false })
+    .range(offset, offset + limit - 1);
 
   if (status && status.length > 0) {
     query = query.in("status", status);
@@ -146,20 +428,25 @@ export async function getUserTrades(
   const { data: trades, error } = await query;
 
   if (error) throw error;
-  if (!trades) return [];
+  if (!trades || trades.length === 0) return [];
 
-  // Build previews
+  // Batch all "other user" profile fetches into one query (N+1 fix).
+  const otherUserIds = (trades as TradeRow[]).map((t) =>
+    t.proposer_id === userId ? t.recipient_id : t.proposer_id
+  );
+  const profiles = await getSellerProfilesByIds(otherUserIds);
+
   const previews: TradePreview[] = [];
-  for (const trade of trades) {
+  for (const trade of trades as TradeRow[]) {
     const isProposer = trade.proposer_id === userId;
     const otherUserId = isProposer ? trade.recipient_id : trade.proposer_id;
 
-    const otherUser = await getSellerProfile(otherUserId);
+    const otherUser = profiles.get(otherUserId);
     if (!otherUser) continue;
 
     const items = trade.trade_items || [];
-    const myItems = items.filter((i: any) => i.owner_id === userId).map(transformDbTradeItem);
-    const theirItems = items.filter((i: any) => i.owner_id !== userId).map(transformDbTradeItem);
+    const myItems = items.filter((i) => i.owner_id === userId).map(transformDbTradeItem);
+    const theirItems = items.filter((i) => i.owner_id !== userId).map(transformDbTradeItem);
 
     previews.push({
       id: trade.id,
@@ -189,39 +476,14 @@ export async function updateTradeStatus(
     .from("trades")
     .select("proposer_id, recipient_id, status")
     .eq("id", tradeId)
-    .single();
+    .maybeSingle();
 
   if (!trade) throw new Error("Trade not found");
-  if (trade.proposer_id !== userId && trade.recipient_id !== userId) {
+  if (!isTradeParticipant(trade as TradeRow, userId)) {
     throw new Error("Not a participant");
   }
 
-  // Build update object
-  const updateData: Record<string, any> = {};
-
-  if (updates.status) {
-    updateData.status = updates.status;
-    if (updates.status === "cancelled") {
-      updateData.cancelled_at = new Date().toISOString();
-      updateData.cancel_reason = updates.cancelReason;
-    }
-    if (updates.status === "completed") {
-      updateData.completed_at = new Date().toISOString();
-    }
-  }
-
-  // Handle shipping updates based on which user
-  if (updates.trackingNumber) {
-    if (trade.proposer_id === userId) {
-      updateData.proposer_tracking_carrier = updates.trackingCarrier;
-      updateData.proposer_tracking_number = updates.trackingNumber;
-      updateData.proposer_shipped_at = new Date().toISOString();
-    } else {
-      updateData.recipient_tracking_carrier = updates.trackingCarrier;
-      updateData.recipient_tracking_number = updates.trackingNumber;
-      updateData.recipient_shipped_at = new Date().toISOString();
-    }
-  }
+  const updateData = buildStatusUpdate(updates, trade as TradeRow, userId, new Date().toISOString());
 
   const { data: updated, error } = await supabaseAdmin
     .from("trades")
@@ -232,11 +494,13 @@ export async function updateTradeStatus(
 
   if (error) throw error;
 
-  return transformDbTrade(updated);
+  return transformDbTrade(updated as TradeRow);
 }
 
 /**
- * Mark user as shipped (updates their shipping info and potentially status)
+ * Mark user as shipped (updates their shipping info and potentially status).
+ * Idempotent: re-calling after this side already shipped is a no-op return of
+ * the current trade (no duplicate timestamp churn / status flips).
  */
 export async function markAsShipped(
   tradeId: string,
@@ -244,34 +508,36 @@ export async function markAsShipped(
   trackingCarrier?: string,
   trackingNumber?: string
 ): Promise<Trade> {
-  const { data: trade } = await supabaseAdmin.from("trades").select("*").eq("id", tradeId).single();
+  const { data: trade } = await supabaseAdmin
+    .from("trades")
+    .select("*")
+    .eq("id", tradeId)
+    .maybeSingle();
 
   if (!trade) throw new Error("Trade not found");
-  if (trade.proposer_id !== userId && trade.recipient_id !== userId) {
+  if (!isTradeParticipant(trade as TradeRow, userId)) {
     throw new Error("Not a participant");
   }
   if (trade.status !== "accepted") {
     throw new Error("Trade must be accepted before shipping");
   }
 
-  const isProposer = trade.proposer_id === userId;
-  const updateData: Record<string, any> = {};
-
-  if (isProposer) {
-    updateData.proposer_shipped_at = new Date().toISOString();
-    if (trackingCarrier) updateData.proposer_tracking_carrier = trackingCarrier;
-    if (trackingNumber) updateData.proposer_tracking_number = trackingNumber;
-  } else {
-    updateData.recipient_shipped_at = new Date().toISOString();
-    if (trackingCarrier) updateData.recipient_tracking_carrier = trackingCarrier;
-    if (trackingNumber) updateData.recipient_tracking_number = trackingNumber;
+  const row = trade as TradeRow;
+  const alreadyShipped = isProposerSide(row, userId)
+    ? row.proposer_shipped_at
+    : row.recipient_shipped_at;
+  // Idempotent guard: this side already marked shipped -> return current state.
+  if (alreadyShipped) {
+    return transformDbTrade(row);
   }
 
-  // Check if both have shipped - update status to shipped
-  const otherShipped = isProposer ? trade.recipient_shipped_at : trade.proposer_shipped_at;
-  if (otherShipped) {
-    updateData.status = "shipped";
-  }
+  const updateData = buildShipUpdate(
+    row,
+    userId,
+    new Date().toISOString(),
+    trackingCarrier,
+    trackingNumber
+  );
 
   const { data: updated, error } = await supabaseAdmin
     .from("trades")
@@ -281,40 +547,43 @@ export async function markAsShipped(
     .single();
 
   if (error) throw error;
-  return transformDbTrade(updated);
+  return transformDbTrade(updated as TradeRow);
 }
 
 /**
  * Confirm receipt of comics
  */
 export async function confirmReceipt(tradeId: string, userId: string): Promise<Trade> {
-  const { data: trade } = await supabaseAdmin.from("trades").select("*").eq("id", tradeId).single();
+  const { data: trade } = await supabaseAdmin
+    .from("trades")
+    .select("*")
+    .eq("id", tradeId)
+    .maybeSingle();
 
   if (!trade) throw new Error("Trade not found");
-  if (trade.proposer_id !== userId && trade.recipient_id !== userId) {
+  if (!isTradeParticipant(trade as TradeRow, userId)) {
     throw new Error("Not a participant");
   }
 
-  const isProposer = trade.proposer_id === userId;
-  const updateData: Record<string, any> = {};
-
-  if (isProposer) {
-    updateData.proposer_received_at = new Date().toISOString();
-  } else {
-    updateData.recipient_received_at = new Date().toISOString();
+  const row = trade as TradeRow;
+  const alreadyReceived = isProposerSide(row, userId)
+    ? row.proposer_received_at
+    : row.recipient_received_at;
+  // Idempotent guard: this side already confirmed -> return current state.
+  if (alreadyReceived) {
+    return transformDbTrade(row);
   }
 
-  // Check if both have confirmed - complete the trade
-  const otherReceived = isProposer ? trade.recipient_received_at : trade.proposer_received_at;
-  if (otherReceived) {
+  const now = new Date().toISOString();
+  const { update: updateData, bothConfirmed } = buildReceiptUpdate(row, userId, now);
+
+  if (bothConfirmed) {
     // Both confirmed - complete trade and swap ownership
     await completeTrade(tradeId);
-    updateData.status = "completed";
-    updateData.completed_at = new Date().toISOString();
 
     // Create feedback reminders for both parties
     // In trades, proposer is "seller-like" (initiated), recipient is "buyer-like"
-    await createFeedbackReminders("trade", tradeId, trade.recipient_id, trade.proposer_id);
+    await createFeedbackReminders("trade", tradeId, row.recipient_id, row.proposer_id);
   }
 
   const { data: updated, error } = await supabaseAdmin
@@ -325,7 +594,7 @@ export async function confirmReceipt(tradeId: string, userId: string): Promise<T
     .single();
 
   if (error) throw error;
-  return transformDbTrade(updated);
+  return transformDbTrade(updated as TradeRow);
 }
 
 /**
@@ -345,7 +614,7 @@ export async function completeTrade(tradeId: string): Promise<void> {
     .from("trades")
     .select("proposer_id, recipient_id")
     .eq("id", tradeId)
-    .single();
+    .maybeSingle();
 
   if (!trade) throw new Error("Trade not found");
 
@@ -368,7 +637,7 @@ export async function completeTrade(tradeId: string): Promise<void> {
       .from("profiles")
       .select("clerk_user_id")
       .eq("id", newOwnerId)
-      .single();
+      .maybeSingle();
 
     if (newOwnerProfile) {
       // Get comic details for hunt list matching
@@ -376,9 +645,10 @@ export async function completeTrade(tradeId: string): Promise<void> {
         .from("comics")
         .select("title, issue_number")
         .eq("id", item.comic_id)
-        .single();
+        .maybeSingle();
 
-      if (comicDetails) {
+      // Null-safe: skip hunt-list cleanup for comics missing title/issue.
+      if (comicDetails && comicDetails.title && comicDetails.issue_number) {
         // Remove from hunt list (case-insensitive match)
         await supabaseAdmin
           .from("key_hunt_lists")
@@ -395,63 +665,70 @@ export async function completeTrade(tradeId: string): Promise<void> {
 // TRANSFORM HELPERS
 // ============================================================================
 
-function transformDbTrade(db: any): Trade {
+function transformDbTrade(db: TradeRow): Trade {
   return {
     id: db.id,
     proposerId: db.proposer_id,
     recipientId: db.recipient_id,
     status: db.status,
-    proposerTrackingCarrier: db.proposer_tracking_carrier,
-    proposerTrackingNumber: db.proposer_tracking_number,
-    recipientTrackingCarrier: db.recipient_tracking_carrier,
-    recipientTrackingNumber: db.recipient_tracking_number,
-    proposerShippedAt: db.proposer_shipped_at,
-    recipientShippedAt: db.recipient_shipped_at,
-    proposerReceivedAt: db.proposer_received_at,
-    recipientReceivedAt: db.recipient_received_at,
-    completedAt: db.completed_at,
-    cancelledAt: db.cancelled_at,
-    cancelReason: db.cancel_reason,
+    proposerTrackingCarrier: db.proposer_tracking_carrier ?? undefined,
+    proposerTrackingNumber: db.proposer_tracking_number ?? undefined,
+    recipientTrackingCarrier: db.recipient_tracking_carrier ?? undefined,
+    recipientTrackingNumber: db.recipient_tracking_number ?? undefined,
+    proposerShippedAt: db.proposer_shipped_at ?? undefined,
+    recipientShippedAt: db.recipient_shipped_at ?? undefined,
+    proposerReceivedAt: db.proposer_received_at ?? undefined,
+    recipientReceivedAt: db.recipient_received_at ?? undefined,
+    completedAt: db.completed_at ?? undefined,
+    cancelledAt: db.cancelled_at ?? undefined,
+    cancelReason: db.cancel_reason ?? undefined,
     createdAt: db.created_at,
     updatedAt: db.updated_at,
   };
 }
 
-function transformDbTradeWithDetails(db: any, proposer: any, recipient: any): Trade {
+function transformDbTradeWithDetails(
+  db: TradeRow,
+  proposer: SellerProfile | null,
+  recipient: SellerProfile | null
+): Trade {
   const trade = transformDbTrade(db);
   const items = db.trade_items || [];
 
   return {
     ...trade,
-    proposer,
-    recipient,
-    proposerItems: items
-      .filter((i: any) => i.owner_id === db.proposer_id)
-      .map(transformDbTradeItem),
-    recipientItems: items
-      .filter((i: any) => i.owner_id === db.recipient_id)
-      .map(transformDbTradeItem),
+    proposer: proposer ?? undefined,
+    recipient: recipient ?? undefined,
+    proposerItems: items.filter((i) => i.owner_id === db.proposer_id).map(transformDbTradeItem),
+    recipientItems: items.filter((i) => i.owner_id === db.recipient_id).map(transformDbTradeItem),
   };
 }
 
-function transformDbTradeItem(db: any): TradeItem {
+function transformDbTradeItem(db: TradeItemRow): TradeItem {
   return {
     id: db.id,
     tradeId: db.trade_id,
     comicId: db.comic_id,
     ownerId: db.owner_id,
-    comic: db.comics
-      ? {
-          id: db.comics.id,
-          title: db.comics.title,
-          issueNumber: db.comics.issue_number,
-          publisher: db.comics.publisher,
-          coverImageUrl: db.comics.cover_image_url,
-          grade: db.comics.grade,
-          estimatedValue: db.comics.estimated_value,
-        }
-      : undefined,
+    comic: db.comics ? transformComicRow(db.comics) : undefined,
     createdAt: db.created_at,
+  };
+}
+
+/**
+ * Map a raw comic row to the trade-item comic shape. Null-safe: missing
+ * title/issue fall back to display placeholders so the UI never renders
+ * "undefined" or crashes on `.toLowerCase()` downstream.
+ */
+function transformComicRow(c: TradeComicRow): NonNullable<TradeItem["comic"]> {
+  return {
+    id: c.id,
+    title: c.title ?? "Unknown Title",
+    issueNumber: c.issue_number ?? "",
+    publisher: c.publisher ?? "",
+    coverImageUrl: c.cover_image_url ?? undefined,
+    grade: c.grade ?? undefined,
+    estimatedValue: c.estimated_value ?? undefined,
   };
 }
 
@@ -477,9 +754,16 @@ export async function triggerMatchFinding(userId: string, comicId?: string): Pro
 }
 
 /**
- * Get all pending matches for a user, grouped by their comic
+ * Get all pending matches for a user, grouped by their comic.
+ * Batches all comic + profile fetches into two `.in` queries (N+1 fix).
  */
-export async function getUserMatches(userId: string): Promise<GroupedMatch[]> {
+export async function getUserMatches(
+  userId: string,
+  options: ListOptions = {}
+): Promise<GroupedMatch[]> {
+  const limit = clampLimit(options.limit, MATCH_LIST_DEFAULT_LIMIT, MATCH_LIST_MAX_LIMIT);
+  const offset = clampOffset(options.offset);
+
   const { data: matches, error } = await supabaseAdmin
     .from("trade_matches")
     .select(
@@ -496,10 +780,26 @@ export async function getUserMatches(userId: string): Promise<GroupedMatch[]> {
     )
     .or(`user_a_id.eq.${userId},user_b_id.eq.${userId}`)
     .in("status", ["pending", "viewed"])
-    .order("quality_score", { ascending: false });
+    .order("quality_score", { ascending: false })
+    .range(offset, offset + limit - 1);
 
   if (error) throw error;
   if (!matches || matches.length === 0) return [];
+
+  // Collect every comic + other-user id, then batch-fetch in two queries.
+  const comicIds: string[] = [];
+  const otherUserIds: string[] = [];
+  for (const match of matches) {
+    const isUserA = match.user_a_id === userId;
+    comicIds.push(isUserA ? match.user_a_comic_id : match.user_b_comic_id);
+    comicIds.push(isUserA ? match.user_b_comic_id : match.user_a_comic_id);
+    otherUserIds.push(isUserA ? match.user_b_id : match.user_a_id);
+  }
+
+  const [comicsMap, profilesMap] = await Promise.all([
+    getTradeComicsByIds(comicIds),
+    getSellerProfilesByIds(otherUserIds),
+  ]);
 
   // Group matches by user's comic
   const groupedMap = new Map<string, GroupedMatch>();
@@ -510,42 +810,13 @@ export async function getUserMatches(userId: string): Promise<GroupedMatch[]> {
     const theirComicId = isUserA ? match.user_b_comic_id : match.user_a_comic_id;
     const otherUserId = isUserA ? match.user_b_id : match.user_a_id;
 
-    // Fetch comic details
-    const [myComicData, theirComicData] = await Promise.all([
-      supabaseAdmin
-        .from("comics")
-        .select("id, title, issue_number, publisher, cover_image_url, grade, estimated_value")
-        .eq("id", myComicId)
-        .single(),
-      supabaseAdmin
-        .from("comics")
-        .select("id, title, issue_number, publisher, cover_image_url, grade, estimated_value")
-        .eq("id", theirComicId)
-        .single(),
-    ]);
+    const myComicRow = comicsMap.get(myComicId);
+    const theirComicRow = comicsMap.get(theirComicId);
+    const otherUser = profilesMap.get(otherUserId);
+    if (!otherUser || !myComicRow || !theirComicRow) continue;
 
-    const otherUser = await getSellerProfile(otherUserId);
-    if (!otherUser || !myComicData.data || !theirComicData.data) continue;
-
-    const myComic = {
-      id: myComicData.data.id,
-      title: myComicData.data.title,
-      issueNumber: myComicData.data.issue_number,
-      publisher: myComicData.data.publisher,
-      coverImageUrl: myComicData.data.cover_image_url,
-      grade: myComicData.data.grade,
-      estimatedValue: myComicData.data.estimated_value,
-    };
-
-    const theirComic = {
-      id: theirComicData.data.id,
-      title: theirComicData.data.title,
-      issueNumber: theirComicData.data.issue_number,
-      publisher: theirComicData.data.publisher,
-      coverImageUrl: theirComicData.data.cover_image_url,
-      grade: theirComicData.data.grade,
-      estimatedValue: theirComicData.data.estimated_value,
-    };
+    const myComic = transformComicRow(myComicRow);
+    const theirComic = transformComicRow(theirComicRow);
 
     // Group by my comic
     if (!groupedMap.has(myComicId)) {

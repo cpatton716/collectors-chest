@@ -7,12 +7,14 @@
 import { CollectionItem, ComicDetails, GradeEstimate, PriceData } from "@/types/comic";
 
 import {
+  GRADE_EPSILON,
   calculateCollectionValue,
   calculateValueAtGrade,
   formatGradeEstimate,
   getComicValue,
   getGradeLabel,
   getPriceComparison,
+  gradesEqual,
 } from "../gradePrice";
 
 // Test fixtures
@@ -339,5 +341,27 @@ describe("calculateCollectionValue", () => {
     expect(result.totalValue).toBe(0);
     expect(result.pricedCount).toBe(0);
     expect(result.unpricedCount).toBe(0);
+  });
+});
+
+// ─── gradesEqual (L-PR15) ──────────────────────────────────────────
+describe("gradesEqual", () => {
+  it("treats identical grades as equal", () => {
+    expect(gradesEqual(9.4, 9.4)).toBe(true);
+  });
+
+  it("treats float-drifted grades as equal (within epsilon)", () => {
+    // 9.399999999 from float arithmetic should still match 9.4
+    expect(gradesEqual(9.4, 9.4 - GRADE_EPSILON / 2)).toBe(true);
+    expect(gradesEqual(0.1 + 0.2 + 9.1, 9.4)).toBe(true);
+  });
+
+  it("treats distinct grades as unequal", () => {
+    expect(gradesEqual(9.4, 9.8)).toBe(false);
+    expect(gradesEqual(9.4, 9.6)).toBe(false);
+  });
+
+  it("respects the epsilon boundary", () => {
+    expect(gradesEqual(9.4, 9.4 + GRADE_EPSILON * 2)).toBe(false);
   });
 });

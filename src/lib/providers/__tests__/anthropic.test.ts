@@ -16,6 +16,10 @@ jest.mock("@anthropic-ai/sdk", () => {
 
 jest.mock("@/lib/models", () => ({
   MODEL_PRIMARY: "claude-sonnet-4-5-20250929",
+  AI_COST_CENTS: {
+    gemini: { imageAnalysis: 0.3, verification: 0.1, text: 0.05, ebay: 0.15 },
+    anthropic: { imageAnalysis: 1.5, verification: 0.6, text: 0.08, ebay: 0.15 },
+  },
 }));
 
 // ── Helpers ──
@@ -135,17 +139,19 @@ describe("AnthropicProvider", () => {
 
       expect(result).toEqual(mockResult);
 
-      // Verify SDK was called with correct shape
+      // Verify SDK was called with correct shape. The static prompt comes
+      // FIRST as a cacheable prefix (cache_control: ephemeral), image AFTER.
       const [body, requestOpts] = client.messages.create.mock.calls[0];
       expect(body.model).toBe("claude-sonnet-4-5-20250929");
       expect(body.max_tokens).toBe(1536);
       expect(body.messages[0].content[0]).toMatchObject({
-        type: "image",
-        source: { type: "base64", media_type: "image/jpeg", data: "abc123" },
-      });
-      expect(body.messages[0].content[1]).toMatchObject({
         type: "text",
         text: IMAGE_ANALYSIS_PROMPT,
+        cache_control: { type: "ephemeral" },
+      });
+      expect(body.messages[0].content[1]).toMatchObject({
+        type: "image",
+        source: { type: "base64", media_type: "image/jpeg", data: "abc123" },
       });
       expect(requestOpts).toEqual({ signal: undefined });
     });

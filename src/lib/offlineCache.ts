@@ -3,8 +3,14 @@
 
 const CACHE_KEY = "con_mode_lookup_cache";
 const OFFLINE_QUEUE_KEY = "con_mode_offline_queue";
+// Browser event dispatched on `window` whenever the offline queue changes, so
+// consumers can react to the new count instead of polling on an interval.
+export const OFFLINE_QUEUE_CHANGED_EVENT = "offline-queue-changed";
 const MAX_CACHED_ITEMS = 30;
 const TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
+// Skip rewriting lastAccessed (and the full localStorage serialize) on cache
+// reads when the delta since the last recorded access is below this threshold.
+const LAST_ACCESSED_WRITE_THRESHOLD_MS = 60 * 1000;
 
 export interface GradeEstimate {
   grade: number;
@@ -106,9 +112,13 @@ export function getCachedLookup(key: string): CachedLookup["data"] | null {
   const item = lookups.find((l) => l.key === key);
   if (!item) return null;
 
-  // Update last accessed time
-  item.lastAccessed = Date.now();
-  saveCachedLookups(lookups);
+  // Only update last accessed time (and persist) when it has drifted enough to
+  // matter for LRU. Avoids a full localStorage write on every cache read.
+  const now = Date.now();
+  if (now - item.lastAccessed >= LAST_ACCESSED_WRITE_THRESHOLD_MS) {
+    item.lastAccessed = now;
+    saveCachedLookups(lookups);
+  }
 
   return item.data;
 }
@@ -219,6 +229,12 @@ export function getOfflineQueue(): OfflineAction[] {
   }
 }
 
+// Notify consumers that the offline queue changed (SSR-safe)
+function notifyOfflineQueueChanged(count: number): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(OFFLINE_QUEUE_CHANGED_EVENT, { detail: { count } }));
+}
+
 function saveOfflineQueue(queue: OfflineAction[]): void {
   if (typeof window === "undefined") return;
   try {
@@ -226,13 +242,15 @@ function saveOfflineQueue(queue: OfflineAction[]): void {
   } catch (error) {
     console.error("Failed to save offline queue:", error);
   }
+  // Notify consumers of the new queue count
+  notifyOfflineQueueChanged(queue.length);
 }
 
 export function addToOfflineQueue(action: Omit<OfflineAction, "id" | "timestamp">): void {
   const queue = getOfflineQueue();
   queue.push({
     ...action,
-    id: `offline-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    id: `offline-${crypto.randomUUID()}`,
     timestamp: Date.now(),
   });
   saveOfflineQueue(queue);
@@ -263,6 +281,8 @@ export function removeFromOfflineQueue(id: string): void {
 export function clearOfflineQueue(): void {
   if (typeof window === "undefined") return;
   localStorage.removeItem(OFFLINE_QUEUE_KEY);
+  // Notify consumers the queue is now empty
+  notifyOfflineQueueChanged(0);
 }
 
 export function getOfflineQueueCount(): number {
@@ -304,9 +324,6 @@ export interface KeyHuntHistoryEntry {
   };
   timestamp: number;
 }
-
-// Alias for backward compatibility
-export type ConModeHistoryEntry = KeyHuntHistoryEntry;
 
 // Get all history entries (with migration from legacy key)
 function getHistoryEntries(): KeyHuntHistoryEntry[] {
@@ -367,10 +384,11 @@ export function addToKeyHuntHistory(
   // Create new entry with ID and timestamp
   const newEntry: KeyHuntHistoryEntry = {
     ...entry,
-    id: `history-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    id: `history-${crypto.randomUUID()}`,
     timestamp: Date.now(),
   };
 
+  // Grades are canonical-scale numbers, so exact === comparison is intentional/safe.
   // Check for duplicate (same title, issue, grade) and remove if exists
   entries = entries.filter(
     (e) =>
@@ -426,11 +444,3 @@ export function clearKeyHuntHistory(): void {
 export function getKeyHuntHistoryCount(): number {
   return getKeyHuntHistory().length;
 }
-
-// Backward compatibility aliases
-export const addToConModeHistory = addToKeyHuntHistory;
-export const getConModeHistory = getKeyHuntHistory;
-export const getConModeHistoryEntry = getKeyHuntHistoryEntry;
-export const removeFromConModeHistory = removeFromKeyHuntHistory;
-export const clearConModeHistory = clearKeyHuntHistory;
-export const getConModeHistoryCount = getKeyHuntHistoryCount;

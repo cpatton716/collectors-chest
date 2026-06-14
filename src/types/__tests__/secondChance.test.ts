@@ -4,6 +4,8 @@ import {
   PAYMENT_WINDOW_HOURS,
   SECOND_CHANCE_WINDOW_HOURS,
   calculateSecondChanceOfferExpiration,
+  computePaymentMissStrike,
+  isClaimableListingStatus,
   isWithinStrikeWindow,
   shouldFlagForPaymentMisses,
 } from "../auction";
@@ -122,5 +124,97 @@ describe("shouldFlagForPaymentMisses", () => {
     expect(
       shouldFlagForPaymentMisses([priorA, priorB], now, 90, 4)
     ).toBe(false);
+  });
+});
+
+// ============================================================================
+// computePaymentMissStrike (H-AU2 — pure core of recordPaymentMissStrike)
+// ============================================================================
+
+describe("computePaymentMissStrike", () => {
+  const now = new Date("2026-04-23T12:00:00Z");
+  const iso = (d: Date) => d.toISOString();
+  const daysAgo = (n: number) =>
+    new Date(now.getTime() - n * 24 * 60 * 60 * 1000);
+
+  it("first offense (no priors) → 1 strike, not flagged", () => {
+    const result = computePaymentMissStrike([], "auction-1", now);
+    expect(result.pastMissTimestamps).toHaveLength(0);
+    expect(result.totalStrikesInWindow).toBe(1);
+    expect(result.shouldFlag).toBe(false);
+  });
+
+  it("excludes audit rows belonging to the auction being processed", () => {
+    // The current auction's audit row may already be visible — it must NOT be
+    // double-counted (helper adds +1 internally for the present miss).
+    const rows = [
+      { created_at: iso(daysAgo(1)), auction_id: "auction-1" }, // current — excluded
+    ];
+    const result = computePaymentMissStrike(rows, "auction-1", now);
+    expect(result.pastMissTimestamps).toHaveLength(0);
+    expect(result.totalStrikesInWindow).toBe(1);
+    expect(result.shouldFlag).toBe(false);
+  });
+
+  it("flags on a genuine second miss within the window (threshold=2)", () => {
+    const rows = [
+      { created_at: iso(daysAgo(30)), auction_id: "auction-OLD" },
+    ];
+    const result = computePaymentMissStrike(rows, "auction-1", now);
+    expect(result.pastMissTimestamps).toHaveLength(1);
+    expect(result.totalStrikesInWindow).toBe(2);
+    expect(result.shouldFlag).toBe(true);
+  });
+
+  it("does not count prior misses outside the rolling window", () => {
+    const rows = [
+      {
+        created_at: iso(daysAgo(PAYMENT_MISS_WINDOW_DAYS + 5)),
+        auction_id: "auction-OLD",
+      },
+    ];
+    const result = computePaymentMissStrike(rows, "auction-1", now);
+    // The stale row is still surfaced in pastMissTimestamps (raw),
+    // but is excluded from the in-window count.
+    expect(result.totalStrikesInWindow).toBe(1);
+    expect(result.shouldFlag).toBe(false);
+  });
+
+  it("counts only in-window priors from a mix of old/recent rows", () => {
+    const rows = [
+      {
+        created_at: iso(daysAgo(PAYMENT_MISS_WINDOW_DAYS + 5)),
+        auction_id: "auction-OLD",
+      },
+      { created_at: iso(daysAgo(15)), auction_id: "auction-RECENT" },
+      { created_at: iso(daysAgo(1)), auction_id: "auction-1" }, // current — excluded
+    ];
+    const result = computePaymentMissStrike(rows, "auction-1", now);
+    expect(result.totalStrikesInWindow).toBe(2); // 1 recent + current
+    expect(result.shouldFlag).toBe(true);
+  });
+
+  it("tolerates null auction_id rows (counts them)", () => {
+    const rows = [{ created_at: iso(daysAgo(5)), auction_id: null }];
+    const result = computePaymentMissStrike(rows, "auction-1", now);
+    expect(result.pastMissTimestamps).toHaveLength(1);
+    expect(result.totalStrikesInWindow).toBe(2);
+    expect(result.shouldFlag).toBe(true);
+  });
+});
+
+// ============================================================================
+// isClaimableListingStatus (H-AU3 / H-MK1 — BIN / offer-accept status guard)
+// ============================================================================
+
+describe("isClaimableListingStatus", () => {
+  it("only an active listing is claimable", () => {
+    expect(isClaimableListingStatus("active")).toBe(true);
+  });
+
+  it("rejects already-finalized statuses", () => {
+    expect(isClaimableListingStatus("sold")).toBe(false);
+    expect(isClaimableListingStatus("ended")).toBe(false);
+    expect(isClaimableListingStatus("cancelled")).toBe(false);
   });
 });

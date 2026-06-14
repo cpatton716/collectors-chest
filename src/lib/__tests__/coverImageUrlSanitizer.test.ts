@@ -59,6 +59,39 @@ describe("sanitizeCoverImageUrl", () => {
     });
   });
 
+  describe("rejects private / SSRF-risk hosts", () => {
+    it("returns null for localhost", () => {
+      expect(sanitizeCoverImageUrl("http://localhost/cover.jpg")).toBeNull();
+      expect(sanitizeCoverImageUrl("http://localhost:3000/cover.jpg")).toBeNull();
+      expect(sanitizeCoverImageUrl("https://api.localhost/cover.jpg")).toBeNull();
+    });
+
+    it("returns null for loopback IPv4", () => {
+      expect(sanitizeCoverImageUrl("http://127.0.0.1/cover.jpg")).toBeNull();
+      expect(sanitizeCoverImageUrl("http://127.1.2.3/cover.jpg")).toBeNull();
+    });
+
+    it("returns null for private network ranges", () => {
+      expect(sanitizeCoverImageUrl("http://10.0.0.5/c.jpg")).toBeNull();
+      expect(sanitizeCoverImageUrl("http://192.168.1.10/c.jpg")).toBeNull();
+      expect(sanitizeCoverImageUrl("http://172.16.0.1/c.jpg")).toBeNull();
+      expect(sanitizeCoverImageUrl("http://172.31.255.255/c.jpg")).toBeNull();
+    });
+
+    it("returns null for cloud metadata link-local address", () => {
+      expect(sanitizeCoverImageUrl("http://169.254.169.254/latest/meta-data/")).toBeNull();
+    });
+
+    it("returns null for bare hostnames with no public dot", () => {
+      expect(sanitizeCoverImageUrl("http://metadata/cover.jpg")).toBeNull();
+    });
+
+    it("still allows public IPs and domains", () => {
+      expect(sanitizeCoverImageUrl("http://172.32.0.1/c.jpg")).toBe("http://172.32.0.1/c.jpg");
+      expect(sanitizeCoverImageUrl("https://i.ebayimg.com/x.jpg")).toBe("https://i.ebayimg.com/x.jpg");
+    });
+  });
+
   describe("passes through null/undefined", () => {
     it("returns null for null", () => {
       expect(sanitizeCoverImageUrl(null)).toBeNull();

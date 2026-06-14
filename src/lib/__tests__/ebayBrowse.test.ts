@@ -173,6 +173,34 @@ describe("filterOutliersAndCalculateMedian", () => {
     // after filter: [1, 2] → fewer than 3
     expect(getFn()([1, 2, 1000]).medianPrice).toBeNull();
   });
+
+  // ─── L-PR16: guard non-finite / non-positive prices ──────────────
+  it("drops NaN prices before computing median", () => {
+    // parseFloat of a malformed eBay price yields NaN
+    const result = getFn()([10, 20, 30, NaN]);
+    expect(result.totalResults).toBe(3); // NaN excluded from the count
+    expect(result.filteredPrices).not.toContain(NaN);
+    expect(result.medianPrice).not.toBeNull();
+  });
+
+  it("drops Infinity prices", () => {
+    const result = getFn()([10, 20, 30, Infinity]);
+    expect(result.totalResults).toBe(3);
+    expect(result.filteredPrices.every((p: number) => Number.isFinite(p))).toBe(true);
+  });
+
+  it("drops zero and negative prices", () => {
+    const result = getFn()([0, -5, 10, 20, 30]);
+    expect(result.totalResults).toBe(3);
+    expect(result.filteredPrices).not.toContain(0);
+    expect(result.filteredPrices).not.toContain(-5);
+  });
+
+  it("returns null median when only non-finite values are supplied", () => {
+    const result = getFn()([NaN, Infinity, -Infinity]);
+    expect(result.medianPrice).toBeNull();
+    expect(result.totalResults).toBe(0);
+  });
 });
 
 // ─── generateGradeEstimates ────────────────────────────────────────

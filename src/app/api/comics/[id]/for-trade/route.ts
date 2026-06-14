@@ -4,7 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import { z } from "zod";
 
 import { getProfileByClerkId } from "@/lib/db";
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase";
 import { triggerMatchFinding } from "@/lib/tradingDb";
 import { schemas, validateBody, validateParams } from "@/lib/validation";
 
@@ -39,12 +39,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
-    // Verify comic belongs to user
-    const { data: comic, error: fetchError } = await supabase
+    // Verify comic belongs to user. supabaseAdmin bypasses RLS, so we MUST
+    // assert ownership explicitly here (and on the update filter below).
+    const { data: comic, error: fetchError } = await supabaseAdmin
       .from("comics")
       .select("id, user_id")
       .eq("id", id)
-      .single();
+      .maybeSingle();
 
     if (fetchError || !comic) {
       return NextResponse.json({ error: "Comic not found" }, { status: 404 });
@@ -54,11 +55,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: "Not your comic" }, { status: 403 });
     }
 
-    // Update for_trade status
-    const { error: updateError } = await supabase
+    // Update for_trade status (double-scoped by owner as defense-in-depth).
+    const { error: updateError } = await supabaseAdmin
       .from("comics")
       .update({ for_trade: forTrade })
-      .eq("id", id);
+      .eq("id", id)
+      .eq("user_id", profile.id);
 
     if (updateError) throw updateError;
 

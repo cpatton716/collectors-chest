@@ -19,6 +19,9 @@
  *   - Reject URLs whose `?` query string is suspiciously long (almost always
  *     a Supabase signed URL with embedded JWT — caller should persist the
  *     storage object key and build the signed URL on read instead)
+ *   - Reject URLs that point at localhost / private/loopback hosts. These cover
+ *     URLs are later fetched server-side (HEAD check / Stripe), so a stored
+ *     value pointing at an internal host is an SSRF vector — block it at write.
  *   - Pass through `null` and `undefined` unchanged (column already supports them)
  *
  * Returns the original URL if it passes, `null` if it fails. Never throws —
@@ -55,5 +58,35 @@ export function sanitizeCoverImageUrl(
     if (queryString.length > MAX_QUERY_STRING_LENGTH) return null;
   }
 
+  // 5. Reject localhost / private / loopback hosts (SSRF guard — these URLs are
+  //    later fetched server-side). Parse the host and block internal targets.
+  try {
+    const host = new URL(trimmed).hostname.toLowerCase();
+    if (isPrivateHost(host)) return null;
+  } catch {
+    // Unparseable URL — fail closed.
+    return null;
+  }
+
   return trimmed;
+}
+
+/**
+ * True for hosts that resolve to loopback / private / link-local ranges or
+ * have no public DNS dot (e.g. "localhost", bare hostnames). Best-effort string
+ * check — not a full DNS resolution, but blocks the obvious SSRF targets.
+ */
+function isPrivateHost(host: string): boolean {
+  if (host === "localhost" || host.endsWith(".localhost")) return true;
+  // Bare hostname with no dot (e.g. "metadata", "redis") — not a public domain.
+  if (!host.includes(".")) return true;
+  // IPv6 loopback / unspecified.
+  if (host === "::1" || host === "[::1]" || host === "0.0.0.0") return true;
+  // IPv4 private / loopback / link-local ranges.
+  if (/^127\./.test(host)) return true; // loopback
+  if (/^10\./.test(host)) return true; // private class A
+  if (/^192\.168\./.test(host)) return true; // private class C
+  if (/^169\.254\./.test(host)) return true; // link-local (cloud metadata)
+  if (/^172\.(1[6-9]|2\d|3[01])\./.test(host)) return true; // private class B
+  return false;
 }

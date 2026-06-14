@@ -5,16 +5,24 @@ import { z } from "zod";
 
 import { getComicMetadata, incrementComicLookupCount, saveComicMetadata } from "@/lib/db";
 import { lookupKeyInfoWithMeta } from "@/lib/keyComicsDatabase";
-import { MODEL_PRIMARY } from "@/lib/models";
+import { MODEL_LIGHTWEIGHT } from "@/lib/models";
 import { recordScanAnalytics, estimateScanCostCents } from "@/lib/analyticsServer";
 import { isBrowseApiConfigured, searchActiveListings, convertBrowseToPriceData } from "@/lib/ebayBrowse";
 import type { BrowseListingItem } from "@/lib/ebayBrowse";
+import { gradesEqual } from "@/lib/gradePrice";
 import { normalizeTitle, normalizeIssueNumber } from "@/lib/normalizeTitle";
 import { checkRateLimit, getRateLimitIdentifier, rateLimiters } from "@/lib/rateLimit";
 import { runCoverPipeline, shouldRunPipeline } from "@/lib/coverValidation";
 import type { CoverPipelineResult } from "@/lib/coverValidation";
-import { cacheDelete, generateComicMetadataCacheKey } from "@/lib/cache";
+import {
+  cacheDelete,
+  cacheGet,
+  cacheSet,
+  generateComicMetadataCacheKey,
+  generateEbayPriceCacheKey,
+} from "@/lib/cache";
 import { validateBody } from "@/lib/validation";
+import type { PriceData } from "@/types/comic";
 
 const conModeLookupSchema = z.object({
   title: z.string().trim().min(1, "Title is required").max(200),
@@ -108,7 +116,7 @@ export async function POST(request: NextRequest) {
       if (dbResult && dbResult.priceData && dbResult.priceData.priceSource === 'ebay') {
         // Get price for the selected grade from cached grade estimates
         const gradeEstimate = dbResult.priceData.gradeEstimates?.find(
-          (g) => g.grade === selectedGrade
+          (g) => gradesEqual(g.grade, selectedGrade)
         );
 
         // Curated keyComicsDatabase wins over the cached row - handles stale
@@ -165,32 +173,64 @@ export async function POST(request: NextRequest) {
     let totalListings: number | undefined;
     let ebaySearchQuery: string | undefined;
 
-    // 3. Try eBay Browse API for active listing data
+    // 3. Try eBay Browse API for active listing data.
+    // Wire the same grade-aware Redis ebayPrice cache that /api/ebay-prices uses
+    // (H-PR1) so repeated con-mode lookups for the same book+grade don't re-hit
+    // eBay. Con mode is raw (not slabbed); the grade is part of the key so the
+    // durable cache stays grade-correct (M-PR10).
     let ebayPriceData: ReturnType<typeof convertBrowseToPriceData> = null;
     let browseListings: BrowseListingItem[] = [];
 
+    const ebayCacheKey = generateEbayPriceCacheKey(
+      normalizedTitle,
+      normalizedIssue,
+      selectedGrade,
+      false, // raw (con mode)
+      undefined,
+    );
+
     if (isBrowseApiConfigured()) {
       try {
-        const browseResult = await searchActiveListings(
-          normalizedTitle,
-          normalizedIssue,
-          String(selectedGrade),
-          false, // raw comics by default for con mode
-          undefined, // gradingCompany
-          seriesYears?.split("-")[0] || undefined, // start year for disambiguation
+        const cachedEbay = await cacheGet<PriceData | { noData: true }>(
+          ebayCacheKey,
+          "ebayPrice",
         );
-
-        if (browseResult) {
-          browseListings = browseResult.listings || [];
-          const priceData = convertBrowseToPriceData(browseResult, String(selectedGrade), false);
-          if (priceData) {
-            ebayPriceData = priceData;
+        if (cachedEbay !== null) {
+          // Cache hit (positive or negative sentinel — M-PR5).
+          if (!("noData" in cachedEbay)) {
+            ebayPriceData = cachedEbay;
           }
+        } else {
+          const browseResult = await searchActiveListings(
+            normalizedTitle,
+            normalizedIssue,
+            String(selectedGrade),
+            false, // raw comics by default for con mode
+            undefined, // gradingCompany
+            seriesYears?.split("-")[0] || undefined, // start year for disambiguation
+          );
 
-          if (!priceData && browseResult.totalResults > 0) {
-            // Below threshold - pass listing count so UI can show "X active listings found"
-            totalListings = browseResult.totalResults;
-            ebaySearchQuery = browseResult.searchQuery;
+          if (browseResult) {
+            browseListings = browseResult.listings || [];
+            const priceData = convertBrowseToPriceData(browseResult, String(selectedGrade), false);
+            if (priceData?.estimatedValue) {
+              ebayPriceData = priceData;
+              // Persist the priced result under the grade-aware key.
+              cacheSet(ebayCacheKey, priceData, "ebayPrice").catch(() => {});
+            } else {
+              // Cache the noData sentinel so we don't re-hit eBay on a known miss,
+              // mirroring /api/ebay-prices (M-PR5). Aligned 12h TTL.
+              cacheSet(ebayCacheKey, { noData: true }, "ebayPrice").catch(() => {});
+            }
+
+            if (!priceData && browseResult.totalResults > 0) {
+              // Below threshold - pass listing count so UI can show "X active listings found"
+              totalListings = browseResult.totalResults;
+              ebaySearchQuery = browseResult.searchQuery;
+            }
+          } else {
+            // eBay returned nothing usable — cache the negative result too.
+            cacheSet(ebayCacheKey, { noData: true }, "ebayPrice").catch(() => {});
           }
         }
       } catch (ebayError) {
@@ -201,7 +241,7 @@ export async function POST(request: NextRequest) {
     if (ebayPriceData && ebayPriceData.estimatedValue) {
       // Get the price for the selected grade
       const gradeEstimate = ebayPriceData.gradeEstimates?.find(
-        (g) => g.grade === selectedGrade
+        (g) => gradesEqual(g.grade, selectedGrade)
       );
 
       // Run cover validation pipeline
@@ -274,7 +314,15 @@ export async function POST(request: NextRequest) {
         disclaimer: ebayPriceData.disclaimer || "Based on current eBay listings",
       };
 
-      // Save to database for future lookups
+      // Save to database for future lookups.
+      // The comic_metadata row is keyed by title|issue only (grade-agnostic), so
+      // persist the grade-neutral 9.4 NM base as estimatedValue rather than the
+      // selected grade's price — otherwise a later lookup at a *different* grade
+      // reads back this grade's number as its base. Per-grade prices are still
+      // recoverable from gradeEstimates. M-PR10.
+      const baseEstimatedValue =
+        ebayPriceData.gradeEstimates?.find((g) => gradesEqual(g.grade, 9.4))?.rawValue ??
+        ebayPriceData.estimatedValue;
       try {
         await saveComicMetadata({
           title: normalizedTitle,
@@ -284,7 +332,7 @@ export async function POST(request: NextRequest) {
           coverImageUrl,
           keyInfo,
           priceData: {
-            estimatedValue: ebayPriceData.estimatedValue,
+            estimatedValue: baseEstimatedValue,
             mostRecentSaleDate: ebayPriceData.mostRecentSaleDate,
             recentSales: ebayPriceData.recentSales || [],
             gradeEstimates: ebayPriceData.gradeEstimates || [],
@@ -405,7 +453,8 @@ async function fetchKeyInfoFromAI(title: string, issueNumber: string): Promise<s
 
   try {
     const response = await anthropic.messages.create({
-      model: MODEL_PRIMARY,
+      // Text-only key-info lookup — use the lightweight model (H-SC5).
+      model: MODEL_LIGHTWEIGHT,
       max_tokens: 256,
       messages: [
         {

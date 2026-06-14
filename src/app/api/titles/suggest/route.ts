@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { cacheGet, cacheSet } from "@/lib/cache";
 import { MODEL_LIGHTWEIGHT } from "@/lib/models";
+import { checkRateLimit, getRateLimitIdentifier, rateLimiters } from "@/lib/rateLimit";
 import { validateBody } from "@/lib/validation";
 
 const titleSuggestSchema = z.object({
@@ -23,6 +24,15 @@ export interface TitleSuggestion {
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limit public AI lookup endpoint (text-only Haiku call)
+    const identifier = getRateLimitIdentifier(
+      null,
+      request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip")
+    );
+    const { success: rateLimitSuccess, response: rateLimitResponse } =
+      await checkRateLimit(rateLimiters.lookup, identifier);
+    if (!rateLimitSuccess) return rateLimitResponse!;
+
     const rawBody = await request.json().catch(() => null);
     const validated = validateBody(titleSuggestSchema, rawBody);
     if (!validated.success) return validated.response;

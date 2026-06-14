@@ -4,7 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import { z } from "zod";
 
 import { getProfileByClerkId } from "@/lib/db";
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase";
 import { schemas, validateQuery } from "@/lib/validation";
 
 const forTradeQuerySchema = z.object({
@@ -37,7 +37,11 @@ export async function GET(request: NextRequest) {
       profileId = profile.id;
     }
 
-    const { data: comics, error } = await supabase
+    // Scoped to a single profile's for-trade comics. Uses supabaseAdmin so the
+    // public "view another collector's tradeables" path isn't blocked by RLS,
+    // while the `.eq("user_id", profileId)` filter keeps the result scoped to
+    // exactly that owner.
+    const { data: comics, error } = await supabaseAdmin
       .from("comics")
       .select("id, title, issue_number, publisher, cover_image_url, grade, estimated_value")
       .eq("user_id", profileId)
@@ -48,12 +52,12 @@ export async function GET(request: NextRequest) {
 
     const transformed = (comics || []).map((c) => ({
       id: c.id,
-      title: c.title,
-      issueNumber: c.issue_number,
-      publisher: c.publisher,
-      coverImageUrl: c.cover_image_url,
-      grade: c.grade,
-      estimatedValue: c.estimated_value,
+      title: c.title ?? "Unknown Title",
+      issueNumber: c.issue_number ?? "",
+      publisher: c.publisher ?? "",
+      coverImageUrl: c.cover_image_url ?? undefined,
+      grade: c.grade ?? undefined,
+      estimatedValue: c.estimated_value ?? undefined,
     }));
 
     return NextResponse.json({ comics: transformed });

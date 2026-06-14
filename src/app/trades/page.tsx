@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -47,60 +47,88 @@ function TradesPageContent() {
   const [matches, setMatches] = useState<GroupedMatch[]>([]);
   const [isLoadingMatches, setIsLoadingMatches] = useState(false);
 
-  const loadTrades = async () => {
-    setIsLoading(true);
-    try {
-      const statuses =
-        activeTab === "active" ? "proposed,accepted,shipped" : "completed,cancelled,declined";
+  // Per-tab caches so switching active <-> history (or back to matches) renders
+  // instantly from memory instead of refetching every time. Caches are
+  // invalidated by an explicit `force` reload (e.g. after a status change).
+  const tradesCache = useRef<{ active?: TradePreview[]; history?: TradePreview[] }>({});
+  const matchesCache = useRef<GroupedMatch[] | null>(null);
 
-      const response = await fetch(`/api/trades?status=${statuses}`);
-      if (response.ok) {
-        const data = await response.json();
-        setTrades(data.trades || []);
+  const loadTrades = useCallback(
+    async (force = false) => {
+      const cacheKey = activeTab === "active" ? "active" : "history";
+      if (!force && tradesCache.current[cacheKey]) {
+        setTrades(tradesCache.current[cacheKey]!);
+        return;
       }
-    } catch (error) {
-      console.error("Error loading trades:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      setIsLoading(true);
+      try {
+        const statuses =
+          cacheKey === "active" ? "proposed,accepted,shipped" : "completed,cancelled,declined";
 
-  const loadMatches = async () => {
+        const response = await fetch(`/api/trades?status=${statuses}`);
+        if (response.ok) {
+          const data = await response.json();
+          const list = data.trades || [];
+          tradesCache.current[cacheKey] = list;
+          setTrades(list);
+        }
+      } catch (error) {
+        console.error("Error loading trades:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [activeTab]
+  );
+
+  // Stable reload that always refetches the current tab (used by child cards
+  // after a status change so the cache doesn't serve stale data).
+  const reloadTrades = useCallback(() => loadTrades(true), [loadTrades]);
+
+  const loadMatches = useCallback(async (force = false) => {
+    if (!force && matchesCache.current) {
+      setMatches(matchesCache.current);
+      return;
+    }
     setIsLoadingMatches(true);
     try {
       const response = await fetch("/api/trades/matches");
       if (response.ok) {
         const data = await response.json();
-        setMatches(data.matches || []);
+        const list = data.matches || [];
+        matchesCache.current = list;
+        setMatches(list);
       }
     } catch (error) {
       console.error("Error loading matches:", error);
     } finally {
       setIsLoadingMatches(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (isLoaded && isSignedIn && (activeTab === "active" || activeTab === "history")) {
       loadTrades();
     }
-  }, [isLoaded, isSignedIn, activeTab]);
+  }, [isLoaded, isSignedIn, activeTab, loadTrades]);
 
   useEffect(() => {
     if (isLoaded && isSignedIn && activeTab === "matches") {
       loadMatches();
     }
-  }, [isLoaded, isSignedIn, activeTab]);
+  }, [isLoaded, isSignedIn, activeTab, loadMatches]);
 
   const handleDismissMatch = (matchId: string) => {
-    setMatches((prev) =>
-      prev
+    setMatches((prev) => {
+      const next = prev
         .map((group) => ({
           ...group,
           matches: group.matches.filter((m) => m.matchId !== matchId),
         }))
-        .filter((group) => group.matches.length > 0)
-    );
+        .filter((group) => group.matches.length > 0);
+      matchesCache.current = next;
+      return next;
+    });
   };
 
   const handleMessageFromMatch = (userId: string, comicId: string) => {
@@ -276,7 +304,7 @@ function TradesPageContent() {
               ) : (
                 <div className="space-y-4">
                   {trades.map((trade) => (
-                    <TradeCard key={trade.id} trade={trade} onStatusChange={loadTrades} />
+                    <TradeCard key={trade.id} trade={trade} onStatusChange={reloadTrades} />
                   ))}
                 </div>
               )}

@@ -75,7 +75,36 @@ function calculateDimensions(
 }
 
 /**
- * Compress an image to a target size using progressive quality reduction
+ * Whether the current environment can encode WebP via canvas.toDataURL.
+ * Safari added canvas WebP export in 16.4; older browsers fall back to JPEG.
+ * Result is memoized — the capability doesn't change within a session.
+ */
+let _webpSupport: boolean | null = null;
+export function canEncodeWebp(): boolean {
+  if (_webpSupport !== null) return _webpSupport;
+  if (typeof document === "undefined") {
+    _webpSupport = false;
+    return false;
+  }
+  try {
+    const canvas = document.createElement("canvas");
+    canvas.width = 1;
+    canvas.height = 1;
+    // If WebP isn't supported, toDataURL silently falls back to PNG.
+    _webpSupport = canvas.toDataURL("image/webp").startsWith("data:image/webp");
+  } catch {
+    _webpSupport = false;
+  }
+  return _webpSupport;
+}
+
+/**
+ * Compress an image to a target size using progressive quality reduction.
+ *
+ * Encodes to WebP when the browser supports it (smaller files at equal quality)
+ * and falls back to JPEG otherwise. Size is measured against the actual decoded
+ * byte size via {@link estimateBase64Size} rather than a base64-length fudge
+ * factor, so the target comparison is exact.
  */
 function compressToTarget(
   canvas: HTMLCanvasElement,
@@ -83,17 +112,15 @@ function compressToTarget(
   initialQuality: number,
   minQuality: number
 ): string {
-  // Account for base64 overhead (~37% larger than binary)
-  const base64Overhead = 1.37;
-  const targetBase64Size = targetSize * base64Overhead;
+  const mimeType = canEncodeWebp() ? "image/webp" : "image/jpeg";
 
   let quality = initialQuality;
-  let dataUrl = canvas.toDataURL("image/jpeg", quality);
+  let dataUrl = canvas.toDataURL(mimeType, quality);
 
-  // Reduce quality until we hit target size or min quality
-  while (dataUrl.length > targetBase64Size && quality > minQuality) {
+  // Reduce quality until the decoded payload hits target size or min quality.
+  while (estimateBase64Size(dataUrl) > targetSize && quality > minQuality) {
     quality -= 0.05;
-    dataUrl = canvas.toDataURL("image/jpeg", quality);
+    dataUrl = canvas.toDataURL(mimeType, quality);
   }
 
   return dataUrl;

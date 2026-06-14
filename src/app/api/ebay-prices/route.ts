@@ -29,9 +29,14 @@ import { z } from "zod";
 
 import { cacheGet, cacheSet, generateEbayPriceCacheKey } from "@/lib/cache";
 import { isBrowseApiConfigured, searchActiveListings, convertBrowseToPriceData } from "@/lib/ebayBrowse";
+import { checkRateLimit, getRateLimitIdentifier, rateLimiters } from "@/lib/rateLimit";
 import { validateBody, validateQuery } from "@/lib/validation";
 
 import { PriceData } from "@/types/comic";
+
+// Negative-cache TTL: align with the positive eBay price TTL (12h) so a
+// "no data" answer isn't re-fetched far more aggressively than a hit. L-PR12.
+const EBAY_NEGATIVE_TTL_SECONDS = 60 * 60 * 12;
 
 const ebayPricesBodySchema = z.object({
   title: z.string().trim().min(1, "Title is required").max(200),
@@ -68,8 +73,93 @@ interface EbayPriceResponse {
   error?: string;
 }
 
+/**
+ * Core eBay price lookup: Redis cache (positive + negative) → Browse API.
+ *
+ * Shared by both GET and POST so they validate their own inputs then call this
+ * single code path (no GET→POST mock-request round-trip). L-PR11.
+ */
+export async function fetchEbayPrices(params: {
+  title: string;
+  issueNumber?: string | null;
+  grade?: number | null;
+  isSlabbed?: boolean;
+  gradingCompany?: string | null;
+  year?: string | null;
+}): Promise<EbayPriceResponse> {
+  const cleanTitle = params.title.trim();
+  const cleanIssue = params.issueNumber?.toString().trim();
+  const numericGrade = params.grade ? parseFloat(params.grade.toString()) : 9.4;
+  const slabbed = Boolean(params.isSlabbed);
+  const company = params.gradingCompany?.trim();
+
+  const cacheKey = generateEbayPriceCacheKey(
+    cleanTitle,
+    cleanIssue || "",
+    numericGrade,
+    slabbed,
+    company
+  );
+
+  // 1. Check Redis cache first (positive or negative sentinel)
+  const cachedResult = await cacheGet<PriceData | { noData: true }>(cacheKey, "ebayPrice");
+  if (cachedResult !== null) {
+    if ("noData" in cachedResult) {
+      return { success: true, data: null, source: "cache", cached: true };
+    }
+    return { success: true, data: cachedResult, source: "cache", cached: true };
+  }
+
+  // 2. Check if eBay API is configured
+  if (!isBrowseApiConfigured()) {
+    return {
+      success: true,
+      data: null,
+      source: "none",
+      cached: false,
+      error: "eBay API not configured",
+    };
+  }
+
+  // 3. Fetch from eBay Browse API
+  const browseResult = await searchActiveListings(
+    cleanTitle,
+    cleanIssue,
+    numericGrade ? String(numericGrade) : undefined,
+    slabbed,
+    company,
+    params.year || undefined
+  );
+  const priceData = browseResult
+    ? convertBrowseToPriceData(browseResult, numericGrade ? String(numericGrade) : undefined, slabbed)
+    : null;
+
+  // 4. Cache the result (fire and forget)
+  if (priceData && priceData.estimatedValue) {
+    cacheSet(cacheKey, priceData, "ebayPrice").catch(() => {});
+    return { success: true, data: priceData, source: "ebay", cached: false };
+  }
+
+  // Cache negative results to avoid repeated lookups (aligned TTL — L-PR12)
+  cacheSet(cacheKey, { noData: true }, "ebayPrice", EBAY_NEGATIVE_TTL_SECONDS).catch(() => {});
+  return { success: true, data: null, source: "none", cached: false };
+}
+
 export async function POST(request: NextRequest): Promise<NextResponse<EbayPriceResponse>> {
   try {
+    // Rate limit to protect eBay API quota (H-PR3)
+    const identifier = getRateLimitIdentifier(
+      null,
+      request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip")
+    );
+    const { success: rateLimitSuccess, response: rateLimitResponse } = await checkRateLimit(
+      rateLimiters.lookup,
+      identifier
+    );
+    if (!rateLimitSuccess && rateLimitResponse) {
+      return rateLimitResponse as unknown as NextResponse<EbayPriceResponse>;
+    }
+
     // Parse request body
     const rawBody = await request.json().catch(() => null);
     const validated = validateBody(ebayPricesBodySchema, rawBody);
@@ -78,74 +168,15 @@ export async function POST(request: NextRequest): Promise<NextResponse<EbayPrice
     }
     const { title, issueNumber, grade, isSlabbed, isGraded, gradingCompany, year } = validated.data;
 
-    const cleanTitle = title.trim();
-    const cleanIssue = issueNumber?.toString().trim();
-    const numericGrade = grade ? parseFloat(grade.toString()) : 9.4;
-    const slabbed = Boolean(isSlabbed || isGraded); // Support legacy field
-    const company = gradingCompany?.trim();
-
-    // Generate cache key
-    const cacheKey = generateEbayPriceCacheKey(
-      cleanTitle,
-      cleanIssue || "",
-      numericGrade,
-      slabbed,
-      company
-    );
-
-    // 1. Check Redis cache first
-    const cachedResult = await cacheGet<PriceData | { noData: true }>(cacheKey, "ebayPrice");
-    if (cachedResult !== null) {
-      if ("noData" in cachedResult) {
-        return NextResponse.json({
-          success: true,
-          data: null,
-          source: "cache",
-          cached: true,
-        });
-      }
-      return NextResponse.json({
-        success: true,
-        data: cachedResult,
-        source: "cache",
-        cached: true,
-      });
-    }
-
-    // 2. Check if eBay API is configured
-    if (!isBrowseApiConfigured()) {
-      return NextResponse.json({
-        success: true,
-        data: null,
-        source: "none",
-        cached: false,
-        error: "eBay API not configured",
-      });
-    }
-
-    // 3. Fetch from eBay Browse API
-    const browseResult = await searchActiveListings(cleanTitle, cleanIssue, numericGrade ? String(numericGrade) : undefined, slabbed, company, year || undefined);
-    const priceData = browseResult ? convertBrowseToPriceData(browseResult, numericGrade ? String(numericGrade) : undefined, slabbed) : null;
-
-    // 4. Cache the result (fire and forget)
-    if (priceData && priceData.estimatedValue) {
-      cacheSet(cacheKey, priceData, "ebayPrice").catch(() => {});
-      return NextResponse.json({
-        success: true,
-        data: priceData,
-        source: "ebay",
-        cached: false,
-      });
-    } else {
-      // Cache negative results to avoid repeated lookups
-      cacheSet(cacheKey, { noData: true }, "ebayPrice", 60 * 60).catch(() => {});
-      return NextResponse.json({
-        success: true,
-        data: null,
-        source: "none",
-        cached: false,
-      });
-    }
+    const result = await fetchEbayPrices({
+      title,
+      issueNumber,
+      grade,
+      isSlabbed: Boolean(isSlabbed || isGraded), // Support legacy field
+      gradingCompany,
+      year,
+    });
+    return NextResponse.json(result);
   } catch (error) {
     console.error("[ebay-prices] Error:", error);
 
@@ -164,24 +195,42 @@ export async function POST(request: NextRequest): Promise<NextResponse<EbayPrice
  * GET endpoint for simple lookups (URL parameters)
  */
 export async function GET(request: NextRequest): Promise<NextResponse<EbayPriceResponse>> {
-  const validated = validateQuery(ebayPricesQuerySchema, new URL(request.url).searchParams);
-  if (!validated.success) {
-    return validated.response as unknown as NextResponse<EbayPriceResponse>;
-  }
-  const { title, issueNumber, issue, grade, isGraded, gradingCompany } = validated.data;
-  const resolvedIssue = issueNumber || issue;
+  try {
+    // Rate limit to protect eBay API quota (H-PR3)
+    const identifier = getRateLimitIdentifier(
+      null,
+      request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip")
+    );
+    const { success: rateLimitSuccess, response: rateLimitResponse } = await checkRateLimit(
+      rateLimiters.lookup,
+      identifier
+    );
+    if (!rateLimitSuccess && rateLimitResponse) {
+      return rateLimitResponse as unknown as NextResponse<EbayPriceResponse>;
+    }
 
-  // Create a mock request with the body
-  const mockRequest = new NextRequest(request.url, {
-    method: "POST",
-    body: JSON.stringify({
+    const validated = validateQuery(ebayPricesQuerySchema, new URL(request.url).searchParams);
+    if (!validated.success) {
+      return validated.response as unknown as NextResponse<EbayPriceResponse>;
+    }
+    const { title, issueNumber, issue, grade, isGraded, gradingCompany } = validated.data;
+
+    const result = await fetchEbayPrices({
       title,
-      issueNumber: resolvedIssue,
+      issueNumber: issueNumber || issue,
       grade: grade ? parseFloat(grade) : undefined,
-      isGraded: isGraded === "true",
+      isSlabbed: isGraded === "true",
       gradingCompany,
-    }),
-  });
-
-  return POST(mockRequest);
+    });
+    return NextResponse.json(result);
+  } catch (error) {
+    console.error("[ebay-prices] Error:", error);
+    return NextResponse.json({
+      success: false,
+      data: null,
+      source: "none",
+      cached: false,
+      error: "Failed to fetch eBay prices",
+    });
+  }
 }
