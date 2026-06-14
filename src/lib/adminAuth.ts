@@ -258,25 +258,87 @@ export async function resetUserTrial(profileId: string): Promise<void> {
 }
 
 /**
- * Grant a user free premium access for a specified number of days
+ * Decide whether an admin "grant premium" should be refused because the target
+ * is already a paying customer. Comping a paying user would clobber their real
+ * Stripe-driven trial/subscription dates and silently downgrade them when the
+ * grant expires. A live `stripe_subscription_id` (or a non-comp paid source) is
+ * the signal that Stripe -- not the admin -- owns this account's billing state.
+ *
+ * Exported so the paying-user guard is unit-testable in isolation (L-AD5).
+ */
+export function isPayingSubscriber(profile: {
+  stripe_subscription_id?: string | null;
+  subscription_source?: string | null;
+}): boolean {
+  if (profile.stripe_subscription_id) {
+    return true;
+  }
+  const source = profile.subscription_source;
+  // "comped" / "trial" / null are not paying; anything else implies real billing.
+  return !!source && source !== "comped" && source !== "trial";
+}
+
+/**
+ * Grant a user free (comp) premium access for a specified number of days.
+ *
+ * L-AD5: a comp grant is NOT the same as a trial -- it sets the new
+ * `comp_granted` flag so access-state resolution can distinguish granted from
+ * trialing. It MUST refuse to overwrite an active paying customer's
+ * Stripe-owned trial/subscription dates.
+ *
+ * Migration-gated (REQUIRED migration: profiles.comp_granted): we attempt the
+ * update WITH `comp_granted` first; if the column doesn't exist yet (pre-migration)
+ * we retry WITHOUT it so the route keeps working and falls back to the current
+ * trial-field behavior. Remove the fallback once the migration has landed.
  */
 export async function grantPremiumAccess(
   profileId: string,
   days: number = 30
 ): Promise<{ expiresAt: string }> {
+  // Guard: never clobber an active paying customer's billing dates.
+  const { data: existing } = await supabaseAdmin
+    .from("profiles")
+    .select("stripe_subscription_id, subscription_source")
+    .eq("id", profileId)
+    .single();
+
+  if (existing && isPayingSubscriber(existing)) {
+    throw new Error(
+      "Cannot comp an active paying subscriber; this would overwrite their Stripe-managed subscription dates."
+    );
+  }
+
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + days);
 
+  const baseUpdate = {
+    trial_started_at: new Date().toISOString(),
+    trial_ends_at: expiresAt.toISOString(),
+  };
+
+  // Try with the comp flag first (post-migration path).
   const { error } = await supabaseAdmin
     .from("profiles")
-    .update({
-      trial_started_at: new Date().toISOString(),
-      trial_ends_at: expiresAt.toISOString(),
-    })
+    .update({ ...baseUpdate, comp_granted: true })
     .eq("id", profileId);
 
   if (error) {
-    throw error;
+    // Pre-migration fallback: the `comp_granted` column may not exist yet
+    // (Postgres "column ... does not exist" => code 42703). Retry without it so
+    // the grant still applies via the existing trial fields.
+    const isMissingColumn =
+      (error as { code?: string }).code === "42703" ||
+      /comp_granted/.test(error.message || "");
+    if (!isMissingColumn) {
+      throw error;
+    }
+    const { error: fallbackError } = await supabaseAdmin
+      .from("profiles")
+      .update(baseUpdate)
+      .eq("id", profileId);
+    if (fallbackError) {
+      throw fallbackError;
+    }
   }
 
   return { expiresAt: expiresAt.toISOString() };

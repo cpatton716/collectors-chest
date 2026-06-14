@@ -19,7 +19,6 @@ import {
   DollarSign,
   Receipt,
   Tag,
-  TrendingDown,
   TrendingUp,
   Trophy,
   X,
@@ -31,18 +30,6 @@ import { storage } from "@/lib/storage";
 import { useGuestScans } from "@/hooks/useGuestScans";
 
 import { CollectionItem } from "@/types/comic";
-
-// Duration filter options
-type DurationDays = 30 | 60 | 90;
-
-
-export interface InsightBook {
-  item: CollectionItem;
-  change: number;
-  changePercent: number;
-  currentValue: number;
-  previousValue: number;
-}
 
 export interface BestBuyBook {
   item: CollectionItem;
@@ -83,56 +70,6 @@ export function computeHomeStats(collection: CollectionItem[]): HomeStats {
   };
 }
 
-// Simulate historical value change based on the selected lookback window.
-// In production this would use actual price history from the database.
-export function getBiggestIncrease(
-  collection: CollectionItem[],
-  days: DurationDays
-): InsightBook | null {
-  const booksWithValue = collection.filter(
-    (item) => item.comic.priceData?.estimatedValue && item.comic.priceData.estimatedValue > 0
-  );
-  if (booksWithValue.length === 0) return null;
-
-  const multiplier = days === 30 ? 0.92 : days === 60 ? 0.88 : 0.82;
-  let biggest: InsightBook | null = null;
-
-  for (const item of booksWithValue) {
-    const currentValue = getComicValue(item);
-    const previousValue = currentValue * multiplier;
-    const change = currentValue - previousValue;
-    const changePercent = previousValue > 0 ? (change / previousValue) * 100 : 0;
-    if (!biggest || change > biggest.change) {
-      biggest = { item, change, changePercent, currentValue, previousValue };
-    }
-  }
-  return biggest;
-}
-
-export function getBiggestDecline(
-  collection: CollectionItem[],
-  days: DurationDays
-): InsightBook | null {
-  const booksWithValue = collection.filter(
-    (item) => item.comic.priceData?.estimatedValue && item.comic.priceData.estimatedValue > 0
-  );
-  if (booksWithValue.length === 0) return null;
-
-  const declineMultiplier = days === 30 ? 1.05 : days === 60 ? 1.1 : 1.15;
-  let biggest: InsightBook | null = null;
-
-  for (const item of booksWithValue) {
-    const currentValue = getComicValue(item);
-    const previousValue = currentValue * declineMultiplier;
-    const change = currentValue - previousValue; // negative
-    const changePercent = previousValue > 0 ? (change / previousValue) * 100 : 0;
-    if (!biggest || change < biggest.change) {
-      biggest = { item, change, changePercent, currentValue, previousValue };
-    }
-  }
-  return biggest;
-}
-
 export function getBestBuy(collection: CollectionItem[]): BestBuyBook | null {
   const booksWithPurchasePrice = collection.filter(
     (item) => item.purchasePrice && item.purchasePrice > 0 && item.comic.priceData?.estimatedValue
@@ -162,11 +99,7 @@ export default function Home() {
   const [salesStats, setSalesStats] = useState({ totalSales: 0, totalRevenue: 0, totalProfit: 0 });
 
   // Insight modals state
-  const [showBiggestIncrease, setShowBiggestIncrease] = useState(false);
   const [showBestBuy, setShowBestBuy] = useState(false);
-  const [showBiggestDecline, setShowBiggestDecline] = useState(false);
-  const [increaseDuration, setIncreaseDuration] = useState<DurationDays>(30);
-  const [declineDuration, setDeclineDuration] = useState<DurationDays>(30);
 
   // Redirect signed-in users to their collection. Runs before any heavy
   // collection/insight work below so we don't render-and-discard the guest
@@ -199,14 +132,6 @@ export default function Home() {
   const profitLoss = stats.profitLoss;
   const profitLossPercent = stats.profitLossPercent;
 
-  const biggestIncrease = useMemo(
-    () => getBiggestIncrease(collection, increaseDuration),
-    [collection, increaseDuration]
-  );
-  const biggestDecline = useMemo(
-    () => getBiggestDecline(collection, declineDuration),
-    [collection, declineDuration]
-  );
   const bestBuy = useMemo(() => getBestBuy(collection), [collection]);
 
   // While the signed-in redirect is in flight, skip the heavy guest/dashboard
@@ -259,48 +184,8 @@ export default function Home() {
         </div>
 
         {/* Collection Insights Cards - Only for signed-in users with collection */}
-        {isLoaded && isSignedIn && stats.totalComics > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12 max-w-4xl mx-auto">
-            {/* Biggest Increase Card */}
-            {biggestIncrease && (
-              <button
-                onClick={() => setShowBiggestIncrease(true)}
-                aria-label={`Biggest increase: ${biggestIncrease.item.comic.title} #${biggestIncrease.item.comic.issueNumber}, up $${biggestIncrease.change.toFixed(2)}. View details.`}
-                className="comic-panel bg-pop-white p-4 text-left hover:shadow-comic-lg"
-              >
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="p-2 bg-pop-green border-2 border-pop-black">
-                    <TrendingUp className="w-5 h-5 text-pop-white" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-comic text-pop-black">BIGGEST INCREASE</p>
-                    <p className="text-lg font-comic text-pop-green">
-                      +${biggestIncrease.change.toFixed(2)}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  {biggestIncrease.item.coverImageUrl && (
-                    <Image
-                      src={biggestIncrease.item.coverImageUrl}
-                      alt=""
-                      width={40}
-                      height={56}
-                      className="w-10 h-14 object-cover border-2 border-pop-black"
-                    />
-                  )}
-                  <div className="min-w-0">
-                    <p className="text-sm font-comic text-pop-black truncate">
-                      {biggestIncrease.item.comic.title?.toUpperCase()}
-                    </p>
-                    <p className="text-xs font-body text-pop-black/70">
-                      #{biggestIncrease.item.comic.issueNumber}
-                    </p>
-                  </div>
-                </div>
-              </button>
-            )}
-
+        {isLoaded && isSignedIn && stats.totalComics > 0 && bestBuy && (
+          <div className="grid grid-cols-1 gap-6 mb-12 max-w-sm mx-auto">
             {/* Best Buy Card */}
             {bestBuy && (
               <button
@@ -335,46 +220,6 @@ export default function Home() {
                     </p>
                     <p className="text-xs font-body text-pop-black/70">
                       #{bestBuy.item.comic.issueNumber}
-                    </p>
-                  </div>
-                </div>
-              </button>
-            )}
-
-            {/* Biggest Decline Card */}
-            {biggestDecline && (
-              <button
-                onClick={() => setShowBiggestDecline(true)}
-                aria-label={`Biggest decline: ${biggestDecline.item.comic.title} #${biggestDecline.item.comic.issueNumber}, down $${Math.abs(biggestDecline.change).toFixed(2)}. View details.`}
-                className="comic-panel bg-pop-white p-4 text-left hover:shadow-comic-lg"
-              >
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="p-2 bg-pop-red border-2 border-pop-black">
-                    <TrendingDown className="w-5 h-5 text-pop-white" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-comic text-pop-black">BIGGEST DECLINE</p>
-                    <p className="text-lg font-comic text-pop-red">
-                      ${biggestDecline.change.toFixed(2)}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  {biggestDecline.item.coverImageUrl && (
-                    <Image
-                      src={biggestDecline.item.coverImageUrl}
-                      alt=""
-                      width={40}
-                      height={56}
-                      className="w-10 h-14 object-cover border-2 border-pop-black"
-                    />
-                  )}
-                  <div className="min-w-0">
-                    <p className="text-sm font-comic text-pop-black truncate">
-                      {biggestDecline.item.comic.title?.toUpperCase()}
-                    </p>
-                    <p className="text-xs font-body text-pop-black/70">
-                      #{biggestDecline.item.comic.issueNumber}
                     </p>
                   </div>
                 </div>
@@ -673,80 +518,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* Biggest Increase Modal */}
-      {showBiggestIncrease && biggestIncrease && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-pop-black/70"
-            onClick={() => setShowBiggestIncrease(false)}
-          />
-          <div className="relative comic-panel bg-pop-white max-w-sm w-full p-6">
-            <button
-              onClick={() => setShowBiggestIncrease(false)}
-              className="absolute top-4 right-4 p-1 bg-pop-red border-2 border-pop-black shadow-comic-sm hover:shadow-comic transition-all"
-            >
-              <X className="w-5 h-5 text-pop-white" />
-            </button>
-
-            <div className="flex items-center gap-2 mb-4">
-              <div className="p-2 bg-pop-green border-2 border-pop-black">
-                <TrendingUp className="w-5 h-5 text-pop-white" />
-              </div>
-              <h3 className="font-comic text-lg text-pop-black">BIGGEST INCREASE</h3>
-            </div>
-
-            {/* Duration Filter */}
-            <div className="flex gap-2 mb-4">
-              {([30, 60, 90] as DurationDays[]).map((days) => (
-                <button
-                  key={days}
-                  onClick={() => setIncreaseDuration(days)}
-                  className={`px-3 py-1 font-comic text-sm border-2 border-pop-black transition-all ${
-                    increaseDuration === days
-                      ? "bg-pop-green text-pop-white shadow-comic-sm"
-                      : "bg-pop-white text-pop-black hover:bg-pop-green/20"
-                  }`}
-                >
-                  {days} DAYS
-                </button>
-              ))}
-            </div>
-
-            {/* Book Info */}
-            <div className="flex gap-4 mb-4">
-              {biggestIncrease.item.coverImageUrl && (
-                <Image
-                  src={biggestIncrease.item.coverImageUrl}
-                  alt=""
-                  width={96}
-                  height={144}
-                  className="w-24 h-36 object-cover border-3 border-pop-black shadow-comic"
-                />
-              )}
-              <div>
-                <h4 className="font-comic text-pop-black">
-                  {biggestIncrease.item.comic.title?.toUpperCase()}
-                </h4>
-                <p className="text-sm font-body text-pop-black/70 mb-3">
-                  #{biggestIncrease.item.comic.issueNumber}
-                </p>
-                <div className="space-y-1">
-                  <p className="font-comic text-2xl text-pop-green">
-                    +${biggestIncrease.change.toFixed(2)}
-                  </p>
-                  <p className="text-sm font-body text-pop-green">
-                    +{biggestIncrease.changePercent.toFixed(1)}%
-                  </p>
-                  <p className="text-xs font-body text-pop-black/70">
-                    Current: ${biggestIncrease.currentValue.toFixed(2)}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Best Buy Modal */}
       {showBestBuy && bestBuy && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -799,80 +570,6 @@ export default function Home() {
                       Profit: +${bestBuy.profit.toFixed(2)}
                     </p>
                   </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Biggest Decline Modal */}
-      {showBiggestDecline && biggestDecline && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-pop-black/70"
-            onClick={() => setShowBiggestDecline(false)}
-          />
-          <div className="relative comic-panel bg-pop-white max-w-sm w-full p-6">
-            <button
-              onClick={() => setShowBiggestDecline(false)}
-              className="absolute top-4 right-4 p-1 bg-pop-red border-2 border-pop-black shadow-comic-sm hover:shadow-comic transition-all"
-            >
-              <X className="w-5 h-5 text-pop-white" />
-            </button>
-
-            <div className="flex items-center gap-2 mb-4">
-              <div className="p-2 bg-pop-red border-2 border-pop-black">
-                <TrendingDown className="w-5 h-5 text-pop-white" />
-              </div>
-              <h3 className="font-comic text-lg text-pop-black">BIGGEST DECLINE</h3>
-            </div>
-
-            {/* Duration Filter */}
-            <div className="flex gap-2 mb-4">
-              {([30, 60, 90] as DurationDays[]).map((days) => (
-                <button
-                  key={days}
-                  onClick={() => setDeclineDuration(days)}
-                  className={`px-3 py-1 font-comic text-sm border-2 border-pop-black transition-all ${
-                    declineDuration === days
-                      ? "bg-pop-red text-pop-white shadow-comic-sm"
-                      : "bg-pop-white text-pop-black hover:bg-pop-red/20"
-                  }`}
-                >
-                  {days} DAYS
-                </button>
-              ))}
-            </div>
-
-            {/* Book Info */}
-            <div className="flex gap-4 mb-4">
-              {biggestDecline.item.coverImageUrl && (
-                <Image
-                  src={biggestDecline.item.coverImageUrl}
-                  alt=""
-                  width={96}
-                  height={144}
-                  className="w-24 h-36 object-cover border-3 border-pop-black shadow-comic"
-                />
-              )}
-              <div>
-                <h4 className="font-comic text-pop-black">
-                  {biggestDecline.item.comic.title?.toUpperCase()}
-                </h4>
-                <p className="text-sm font-body text-pop-black/70 mb-3">
-                  #{biggestDecline.item.comic.issueNumber}
-                </p>
-                <div className="space-y-1">
-                  <p className="font-comic text-2xl text-pop-red">
-                    ${biggestDecline.change.toFixed(2)}
-                  </p>
-                  <p className="text-sm font-body text-pop-red">
-                    {biggestDecline.changePercent.toFixed(1)}%
-                  </p>
-                  <p className="text-xs font-body text-pop-black/70">
-                    Current: ${biggestDecline.currentValue.toFixed(2)}
-                  </p>
                 </div>
               </div>
             </div>

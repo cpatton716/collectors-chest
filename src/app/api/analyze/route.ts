@@ -6,7 +6,7 @@ import { z } from "zod";
 import { isUserSuspended } from "@/lib/adminAuth";
 import { parseHCaptchaErrorForUser, verifyCaptchaToken } from "@/lib/hcaptcha";
 import { validateBody } from "@/lib/validation";
-import { executeWithFallback, executeSlabDetection, executeSlabDetailExtraction, getRemainingBudget, getProviders } from "@/lib/aiProvider";
+import { executeWithFallback, executeSlabDetailExtraction, getRemainingBudget, getProviders } from "@/lib/aiProvider";
 import { hasCompleteSlabData } from "@/lib/metadataCache";
 import { normalizeGradingCompany, parseKeyComments, mergeKeyComments, parseArtComments } from "@/lib/certHelpers";
 import type { ScanPath } from "@/lib/analyticsServer";
@@ -24,7 +24,19 @@ import { getComicMetadata, getProfileByClerkId, saveComicMetadata, lookupBarcode
 import { isBrowseApiConfigured, searchActiveListings, convertBrowseToPriceData, type BrowsePriceResult } from "@/lib/ebayBrowse";
 import { ComicMetadata, mergeMetadataIntoDetails, buildMetadataSavePayload } from "@/lib/metadataCache";
 import { runCoverPipeline } from "@/lib/coverValidation";
-import { lookupKeyInfo } from "@/lib/keyComicsDatabase";
+import { lookupKeyInfoFromDb } from "@/lib/keyComicsDb";
+import {
+  GUEST_COOKIE_NAME,
+  GUEST_COOKIE_MAX_AGE_SECONDS,
+  effectiveGuestAllowance,
+  evaluateGuestScan,
+  incrementGuestScans,
+  issueGuestToken,
+  readGuestBonus,
+  readGuestScans,
+  signGuestCookie,
+  verifyGuestCookie,
+} from "@/lib/guestScanToken";
 import {
   enrichVariantNameFromAI,
   lookupApprovedVariantName,
@@ -64,38 +76,36 @@ const analyzeSchema = z
   .passthrough();
 
 // Guests must solve an hCaptcha on scans 4 and 5 (zero-indexed from 0, so the
-// claimed count of completed scans is >= 3 when this submission would be
+// stored count of completed scans is >= 3 when this submission would be
 // the user's 4th or 5th).
 const GUEST_CAPTCHA_THRESHOLD = 3;
+
+// Server-side ceiling on bonus scans a single guest cookie can ever accrue
+// (one email capture grants 5; never trust a larger stored/claimed value). M-SC4.
+const GUEST_MAX_BONUS_SCANS = 5;
+
+/**
+ * Attach the signed guest cookie to a response so the same browser keeps its
+ * server-tracked id on subsequent scans. Idempotent to set on every guest
+ * response (limit-reached, captcha-required, and success).
+ */
+function withGuestCookie(response: NextResponse, gid: string | null): NextResponse {
+  if (!gid) return response;
+  response.cookies.set(GUEST_COOKIE_NAME, signGuestCookie(gid), {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: GUEST_COOKIE_MAX_AGE_SECONDS,
+  });
+  return response;
+}
 
 function normalizeMediaType(raw: string | undefined): SupportedMediaType {
   if (raw && (SUPPORTED_MEDIA_TYPES as readonly string[]).includes(raw)) {
     return raw as SupportedMediaType;
   }
   return "image/jpeg";
-}
-
-// Slab detection only needs to see whether a hard case + grading label are
-// present — it doesn't read the cover art. Downscaling to a small longest-edge
-// (L-SC22) cuts the payload (and Anthropic input-token cost) for this one call
-// without hurting accuracy. Returns the original base64 if sharp/resize fails.
-const SLAB_DETECTION_MAX_DIM = 768;
-async function downscaleForSlabDetection(base64Data: string): Promise<string> {
-  try {
-    const sharp = (await import("sharp")).default;
-    const out = await sharp(Buffer.from(base64Data, "base64"))
-      .rotate()
-      .resize(SLAB_DETECTION_MAX_DIM, SLAB_DETECTION_MAX_DIM, {
-        fit: "inside",
-        withoutEnlargement: true,
-      })
-      .jpeg({ quality: 80 })
-      .toBuffer();
-    return out.toString("base64");
-  } catch (err) {
-    console.warn("[scan] slab-detection downscale failed, using original:", err);
-    return base64Data;
-  }
 }
 
 // Parsed barcode components (UPC-A with optional 5-digit add-on)
@@ -187,16 +197,27 @@ export async function POST(request: NextRequest) {
   let scanSlotReserved = false;
   let scanSlotUsedPurchased = false;
 
+  // Guest scan tracking (server source of truth via signed cookie + Redis).
+  // gid is set for every guest request (existing or freshly issued); the cookie
+  // is (re)attached to the final response via withGuestCookie. H-SC3 / M-SC4.
+  let guestId: string | null = null;
+  let guestCaptchaRequired = false;
+  let guestRemaining = 0;
+
   // Tracking variables (declared outside try so catch block can access them)
   const scanStartTime = Date.now();
-  const CERT_FIRST_BUDGET_MS = 15_000;
   let scanPath: ScanPath = "full-pipeline";
   let barcodeExtracted = false;
+  // Retained for analytics shape stability; with H-SC1 the dedicated slab-
+  // detection vision call no longer runs, so this stays undefined.
   let slabDetectionMeta: { provider: string; durationMs: number; cost: number } | undefined;
   let slabDetailExtractionMeta: { provider: string; durationMs: number; cost: number; coverHarvestOnly?: boolean } | undefined;
   let certFirstPath = false;
   let metadataCacheHit = false;
   let aiCallsMade = 0;
+  // Provider that served the single low-confidence re-scan, if one ran (L-SC21).
+  // Tracked so the cost breakdown can attribute this distinct extra call.
+  let lowConfidenceRescanProvider: "anthropic" | "gemini" | null = null;
   let ebayLookupMade = false;
   let p1: string = "gemini"; // Primary provider used - default for catch block (Gemini-primary per VISION_PROVIDER_ORDER)
 
@@ -258,18 +279,45 @@ export async function POST(request: NextRequest) {
         scanSlotUsedPurchased = reservation.usedPurchased ?? false;
       }
     } else {
-      // Guest user - check client-provided guest scan count
-      // Note: This is validated client-side, but we add server awareness for analytics
-      const guestScans = parseInt(request.headers.get("x-guest-scan-count") || "0");
-      if (guestScans >= GUEST_SCAN_LIMIT) {
-        return NextResponse.json(
-          {
-            error: "guest_limit_reached",
-            message: "You've used all your free scans. Create an account to continue.",
-            scansUsed: guestScans,
-            limit: GUEST_SCAN_LIMIT,
-          },
-          { status: 403 }
+      // Guest user - enforce limits against the SERVER-stored count (H-SC3).
+      // The signed cookie identifies the guest; the client header is now only a
+      // display hint and is never trusted for the limit or captcha gate.
+      guestId = verifyGuestCookie(request.cookies.get(GUEST_COOKIE_NAME)?.value);
+      if (!guestId) {
+        // First guest scan (or tampered/cleared cookie) - mint a fresh id.
+        guestId = issueGuestToken();
+      }
+
+      // Server-trusted completed count + verified bonus allowance (M-SC4).
+      const [completed, storedBonus] = await Promise.all([
+        readGuestScans(guestId),
+        readGuestBonus(guestId),
+      ]);
+      const allowance = effectiveGuestAllowance(
+        GUEST_SCAN_LIMIT,
+        storedBonus,
+        GUEST_MAX_BONUS_SCANS
+      );
+      const decision = evaluateGuestScan({
+        completed,
+        allowance,
+        captchaThreshold: GUEST_CAPTCHA_THRESHOLD,
+      });
+      guestCaptchaRequired = decision.captchaRequired;
+      guestRemaining = decision.remaining;
+
+      if (!decision.allowed) {
+        return withGuestCookie(
+          NextResponse.json(
+            {
+              error: "guest_limit_reached",
+              message: "You've used all your free scans. Create an account to continue.",
+              scansUsed: completed,
+              limit: allowance,
+            },
+            { status: 403 }
+          ),
+          guestId
         );
       }
     }
@@ -295,30 +343,29 @@ export async function POST(request: NextRequest) {
     // Guests on scans 1-3 also skip - keeps onboarding friction minimal.
     // On scans 4 and 5, a client-side hCaptcha token is required; we verify
     // with hCaptcha siteverify and fail closed on any verification failure.
-    if (!userId) {
-      const guestScansCompleted = parseInt(
-        request.headers.get("x-guest-scan-count") || "0",
-        10
-      );
-      if (guestScansCompleted >= GUEST_CAPTCHA_THRESHOLD) {
-        const forwarded = request.headers.get("x-forwarded-for");
-        const clientIp = forwarded
-          ? forwarded.split(",")[0].trim()
-          : request.headers.get("x-real-ip");
+    // The "is this a captcha scan?" decision comes from the SERVER-stored count
+    // (guestCaptchaRequired), not a client header (H-SC3).
+    if (!userId && guestCaptchaRequired) {
+      const forwarded = request.headers.get("x-forwarded-for");
+      const clientIp = forwarded
+        ? forwarded.split(",")[0].trim()
+        : request.headers.get("x-real-ip");
 
-        const verification = await verifyCaptchaToken(
-          validated.data.captchaToken,
-          clientIp
-        );
-        if (!verification.valid) {
-          return NextResponse.json(
+      const verification = await verifyCaptchaToken(
+        validated.data.captchaToken,
+        clientIp
+      );
+      if (!verification.valid) {
+        return withGuestCookie(
+          NextResponse.json(
             {
               error: parseHCaptchaErrorForUser(verification.reason),
               captchaRequired: true,
             },
             { status: 403 }
-          );
-        }
+          ),
+          guestId
+        );
       }
     }
 
@@ -371,6 +418,7 @@ export async function POST(request: NextRequest) {
       publisher: string | null;
       releaseYear: string | null;
       variant: string | null;
+      variantSource?: "catalog" | "ai" | "derived" | null;
       writer: string | null;
       coverArtist: string | null;
       interiorArtist: string | null;
@@ -378,6 +426,10 @@ export async function POST(request: NextRequest) {
       grade: string | null;
       gradingCompany: string | null;
       certificationNumber: string | null;
+      // Cached barcode signal so a cache hit can re-run the free catalog lookup
+      // + variant re-resolve without stale names (L-SC25).
+      barcode?: ComicDetails["barcode"];
+      barcodeNumber?: string | null;
       keyInfo: string[];
     }>(imageHash, "aiAnalyze");
 
@@ -395,61 +447,95 @@ export async function POST(request: NextRequest) {
     if (cachedAnalysis && cachedAnalysis.title) {
       comicDetails = { ...cachedAnalysis };
       usedCache = true;
+      // L-SC25: re-parse the cached barcode so the catalog lookup + variant
+      // re-resolve below have the parsed add-on to work with.
+      if (comicDetails.barcode?.raw && !comicDetails.barcode.parsed) {
+        const parsed = parseBarcode(comicDetails.barcode.raw);
+        if (parsed) comicDetails.barcode.parsed = parsed;
+      }
     } else {
-      // No cache hit - run the AI image analysis
+      // No cache hit - run the AI image analysis.
 
       // ============================================
-      // CERT-FIRST BRANCH: Slab Detection → Cert Lookup → Cache Gate
-      // If the image is a slabbed comic, we can skip the expensive full AI
-      // pipeline and get structured data from the grading company's database.
+      // IMAGE-ANALYSIS-FIRST (H-SC1)
+      // The main IMAGE_ANALYSIS_PROMPT already returns isSlabbed + gradingCompany
+      // + certificationNumber, so we run it FIRST and only branch into the
+      // cert-first sub-pipeline when it flags a slab. This removes the dedicated
+      // executeSlabDetection vision call from every raw scan (the majority).
       // ============================================
-      // Phase 1: Slab Detection (lightweight ~2-3s AI call)
-      const slabDetStart = Date.now();
-      const slabBudget = Math.min(5_000, CERT_FIRST_BUDGET_MS);
-      try {
-        // Downscale just for slab detection (it only needs to see the slab/label).
-        const slabDetectImage = await downscaleForSlabDetection(base64Data);
-        const {
-          result: slabResult,
-          provider: slabProvider,
-          fallbackUsed: slabFallbackUsed,
-        } = await executeSlabDetection(
-          slabDetectImage,
-          "image/jpeg",
-          slabBudget,
-          aiProviders
-        );
-        aiCallsMade++;
-        const slabDetDuration = Date.now() - slabDetStart;
-        slabDetectionMeta = {
-          provider: slabProvider,
-          durationMs: slabDetDuration,
-          cost: slabProvider === "anthropic" ? 0.003 : 0.001,
-        };
-        p1 = slabProvider;
-        if (slabFallbackUsed) {
-          fb1 = true;
-        }
+      // Call 1: Image Analysis (REQUIRED)
+      const call1Timeout = Math.min(12_000, getRemainingBudget(scanStartTime));
+      const call1FallbackTimeout = Math.min(10_000, getRemainingBudget(scanStartTime));
+      const {
+        result: imageResult,
+        provider: imageProvider,
+        fallbackUsed: imageFallbackUsed,
+        fallbackReason: imageFallbackReason,
+      } = await executeWithFallback(
+        (provider, signal) =>
+          provider.analyzeImage({ base64Data, mediaType: normalizeMediaType(mediaType) }, { signal }),
+        call1Timeout,
+        call1FallbackTimeout,
+        "imageAnalysis",
+        aiProviders
+      );
+      aiCallsMade++;
+      p1 = imageProvider;
+      fb1 = imageFallbackUsed;
+      fr1 = imageFallbackReason;
 
-        console.info(
-          `[scan] Slab detection: isSlabbed=${slabResult.isSlabbed} company=${slabResult.gradingCompany} cert=${slabResult.certificationNumber} provider=${slabProvider} duration=${slabDetDuration}ms`
-        );
+      // Map provider result to comicDetails (same structure as before)
+      comicDetails = {
+        title: imageResult.title,
+        issueNumber: imageResult.issueNumber,
+        publisher: imageResult.publisher,
+        releaseYear: imageResult.releaseYear,
+        variant: imageResult.variant,
+        writer: imageResult.writer,
+        coverArtist: imageResult.coverArtist,
+        interiorArtist: imageResult.interiorArtist,
+        confidence: imageResult.confidence || "medium",
+        isSlabbed: imageResult.isSlabbed || false,
+        gradingCompany: imageResult.gradingCompany || null,
+        grade: imageResult.grade || null,
+        certificationNumber: imageResult.certificationNumber || null,
+        isSignatureSeries: imageResult.isSignatureSeries || false,
+        signedBy: imageResult.signedBy || null,
+        labelType: imageResult.labelType || undefined,
+        pageQuality: imageResult.pageQuality || undefined,
+        gradeDate: imageResult.gradeDate || undefined,
+        graderNotes: imageResult.graderNotes || undefined,
+        keyInfo: [],
+        barcode: imageResult.barcode || null,
+        barcodeNumber: imageResult.barcodeNumber || null,
+        coverHarvestable: imageResult.coverHarvestable,
+        coverCropCoordinates: imageResult.coverCropCoordinates,
+      };
 
-        // Phase 1.5: Normalize grading company
-        const normalizedCompany = normalizeGradingCompany(slabResult.gradingCompany);
+      // Debug: log AI identification results
+      console.info(`[scan] AI result: title="${comicDetails.title}" issue="${comicDetails.issueNumber}" variant="${comicDetails.variant}" barcode="${comicDetails.barcodeNumber}" barcode_raw="${comicDetails.barcode?.raw}" isSlabbed=${comicDetails.isSlabbed} confidence="${comicDetails.confidence}" provider="${imageProvider}"`);
 
-        if (slabResult.isSlabbed && normalizedCompany && slabResult.certificationNumber) {
+      // ============================================
+      // CERT-FIRST BRANCH (only when the main analysis flags a slab) — H-SC1.
+      // Seeded directly from imageResult's slab fields (no extra vision call).
+      // When cert lookup succeeds, comicDetails is rebuilt from authoritative
+      // cert + database data and the full creator/verification pipeline is
+      // skipped (certFirstPath = true). Raw comics fall straight through.
+      // ============================================
+      const normalizedCompany = normalizeGradingCompany(comicDetails.gradingCompany);
+      if (imageResult.isSlabbed && normalizedCompany && comicDetails.certificationNumber) {
+        try {
           // Phase 2: Cert Lookup (free, ~1-2s network call)
           const certResult = await lookupCertification(
             normalizedCompany,
-            slabResult.certificationNumber
+            comicDetails.certificationNumber
           );
 
           if (certResult.success && certResult.data) {
             certFirstPath = true;
             scanPath = "cert-first-full"; // May upgrade to cert-first-cached below
 
-            // Build comicDetails from cert data
+            // Build comicDetails from cert data (authoritative)
             comicDetails = {
               title: certResult.data.title,
               issueNumber: certResult.data.issueNumber,
@@ -463,7 +549,7 @@ export async function POST(request: NextRequest) {
               isSlabbed: true,
               gradingCompany: normalizedCompany,
               grade: certResult.data.grade,
-              certificationNumber: slabResult.certificationNumber,
+              certificationNumber: comicDetails.certificationNumber,
               isSignatureSeries: !!certResult.data.signatures,
               signedBy: certResult.data.signatures || null,
               labelType: certResult.data.labelType || undefined,
@@ -472,19 +558,6 @@ export async function POST(request: NextRequest) {
               graderNotes: certResult.data.graderNotes || undefined,
               keyInfo: [],
             };
-
-            // Phase 2.1: Label color → notes mapping
-            const labelColor = slabResult.labelColor;
-            if (labelColor) {
-              if (labelColor === "purple") {
-                (comicDetails as unknown as Record<string, unknown>).notes = "Restored (Purple Label)";
-              } else if (labelColor === "green") {
-                (comicDetails as unknown as Record<string, unknown>).notes = "Qualified (Green Label)";
-              } else if (labelColor === "red") {
-                (comicDetails as unknown as Record<string, unknown>).notes = "Conserved (Red Label)";
-              }
-              // Blue label and yellow non-CGC: no notes added
-            }
 
             // Phase 2.5: Parse art comments for creator info
             if (certResult.data.artComments) {
@@ -500,9 +573,9 @@ export async function POST(request: NextRequest) {
               comicDetails.keyInfo = certKeyEntries;
               comicDetails.keyInfoSource = "cgc";
             }
-            // Merge with database key info
+            // Merge with database key info (DB-primary, static fallback — M-PR6)
             if (comicDetails.title && comicDetails.issueNumber) {
-              const dbKeyInfo = lookupKeyInfo(
+              const dbKeyInfo = await lookupKeyInfoFromDb(
                 comicDetails.title,
                 comicDetails.issueNumber,
                 comicDetails.releaseYear ? parseInt(String(comicDetails.releaseYear)) : null
@@ -630,72 +703,24 @@ export async function POST(request: NextRequest) {
 
             comicDetails.dataSource = "barcode"; // cert-first uses structured data, not AI vision
           } else {
-            // Cert lookup failed - fall through to full pipeline
-            console.info(`[scan] Cert lookup failed for ${normalizedCompany} #${slabResult.certificationNumber}, falling back to full pipeline`);
+            // Cert lookup failed - keep the imageAnalysis result, run full pipeline
+            console.info(`[scan] Cert lookup failed for ${normalizedCompany} #${comicDetails.certificationNumber}, falling back to full pipeline`);
             scanPath = "cert-first-fallback";
           }
+        } catch (certErr) {
+          console.warn("[scan] Cert-first branch failed, falling back to full pipeline:", certErr);
+          // Continue with the imageAnalysis result through the full pipeline
         }
-      } catch (slabDetErr) {
-        console.warn("[scan] Slab detection failed, falling back to full pipeline:", slabDetErr);
-        // Continue to full pipeline
       }
 
       if (!certFirstPath) {
-      // Call 1: Image Analysis (REQUIRED)
-      const call1Timeout = Math.min(12_000, getRemainingBudget(scanStartTime));
-      const call1FallbackTimeout = Math.min(10_000, getRemainingBudget(scanStartTime));
-      const {
-        result: imageResult,
-        provider: imageProvider,
-        fallbackUsed: imageFallbackUsed,
-        fallbackReason: imageFallbackReason,
-      } = await executeWithFallback(
-        (provider, signal) =>
-          provider.analyzeImage({ base64Data, mediaType: normalizeMediaType(mediaType) }, { signal }),
-        call1Timeout,
-        call1FallbackTimeout,
-        "imageAnalysis",
-        aiProviders
-      );
-      aiCallsMade++;
-      p1 = imageProvider;
-      fb1 = imageFallbackUsed;
-      fr1 = imageFallbackReason;
 
-      // Map provider result to comicDetails (same structure as before)
-      comicDetails = {
-        title: imageResult.title,
-        issueNumber: imageResult.issueNumber,
-        publisher: imageResult.publisher,
-        releaseYear: imageResult.releaseYear,
-        variant: imageResult.variant,
-        writer: imageResult.writer,
-        coverArtist: imageResult.coverArtist,
-        interiorArtist: imageResult.interiorArtist,
-        confidence: imageResult.confidence || "medium",
-        isSlabbed: imageResult.isSlabbed || false,
-        gradingCompany: imageResult.gradingCompany || null,
-        grade: imageResult.grade || null,
-        certificationNumber: imageResult.certificationNumber || null,
-        isSignatureSeries: imageResult.isSignatureSeries || false,
-        signedBy: imageResult.signedBy || null,
-        labelType: imageResult.labelType || undefined,
-        pageQuality: imageResult.pageQuality || undefined,
-        gradeDate: imageResult.gradeDate || undefined,
-        graderNotes: imageResult.graderNotes || undefined,
-        keyInfo: [],
-        barcode: imageResult.barcode || null,
-        barcodeNumber: imageResult.barcodeNumber || null,
-        coverHarvestable: imageResult.coverHarvestable,
-        coverCropCoordinates: imageResult.coverCropCoordinates,
-      };
-
-      // Debug: log AI identification results
-      console.info(`[scan] AI result: title="${comicDetails.title}" issue="${comicDetails.issueNumber}" variant="${comicDetails.variant}" barcode="${comicDetails.barcodeNumber}" barcode_raw="${comicDetails.barcode?.raw}" confidence="${comicDetails.confidence}" provider="${imageProvider}"`);
-
-      // Low-confidence fallback: if primary returned low confidence, re-scan with the other provider
+      // Low-confidence fallback (L-SC21): if primary returned low confidence,
+      // re-scan with the other provider. Gated to SIGNED-IN users only (guests
+      // never trigger this extra paid vision call), and capped to exactly ONE
+      // extra call. The extra call is tagged as a distinct cost type below.
       const fallbackProvider = aiProviders.find((p) => p.name !== imageProvider);
-      if (imageResult.confidence === "low" && fallbackProvider) {
+      if (Boolean(userId) && imageResult.confidence === "low" && fallbackProvider) {
         const fallbackBudget = getRemainingBudget(scanStartTime);
         if (fallbackBudget >= 5000) {
           try {
@@ -706,6 +731,7 @@ export async function POST(request: NextRequest) {
               { signal: fallbackSignal }
             );
             aiCallsMade++;
+            lowConfidenceRescanProvider = fallbackProvider.name as "anthropic" | "gemini";
 
             // Prefer fallback's result over the low-confidence primary result
             if (fallbackResult.confidence !== "low") {
@@ -809,6 +835,10 @@ export async function POST(request: NextRequest) {
           grade: comicDetails.grade,
           gradingCompany: comicDetails.gradingCompany,
           certificationNumber: comicDetails.certificationNumber,
+          // Persist the barcode signal so a cache hit can re-run catalog + variant
+          // resolution (L-SC25). Cheap to store; never overrides on read.
+          barcode: comicDetails.barcode,
+          barcodeNumber: comicDetails.barcodeNumber,
           keyInfo: [], // Don't cache keyInfo - we get it fresh from DB or AI
         };
         // Fire and forget - don't block the response
@@ -834,7 +864,10 @@ export async function POST(request: NextRequest) {
     // ============================================
     const aiAlreadyIdentified = comicDetails.title && comicDetails.issueNumber &&
       comicDetails.confidence !== "low";
-    if (comicDetails.barcodeNumber && !usedCache) {
+    // L-SC25: run the FREE barcode_catalog lookup on cache hits too, so a cached
+    // scan still picks up community-approved catalog updates and we can re-resolve
+    // the variant below (no stale variant names from a 30-day-old cache entry).
+    if (comicDetails.barcodeNumber) {
       try {
         // Clean the barcode (remove any spaces/dashes)
         const cleanBarcode = comicDetails.barcodeNumber.replace(/[\s-]/g, "");
@@ -879,6 +912,38 @@ export async function POST(request: NextRequest) {
       } catch (barcodeError) {
         console.error("[analyze] Barcode lookup error:", barcodeError);
         // Continue with AI-detected data - barcode lookup is optional optimization
+      }
+    }
+
+    // L-SC25: re-resolve the variant on CACHE HITS. Fresh scans already did this
+    // in the image-analysis branch; a cached entry may carry a stale variant name
+    // that the community catalog has since corrected/approved, so we re-run the
+    // resolver here using the cached barcode add-on signal.
+    if (
+      usedCache &&
+      comicDetails.barcode?.parsed?.addonVariant &&
+      comicDetails.title &&
+      comicDetails.issueNumber
+    ) {
+      try {
+        const resolved = await resolveVariant(
+          {
+            title: comicDetails.title,
+            issueNumber: comicDetails.issueNumber,
+            releaseYear: comicDetails.releaseYear,
+            publisher: comicDetails.publisher,
+            parsedBarcode: comicDetails.barcode.parsed,
+            aiVariantHint: comicDetails.variant,
+          },
+          {
+            catalogLookup: lookupApprovedVariantName,
+            enricher: enrichVariantNameFromAI,
+          }
+        );
+        comicDetails.variant = resolved.variantName;
+        comicDetails.variantSource = resolved.source;
+      } catch (variantErr) {
+        console.warn("[scan] Cache-hit variant re-resolve failed:", variantErr);
       }
     }
 
@@ -959,10 +1024,11 @@ export async function POST(request: NextRequest) {
     // This saves 30-35% on Anthropic costs vs. 3 separate calls
     // ============================================
 
-    // First, check our curated key comics database (fast, guaranteed accurate, FREE)
+    // First, check our key comics database. M-PR6: DB-primary (community-approved
+    // entries) with the static curated list as fallback — fast, FREE.
     let databaseKeyInfo: string[] | null = null;
     if (comicDetails.title && comicDetails.issueNumber) {
-      databaseKeyInfo = lookupKeyInfo(comicDetails.title, comicDetails.issueNumber, comicDetails.releaseYear ? parseInt(String(comicDetails.releaseYear)) : null);
+      databaseKeyInfo = await lookupKeyInfoFromDb(comicDetails.title, comicDetails.issueNumber, comicDetails.releaseYear ? parseInt(String(comicDetails.releaseYear)) : null);
       if (databaseKeyInfo && databaseKeyInfo.length > 0) {
         comicDetails.keyInfo = databaseKeyInfo;
         comicDetails.keyInfoSource = "database";
@@ -1233,6 +1299,11 @@ export async function POST(request: NextRequest) {
     if (!certFirstPath) {
       costBreakdown.push({ type: "imageAnalysis", provider: p1 as "anthropic" | "gemini" });
     }
+    // L-SC21: attribute the one-and-only low-confidence re-scan as a distinct
+    // (extra) imageAnalysis call so its cost is visible and not undercounted.
+    if (lowConfidenceRescanProvider) {
+      costBreakdown.push({ type: "imageAnalysis", provider: lowConfidenceRescanProvider });
+    }
     if (slabDetectionMeta) {
       costBreakdown.push({ type: "imageAnalysis", provider: slabDetectionMeta.provider as "anthropic" | "gemini" });
     }
@@ -1349,7 +1420,23 @@ export async function POST(request: NextRequest) {
     delete comicDetails.coverHarvestable;
     delete comicDetails.coverCropCoordinates;
 
-    return NextResponse.json({ ...comicDetails, cerebro_assisted, _meta });
+    // Guest scan accounting: this scan succeeded, so record it server-side and
+    // surface the authoritative remaining/limit on the response (H-SC3 / M-SC4).
+    // The client should render these instead of its local optimistic count.
+    let guestMeta: { guestRemaining: number; guestLimit: number } | undefined;
+    if (!userId && guestId) {
+      const newCount = await incrementGuestScans(guestId);
+      const remaining = Math.max(0, guestRemaining - 1);
+      guestMeta = { guestRemaining: remaining, guestLimit: newCount + remaining };
+    }
+
+    const response = NextResponse.json({
+      ...comicDetails,
+      cerebro_assisted,
+      _meta,
+      ...(guestMeta ?? {}),
+    });
+    return withGuestCookie(response, userId ? null : guestId);
   } catch (error) {
     console.error("Error analyzing comic:", error);
 

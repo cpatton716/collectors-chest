@@ -1,15 +1,16 @@
 import type { SubscriptionTier } from "./subscriptionTypes";
 
 /**
- * Minimum platform fee in cents. Applied as a floor to the percent-based
- * fee so Stripe's $0.30 + 2.9% processing cost doesn't push the platform
- * underwater on small sales.
+ * Minimum platform fee in cents. Under the destination-charge model (M-MK16),
+ * the seller is merchant-of-record and bears Stripe's 2.9% + $0.30 processing
+ * cost; the platform's `application_fee_amount` is a CLEAN cut with no Stripe
+ * cost netted against it. The floor therefore guarantees the platform a minimum
+ * gross take per sale rather than protecting it from going underwater on Stripe
+ * fees (which it no longer pays).
  *
- * At 8% (free tier), the percent-fee alone breaks even at ~$5.88. At 5%
- * (premium), break-even is ~$14.29. A $0.75 floor keeps any sale safely
- * above Stripe's processing cost. Above $9.38 (8%) and $15 (5%) the
- * percent-fee already exceeds the floor, so the floor is invisible to
- * typical comic sales.
+ * The percent-fee crosses the $0.75 floor at $9.38 (8% free tier) and $15.00
+ * (5% premium). Below those points the floor wins; above them the percent-fee
+ * is already larger, so the floor is invisible to typical comic sales.
  */
 export const MIN_PLATFORM_FEE_CENTS = 75;
 
@@ -34,10 +35,15 @@ export function feePercentForTier(
 /**
  * Canonical cents-based, floored platform-fee calculation. ALL fee math
  * funnels through this so rounding behavior is identical everywhere
- * (checkout transfer amount, fees-paid summaries, dollar-based helpers). M-PAY10.
+ * (checkout `application_fee_amount`, fees-paid summaries, dollar-based
+ * helpers). M-PAY10 / M-MK16.
+ *
+ * Under destination charges this value is passed verbatim as Stripe's
+ * `application_fee_amount` - the platform's clean cut. (Stripe's processing
+ * cost is settled separately against the seller's balance.)
  *
  * Fee = max(percent-fee, MIN_PLATFORM_FEE_CENTS), capped at the sale total
- * so the seller can never receive a negative payout. Percent-fee uses
+ * so the application fee can never exceed the charge. Percent-fee uses
  * Math.floor so percent-driven rounding is seller-favorable; the floor takes
  * precedence when the sale is small enough that the percent computation falls
  * below it.
@@ -52,8 +58,13 @@ export function computePlatformFeeCents(
 }
 
 /**
- * Calculate the destination (seller) amount and platform fee in cents.
- * Thin wrapper over the canonical {@link computePlatformFeeCents}.
+ * Calculate the platform fee and the seller's gross share in cents for a
+ * destination charge. Thin wrapper over the canonical
+ * {@link computePlatformFeeCents}.
+ *
+ * `platformFee` is the Stripe `application_fee_amount`. `sellerAmount` is the
+ * seller's gross before Stripe deducts its 2.9% + $0.30 processing cost from
+ * the seller's balance (the seller is merchant-of-record). M-MK16.
  */
 export function calculateDestinationAmount(
   totalCents: number,

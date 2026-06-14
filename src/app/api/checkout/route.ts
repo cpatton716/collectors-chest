@@ -150,7 +150,11 @@ export async function POST(request: NextRequest) {
       : (listing.winningBid || 0);
     const total = basePrice + (listing.shippingCost || 0);
     const totalCents = Math.round(total * 100);
-    const { sellerAmount } = calculateDestinationAmount(
+    // Destination-charge model (M-MK16): the seller is merchant-of-record and
+    // bears Stripe's 2.9% + $0.30. `platformFee` is our clean application fee.
+    // The percent-fee crosses the $0.75 floor at $9.38 (8%) / $15.00 (5%);
+    // below those the floor applies, above them the percent-fee dominates.
+    const { platformFee } = calculateDestinationAmount(
       totalCents,
       listingRow?.platform_fee_percent || 8
     );
@@ -185,9 +189,17 @@ export async function POST(request: NextRequest) {
       ],
       mode: "payment",
       payment_intent_data: {
+        // Destination charge (M-MK16): `on_behalf_of` makes the SELLER the
+        // merchant-of-record so Stripe's 2.9% + $0.30 settles on the seller's
+        // account. `application_fee_amount` is the platform's clean cut, swept
+        // to the platform balance; `transfer_data.destination` routes the
+        // remainder (total − application fee) to the seller. We intentionally
+        // do NOT set `transfer_data.amount` - with destination charges the
+        // seller's share is derived from total minus the application fee.
+        on_behalf_of: sellerProfile.stripe_connect_account_id,
+        application_fee_amount: platformFee,
         transfer_data: {
           destination: sellerProfile.stripe_connect_account_id,
-          amount: sellerAmount,
         },
         // Mirror context onto the PaymentIntent so refund/dispute webhooks
         // (which carry the PaymentIntent, not the Checkout Session) can reverse

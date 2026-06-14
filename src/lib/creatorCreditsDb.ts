@@ -190,14 +190,11 @@ export async function submitFeedback(
     return { feedback: null, error: "Failed to submit feedback" };
   }
 
-  // Update reviewee's rating counts
-  const countField = input.ratingType === "positive" ? "positive_ratings" : "negative_ratings";
-  await supabaseAdmin.rpc("increment_field", {
-    table_name: "profiles",
-    field_name: countField,
-    row_id: input.revieweeId,
-    increment_value: 1,
-  });
+  // Reviewee's rating counts are maintained automatically by the
+  // `trigger_update_feedback_ratings` AFTER INSERT trigger on
+  // transaction_feedback (see 20260130_reputation_system.sql). No manual
+  // increment here — `increment_field` is not a defined RPC and a manual
+  // bump would double-count. (H-SO1)
 
   // Mark reminder as complete if exists
   await supabaseAdmin
@@ -249,23 +246,12 @@ export async function updateFeedback(
   if (input.ratingType !== undefined && input.ratingType !== existing.rating_type) {
     updates.rating_type = input.ratingType;
 
-    // Update reviewee's rating counts (decrement old, increment new)
-    const oldField = existing.rating_type === "positive" ? "positive_ratings" : "negative_ratings";
-    const newField = input.ratingType === "positive" ? "positive_ratings" : "negative_ratings";
-
-    await supabaseAdmin.rpc("increment_field", {
-      table_name: "profiles",
-      field_name: oldField,
-      row_id: existing.reviewee_id,
-      increment_value: -1,
-    });
-
-    await supabaseAdmin.rpc("increment_field", {
-      table_name: "profiles",
-      field_name: newField,
-      row_id: existing.reviewee_id,
-      increment_value: 1,
-    });
+    // Reviewee's rating counts (decrement old / increment new) are adjusted
+    // atomically by the `trigger_update_feedback_ratings` AFTER UPDATE trigger
+    // when OLD.rating_type != NEW.rating_type (see
+    // 20260130_reputation_system.sql). No manual increment here —
+    // `increment_field` is not a defined RPC and manual bumps would
+    // double-count. (H-SO1)
   }
 
   // Update feedback
@@ -740,13 +726,11 @@ export async function recordContribution(
     return { contribution: null, error: "Failed to record contribution" };
   }
 
-  // Increment user's contribution count
-  await supabaseAdmin.rpc("increment_field", {
-    table_name: "profiles",
-    field_name: "community_contribution_count",
-    row_id: userId,
-    increment_value: 1,
-  });
+  // The user's contribution count is incremented automatically by the
+  // `trigger_update_contribution_count` AFTER INSERT trigger on
+  // community_contributions (see 20260130_reputation_system.sql). No manual
+  // increment here — `increment_field` is not a defined RPC and a manual bump
+  // would double-count. (H-SO1)
 
   return { contribution: transformContribution(data as ContributionRow), error: null };
 }

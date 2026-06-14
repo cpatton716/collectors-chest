@@ -125,66 +125,37 @@ export async function PATCH(request: NextRequest) {
 
     const now = new Date().toISOString();
 
+    // "correct" is guaranteed to carry a correctedUpc thanks to the Zod refine.
+    const parsed = action === "correct" ? parseBarcode(correctedUpc!) : null;
+
+    // M-SC14: the review + catalog writes must be atomic -- a half-applied
+    // review (e.g. review marked approved but catalog still pending, or a
+    // rejected review with the catalog row still present) corrupts the queue.
+    // Route them through the transactional `review_barcode(...)` RPC. The RPC
+    // is migration-gated; until it lands we fall back to per-write error checks
+    // so a failed write aborts the request instead of silently half-applying.
+    const writeError = await applyBarcodeReview({
+      reviewId,
+      action,
+      resolvedBy: profile.id,
+      adminNotes: adminNotes || null,
+      correctedUpc: correctedUpc ?? null,
+      parsed,
+      barcodeCatalogId: review.barcode_catalog_id,
+      now,
+    });
+
+    if (writeError) {
+      console.error("Barcode review write failed:", writeError);
+      return NextResponse.json({ error: "Failed to apply review" }, { status: 500 });
+    }
+
     if (action === "approve") {
-      // Update review status
-      await supabaseAdmin
-        .from("admin_barcode_reviews")
-        .update({
-          status: "approved",
-          admin_notes: adminNotes || null,
-          resolved_at: now,
-          resolved_by: profile.id,
-        })
-        .eq("id", reviewId);
-
-      // Update catalog entry status
-      await supabaseAdmin
-        .from("barcode_catalog")
-        .update({
-          status: "approved",
-          reviewed_by: profile.id,
-          reviewed_at: now,
-        })
-        .eq("id", review.barcode_catalog_id);
-
       await logAdminAction(profile.id, "approve_barcode", undefined, {
         reviewId,
         barcodeCatalogId: review.barcode_catalog_id,
       });
-
     } else if (action === "correct") {
-      // correctedUpc is guaranteed present here thanks to the Zod refine above.
-      // Parse corrected UPC
-      const parsed = parseBarcode(correctedUpc!);
-
-      // Update review status with correction
-      await supabaseAdmin
-        .from("admin_barcode_reviews")
-        .update({
-          status: "corrected",
-          corrected_upc: correctedUpc,
-          admin_notes: adminNotes || null,
-          resolved_at: now,
-          resolved_by: profile.id,
-        })
-        .eq("id", reviewId);
-
-      // Update catalog entry with corrected data
-      await supabaseAdmin
-        .from("barcode_catalog")
-        .update({
-          raw_barcode: correctedUpc!,
-          upc_prefix: parsed?.upcPrefix || null,
-          item_number: parsed?.itemNumber || null,
-          check_digit: parsed?.checkDigit || null,
-          addon_issue: parsed?.addonIssue || null,
-          addon_variant: parsed?.addonVariant || null,
-          status: "approved",
-          reviewed_by: profile.id,
-          reviewed_at: now,
-        })
-        .eq("id", review.barcode_catalog_id);
-
       // "Correct" resolves the barcode to an approved (corrected) state; log it
       // as an approval with the corrected UPC captured in details.
       await logAdminAction(profile.id, "approve_barcode", undefined, {
@@ -193,25 +164,7 @@ export async function PATCH(request: NextRequest) {
         corrected: true,
         correctedUpc,
       });
-
     } else if (action === "reject") {
-      // Update review status
-      await supabaseAdmin
-        .from("admin_barcode_reviews")
-        .update({
-          status: "rejected",
-          admin_notes: adminNotes || null,
-          resolved_at: now,
-          resolved_by: profile.id,
-        })
-        .eq("id", reviewId);
-
-      // Delete the catalog entry (rejected = barcode not valid)
-      await supabaseAdmin
-        .from("barcode_catalog")
-        .delete()
-        .eq("id", review.barcode_catalog_id);
-
       await logAdminAction(profile.id, "reject_barcode", undefined, {
         reviewId,
         barcodeCatalogId: review.barcode_catalog_id,
@@ -223,6 +176,151 @@ export async function PATCH(request: NextRequest) {
     console.error("Error in barcode reviews PATCH:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
+}
+
+type ParsedBarcode = ReturnType<typeof parseBarcode>;
+
+interface BarcodeReviewWrite {
+  reviewId: string;
+  action: "approve" | "correct" | "reject";
+  resolvedBy: string;
+  adminNotes: string | null;
+  correctedUpc: string | null;
+  parsed: ParsedBarcode;
+  barcodeCatalogId: string;
+  now: string;
+}
+
+/**
+ * True when a Postgres error indicates the RPC function does not exist yet
+ * (pre-migration). PostgREST surfaces this as code "42883" (undefined_function)
+ * or "PGRST202" (no matching function in schema cache). Pure + exported so the
+ * RPC-missing → fallback decision is unit-testable (M-SC14).
+ */
+export function isMissingFunctionError(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  if (error.code === "42883" || error.code === "PGRST202") return true;
+  return /review_barcode|function .* does not exist|could not find the function/i.test(
+    error.message || ""
+  );
+}
+
+/**
+ * Apply the paired review + catalog writes for a barcode review.
+ *
+ * Primary path: the transactional `review_barcode(...)` RPC (atomic). Fallback
+ * (until the migration lands): per-write error checks -- the first failed write
+ * short-circuits and is returned so the caller aborts the request rather than
+ * leaving the queue half-applied.
+ *
+ * Returns null on success, or the failing error otherwise.
+ */
+async function applyBarcodeReview(
+  w: BarcodeReviewWrite
+): Promise<{ code?: string; message?: string } | null> {
+  // 1) Transactional RPC (migration-gated).
+  const { error: rpcError } = await supabaseAdmin.rpc("review_barcode", {
+    p_review_id: w.reviewId,
+    p_action: w.action,
+    p_resolved_by: w.resolvedBy,
+    p_admin_notes: w.adminNotes,
+    p_corrected_upc: w.correctedUpc,
+    p_upc_prefix: w.parsed?.upcPrefix ?? null,
+    p_item_number: w.parsed?.itemNumber ?? null,
+    p_check_digit: w.parsed?.checkDigit ?? null,
+    p_addon_issue: w.parsed?.addonIssue ?? null,
+    p_addon_variant: w.parsed?.addonVariant ?? null,
+    p_barcode_catalog_id: w.barcodeCatalogId,
+  });
+
+  if (!rpcError) {
+    return null;
+  }
+  // A real RPC failure (not "function missing") must abort -- don't double-apply.
+  if (!isMissingFunctionError(rpcError)) {
+    return rpcError;
+  }
+
+  // 2) Pre-migration fallback: per-write paths with error checks.
+  return applyBarcodeReviewFallback(w);
+}
+
+async function applyBarcodeReviewFallback(
+  w: BarcodeReviewWrite
+): Promise<{ code?: string; message?: string } | null> {
+  if (w.action === "approve") {
+    const { error: reviewErr } = await supabaseAdmin
+      .from("admin_barcode_reviews")
+      .update({
+        status: "approved",
+        admin_notes: w.adminNotes,
+        resolved_at: w.now,
+        resolved_by: w.resolvedBy,
+      })
+      .eq("id", w.reviewId);
+    if (reviewErr) return reviewErr;
+
+    const { error: catalogErr } = await supabaseAdmin
+      .from("barcode_catalog")
+      .update({
+        status: "approved",
+        reviewed_by: w.resolvedBy,
+        reviewed_at: w.now,
+      })
+      .eq("id", w.barcodeCatalogId);
+    if (catalogErr) return catalogErr;
+    return null;
+  }
+
+  if (w.action === "correct") {
+    const { error: reviewErr } = await supabaseAdmin
+      .from("admin_barcode_reviews")
+      .update({
+        status: "corrected",
+        corrected_upc: w.correctedUpc,
+        admin_notes: w.adminNotes,
+        resolved_at: w.now,
+        resolved_by: w.resolvedBy,
+      })
+      .eq("id", w.reviewId);
+    if (reviewErr) return reviewErr;
+
+    const { error: catalogErr } = await supabaseAdmin
+      .from("barcode_catalog")
+      .update({
+        raw_barcode: w.correctedUpc,
+        upc_prefix: w.parsed?.upcPrefix || null,
+        item_number: w.parsed?.itemNumber || null,
+        check_digit: w.parsed?.checkDigit || null,
+        addon_issue: w.parsed?.addonIssue || null,
+        addon_variant: w.parsed?.addonVariant || null,
+        status: "approved",
+        reviewed_by: w.resolvedBy,
+        reviewed_at: w.now,
+      })
+      .eq("id", w.barcodeCatalogId);
+    if (catalogErr) return catalogErr;
+    return null;
+  }
+
+  // action === "reject"
+  const { error: reviewErr } = await supabaseAdmin
+    .from("admin_barcode_reviews")
+    .update({
+      status: "rejected",
+      admin_notes: w.adminNotes,
+      resolved_at: w.now,
+      resolved_by: w.resolvedBy,
+    })
+    .eq("id", w.reviewId);
+  if (reviewErr) return reviewErr;
+
+  const { error: catalogErr } = await supabaseAdmin
+    .from("barcode_catalog")
+    .delete()
+    .eq("id", w.barcodeCatalogId);
+  if (catalogErr) return catalogErr;
+  return null;
 }
 
 // Helper function to parse barcode into components

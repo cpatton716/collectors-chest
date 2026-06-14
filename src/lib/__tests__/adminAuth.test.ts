@@ -28,7 +28,7 @@ jest.mock("../db", () => ({ getProfileByClerkId: jest.fn() }));
 const mockCaptureException = jest.fn();
 jest.mock("@sentry/nextjs", () => ({ captureException: (...args: unknown[]) => mockCaptureException(...args) }));
 
-import { logAdminAction } from "../adminAuth";
+import { isPayingSubscriber, logAdminAction } from "../adminAuth";
 
 describe("logAdminAction", () => {
   beforeEach(() => {
@@ -77,5 +77,33 @@ describe("logAdminAction", () => {
     mockInsert.mockRejectedValueOnce(new Error("network"));
     await expect(logAdminAction("admin-1", "approve_barcode", "bc-1")).resolves.toBeUndefined();
     expect(mockCaptureException).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * L-AD5: comp grant guard. A comp must never overwrite an active paying
+ * customer's Stripe-managed billing dates. `isPayingSubscriber` is the pure
+ * predicate that drives the guard inside grantPremiumAccess.
+ */
+describe("isPayingSubscriber", () => {
+  it("treats a live stripe_subscription_id as paying", () => {
+    expect(isPayingSubscriber({ stripe_subscription_id: "sub_123" })).toBe(true);
+  });
+
+  it("treats a real paid subscription_source as paying", () => {
+    expect(isPayingSubscriber({ subscription_source: "stripe" })).toBe(true);
+  });
+
+  it("does not treat a comped source as paying", () => {
+    expect(isPayingSubscriber({ subscription_source: "comped" })).toBe(false);
+  });
+
+  it("does not treat a trial source as paying", () => {
+    expect(isPayingSubscriber({ subscription_source: "trial" })).toBe(false);
+  });
+
+  it("does not treat an empty profile as paying", () => {
+    expect(isPayingSubscriber({})).toBe(false);
+    expect(isPayingSubscriber({ stripe_subscription_id: null, subscription_source: null })).toBe(false);
   });
 });

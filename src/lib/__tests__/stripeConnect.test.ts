@@ -1,6 +1,7 @@
 import {
   MIN_PLATFORM_FEE_CENTS,
   calculateDestinationAmount,
+  computePlatformFeeCents,
   isConnectOnboardingComplete,
   buildOnboardingReturnUrl,
   buildOnboardingRefreshUrl,
@@ -84,6 +85,60 @@ describe("stripeConnect", () => {
 
     it("exposes MIN_PLATFORM_FEE_CENTS as 75 (regression: floor must not be silently changed)", () => {
       expect(MIN_PLATFORM_FEE_CENTS).toBe(75);
+    });
+  });
+
+  // M-MK16: destination-charge model. The platform fee is passed verbatim as
+  // Stripe's `application_fee_amount`; the seller (merchant-of-record) receives
+  // total − application_fee and bears Stripe's 2.9% + $0.30 separately. These
+  // tests pin the money path: the value the checkout route sends as
+  // `application_fee_amount` MUST equal `computePlatformFeeCents`.
+  describe("destination charge application_fee_amount (M-MK16)", () => {
+    it("application_fee_amount equals the canonical platform fee (free tier, $100)", () => {
+      const totalCents = 10000;
+      const feePercent = 8;
+      const { platformFee } = calculateDestinationAmount(totalCents, feePercent);
+      // What the checkout route assigns to application_fee_amount:
+      const applicationFeeAmount = platformFee;
+      expect(applicationFeeAmount).toBe(computePlatformFeeCents(totalCents, feePercent));
+      expect(applicationFeeAmount).toBe(800);
+    });
+
+    it("application_fee_amount equals the canonical platform fee (premium tier, $100)", () => {
+      const totalCents = 10000;
+      const feePercent = 5;
+      const { platformFee } = calculateDestinationAmount(totalCents, feePercent);
+      expect(platformFee).toBe(computePlatformFeeCents(totalCents, feePercent));
+      expect(platformFee).toBe(500);
+    });
+
+    it("application_fee_amount + seller share reconstruct the full charge", () => {
+      // No transfer_data.amount under destination charges: seller nets
+      // total − application_fee, so the two MUST sum back to the charge.
+      const totalCents = 4237; // $42.37
+      const { platformFee, sellerAmount } = calculateDestinationAmount(totalCents, 8);
+      expect(platformFee + sellerAmount).toBe(totalCents);
+    });
+
+    it("application_fee_amount respects the $0.75 floor on a small sale", () => {
+      // $6.00 × 8% = $0.48 → floor wins → application_fee_amount = $0.75
+      const { platformFee } = calculateDestinationAmount(600, 8);
+      expect(platformFee).toBe(MIN_PLATFORM_FEE_CENTS);
+      expect(platformFee).toBe(75);
+    });
+
+    it("application_fee_amount floors the percent-fee to whole cents (platform-conservative rounding)", () => {
+      // $33.33 × 5% = $1.66650 → floor → $1.66 application fee
+      const { platformFee } = calculateDestinationAmount(3333, 5);
+      expect(platformFee).toBe(166);
+    });
+
+    it("application_fee_amount never exceeds the charge (Stripe rejects fee > amount)", () => {
+      // $0.40 sale × 8% = $0.03, floor $0.75 → capped at the $0.40 charge.
+      const totalCents = 40;
+      const { platformFee } = calculateDestinationAmount(totalCents, 8);
+      expect(platformFee).toBeLessThanOrEqual(totalCents);
+      expect(platformFee).toBe(40);
     });
   });
 

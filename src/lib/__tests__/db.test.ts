@@ -26,8 +26,10 @@ jest.mock("../supabase", () => ({
 import type { CollectionItem } from "@/types/comic";
 
 import {
+  COMIC_COVERS_BUCKET,
   COMIC_METADATA_PRICE_MAX_AGE_MS,
   isComicMetadataPriceStale,
+  parseComicCoverStoragePath,
   transformCollectionItemToDbComic,
   transformDbComicToCollectionItem,
 } from "../db";
@@ -61,7 +63,8 @@ function buildItem(overrides: Partial<CollectionItem> = {}): CollectionItem {
       priceData: null,
       keyInfo: ["1st full appearance of Venom"],
     },
-    coverImageUrl: "https://cdn.example.com/asm300.jpg",
+    // Use an allowlisted cover host (sanitizer now enforces the host allowlist).
+    coverImageUrl: "https://i.ebayimg.com/images/g/asm300/s-l1600.jpg",
     conditionGrade: 9.8,
     conditionLabel: "Near Mint",
     isGraded: true,
@@ -111,7 +114,7 @@ describe("transformCollectionItemToDbComic", () => {
 
   it("passes through a clean https cover URL unchanged", () => {
     const row = transformCollectionItemToDbComic(buildItem(), PROFILE_ID);
-    expect(row.cover_image_url).toBe("https://cdn.example.com/asm300.jpg");
+    expect(row.cover_image_url).toBe("https://i.ebayimg.com/images/g/asm300/s-l1600.jpg");
   });
 
   it("defaults missing customKeyInfo to an empty array", () => {
@@ -260,5 +263,100 @@ describe("isComicMetadataPriceStale (H-PR2)", () => {
 
   it("returns false for an unparseable updatedAt rather than nuking the cache", () => {
     expect(isComicMetadataPriceStale({ priceData, updatedAt: "not-a-date" }, now)).toBe(false);
+  });
+});
+
+describe("parseComicCoverStoragePath (M-CO16)", () => {
+  const base = "https://abcd1234.supabase.co";
+  const ownUrl = `${base}/storage/v1/object/public/${COMIC_COVERS_BUCKET}/profile-9/1716000000000-x7q2.webp`;
+
+  it("extracts the in-bucket object path for our own comic-covers URL", () => {
+    expect(parseComicCoverStoragePath(ownUrl)).toBe("profile-9/1716000000000-x7q2.webp");
+  });
+
+  it("decodes percent-encoded path segments", () => {
+    const encoded = `${base}/storage/v1/object/public/${COMIC_COVERS_BUCKET}/profile-9/my%20cover.webp`;
+    expect(parseComicCoverStoragePath(encoded)).toBe("profile-9/my cover.webp");
+  });
+
+  it("returns null for a different Supabase bucket (not ours to delete)", () => {
+    const other = `${base}/storage/v1/object/public/avatars/profile-9/pic.webp`;
+    expect(parseComicCoverStoragePath(other)).toBeNull();
+  });
+
+  it("returns null for external/shared cover hosts (eBay, OpenLibrary, Clerk)", () => {
+    expect(parseComicCoverStoragePath("https://i.ebayimg.com/images/g/abc/s-l1600.jpg")).toBeNull();
+    expect(parseComicCoverStoragePath("https://covers.openlibrary.org/b/id/123-L.jpg")).toBeNull();
+    expect(parseComicCoverStoragePath("https://img.clerk.com/abc.png")).toBeNull();
+  });
+
+  it("returns null for blank / null / undefined / non-string input", () => {
+    expect(parseComicCoverStoragePath("")).toBeNull();
+    expect(parseComicCoverStoragePath(null)).toBeNull();
+    expect(parseComicCoverStoragePath(undefined)).toBeNull();
+    // @ts-expect-error - guard against accidental non-string callers
+    expect(parseComicCoverStoragePath(12345)).toBeNull();
+  });
+
+  it("returns null for a malformed URL", () => {
+    expect(parseComicCoverStoragePath("not a url")).toBeNull();
+  });
+
+  it("returns null when the bucket marker is present but the path is empty", () => {
+    expect(
+      parseComicCoverStoragePath(`${base}/storage/v1/object/public/${COMIC_COVERS_BUCKET}/`)
+    ).toBeNull();
+  });
+
+  it("rejects path traversal sequences defensively", () => {
+    const traversal = `${base}/storage/v1/object/public/${COMIC_COVERS_BUCKET}/../secrets/key.webp`;
+    expect(parseComicCoverStoragePath(traversal)).toBeNull();
+  });
+});
+
+describe("trimmed list-row transform (M-CO9)", () => {
+  // The list query omits price_data + key_info; the transform must still
+  // produce a well-formed CollectionItem.
+  const trimmedRow = {
+    id: "comic-2",
+    title: "X-Men",
+    issue_number: "1",
+    variant: null,
+    publisher: "Marvel",
+    cover_artist: null,
+    writer: null,
+    interior_artist: null,
+    release_year: "1963",
+    confidence: "high",
+    is_slabbed: false,
+    grading_company: null,
+    grade: null,
+    is_signature_series: false,
+    signed_by: null,
+    // price_data + key_info intentionally absent (trimmed columns)
+    cover_image_url: "https://cdn.example.com/xmen1.jpg",
+    condition_grade: 6.0,
+    condition_label: "Fine",
+    is_graded: false,
+    purchase_price: 100,
+    purchase_date: null,
+    notes: null,
+    for_sale: false,
+    for_trade: false,
+    asking_price: null,
+    average_price: null,
+    date_added: "2024-05-01",
+    is_starred: false,
+    custom_key_info: null,
+    custom_key_info_status: null,
+    comic_lists: [{ list_id: "l9" }],
+  };
+
+  it("defaults missing price_data to null and key_info to []", () => {
+    const item = transformDbComicToCollectionItem(trimmedRow);
+    expect(item.comic.priceData).toBeNull();
+    expect(item.comic.keyInfo).toEqual([]);
+    expect(item.comic.title).toBe("X-Men");
+    expect(item.listIds).toEqual(["l9"]);
   });
 });

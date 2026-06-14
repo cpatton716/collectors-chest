@@ -1,6 +1,8 @@
-"use client";
+import { redirect } from "next/navigation";
 
 import { Check, X, Minus, Trophy, Shield, AlertCircle, Sparkles, Network, MessageCircle, Building2 } from "lucide-react";
+
+import { getAdminProfile } from "@/lib/adminAuth";
 
 interface FeatureRow {
   feature: string;
@@ -134,7 +136,14 @@ const colorClasses: Record<string, { bg: string; border: string; ring: string; t
   red: { bg: "bg-red-50", border: "border-red-300", ring: "ring-red-200", text: "text-red-900" },
 };
 
-export default function CLZComparisonPage() {
+export default async function CLZComparisonPage() {
+  // Server-side admin gate (M-AD1): defense-in-depth with the admin layout and
+  // middleware. Non-admins (incl. unauthenticated) never receive this page.
+  const adminProfile = await getAdminProfile();
+  if (!adminProfile) {
+    redirect("/collection");
+  }
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-8">
       {/* Hero - 30-second pitch */}

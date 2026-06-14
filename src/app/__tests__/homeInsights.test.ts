@@ -18,12 +18,7 @@ jest.mock("@/lib/storage", () => ({
   },
 }));
 
-import {
-  computeHomeStats,
-  getBestBuy,
-  getBiggestDecline,
-  getBiggestIncrease,
-} from "../page";
+import { computeHomeStats, getBestBuy } from "../page";
 
 import type { CollectionItem } from "@/types/comic";
 
@@ -112,42 +107,6 @@ describe("computeHomeStats", () => {
   it("keeps profitLossPercent at 0 when cost basis is 0 (no divide-by-zero)", () => {
     const stats = computeHomeStats([makeItem({ id: "a", estimatedValue: 100 })]);
     expect(stats.profitLossPercent).toBe(0);
-  });
-});
-
-describe("getBiggestIncrease", () => {
-  it("returns null when no books have a value", () => {
-    expect(getBiggestIncrease([], 30)).toBeNull();
-    expect(getBiggestIncrease([makeItem({ id: "a" })], 30)).toBeNull();
-  });
-
-  it("picks the book with the largest positive change", () => {
-    const collection = [
-      makeItem({ id: "small", estimatedValue: 10 }),
-      makeItem({ id: "big", estimatedValue: 1000 }),
-    ];
-    const result = getBiggestIncrease(collection, 30);
-    expect(result?.item.id).toBe("big");
-    expect(result?.change).toBeGreaterThan(0);
-  });
-
-  it("produces a larger change for a longer lookback window", () => {
-    const collection = [makeItem({ id: "a", estimatedValue: 100 })];
-    const c30 = getBiggestIncrease(collection, 30)!.change;
-    const c90 = getBiggestIncrease(collection, 90)!.change;
-    expect(c90).toBeGreaterThan(c30);
-  });
-});
-
-describe("getBiggestDecline", () => {
-  it("returns a negative change", () => {
-    const result = getBiggestDecline([makeItem({ id: "a", estimatedValue: 100 })], 30);
-    expect(result).not.toBeNull();
-    expect(result!.change).toBeLessThan(0);
-  });
-
-  it("returns null with no priced books", () => {
-    expect(getBiggestDecline([makeItem({ id: "a" })], 60)).toBeNull();
   });
 });
 

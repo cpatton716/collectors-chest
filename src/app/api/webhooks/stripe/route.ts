@@ -9,6 +9,7 @@ import { getProfileForEmail, sendNotificationEmail } from "@/lib/email";
 import { isWebhookProcessed, markWebhookProcessed } from "@/lib/cache";
 import { invalidateProfileCacheByProfileId } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
+import { calculateDestinationAmount } from "@/lib/stripeConnect";
 import {
   SCAN_PACK_AMOUNT,
   addPurchasedScans,
@@ -125,20 +126,7 @@ export async function POST(request: NextRequest) {
       // ============================================
       case "account.updated": {
         const account = event.data.object as Stripe.Account;
-        const isComplete = account.charges_enabled && account.details_submitted;
-
-        const { data: updatedProfiles } = await supabaseAdmin
-          .from("profiles")
-          .update({ stripe_connect_onboarding_complete: isComplete })
-          .eq("stripe_connect_account_id", account.id)
-          .select("id");
-
-        // Connect status is read on the hot profile-cache path - invalidate so
-        // the seller's onboarding flag isn't served stale for the cache TTL. M-PAY11.
-        for (const p of updatedProfiles || []) {
-          await invalidateProfileCacheByProfileId(p.id);
-        }
-
+        await handleConnectAccountUpdated(account);
         break;
       }
 
@@ -166,7 +154,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
   // Check if this is a scan pack purchase
   if (metadata.isScanPack === "true" && metadata.profileId) {
-    await handleScanPackPurchase(metadata.profileId);
+    await handleScanPackPurchase(session.id, metadata.profileId);
     return;
   }
 
@@ -180,11 +168,146 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   // Subscription checkout is handled by subscription.created event
 }
 
-async function handleScanPackPurchase(profileId: string) {
+// Credit a scan-pack purchase to the buyer's profile. M-PAY5.
+//
+// The event-level idempotency marker (isWebhookProcessed) is best-effort: it
+// lives in Redis and can expire or be lost, and Stripe may deliver the same
+// checkout.session.completed under different event ids (e.g. via a manual
+// resend). A duplicate credit silently hands out free scans, so scan-pack
+// credit is also made idempotent at the database layer keyed on the Stripe
+// SESSION id (stable across redeliveries).
+//
+// Primary path: the `credit_scan_pack(p_session_id, p_profile_id, p_scans)`
+// SECURITY DEFINER RPC atomically (a) inserts the session into
+// processed_stripe_sessions and (b) increments purchased_scans, doing the
+// increment ONLY when the session row was newly inserted - so a replay is a
+// safe no-op. See MIGRATIONS (REQUIRED).
+//
+// Migration-safe fallback: until that RPC/table ships, calling a missing
+// function errors (undefined_function 42883 / PostgREST PGRST202). We detect
+// that and fall back to the existing non-idempotent addPurchasedScans path so
+// the webhook keeps functioning and building pre-migration.
+async function handleScanPackPurchase(sessionId: string, profileId: string) {
+  const { error: rpcError } = await supabaseAdmin.rpc("credit_scan_pack", {
+    p_session_id: sessionId,
+    p_profile_id: profileId,
+    p_scans: SCAN_PACK_AMOUNT,
+  });
+
+  if (!rpcError) {
+    // RPC handled the credit (or no-opped on replay) atomically.
+    return;
+  }
+
+  // The RPC isn't deployed yet - fall back to the legacy path. Any OTHER RPC
+  // error (e.g. a real DB failure) is rethrown so Stripe retries rather than
+  // silently dropping a paid scan pack.
+  const rpcMissing = rpcError.code === "42883" || rpcError.code === "PGRST202";
+  if (!rpcMissing) {
+    throw new Error(`[handleScanPackPurchase] credit_scan_pack failed: ${rpcError.message}`);
+  }
+
   const result = await addPurchasedScans(profileId, SCAN_PACK_AMOUNT);
   if (!result.success) {
     console.error(`Failed to add scans to profile ${profileId}`);
   }
+}
+
+// ============================================
+// Destination-charge reconciliation (M-MK16)
+// ============================================
+
+export interface ChargeFinancials {
+  /** Total charged to the buyer, in cents. */
+  grossCents: number;
+  /** Platform's cut (Stripe `application_fee_amount`), in cents. */
+  applicationFeeCents: number;
+  /**
+   * Seller's gross share, in cents (gross - application fee). Under destination
+   * charges the seller is merchant-of-record and Stripe nets its 2.9% + $0.30
+   * processing cost from this on the seller's balance; we record the
+   * pre-processing seller net so it matches the transfer/charge math.
+   */
+  sellerNetCents: number;
+  /** Where the numbers came from: the settled Stripe charge, or a local estimate. */
+  source: "charge" | "estimate";
+}
+
+// Pure extraction of the destination-charge breakdown from a Stripe Charge.
+// Reads `application_fee_amount` (the platform cut) and the gross `amount`, with
+// `amount_captured` preferred when present (partial captures). Falls back to the
+// passed-in estimate when the charge carries no application fee (e.g. a
+// pre-M-MK16 separate-charges/transfer_data charge, or a charge we couldn't
+// retrieve). Exported for unit testing. M-MK16.
+export function extractChargeFinancials(
+  charge: Pick<Stripe.Charge, "amount" | "amount_captured" | "application_fee_amount"> | null,
+  estimateTotalCents: number,
+  estimatePlatformFeePercent: number
+): ChargeFinancials {
+  const applicationFee =
+    charge && typeof charge.application_fee_amount === "number"
+      ? charge.application_fee_amount
+      : null;
+
+  if (charge && applicationFee !== null) {
+    const grossCents =
+      typeof charge.amount_captured === "number" && charge.amount_captured > 0
+        ? charge.amount_captured
+        : charge.amount;
+    return {
+      grossCents,
+      applicationFeeCents: applicationFee,
+      sellerNetCents: grossCents - applicationFee,
+      source: "charge",
+    };
+  }
+
+  // No settled application fee available - estimate locally from the listing's
+  // locked platform_fee_percent using the canonical fee math.
+  const safeTotal = Math.max(0, Math.round(estimateTotalCents));
+  const { sellerAmount, platformFee } = calculateDestinationAmount(
+    safeTotal,
+    estimatePlatformFeePercent
+  );
+  return {
+    grossCents: safeTotal,
+    applicationFeeCents: platformFee,
+    sellerNetCents: sellerAmount,
+    source: "estimate",
+  };
+}
+
+// Retrieve the settled charge for a checkout session's PaymentIntent and reduce
+// it to the destination-charge financials, falling back to a local estimate
+// when Stripe is unavailable or the charge can't be read. M-MK16.
+async function resolveChargeFinancials(
+  session: Stripe.Checkout.Session,
+  estimateTotalCents: number,
+  platformFeePercent: number | undefined
+): Promise<ChargeFinancials> {
+  // 8% free-tier default matches the auctions.platform_fee_percent column default.
+  const feePercent = platformFeePercent ?? 8;
+
+  const paymentIntentId =
+    typeof session.payment_intent === "string" ? session.payment_intent : null;
+
+  if (stripe && paymentIntentId) {
+    try {
+      const pi = await stripe.paymentIntents.retrieve(paymentIntentId, {
+        expand: ["latest_charge"],
+      });
+      const latest = pi.latest_charge;
+      const charge =
+        latest && typeof latest !== "string" ? (latest as Stripe.Charge) : null;
+      if (charge) {
+        return extractChargeFinancials(charge, estimateTotalCents, feePercent);
+      }
+    } catch (err) {
+      console.error("[resolveChargeFinancials] retrieve failed:", err);
+    }
+  }
+
+  return extractChargeFinancials(null, estimateTotalCents, feePercent);
 }
 
 // Handle a completed marketplace checkout session - both Buy Now and auction
@@ -260,6 +383,23 @@ async function handleMarketplacePayment(
     return;
   }
 
+  // M-MK16: resolve the destination-charge financials up front so the audit
+  // event records the authoritative platform fee + seller net (the audit
+  // event_data is JSONB, so this is always durable even before the sales-row
+  // fee columns ship).
+  const auditSalePrice =
+    (listingData.winning_bid as number | null) ||
+    (listingData.starting_price as number | null) ||
+    0;
+  const auditShippingCents = Math.round(
+    (((listingData.shipping_cost as number | null) || 0) + auditSalePrice) * 100
+  );
+  const auditFinancials = await resolveChargeFinancials(
+    session,
+    auditShippingCents,
+    (listingData.platform_fee_percent as number | null) ?? undefined
+  );
+
   // Audit trail - fire-and-forget so a failure here never causes Stripe to
   // retry the webhook. No PII: only IDs + amounts + session ID.
   void logAuctionAuditEvent({
@@ -267,10 +407,11 @@ async function handleMarketplacePayment(
     actorProfileId: buyerId,
     eventType: "payment_succeeded",
     eventData: {
-      amount:
-        (listingData.winning_bid as number | null) ||
-        (listingData.starting_price as number | null) ||
-        0,
+      amount: auditSalePrice,
+      // Destination-charge breakdown (dollars). M-MK16.
+      platformFee: auditFinancials.applicationFeeCents / 100,
+      sellerNet: auditFinancials.sellerNetCents / 100,
+      feeSource: auditFinancials.source,
       sessionId: session.id,
       transactionType: isBuyNow ? "buy_now" : "auction",
       sellerId,
@@ -290,10 +431,17 @@ async function handleMarketplacePayment(
     (listingData.starting_price as number | null) ||
     0;
 
+  // M-MK16: reuse the destination-charge financials resolved above (Stripe's
+  // authoritative platform fee + seller net) so the sale row and the audit
+  // event agree. `salePrice` here uses the winning_bid/current_bid fallback and
+  // may differ from the audit's salePrice, but `auditFinancials` was computed
+  // from the same charge total, which is what we record.
+  const financials = auditFinancials;
+
   // Record the sale on the seller's sales history
   if (comic) {
     const purchasePrice = comic.purchase_price as number | null;
-    const { error: saleError } = await supabaseAdmin.from("sales").insert({
+    const baseSale: Record<string, unknown> = {
       user_id: sellerId,
       comic_title: comic.title as string,
       comic_issue_number: comic.issue_number as string | null,
@@ -304,7 +452,26 @@ async function handleMarketplacePayment(
       sale_price: salePrice,
       profit: salePrice - (purchasePrice || 0),
       buyer_id: buyerId,
-    });
+    };
+
+    // M-MK16: persist platform fee + seller net (dollars) on the sale row. The
+    // `platform_fee` / `seller_net` columns are added behind a migration, so we
+    // attempt the enriched insert first and fall back to the base columns if
+    // they don't exist yet - the sale record always lands, and the financial
+    // breakdown is additionally captured on the payment_succeeded audit event
+    // above (JSONB) regardless of column availability.
+    const enrichedSale = {
+      ...baseSale,
+      platform_fee: financials.applicationFeeCents / 100,
+      seller_net: financials.sellerNetCents / 100,
+    };
+
+    let { error: saleError } = await supabaseAdmin.from("sales").insert(enrichedSale);
+
+    if (saleError && (saleError.code === "PGRST204" || saleError.code === "42703")) {
+      // Fee columns not present yet - retry with the base shape.
+      ({ error: saleError } = await supabaseAdmin.from("sales").insert(baseSale));
+    }
 
     if (saleError) {
       console.error("[handleMarketplacePayment] Error recording sale:", saleError);
@@ -718,5 +885,71 @@ async function handleDisputeCreated(dispute: Stripe.Dispute) {
   } catch (err) {
     console.error("[handleDisputeCreated] retrieve failed:", err);
     throw err; // let Stripe retry
+  }
+}
+
+// ============================================
+// Connect Account Handlers (M-MK14)
+// ============================================
+
+// Mirror a seller's Connect onboarding/capability state onto their profile.
+// M-MK14: the previous inline handler ran a blind UPDATE - a webhook for an
+// account.id we don't recognize (or one detached from any profile) silently
+// matched zero rows with no signal. We now request `.select("id")` and warn on
+// a zero-row match so orphaned Connect accounts are surfaced in logs, and we
+// persist `charges_enabled`/`payouts_enabled` so connect/status can read the
+// live capability flags from the DB mirror (B18) instead of re-hitting Stripe.
+async function handleConnectAccountUpdated(account: Stripe.Account) {
+  const isComplete = account.charges_enabled && account.details_submitted;
+
+  // Persist capability flags only when the corresponding columns exist
+  // (B18 / connect-status DB mirror). The base onboarding flag always writes;
+  // the capability columns are added behind a migration, so we attempt the
+  // richer payload first and fall back to the onboarding-only update if the
+  // columns aren't present yet. This keeps the webhook functional pre-migration.
+  const fullPayload: Record<string, unknown> = {
+    stripe_connect_onboarding_complete: isComplete,
+    stripe_connect_charges_enabled: account.charges_enabled ?? false,
+    stripe_connect_payouts_enabled: account.payouts_enabled ?? false,
+  };
+
+  let { data: updatedProfiles, error } = await supabaseAdmin
+    .from("profiles")
+    .update(fullPayload)
+    .eq("stripe_connect_account_id", account.id)
+    .select("id");
+
+  // Migration-safe fallback: if the capability columns don't exist yet the
+  // update errors (PostgREST PGRST204 / undefined_column 42703). Retry with the
+  // onboarding flag alone so the core state still mirrors. M-MK14.
+  if (error) {
+    const missingColumn = error.code === "PGRST204" || error.code === "42703";
+    if (!missingColumn) {
+      console.error("[handleConnectAccountUpdated] update failed:", error);
+    }
+    ({ data: updatedProfiles, error } = await supabaseAdmin
+      .from("profiles")
+      .update({ stripe_connect_onboarding_complete: isComplete })
+      .eq("stripe_connect_account_id", account.id)
+      .select("id"));
+    if (error) {
+      console.error("[handleConnectAccountUpdated] fallback update failed:", error);
+    }
+  }
+
+  // M-MK14: warn (don't throw) when no profile matched this Connect account.
+  // An unrecognized account.id is a data-integrity signal, not a transient
+  // failure - retrying via 500 would never resolve it.
+  if (!updatedProfiles || updatedProfiles.length === 0) {
+    console.warn(
+      `[handleConnectAccountUpdated] No profile matched Connect account ${account.id} (charges_enabled=${account.charges_enabled}, details_submitted=${account.details_submitted})`
+    );
+    return;
+  }
+
+  // Connect status is read on the hot profile-cache path - invalidate so the
+  // seller's onboarding flag isn't served stale for the cache TTL. M-PAY11.
+  for (const p of updatedProfiles) {
+    await invalidateProfileCacheByProfileId(p.id);
   }
 }

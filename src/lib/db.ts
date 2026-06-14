@@ -36,6 +36,11 @@ const PROFILE_COLUMNS = `
 `;
 
 // Profile management
+//
+// L-CC25 (db): the profile read paths below issue only SINGLE-key Redis reads
+// (one `cacheGet` per clerk id) - there is no multi-key fan-out in this module
+// to fold into an `mget`/pipeline. The multi-key cache batching lives in the
+// shared cache/rate-limit layer (cache.ts, rateLimit.ts) and is handled there.
 export async function getOrCreateProfile(clerkUserId: string, email?: string) {
   // Try the profile cache first - getProfileByClerkId is the hot path and many
   // callers hit getOrCreateProfile on existing users. L-CC23.
@@ -163,27 +168,122 @@ export async function invalidateProfileCacheByProfileId(profileId: string): Prom
 }
 
 // Comics
-export async function getUserComics(profileId: string): Promise<CollectionItem[]> {
+
+/**
+ * Page size for the collection list view (M-CO9). The list fetch pulls a single
+ * page at a time and the UI loads further pages via "Load more". Tuned to a
+ * batch large enough to fill a tall grid in one round-trip while keeping the
+ * per-request payload bounded for big collections.
+ */
+export const COLLECTION_PAGE_SIZE = 200;
+
+/**
+ * Explicit column list for the collection LIST view (M-CO9). Deliberately omits
+ * the two heavy JSON blobs - `price_data` and `key_info` - which the grid/list
+ * never renders; they are only needed in the detail view, which reads the full
+ * row separately. Dropping them keeps the list payload small even for large
+ * collections. `transformDbComicToCollectionItem` defaults the missing
+ * `key_info` to `[]` and leaves `priceData` undefined, so the trimmed row maps
+ * cleanly into a CollectionItem.
+ */
+const COMIC_LIST_COLUMNS = `
+  id,
+  title,
+  issue_number,
+  variant,
+  publisher,
+  cover_artist,
+  writer,
+  interior_artist,
+  release_year,
+  confidence,
+  is_slabbed,
+  grading_company,
+  grade,
+  certification_number,
+  label_type,
+  page_quality,
+  grade_date,
+  grader_notes,
+  is_signature_series,
+  signed_by,
+  cover_image_url,
+  condition_grade,
+  condition_label,
+  is_graded,
+  purchase_price,
+  purchase_date,
+  notes,
+  for_sale,
+  for_trade,
+  asking_price,
+  average_price,
+  date_added,
+  is_starred,
+  custom_key_info,
+  custom_key_info_status,
+  comic_lists(list_id)
+`;
+
+/**
+ * Fetch a user's active collection for the list view.
+ *
+ * M-CO9: selects the trimmed {@link COMIC_LIST_COLUMNS} (no price_data/key_info)
+ * and supports `Load more` pagination via `limit`/`offset` (`.range()`). Called
+ * with no options it returns the first {@link COLLECTION_PAGE_SIZE} rows.
+ *
+ * M-CO10: ORDER BY `date_added DESC` is unchanged - semantics stay identical.
+ * `supabase/migrations/.../idx_comics_user_date_added` (user_id, date_added DESC)
+ * WHERE deleted_at IS NULL backs this sort once applied; no code change here.
+ */
+export async function getUserComics(
+  profileId: string,
+  options: { limit?: number; offset?: number } = {}
+): Promise<CollectionItem[]> {
+  const limit = options.limit ?? COLLECTION_PAGE_SIZE;
+  const offset = options.offset ?? 0;
+
   // Exclude sold comics from the active collection view - they live in the
   // user's sold history (/sales page) and should not clutter the main
   // collection. See BACKLOG bug #6.
   const { data, error } = await supabase
     .from("comics")
-    .select(
-      `
-      *,
-      comic_lists(list_id)
-    `
-    )
+    .select(COMIC_LIST_COLUMNS)
     .eq("user_id", profileId)
     .is("deleted_at", null)
     .is("sold_at", null)
-    .order("date_added", { ascending: false });
+    .order("date_added", { ascending: false }) // M-CO10: unchanged; index in MIGRATIONS
+    .range(offset, offset + limit - 1);
 
   if (error) throw error;
 
   // Transform to CollectionItem format
   return (data || []).map(transformDbComicToCollectionItem);
+}
+
+/**
+ * Paginated collection fetch for the `Load more` UI (M-CO9). Returns one page
+ * plus a `hasMore` flag and the `nextOffset` to request next. Detects "more
+ * rows exist" by over-fetching one row past the page boundary, so it needs no
+ * separate COUNT query.
+ */
+export async function getUserComicsPage(
+  profileId: string,
+  page: { limit?: number; offset?: number } = {}
+): Promise<{ items: CollectionItem[]; hasMore: boolean; nextOffset: number }> {
+  const limit = page.limit ?? COLLECTION_PAGE_SIZE;
+  const offset = page.offset ?? 0;
+
+  // Over-fetch by one to learn whether another page exists without a COUNT.
+  const items = await getUserComics(profileId, { limit: limit + 1, offset });
+  const hasMore = items.length > limit;
+  const pageItems = hasMore ? items.slice(0, limit) : items;
+
+  return {
+    items: pageItems,
+    hasMore,
+    nextOffset: offset + pageItems.length,
+  };
 }
 
 export async function addComic(profileId: string, item: CollectionItem) {
@@ -336,6 +436,78 @@ export async function deleteComic(comicId: string) {
       throw error;
     }
     throw new Error(data.error || "Failed to delete comic");
+  }
+}
+
+/** Storage bucket holding user-uploaded comic covers (see upload-cover route). */
+export const COMIC_COVERS_BUCKET = "comic-covers";
+
+/**
+ * M-CO16: extract the storage object path for a cover that lives in OUR own
+ * `comic-covers` bucket, so a hard delete can free the orphaned file.
+ *
+ * Returns the in-bucket path (e.g. `"<profileId>/123-abc.webp"`) ONLY when the
+ * URL is a Supabase public-object URL pointing at the `comic-covers` bucket.
+ * Returns null for everything else - external/shared covers (eBay, OpenLibrary,
+ * Clerk, comic_metadata), blank URLs, or any URL we don't own - so we never
+ * attempt to delete an image we didn't upload.
+ *
+ * Supabase public URLs look like:
+ *   {base}/storage/v1/object/public/comic-covers/<path>
+ */
+export function parseComicCoverStoragePath(coverImageUrl: string | null | undefined): string | null {
+  if (!coverImageUrl || typeof coverImageUrl !== "string") return null;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(coverImageUrl);
+  } catch {
+    return null;
+  }
+
+  // Marker that identifies a public object in our own bucket. We match on the
+  // path segment rather than the full host so it survives a project URL change.
+  const marker = `/storage/v1/object/public/${COMIC_COVERS_BUCKET}/`;
+  const idx = parsed.pathname.indexOf(marker);
+  if (idx === -1) return null;
+
+  const rawPath = parsed.pathname.slice(idx + marker.length);
+  if (!rawPath) return null;
+
+  // Decode %20 etc.; reject empty / traversal-y paths defensively.
+  let objectPath: string;
+  try {
+    objectPath = decodeURIComponent(rawPath);
+  } catch {
+    objectPath = rawPath;
+  }
+  objectPath = objectPath.replace(/^\/+/, "");
+  if (!objectPath || objectPath.includes("..")) return null;
+
+  return objectPath;
+}
+
+/**
+ * M-CO16: best-effort removal of an orphaned cover from the `comic-covers`
+ * bucket after a comic is hard-deleted. Server-side only (uses supabaseAdmin).
+ *
+ * No-ops for covers we don't own (returns false). Never throws - a failed
+ * storage cleanup must not fail the delete that already succeeded.
+ */
+export async function cleanupOrphanedCover(coverImageUrl: string | null | undefined): Promise<boolean> {
+  const path = parseComicCoverStoragePath(coverImageUrl);
+  if (!path) return false;
+
+  try {
+    const { error } = await supabaseAdmin.storage.from(COMIC_COVERS_BUCKET).remove([path]);
+    if (error) {
+      console.error("[cleanupOrphanedCover] storage remove failed:", error);
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error("[cleanupOrphanedCover] unexpected error:", error);
+    return false;
   }
 }
 
@@ -793,7 +965,9 @@ export function transformDbComicToCollectionItem(dbComic: Record<string, unknown
       grade: dbComic.grade as string | null,
       isSignatureSeries: dbComic.is_signature_series as boolean,
       signedBy: dbComic.signed_by as string | null,
-      priceData: dbComic.price_data as CollectionItem["comic"]["priceData"],
+      // List queries omit price_data (M-CO9); default undefined -> null so the
+      // trimmed row still maps to a well-formed CollectionItem.
+      priceData: (dbComic.price_data ?? null) as CollectionItem["comic"]["priceData"],
       keyInfo: (dbComic.key_info as string[]) || [],
       certificationNumber: dbComic.certification_number as string | null,
       labelType: dbComic.label_type as string | null,
