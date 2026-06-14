@@ -170,6 +170,11 @@ CREATE TABLE IF NOT EXISTS processed_stripe_sessions (
 COMMENT ON TABLE processed_stripe_sessions IS
   'De-dupe ledger for Stripe checkout sessions credited as scan packs (idempotency). [M-PAY5]';
 
+-- Server-only table: written exclusively by the SECURITY DEFINER credit_scan_pack()
+-- RPC and the service-role webhook, both of which bypass RLS. Enable RLS with NO
+-- policies so anon/authenticated keys are denied all access (no client should touch it).
+ALTER TABLE processed_stripe_sessions ENABLE ROW LEVEL SECURITY;
+
 CREATE OR REPLACE FUNCTION credit_scan_pack(
   p_session_id TEXT,
   p_profile_id UUID,
