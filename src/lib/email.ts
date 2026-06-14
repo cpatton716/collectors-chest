@@ -1,7 +1,7 @@
 import { Resend } from "resend";
 import { supabaseAdmin } from "@/lib/supabase";
 import { FREE_MONTHLY_SCAN_LIMIT } from "@/lib/subscription";
-import { sign } from "@/lib/signedToken";
+import { buildUnsubscribeUrl } from "@/lib/unsubscribeToken";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -22,16 +22,6 @@ export const FROM_EMAIL = "Collectors Chest <notifications@collectors-chest.com>
  * default on the verified sending domain. Update here once decided.
  */
 export const SUPPORT_EMAIL = "support@collectors-chest.com";
-
-/**
- * Env var name whose secret signs unsubscribe tokens. Falls back to
- * `CLERK_SECRET_KEY` inside `signedToken` when unset, so no new required env
- * var is forced. The unsubscribe route (B20) verifies with the same name.
- */
-const UNSUBSCRIBE_SECRET_NAME = "UNSUBSCRIBE_SECRET";
-
-/** Unsubscribe links are valid for 90 days from send. */
-const UNSUBSCRIBE_TOKEN_TTL_MS = 90 * 24 * 60 * 60 * 1000;
 
 /**
  * Number of bonus scans granted to a guest who verifies their email through
@@ -286,28 +276,6 @@ export function emailFooter(): string {
 }
 
 /**
- * Build the one-click unsubscribe URL for a recipient (M-EM4).
- *
- * Returns a `NEXT_PUBLIC_APP_URL`-rooted link to the unsubscribe route (B20)
- * carrying a signed token so the route can flip the right email preference
- * without trusting query params. Returns `null` when we have no profile to
- * scope the unsubscribe to (e.g., guest-adjacent sends) — callers then omit
- * the List-Unsubscribe headers.
- */
-function buildUnsubscribeUrl(
-  profileId: string | null | undefined,
-  category: string
-): string | null {
-  if (!profileId) return null;
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://collectors-chest.com";
-  const token = sign(
-    { profileId, category, exp: Date.now() + UNSUBSCRIBE_TOKEN_TTL_MS },
-    UNSUBSCRIBE_SECRET_NAME
-  );
-  return `${appUrl}/api/unsubscribe?token=${encodeURIComponent(token)}`;
-}
-
-/**
  * Build RFC 8058 List-Unsubscribe headers for a NON-transactional send.
  *
  * Returns `{}` (no headers) for transactional types or when there's no
@@ -315,6 +283,9 @@ function buildUnsubscribeUrl(
  * unsubscribe affordance. Non-transactional mail gets both the one-click HTTP
  * URL and the owner-supplied mailto, plus `List-Unsubscribe-Post` so Gmail/
  * Yahoo can offer native one-click unsubscribe.
+ *
+ * The signed unsubscribe URL is minted via the shared `@/lib/unsubscribeToken`
+ * helper so a token stamped here always verifies in the unsubscribe route.
  */
 export function buildUnsubscribeHeaders(
   type: NotificationEmailType,
@@ -323,8 +294,8 @@ export function buildUnsubscribeHeaders(
 ): Record<string, string> {
   const category = getCategory(type);
   if (category === "transactional") return {};
+  if (!profileId) return {};
   const url = buildUnsubscribeUrl(profileId, category);
-  if (!url) return {};
   return {
     "List-Unsubscribe": `<${url}>, <mailto:${SUPPORT_EMAIL}?subject=unsubscribe>`,
     "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",

@@ -33,6 +33,7 @@ process.env.UNSUBSCRIBE_SECRET = "test-unsubscribe-secret";
 import { sendNotificationEmail, buildUnsubscribeHeaders } from "../email";
 import { getNotificationCategory } from "../notificationPreferences";
 import { verify } from "../signedToken";
+import { verifyUnsubscribeToken } from "@/app/api/unsubscribe/route";
 
 function getMockSend() {
   const { Resend } = require("resend");
@@ -105,6 +106,32 @@ describe("List-Unsubscribe headers (M-EM4)", () => {
     expect(result.valid).toBe(true);
     expect(result.payload?.profileId).toBe(PROFILE_ID);
     expect(result.payload?.category).toBe("marketplace");
+  });
+
+  it("mints a token (in email) that verifies in the unsubscribe ROUTE (single source of truth)", async () => {
+    const mockSend = getMockSend();
+    mockSend.mockClear();
+
+    await sendNotificationEmail({
+      to: "buyer@example.com",
+      type: "offer_received", // → "marketplace"
+      profileId: PROFILE_ID,
+      data: {
+        buyerName: "Buyer",
+        sellerName: "Seller",
+        comicTitle: "Batman",
+        issueNumber: "1",
+        amount: 50,
+        listingUrl: "https://collectors-chest.com/shop/1",
+      } as never,
+    });
+
+    const headers = mockSend.mock.calls[0][0].headers as Record<string, string>;
+    const token = extractToken(headers["List-Unsubscribe"]);
+    // The route's verifier requires the shared `purpose` marker — proving the
+    // email-side mint and the route-side verify share one contract.
+    const verified = verifyUnsubscribeToken(token);
+    expect(verified).toEqual({ profileId: PROFILE_ID, category: "marketplace" });
   });
 
   it("does NOT attach unsubscribe headers to a transactional send", async () => {

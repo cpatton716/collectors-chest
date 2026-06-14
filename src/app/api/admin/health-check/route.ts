@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
         .join("");
 
       await resend.emails.send({
-        from: "Collector's Chest <alerts@collectors-chest.com>",
+        from: "Collectors Chest <alerts@collectors-chest.com>",
         to: ADMIN_EMAIL,
         subject,
         html: `
@@ -91,7 +91,7 @@ export async function GET(request: NextRequest) {
               </a>
             </p>
             <p style="color: #9ca3af; font-size: 12px; margin-top: 24px;">
-              Automated health check from Collector's Chest.
+              Automated health check from Collectors Chest.
             </p>
           </div>
         `,

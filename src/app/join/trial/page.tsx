@@ -1,11 +1,22 @@
 import Link from "next/link";
+import { mintPromoTrialToken } from "@/lib/promoTrial";
 import PromoTrialActivator from "./PromoTrialActivator";
 import PromoTrialCTA from "./PromoTrialCTA";
 
-export default function JoinTrialPage() {
+// QR posters point here; the token authorizes the 30-day trial at checkout.
+// Render dynamically so the signed token is minted fresh per arrival rather
+// than baked into a static build.
+export const dynamic = "force-dynamic";
+
+export default async function JoinTrialPage() {
+  // L-PAY17: mint the SIGNED, QR-exclusive promo-trial token server-side at the
+  // QR arrival. The client never fabricates it — it only carries this token to
+  // checkout, where the gate re-verifies the signature + one-time eligibility.
+  const promoTrialToken = await mintPromoTrialToken({ campaign: "qr-join-trial" });
+
   return (
     <div className="min-h-screen bg-pop-yellow relative overflow-hidden">
-      <PromoTrialActivator />
+      <PromoTrialActivator promoTrialToken={promoTrialToken} />
 
       <div
         className="absolute inset-0 opacity-20"

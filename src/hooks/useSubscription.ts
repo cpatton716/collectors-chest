@@ -59,7 +59,8 @@ export interface SubscriptionState {
   startCheckout: (
     priceType: "monthly" | "annual" | "scan_pack",
     withTrial?: boolean,
-    promoTrial?: boolean
+    promoTrial?: boolean,
+    promoTrialToken?: string | null
   ) => Promise<string | null>;
   openBillingPortal: () => Promise<string | null>;
 }
@@ -252,13 +253,21 @@ export function useSubscription(): SubscriptionState {
     async (
       priceType: "monthly" | "annual" | "scan_pack",
       withTrial = false,
-      promoTrial = false
+      promoTrial = false,
+      promoTrialToken: string | null = null
     ): Promise<string | null> => {
       try {
         const response = await fetch("/api/billing/checkout", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ priceType, withTrial, promoTrial }),
+          // `promoTrial` is legacy/no-op server-side; the signed
+          // `promoTrialToken` is what actually authorizes the trial (L-PAY17).
+          body: JSON.stringify({
+            priceType,
+            withTrial,
+            promoTrial,
+            ...(promoTrialToken ? { promoTrialToken } : {}),
+          }),
         });
 
         if (!response.ok) {

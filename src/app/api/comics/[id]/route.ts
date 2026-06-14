@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { z } from "zod";
 
-import { getProfileByClerkId } from "@/lib/db";
+import { cleanupOrphanedCover, getProfileByClerkId } from "@/lib/db";
 import { supabase } from "@/lib/supabase";
 import { schemas, validateParams } from "@/lib/validation";
 
@@ -33,9 +33,11 @@ export async function DELETE(
     const { id } = paramsValidated.data;
 
     // Guard: sold comics live in the seller's read-only sold history.
+    // Also grab the cover URL up-front so we can clean up its storage object
+    // after the (hard) delete succeeds — no extra round-trip.
     const { data: soldRow } = await supabase
       .from("comics")
-      .select("sold_at")
+      .select("sold_at, cover_image_url")
       .eq("id", id)
       .eq("user_id", profile.id)
       .single();
@@ -77,6 +79,16 @@ export async function DELETE(
     if (error) {
       console.error("Error deleting comic:", error);
       return NextResponse.json({ error: "Failed to delete comic" }, { status: 500 });
+    }
+
+    // Best-effort: remove the cover image from our own storage bucket now that
+    // the comic row is gone. Never block or fail the delete on cleanup errors —
+    // cleanupOrphanedCover swallows its own failures and no-ops for covers we
+    // don't own (e.g. external URLs). M-CO16.
+    try {
+      await cleanupOrphanedCover(soldRow?.cover_image_url);
+    } catch (cleanupError) {
+      console.error("[comics:DELETE] orphaned cover cleanup failed:", cleanupError);
     }
 
     return NextResponse.json({ success: true });

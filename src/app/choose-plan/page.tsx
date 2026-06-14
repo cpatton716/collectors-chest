@@ -5,7 +5,11 @@ import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { Check, Crown, Loader2, X, Zap } from "lucide-react";
 import { useSubscription } from "@/hooks/useSubscription";
-import { getPromoTrialFlag, clearPromoTrialFlag } from "@/lib/promoTrial";
+import {
+  getPromoTrialFlag,
+  getPromoTrialToken,
+  clearPromoTrialFlag,
+} from "@/lib/promoTrial";
 import { getPromoTrialAction } from "@/lib/choosePlanHelpers";
 
 const premiumFeatures = [
@@ -70,7 +74,10 @@ export default function ChoosePlanPage() {
     }
 
     promoCheckoutStarted.current = true;
-    startCheckout("monthly", false, true)
+    // Carry the server-minted signed token into checkout; it's what actually
+    // authorizes the 30-day promo trial in the gate (L-PAY17). The legacy
+    // boolean is left true only for back-compat and is ignored server-side.
+    startCheckout("monthly", false, true, getPromoTrialToken())
       .then((url) => {
         if (url) window.location.href = url;
       })

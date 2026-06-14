@@ -303,8 +303,8 @@ export async function GET(request: NextRequest) {
 
       const subject =
         criticalAlerts.length > 0
-          ? `🚨 CRITICAL: Collector's Chest - Service Limits Alert`
-          : `⚠️ WARNING: Collector's Chest - Service Limits Alert`;
+          ? `🚨 CRITICAL: Collectors Chest - Service Limits Alert`
+          : `⚠️ WARNING: Collectors Chest - Service Limits Alert`;
 
       const formatBytes = (bytes: number) => {
         if (bytes === 0) return "0 B";
@@ -351,13 +351,13 @@ export async function GET(request: NextRequest) {
           </p>
 
           <p style="color: #9ca3af; font-size: 12px; margin-top: 24px;">
-            This is an automated alert from Collector's Chest monitoring.
+            This is an automated alert from Collectors Chest monitoring.
           </p>
         </div>
       `;
 
       await resend.emails.send({
-        from: "Collector's Chest <alerts@collectors-chest.com>",
+        from: "Collectors Chest <alerts@collectors-chest.com>",
         to: ADMIN_EMAIL,
         subject,
         html: alertHtml,

@@ -26,6 +26,15 @@ export const PROMO_TRIAL_DAYS = 30;
 /** localStorage key for the promo trial flag */
 export const PROMO_TRIAL_STORAGE_KEY = "cc_promo_trial";
 
+/**
+ * localStorage key for the SIGNED promo-trial token minted server-side at the
+ * QR entry point. Unlike the boolean flag above, this token is what actually
+ * authorizes the trial in the checkout gate — it is stashed here only to carry
+ * it across the sign-up / sign-in round-trip back to `/choose-plan`. It grants
+ * nothing on its own; the server still verifies the signature + eligibility.
+ */
+export const PROMO_TRIAL_TOKEN_STORAGE_KEY = "cc_promo_trial_token";
+
 // ============================================================================
 // CLIENT layer — localStorage display hint (no authorization power)
 // ============================================================================
@@ -34,6 +43,32 @@ export const PROMO_TRIAL_STORAGE_KEY = "cc_promo_trial";
 export function setPromoTrialFlag(): void {
   if (typeof window !== "undefined") {
     localStorage.setItem(PROMO_TRIAL_STORAGE_KEY, Date.now().toString());
+  }
+}
+
+/**
+ * Persist the server-minted promo-trial token so it survives the auth redirect
+ * back to `/choose-plan`. Called from the QR entry point with the token minted
+ * by the server component.
+ */
+export function setPromoTrialToken(token: string): void {
+  if (typeof window !== "undefined" && token) {
+    localStorage.setItem(PROMO_TRIAL_TOKEN_STORAGE_KEY, token);
+  }
+}
+
+/** Read the stored server-minted promo-trial token (null if absent). */
+export function getPromoTrialToken(): string | null {
+  if (typeof window !== "undefined") {
+    return localStorage.getItem(PROMO_TRIAL_TOKEN_STORAGE_KEY);
+  }
+  return null;
+}
+
+/** Clear the stored promo-trial token (called after checkout is initiated). */
+export function clearPromoTrialToken(): void {
+  if (typeof window !== "undefined") {
+    localStorage.removeItem(PROMO_TRIAL_TOKEN_STORAGE_KEY);
   }
 }
 
@@ -50,10 +85,11 @@ export function getPromoTrialFlag(): boolean {
   return false;
 }
 
-/** Clear the promo trial flag (called after checkout is initiated) */
+/** Clear the promo trial flag + token (called after checkout is initiated) */
 export function clearPromoTrialFlag(): void {
   if (typeof window !== "undefined") {
     localStorage.removeItem(PROMO_TRIAL_STORAGE_KEY);
+    localStorage.removeItem(PROMO_TRIAL_TOKEN_STORAGE_KEY);
   }
 }
 
