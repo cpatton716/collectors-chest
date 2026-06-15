@@ -147,8 +147,8 @@ For ad-hoc use during development:
 | **Supabase** | Database (Postgres) | [supabase.com/dashboard](https://supabase.com/dashboard) | `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` |
 | **Clerk** | Authentication | [dashboard.clerk.com](https://dashboard.clerk.com) | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY` |
 | **Stripe** | Payments | [dashboard.stripe.com](https://dashboard.stripe.com) | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` |
-| **Anthropic** | AI (Claude) for cover recognition | [console.anthropic.com](https://console.anthropic.com) | `ANTHROPIC_API_KEY` |
-| **Google AI (Gemini)** | AI fallback for cover recognition | [aistudio.google.com](https://aistudio.google.com) | `GEMINI_API_KEY` |
+| **Google AI (Gemini)** | AI cover recognition — **PRIMARY** vision provider (~5x cheaper than Claude) | [aistudio.google.com](https://aistudio.google.com) | `GEMINI_API_KEY` |
+| **Anthropic** | AI (Claude) cover recognition — **fallback** vision provider + text-only lookups (Haiku) | [console.anthropic.com](https://console.anthropic.com) | `ANTHROPIC_API_KEY` |
 | **hCaptcha** | Bot prevention on guest scans (triggered at scans 4–5) | [dashboard.hcaptcha.com](https://dashboard.hcaptcha.com) | `NEXT_PUBLIC_HCAPTCHA_SITE_KEY`, `HCAPTCHA_SECRET_KEY` |
 
 ### Supporting Services
@@ -180,12 +180,12 @@ For ad-hoc use during development:
 **Variable Costs:**
 | Service | Cost | Notes |
 |---------|------|-------|
-| Anthropic API — Sonnet 4.5 (cover scan, vision — fallback provider; Gemini is primary) | ~$0.015/scan | Prepaid credits ($10 loaded) |
-| Anthropic API — Haiku 4.5 (variant resolver Tier 2 enrichment) | ~$0.0008/call | Text-only, ~150 in / ~96 out tokens. Fires only when barcode `addonVariant` present AND `barcode_catalog` has no admin-approved name AND addon implies a variant. Estimated $0.02–$0.07/day at Beta volumes; rises after the high-res barcode OCR fix lands (see BACKLOG). |
-| Stripe | 2.9% + $0.30 | Per transaction |
+| Anthropic API — Sonnet 4.5 (cover scan, vision — fallback provider; Gemini is primary) | ~$0.015/scan | Prepaid credits ($10 loaded). **Prompt caching enabled (Session 48)** cuts input-token cost on the rare Gemini→Claude vision escalation. |
+| Anthropic API — Haiku 4.5 (text-only lookups + variant resolver Tier 2 enrichment) | ~$0.0008/call | **Session 48: all text-only lookups/enrichment moved Sonnet→Haiku (~60–70% cheaper per text call).** Variant resolver Tier 2 (~150 in / ~96 out tokens) fires only when barcode `addonVariant` present AND `barcode_catalog` has no admin-approved name AND addon implies a variant. Estimated $0.02–$0.07/day at Beta volumes; rises after the high-res barcode OCR fix lands (see BACKLOG). |
+| Stripe | 2.9% + $0.30 | Per transaction. **Marketplace uses DESTINATION CHARGES (Session 48):** the seller is merchant-of-record and bears this fee; the platform nets a clean `application_fee` (no Stripe-fee drag on platform marketplace revenue). Premium-subscription payments are standard charges where the platform bears the fee. See COST_PROJECTIONS.md "Stripe". |
 
 **Free Tiers (current usage):**
-- Supabase: 500MB DB, 1GB storage (⚠️ new `comic-covers` bucket — ~400KB/photo — will pressure the 1GB cap once cover uploads scale; see COST_PROJECTIONS.md "Cost Risks")
+- Supabase: 500MB DB, 1GB storage (⚠️ `comic-covers` bucket pressures the 1GB cap as cover uploads scale; **Session 48: covers now WebP-converted server-side + orphan cleanup on hard delete slow growth**; see COST_PROJECTIONS.md "Cost Risks")
 - Clerk: 10K MAU
 - Upstash: 10K commands/day
 - Resend: 3K emails/mo

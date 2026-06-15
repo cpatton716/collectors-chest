@@ -2,7 +2,7 @@
 
 > Launch readiness scorecard. See `BACKLOG.md` for open work items and `DEV_LOG.md` for session history.
 
-*Last Updated: May 27, 2026 (Session 47)*
+*Last Updated: June 14, 2026 (Session 48)*
 
 ---
 
@@ -10,7 +10,9 @@
 
 Collectors Chest is a comic book collection tracking app with AI-powered cover recognition and a new auction marketplace feature. The app is currently in **Private Beta** with public registration disabled.
 
-**Overall Score: 9.6/10** (Session 46 (May 9, 2026) shipped + deployed two fixes: (1) **Scan Cover Persistence** — signed-in users' FAB scan photos now persist via the new `comic-covers` Supabase bucket, eliminating the universal "?" placeholder regression for all signed-in users; (2) **3-Tier Variant Name Resolver** — new `src/lib/variantResolver.ts` with catalog → AI → derived tiers, wired into `/api/analyze`, with admin-approval guard for community variant names and a new schema field on `barcode_catalog`. Important production gap surfaced during testing: the resolver requires the AI to extract a full 17-digit barcode (12-digit UPC + 5-digit add-on), but production scans only capture 12 digits, so the resolver doesn't fire in prod yet — tracked in BACKLOG as "Variant Detection — Two-Pass High-Res Barcode OCR (Option C3)" and is the top priority for next session. 850/850 tests passing.)
+**Overall Score: 9.7/10** (up from 9.6/10 — Session 48 (June 14, 2026) was a security + quality hardening pass: public AI endpoints now auth + rate-limited, cron fail-open fixed, server-side admin gate (layout + middleware), Connect onboarding IDOR closed, RLS-scoped clients, image-host allowlist (SSRF), Clerk upgraded to 6.39.5 clearing the high-severity authz-bypass advisory, guest scans server-enforced. Accessibility leveled up — ComicDetailModal + 17 overlay modals are now proper dialogs (Escape/focus-trap/SR), global reduced-motion + focus-visible, pinch-zoom re-enabled, WCAG-AA contrast. Testing grew +509 tests to 1,423 across 85 suites (auction money engine + many helpers now covered). Cost/unit economics improved — text lookups moved Sonnet→Haiku, Gemini primary, prompt caching, session-recording sampling, server-side WebP covers, marketplace destination charges so the platform nets a clean fee. God-modules (auctionDb, email) decomposed, oversized components split, dead code removed, 0 circular deps. Residual: 1 transitive npm-audit high (backlogged); Variant Name Resolver two-pass barcode OCR still deferred (BACKLOG #1); real-money Stripe Connect payout test still pending.)
+
+**Prior (Session 46, May 9, 2026):** shipped + deployed two fixes: (1) **Scan Cover Persistence** — signed-in users' FAB scan photos now persist via the new `comic-covers` Supabase bucket, eliminating the universal "?" placeholder regression for all signed-in users; (2) **3-Tier Variant Name Resolver** — new `src/lib/variantResolver.ts` with catalog → AI → derived tiers, wired into `/api/analyze`, with admin-approval guard for community variant names and a new schema field on `barcode_catalog`. Important production gap surfaced during testing: the resolver requires the AI to extract a full 17-digit barcode (12-digit UPC + 5-digit add-on), but production scans only capture 12 digits, so the resolver doesn't fire in prod yet — tracked in BACKLOG as "Variant Detection — Two-Pass High-Res Barcode OCR (Option C3)" and is the top priority for next session. 850/850 tests passing.)
 
 **Current Status: PRIVATE BETA**
 - Site is live at collectors-chest.com
@@ -39,7 +41,7 @@ Collectors Chest is a comic book collection tracking app with AI-powered cover r
 | Item | Status | Notes |
 |------|--------|-------|
 | Test payment flows end-to-end | ✅ Validated Apr 22, 2026 | Auction + Buy Now E2E in localhost/sandbox. Real-money test still pending after deploy. |
-| Test Stripe Connect seller flow | ⚠️ Test mode validated end-to-end Apr 21–22, 2026 — real-money test pending | Seller onboarding, sandbox purchase, fee split, auction + Buy Now paths all validated. Real payout to seller bank still pending. |
+| Test Stripe Connect seller flow | ⚠️ Destination-charge model now in code (Session 48) — real-money test pending | Marketplace moved to Stripe destination charges so the platform nets a clean fee. Seller onboarding, sandbox purchase, fee split, auction + Buy Now paths validated in test mode. Real payout to seller bank still pending — see BACKLOG. |
 | Generate QR code for /join/trial | ✅ Handed off | Third party vendor producing the QR + business cards |
 | Database backup strategy | ⚠️ Planned (Post-Launch) | Upgrade to Supabase Pro ($25/mo) when warranted by user growth — not a launch blocker. Interim: manual pg_dump before destructive migrations. See BACKLOG Pending Enhancements. |
 
@@ -51,13 +53,13 @@ _(No open Medium items. Hottest Books was removed from scope Apr 22, 2026 — se
 
 ## 1. Code Quality & Technical Debt
 
-**Score: 9.5/10** (Session 47 (May 27, 2026) was a mobile collection-UI fix + PROD-validation pass — UI/CSS + client-side event work only, no new test files or net test changes. TypeScript clean, ESLint 0 errors / 116 pre-existing warnings, build clean, smoke-test homepage 200, npm audit clean, no circular deps. 850/850 tests passing across 56 suites. Earlier — Session 46 added `src/lib/variantResolver.ts` (3-tier catalog → AI → derived) + signed-in cover-persistence helpers (`src/lib/uploadCoverImage.ts`, `/api/comics/upload-cover`) with +21 net new tests; Knip still surfaces ~14 unused exported types incl. `VariantSource` — not externally consumed yet, OK to defer.)
+**Score: 9.7/10** (up from 9.5/10 — Session 48 (June 14, 2026) decomposed god-modules (`auctionDb`, email), split oversized components, removed dead code, and holds 0 circular deps. Test suite grew +509 to **1,423 tests across 85 suites** (auction money engine + many helpers now covered). 1 residual transitive npm-audit high remains — backlogged. Earlier — Session 47 was a mobile collection-UI fix + PROD-validation pass; Session 46 added `src/lib/variantResolver.ts` (3-tier catalog → AI → derived) + signed-in cover-persistence helpers (`src/lib/uploadCoverImage.ts`, `/api/comics/upload-cover`).)
 
 ### Issues Status
 
 | Issue | Severity | Status |
 |-------|----------|--------|
-| Test suite | 🟢 Good | **850/850 tests passing** across 56 suites (verified Session 47, May 27, 2026) |
+| Test suite | 🟢 Good | **1,423 tests passing across 85 suites** (+509 this session — auction money engine + many helpers now covered; verified Session 48, June 14, 2026). Manual device test pass still pending — see BACKLOG test-suite item |
 | ESLint config | 🟢 Fixed | Working with Next.js defaults |
 | Viewport/themeColor metadata | 🟢 Fixed | Migrated to `export const viewport` |
 | Stripe webhook config export | 🟢 Fixed | Deprecated config removed |
@@ -75,17 +77,24 @@ _(No open Medium items. Hottest Books was removed from scope Apr 22, 2026 — se
 
 ## 2. Security Posture
 
-**Score: 9.6/10** (Session 44 closed an RLS-anon-read bug in `getAuctionSecondChanceState` (anon `supabase` client couldn't read `second_chance_offers` because RLS policies key off Supabase JWT claims that Clerk-authed sessions don't provide → switched to `supabaseAdmin`). Production-affecting marketplace correctness bug, security-adjacent. Reinforces the codebase pattern: Clerk-authed server reads of RLS-protected tables must use the admin client. No new vulns introduced.)
+**Score: 9.8/10** (up from 9.6/10 — Session 48 (June 14, 2026) was a security hardening pass: public AI endpoints now require auth + rate limiting, the ended-auction cron fail-open was closed, a server-side admin gate added at both layout and middleware, the Stripe Connect onboarding IDOR fixed, DB clients RLS-scoped, an image-host allowlist added to block SSRF, Clerk upgraded to 6.39.5 (clears the high-severity authz-bypass advisory), and guest scan limits are now server-enforced. Residual: 1 transitive npm-audit high — backlogged. CSRF + middleware-expansion items remain partial; pattern-based bid-fraud detection is post-launch.)
 
 | Item | Status | Notes |
 |------|--------|-------|
 | RLS policies (core tables) | ✅ Good | Production-ready |
 | RLS policies (auction tables) | ✅ Good | Properly configured |
+| RLS-scoped DB clients | ✅ Added Jun 14, 2026 | Clients scoped to RLS context (Session 48) |
 | CCPA deletion webhook | ✅ Good | Clerk webhook exists |
 | API authentication | ✅ Good | Clerk auth on protected routes |
+| Public AI endpoints auth + rate limit | ✅ Added Jun 14, 2026 | Public AI endpoints now require auth + rate limiting; guest scan limits server-enforced (Session 48) |
+| Server-side admin gate | ✅ Added Jun 14, 2026 | Admin check enforced at layout + middleware, not just client UI (Session 48) |
+| Connect onboarding IDOR | ✅ Closed Jun 14, 2026 | Stripe Connect onboarding no longer addressable by another user's account id (Session 48) |
+| Cron fail-open | ✅ Closed Jun 14, 2026 | Ended-auction cron no longer proceeds when auth secret is missing/invalid (Session 48) |
+| SSRF / image-host allowlist | ✅ Added Jun 14, 2026 | Remote image fetches restricted to an allowlist of hosts (Session 48) |
+| Clerk authz-bypass advisory | ✅ Cleared Jun 14, 2026 | Upgraded Clerk to 6.39.5 — clears high-severity authz-bypass advisory (Session 48) |
 | Stripe webhook verification | ✅ Good | Signature validation |
 | Rate limiting | ✅ Added | Upstash rate limiting on AI & bid routes |
-| npm audit (dependencies) | ✅ Clean | 0 vulnerabilities |
+| npm audit (dependencies) | ⚠️ 1 transitive high | 1 transitive high-sev finding remains (Session 48) — tracked in BACKLOG |
 | Input validation | ✅ Complete | **Zod schema validation on 82 API routes** (Apr 23, 2026) — UUID format, enum values, length caps, nested shapes. HTTP 400 with standardized `{error, details}` shape on invalid input |
 | Image upload size caps | ✅ Complete | 10MB cap enforced on `/api/analyze` + `/api/messages/upload-image` via `src/lib/uploadLimits.ts` (added Apr 23, 2026) |
 | CAPTCHA on guest scans | ✅ Complete | **hCaptcha on scans 4–5** (added Session 38/39). Pro trial through May 7, 2026 → auto-downgrades to free tier (1M req/mo) |
@@ -94,8 +103,8 @@ _(No open Medium items. Hottest Books was removed from scope Apr 22, 2026 — se
 | Trade matches IDOR | ✅ Closed Apr 28, 2026 | `/api/trades/matches/[matchId]` PATCH was updating by row id only; now scoped by `user_a_id`/`user_b_id` predicate (Session 43 RLS-bypass audit) |
 | Notifications GET rate limit | ✅ Added Apr 28, 2026 | `GET /api/notifications/:id` now rate-limited — Capacitor retry-storm guard (Session 43) |
 | Second Chance Offer RLS read | ✅ Closed May 5, 2026 | `getAuctionSecondChanceState` was using anon Supabase client to read `second_chance_offers` (RLS keys off Supabase JWT — Clerk-authed sessions don't provide it). Switched to `supabaseAdmin` (Session 44). Reinforces "Clerk-authed server reads of RLS tables = admin client" pattern. |
-| CSRF protection | ⚠️ Implicit | Next.js provides some protection |
-| Middleware protection | ⚠️ Minimal | Few routes marked as protected |
+| CSRF protection | ⚠️ Implicit | Next.js provides some protection; explicit tokens on sensitive mutations still tracked in BACKLOG |
+| Middleware protection | ✅ Improved Jun 14, 2026 | Server-side admin gate now enforced in middleware + layout (Session 48); broader route-coverage expansion still tracked in BACKLOG |
 | Bid fraud detection | ⚠️ Partial | Strike system covers payment-miss pattern; pattern-based bid anomaly detection is post-launch — see BACKLOG |
 
 ### Security Recommendations
@@ -216,13 +225,13 @@ See BACKLOG.md for open auction/marketplace work.
 
 ## 6. Operating Costs & Efficiency
 
-**Score: 8/10** (up from 7/10)
+**Score: 8.5/10** (up from 8/10 — Session 48 (June 14, 2026) cut unit costs: text lookups moved Sonnet→Haiku, Gemini set as primary, prompt caching enabled, session-recording sampling added, and covers now served as server-side WebP. Marketplace switched to Stripe destination charges so the platform nets a clean fee. Cost projections corrected.)
 
 ### Current Cost Structure
 
 | Service | Tier | Monthly Cost | Notes |
 |---------|------|--------------|-------|
-| Anthropic API | Pay-per-use | Variable | ~$0.015 per scan (Claude Haiku); Session 46 added small Tier-2 AI variant-name lookup on barcode-catalog miss — incremental cost negligible (only fires on cache miss when full 17-digit barcode is present, which is rare today pending OCR fix) |
+| Anthropic API | Pay-per-use | Variable | ~$0.015 per scan (vision); Session 48 moved text lookups Sonnet→Haiku, made Gemini primary, and enabled prompt caching to cut per-call cost. Session 46 added small Tier-2 AI variant-name lookup on barcode-catalog miss — incremental cost negligible (only fires on cache miss when full 17-digit barcode is present, rare today pending OCR fix) |
 | Supabase | Free | $0 | 500MB DB, 1GB storage |
 | Clerk | Free | $0 | Up to 10K MAU |
 | Netlify | Personal Plan | $9.54 | Hosting + domain + DNS (billed 13th) |
@@ -251,7 +260,7 @@ See BACKLOG.md for open auction/marketplace work.
 
 ## 7. Mobile Experience
 
-**Score: 9.1/10** (up from 9.0/10 — Session 47 cleared a batch of mobile collection-UI bugs device-validated on iPhone + Android: detail-modal cover thumbnail no longer squished (bad `h-30` class), "Add Book" button no longer wraps to two lines on iOS, grid covers no longer blank/cut-off on iOS Safari first paint, multi-select header no longer overlaps Cancel, the multi-select action bar is no longer hidden behind the floating bottom nav, and the iOS two-tap checkbox is fixed globally via Tailwind `hoverOnlyWhenSupported`. Cover-persistence scan flow also confirmed working on both phones for the first time.)
+**Score: 9.3/10** (up from 9.1/10 — Session 48 (June 14, 2026) was an accessibility level-up: `ComicDetailModal` + 17 overlay modals are now proper dialogs (Escape-to-close, focus trapping, screen-reader semantics), global reduced-motion support and `focus-visible` styling added, pinch-zoom re-enabled, and contrast brought to WCAG-AA. Earlier — Session 47 cleared a batch of mobile collection-UI bugs device-validated on iPhone + Android: detail-modal cover thumbnail no longer squished (bad `h-30` class), "Add Book" button no longer wraps on iOS, grid covers no longer blank/cut-off on iOS Safari first paint, multi-select header no longer overlaps Cancel, action bar no longer hidden behind the floating bottom nav, and the iOS two-tap checkbox fixed via Tailwind `hoverOnlyWhenSupported`.)
 
 | Feature | Status |
 |---------|--------|
@@ -261,6 +270,9 @@ See BACKLOG.md for open auction/marketplace work.
 | Mobile navigation | ✅ Floating bottom nav now hides during multi-select so the action bar isn't obscured (Session 47) |
 | Camera scanning | ✅ |
 | Touch interactions | ✅ iOS sticky-hover double-tap on checkboxes fixed globally via Tailwind `hoverOnlyWhenSupported` (Session 47) |
+| Accessible dialogs | ✅ Added Jun 14, 2026 — `ComicDetailModal` + 17 overlay modals are now proper dialogs (Escape/focus-trap/SR semantics) (Session 48) |
+| Reduced motion + focus-visible | ✅ Added Jun 14, 2026 — global `prefers-reduced-motion` support + `focus-visible` styling (Session 48) |
+| Pinch-zoom / WCAG-AA contrast | ✅ Jun 14, 2026 — pinch-zoom re-enabled, contrast brought to WCAG-AA (Session 48) |
 | Mobile auction/listing modal layout | ✅ Fixed Apr 23, 2026 (Session 40a) |
 | Cover lightbox (tap-to-zoom) | ✅ Added May 5, 2026 (Session 44) — reusable `CoverLightbox`, wired into Key Hunt |
 | Haptic feedback | ❌ |
@@ -356,7 +368,7 @@ See BACKLOG.md for open auction/marketplace work.
 | Price credibility | 🔴 Critical | 🟢 Low (eBay API) |
 | No competitive moat | 🔴 Critical | 🟢 Low (AI + Auctions + Buy Now) |
 | Unsustainable AI costs | 🔴 Critical | 🟢 Low (Redis caching) |
-| Security vulnerabilities | 🟡 Medium | 🟢 Low (RLS + rate limiting) |
+| Security vulnerabilities | 🟡 Medium | 🟢 Low (RLS + rate limiting; Session 48 hardening: auth+rate-limit on public AI endpoints, cron fail-open closed, server-side admin gate, Connect IDOR fix, SSRF allowlist, Clerk 6.39.5 advisory cleared) |
 | No marketplace | 🟡 Medium | 🟢 Low (Auctions + Buy Now) |
 | No error tracking | 🔴 High | 🟢 Low (Sentry added) |
 | No analytics | 🟡 Medium | 🟢 Low (PostHog added) |
@@ -394,3 +406,5 @@ _Session 44 changes (May 5, 2026, not yet deployed): Second Chance "Offer to Run
 _Deployed May 9, 2026 — Session 46 bundle: Scan Cover Persistence (`comic-covers` Supabase bucket + `/api/comics/upload-cover` + `src/lib/uploadCoverImage.ts` — fixes universal "?" placeholder for signed-in users), 3-Tier Variant Name Resolver (`src/lib/variantResolver.ts` wired into `/api/analyze`, with admin-approval guard for community variant names — blocked in prod by 12-vs-17-digit OCR gap, see BACKLOG)._
 
 _Deployed May 27, 2026 — Session 47 bundle: Session 46 cover-persistence pipeline PROD-validated end-to-end on iPhone + Android (first user verification), plus a cluster of mobile collection-UI fixes (detail-modal cover thumbnail, "Add Book" button wrap, iOS Safari grid first-paint, multi-select header overlap, action bar behind floating nav, iOS double-tap checkbox)._
+
+_Session 48 changes (June 14, 2026, not yet deployed): security hardening (auth + rate limit on public AI endpoints, cron fail-open fix, server-side admin gate at layout + middleware, Connect onboarding IDOR fix, RLS-scoped clients, image-host allowlist for SSRF, Clerk 6.39.5 clearing the authz-bypass advisory, server-enforced guest scans), accessibility level-up (ComicDetailModal + 17 modals as proper dialogs, global reduced-motion + focus-visible, pinch-zoom re-enabled, WCAG-AA contrast), +509 tests (now 1,423 across 85 suites), cost cuts (text lookups Sonnet→Haiku, Gemini primary, prompt caching, session-recording sampling, server WebP covers, marketplace destination charges), and code-quality cleanup (auctionDb/email god-modules decomposed, oversized components split, dead code removed, 0 circular deps). Residual: 1 transitive npm-audit high (BACKLOG), Variant Resolver two-pass barcode OCR deferred (BACKLOG #1), real-money Stripe Connect payout test pending._

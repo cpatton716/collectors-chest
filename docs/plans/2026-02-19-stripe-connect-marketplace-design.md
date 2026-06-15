@@ -14,6 +14,8 @@
 >
 > These additions are layered on top of the unchanged Stripe Connect destination-charge flow below. The Stripe Checkout / onboarding / fee-split logic in this document all remains accurate.
 
+> **Updated (Session 48, 2026-06-14) — merchant-of-record changed (M-MK16):** The destination charge now sets `on_behalf_of` so the **seller is the merchant-of-record** and pays Stripe's 2.9% + $0.30 directly; the platform retains a clean `application_fee_amount`. The "Codebase Changes" note below ("`transfer_data`") and the fee-split diagram still hold directionally, but the fee table's "Stripe Processing" column is now borne by the seller (not netted from the platform fee), and the checkout no longer sets `transfer_data.amount`. See the Stripe Connect implementation plan's Session 48 note for exact `payment_intent_data` params.
+
 ---
 
 ## Problem

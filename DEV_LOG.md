@@ -4,6 +4,106 @@ This log tracks session-by-session progress on Collectors Chest.
 
 ---
 
+## June 14, 2026 (Sunday) — Session 48: Full Codebase Audit + Complete Remediation (NOT Deployed — 19 local commits, base `02b0429`, nothing pushed)
+
+### Summary
+A very large session: a full 23-agent codebase audit followed by complete autonomous remediation, owner-decided closeout work, and a round of behavior-preserving refactors. Everything is committed **locally** (19 commits on `main`, base `02b0429`) and **nothing has been pushed**. The owner also applied one consolidated Supabase migration mid-session. Final state: all quality gates green except a backlogged transitive `npm audit` finding; the branch is deploy-ready pending device testing, Netlify env-var entry (migration already applied), a Stripe webhook subscription, and `/about` content.
+
+This was structured as three phases — **Audit → Remediation → Closeout** — plus a **Refactor** pass, executed via subagents to keep the main context clean.
+
+### Phase 1 — Audit
+- Ran a **23-agent parallel audit** across the codebase, consolidated into `AUDIT_2026-06-14.md`: **294 findings (55 High / 114 Medium / 125 Low)** spanning security, correctness, performance, accessibility, data integrity, dependencies, and docs accuracy.
+- Created a **reusable full-audit skill** so the audit is repeatable: `.claude/skills/full-audit.md` + `.claude/skills/full-audit.workflow.js`, plus an **audit-flow memory** entry capturing the multi-agent fan-out pattern.
+
+### Phase 2 — Autonomous Remediation (226 fixes)
+Commits `04c19f6`, `e1e6dfe`, `43fa943`, `c5abf54`, `fc3701c`. 226 fixes that did not need owner decisions:
+
+- **Dependencies:** removed unused `openai`, `@zxing/*`, `html5-qrcode`; bumped `@sentry/nextjs`.
+- **Docs accuracy:** corrected AI-provider documentation to reflect **Gemini as primary** (not Anthropic) for the relevant path.
+- **Payments / data integrity:** Stripe webhook **idempotency** reworked to mark-after-success (was marking before, risking dropped events on failure); **atomic Buy-It-Now** purchase + payment-strike correctness fix.
+- **Performance:** many **N+1 query eliminations**; `.single()` → `.maybeSingle()` where a missing row is valid; scoped `supabaseAdmin` usage so it runs under RLS instead of bypassing it.
+- **Media:** **server-side WebP cover conversion** for uploaded covers.
+- **Accessibility:** reduced-motion support; Toast / nav / skeleton a11y; focus management; form labels.
+- **Observability:** PostHog / Sentry sampling tuned.
+- **Safety:** **word-boundary profanity matching** (was substring); **content-filter injection hardening**.
+- **Tests:** +~336 tests added alongside the fixes.
+
+### Phase 3 — Owner-Decided Closeout
+Commits `7e81620`, `20d01d3`, `3ba698a`, `1350e41`, `a65584c`, `da172a5`, `ccd3a21`, `6c35659`. Items that required a product/owner decision:
+
+- **Dependency bumps:** Clerk **6.39.5** (resolves an authorization advisory) + Anthropic SDK **0.104**.
+- **Marketplace billing → DESTINATION CHARGES:** switched to `on_behalf_of` + `application_fee` so the **seller is the merchant of record** (Connect destination-charge model).
+- **Guest scans → signed cookies:** new `signedToken.ts` / `guestScanToken.ts`; guest scan counting now tamper-resistant.
+- **Bulk Mark-as-Sold:** made **skippable**, added a `sale_price_recorded` flag, and added **"unpriced" disclaimers** to revenue/profit figures when a sale price wasn't recorded.
+- **Image-host allowlist:** enforced in `next.config` + the URL sanitizer.
+- **Branding:** "Technopathic" terminology applied everywhere (per the project's branding direction).
+- **Scan UX:** pinch-zoom re-enabled, then **locked during an active scan**.
+- **Key comics:** key-comic data now **DB-primary**.
+- **Admin hardening:** **server-side admin gates** in the admin layout + middleware checking `is_admin`.
+- **Signed-token flows:** QR **promo-trial** + **email unsubscribe** signed tokens; new `/api/unsubscribe` and `/api/publishers/suggest` routes.
+- **Mobile nav:** `MobileNav` restyled to the pop-art aesthetic.
+- **AI cost/routing:** Sonnet → **Haiku** for text-only lookups; **cert-first slab scan**; **idempotent scan-pack** crediting.
+- **New env vars:** `GUEST_SCAN_SECRET`, `PROMO_TRIAL_SECRET`, `UNSUBSCRIBE_SECRET` (falls back to `CLERK_SECRET_KEY`), `SUPPORT_EMAIL`.
+
+### Migration (applied by owner mid-session)
+`supabase/migrations/20260614_audit_closeout.sql` — one consolidated migration, confirmed applied to the owner's DB:
+- **sales:** `sale_price_recorded`, `platform_fee`, `seller_net`.
+- **profiles:** `promo_trial_eligible`, `comp_granted`, plus Stripe-Connect mirror columns.
+- **Unique indexes:** one-winning-bid guarantee; `stripe_customer_id` uniqueness.
+- **New table:** `processed_stripe_sessions` (webhook idempotency ledger) with **RLS enabled**.
+- **RPCs:** `credit_scan_pack`, `complete_trade`, `review_barcode`, `sum_seller_platform_fees`, and a column fix in `find_trade_matches`.
+
+### Phase 4 — Refactors (behavior-preserving)
+Commits `a245f1a`, `a4ea780`, `3fd591a`, `ce63dd1`, `d7e0aba`. Decompositions only — no behavior change:
+- **`auctionDb.ts` (~4.8k lines)** → `src/lib/auction/*` + **28 money tests**.
+- **`email.ts` (~1.8k lines)** → `src/lib/email/*`.
+- **`ComicDetailsForm` / `ComicDetailModal`** → `src/components/comicDetail/*` (the modal is now an **accessible dialog**).
+- **`CustomProfilePage`** tabs **code-split**; collection / scan / key-hunt pages decomposed.
+- **17 overlay modals** → unified `useModalA11y` hook (proper dialog semantics).
+- These five completed the **6 deferred audit refactors** from BACKLOG (now removed from the backlog).
+
+### Key Files / Areas
+- **New:** `AUDIT_2026-06-14.md`, `.claude/skills/full-audit.md`, `.claude/skills/full-audit.workflow.js`, `supabase/migrations/20260614_audit_closeout.sql`, `src/lib/signedToken.ts`, `src/lib/guestScanToken.ts`, `src/app/api/unsubscribe/*`, `src/app/api/publishers/suggest/*`, `src/lib/auction/*`, `src/lib/email/*`, `src/components/comicDetail/*`, `useModalA11y` hook.
+- **Touched broadly:** Stripe webhook + checkout (destination charges, idempotency), `next.config` (image allowlist), middleware + admin layout (server-side gates), `MobileNav`, scan/collection/key-hunt pages, AI analyze routing.
+
+### Issues Encountered & Resolved
+- **Cross-batch seams reconciled.** Remediation, closeout, and refactor batches each touched overlapping files (Stripe flow, scan pages, AI routing); seams between batches were reconciled so the final tree is internally consistent rather than a sum of conflicting edits.
+- **Circular dependency broken.** A refactor decomposition introduced a circular import; it was broken so `npm run circular` reports **0 circular deps**.
+- **Unsubscribe-token purpose mismatch fixed.** The unsubscribe signed-token initially reused a token whose purpose/claim didn't match the unsubscribe flow; corrected so the token's purpose is scoped to unsubscribe (preventing cross-use of promo-trial / guest-scan tokens).
+- **Migration assumptions documented.** The closeout code depends on columns/RPCs/table in `20260614_audit_closeout.sql`; assumptions (which columns, RLS on `processed_stripe_sessions`, RPC signatures) are documented so the code↔schema contract is explicit. Owner confirmed the migration is applied.
+
+### Quality Gates (final)
+- **typecheck:** 0 errors
+- **lint:** 0 errors (259 warnings)
+- **tests:** **1,423 passing** across 85 suites
+- **circular deps:** 0
+- **build:** compiles
+- **npm audit:** 7 vulnerabilities (1 high) — all **transitive**; backlogged.
+
+### Where We Left Off
+**NOT deployed.** ~20 commits are unpushed on `main` (base `02b0429`). Before deploying, the owner needs to:
+1. Add the new env vars to **Netlify**: `GUEST_SCAN_SECRET`, `PROMO_TRIAL_SECRET`, `UNSUBSCRIBE_SECRET` (optional — falls back to `CLERK_SECRET_KEY`), `SUPPORT_EMAIL`.
+2. Subscribe the Stripe webhook to **`account.updated`** (needed for Connect destination-charge seller onboarding state).
+3. Add **`/about`** page content.
+4. Run the **device test pass** (`TEST_CASES.md` Closeout + Refactor Smoke plans).
+
+The `20260614_audit_closeout.sql` migration is **already applied** to the owner's DB, so it does not need to be re-run at deploy time.
+
+### Changes Since Last Deploy
+**Sessions since last deploy: 1 (Session 48).** Last deploy was Session 47 on May 27, 2026.
+
+This is a **massive** accumulated batch — the entire audit-remediation-closeout-refactor body of work:
+- 226 autonomous audit fixes (security, payments/data-integrity, performance N+1s, a11y, observability, content safety, dependency cleanup)
+- Owner-decided closeout: marketplace **destination charges**, signed-cookie guest scans, signed-token promo-trial + email unsubscribe, image-host allowlist, server-side admin gates, AI routing/cost changes, branding, scan UX
+- Dependency bumps: Clerk 6.39.5, Anthropic SDK 0.104, @sentry/nextjs
+- Five behavior-preserving refactors (auctionDb, email, comicDetail, profile/collection/scan/key-hunt pages, 17 modals → `useModalA11y`)
+- New env vars (must be added to Netlify first): `GUEST_SCAN_SECRET`, `PROMO_TRIAL_SECRET`, `UNSUBSCRIBE_SECRET`, `SUPPORT_EMAIL`
+- Migration `20260614_audit_closeout.sql` — **already applied to the DB**
+
+**Deploy readiness: Needs device testing + Netlify env vars (migration already applied).** Also requires the `account.updated` Stripe webhook subscription and `/about` content before deploy. Quality gates are green (1 backlogged transitive `npm audit` high).
+
+---
+
 ## May 27, 2026 (Wednesday) — Session 47: Cover Persistence PROD-Validated + 5 Collection-UI Fixes (Deployed May 27, 2026)
 
 ### Summary

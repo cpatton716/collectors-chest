@@ -2,7 +2,7 @@
 
 > Reference document for spec doc creation. Each feature below should get its own detailed spec document through individual review sessions.
 >
-> **Last Updated:** May 27, 2026 — Session 47
+> **Last Updated:** June 14, 2026 — Session 48
 
 ---
 
@@ -15,6 +15,14 @@ Camera capture → image compression (400KB target) → Gemini 2.0 Flash (primar
 - New prompts: `SLAB_DETECTION_PROMPT`, `SLAB_DETAIL_EXTRACTION_PROMPT`, `SLAB_COVER_HARVEST_ONLY_PROMPT`
 - New AICallType values: `slabDetection`, `slabDetailExtraction`
 - Updated barcode detection prompt for slabbed comics (reads barcode through slab case)
+
+**Session 48 (June 14, 2026) — Routing, cost, and cache optimizations:**
+- **Gemini confirmed PRIMARY, Anthropic fallback.** Documentation reconciled to match the actual code path (Gemini 2.0 Flash first, Claude as fallback). Earlier docs had drifted toward describing Anthropic as primary.
+- **Text-only lookups → Haiku (not Sonnet).** Non-vision enrichment/lookup calls now use `MODEL_LIGHTWEIGHT` (Claude Haiku) instead of Sonnet, ~60-70% cheaper on those paths.
+- **Cert-first slab ordering.** Slab detection AI calls now run **only when the main analysis flags a slab**, instead of unconditionally — avoids paying for `detectSlab()` on the common raw-comic path.
+- **Low-confidence rescan gated to signed-in users.** When the first analysis returns low confidence, an automatic single retry (cap **1 extra** call) is offered to signed-in users only; guests do not get the bonus rescan.
+- **Image-hash cache hit no longer fully short-circuits.** A cache hit on the image-hash cache still re-runs the (cheap) `barcode_catalog` lookup + variant re-resolve so newly-approved catalog/variant data surfaces on a re-scan of the same photo.
+- **Anthropic prompt caching on vision calls.** Vision requests to Claude now use prompt caching to cut input-token cost on the fallback path.
 
 **Key files:** `src/lib/aiProvider.ts`, `src/lib/providers/anthropic.ts`, `src/lib/providers/gemini.ts`, `src/lib/providers/types.ts`, `src/app/api/analyze/route.ts`
 
@@ -83,12 +91,16 @@ User-snapped photos taken via the FAB scan flow are now uploaded to a dedicated 
 - **Grid paint bug (`ComicCard.tsx`).** On iOS Safari the cover image rendered blank/cut-off on first paint. Fixed by making the `<img>` `absolute inset-0` inside its aspect-ratio box and fading it in (opacity 0→100) on the `load` event — the opacity transition forces the iOS repaint. A `complete` / `naturalWidth` check short-circuits the fade for already-cached images so they don't flash. Deliberately kept a plain `<img>` (NOT `next/image`) to avoid Netlify Image CDN cost.
 - **Detail-modal thumbnail squish.** The modal cover thumbnail used `w-20 h-30`; `h-30` is an undefined Tailwind class that collapsed the box. Changed to `w-20 aspect-[2/3] self-start` so the thumbnail renders as a proper tall comic cover.
 
-**Key files:** `src/app/api/comics/upload-cover/route.ts`, `src/lib/uploadCoverImage.ts`, `src/app/scan/page.tsx` (`handleSave()`), `src/components/ComicCard.tsx` (iOS fade-in-on-load grid render), `supabase/migrations/20260509_comic_covers_bucket.sql`
+**Session 48 (June 14, 2026) — server-side WebP conversion.** Uploaded covers are now converted to **WebP server-side** in `/api/comics/upload-cover` before they land in the `comic-covers` bucket, shrinking stored cover size (helps the 1GB Supabase storage cap flagged in COST_PROJECTIONS) without changing the public-URL contract. The collection grid also gained **Load-more pagination** so large collections don't render every row at once.
+
+**Key files:** `src/app/api/comics/upload-cover/route.ts` (server-side WebP conversion), `src/lib/uploadCoverImage.ts`, `src/app/scan/page.tsx` (`handleSave()`), `src/app/collection/page.tsx` (Load-more pagination), `src/components/ComicCard.tsx` (iOS fade-in-on-load grid render), `supabase/migrations/20260509_comic_covers_bucket.sql`
 
 ---
 
 ## 4. Multi-Layer Caching Architecture
 Redis (backend): eBay prices (12h), metadata (7d), AI analysis (30d), barcodes (6mo), certs (1yr). localStorage (frontend): offline lookups (7d, 30 items LRU), scan history, guest collection. Image hash cache prevents re-analyzing identical photos.
+
+**Session 48 (June 14, 2026) — Image-hash cache hit re-runs cheap lookups.** A hit on the image-hash cache no longer fully short-circuits the route: it still re-runs the `barcode_catalog` lookup and variant re-resolve so a re-scan of the same photo picks up any newly admin-approved catalog/variant data. The expensive AI vision/enrichment calls are still skipped on the cache hit.
 
 **Two distinct caching strategies for scans:**
 - **Cert-level cache** (`cache:cert:{company}-{certNumber}`, 1yr TTL) — Stores the full cert lookup response. Keyed by cert number, so only helps if the exact same physical book is scanned again (rare in production).
@@ -109,14 +121,18 @@ Guest: 5 scans (client-side + server header validation, +5 via email capture). F
 
 **Session 39 addition — hCaptcha Guest Scan Protection:** Invisible hCaptcha gates guest scans **4 and 5 only** (the last two free scans before the limit). Client via `@hcaptcha/react-hcaptcha` with floating badge (`src/components/GuestCaptcha.tsx`), server helper at `src/lib/hcaptcha.ts` with 5s siteverify timeout and dev/prod key swap. Env vars: `HCAPTCHA_SECRET_KEY` + `NEXT_PUBLIC_HCAPTCHA_SITE_KEY`.
 
-**Key files:** `src/lib/subscription.ts`, `src/lib/uploadLimits.ts`, `src/lib/hcaptcha.ts`, `src/hooks/useGuestScans.ts`, `src/components/GuestCaptcha.tsx`, `src/app/api/analyze/route.ts`
+**Session 48 (June 14, 2026) — Guest scans now server-enforced (was bypassable).** Guest scan counting moved off the trust-the-client model (previously a request header the client controlled, trivially bypassable) onto a **signed `cc_guest` cookie + Redis counters**. The route mints/reads a tamper-resistant signed token (`src/lib/guestScanToken.ts` on top of `src/lib/signedToken.ts`) and increments a server-side Redis counter, so neither the base 5-scan limit nor the **+5 email-capture bonus** can be defeated by editing client state. Bonus scans are likewise granted and tracked server-side. New env var: `GUEST_SCAN_SECRET`.
+
+**Key files:** `src/lib/subscription.ts`, `src/lib/uploadLimits.ts`, `src/lib/hcaptcha.ts`, `src/lib/signedToken.ts`, `src/lib/guestScanToken.ts`, `src/hooks/useGuestScans.ts`, `src/components/GuestCaptcha.tsx`, `src/app/api/analyze/route.ts`
 
 ---
 
 ## 6. Subscription & Trial Lifecycle
 Three paths: 7-day direct trial (no Stripe, DB-only) → 30-day promo trial (QR code → localStorage flag → Stripe subscription with `trial_period_days: 30`) → paid subscription ($4.99/mo or $49.99/yr). Webhook-driven state machine: created → active/trialing → past_due → canceled → downgrade. Idempotent webhook processing via event ID cache.
 
-**Key files:** `src/lib/subscription.ts`, `src/app/api/billing/`, `src/app/api/webhooks/stripe/route.ts`, `src/lib/promoTrial.ts`
+**Session 48 (June 14, 2026) — QR-exclusive signed promo-trial token.** The 30-day promo trial is now gated behind a **signed promo-trial token** (`src/lib/signedToken.ts`, purpose-scoped via `PROMO_TRIAL_SECRET`) carried by the QR-code entry point, so the 30-day trial can no longer be self-granted by setting the localStorage flag directly — eligibility is verified server-side (`profiles.promo_trial_eligible`, added in `20260614_audit_closeout.sql`). Token purpose is scoped so it can't be cross-used as a guest-scan or unsubscribe token. New env var: `PROMO_TRIAL_SECRET`.
+
+**Key files:** `src/lib/subscription.ts`, `src/lib/signedToken.ts`, `src/app/api/billing/`, `src/app/api/webhooks/stripe/route.ts`, `src/lib/promoTrial.ts`
 
 ---
 
@@ -268,7 +284,9 @@ Mobile-first quick-lookup designed for the convention floor: scan a cover, get t
 
 ### Curated key issue database
 
-**`src/lib/keyComicsDatabase.ts`** — 945 hand-vetted canonical key issues (404 baseline + 541 added Session 44). Examples: Action #1 (first Superman), Detective #27 (first Batman), Detective #38 (first Robin), AF #15 (first Spider-Man), FF #1 (first Fantastic Four), FF #5 (first Doctor Doom), Hulk #181 (first Wolverine), GS X-Men #1, DD #181 (death of Elektra), ASM #300 (first Venom), ASM #129 (first Punisher), Batman Adventures #12 (first Harley Quinn), Walking Dead #1, NYX #3 (first X-23), Ultimate Fallout #4 (first Miles Morales), Captain America Comics #1, Marvel Comics #1, Whiz #2 (first Captain Marvel/Shazam), All-American #16 (first Alan Scott Green Lantern), Tales of Suspense #59 (first solo Cap modern), House of X #1 (Krakoa era), Mad #1, etc.
+**Session 48 (June 14, 2026) — DB-backed key comics is now the PRIMARY source.** A database-backed key-comics module (community-approved entries) is now consulted first by both `/api/analyze` and `/api/con-mode-lookup`, so community-curated keys surface in Key Hunt and regular scans. The static `keyComicsDatabase.ts` file (the ~2.1k-line hand-vetted list described below) is now the **fallback** when the DB has no entry. The year-convention, multi-volume disambiguation, and `resolveEntry()` rules below still apply to the static fallback.
+
+**`src/lib/keyComicsDatabase.ts`** (static fallback) — 945 hand-vetted canonical key issues (404 baseline + 541 added Session 44). Examples: Action #1 (first Superman), Detective #27 (first Batman), Detective #38 (first Robin), AF #15 (first Spider-Man), FF #1 (first Fantastic Four), FF #5 (first Doctor Doom), Hulk #181 (first Wolverine), GS X-Men #1, DD #181 (death of Elektra), ASM #300 (first Venom), ASM #129 (first Punisher), Batman Adventures #12 (first Harley Quinn), Walking Dead #1, NYX #3 (first X-23), Ultimate Fallout #4 (first Miles Morales), Captain America Comics #1, Marvel Comics #1, Whiz #2 (first Captain Marvel/Shazam), All-American #16 (first Alan Scott Green Lantern), Tales of Suspense #59 (first solo Cap modern), House of X #1 (Krakoa era), Mad #1, etc.
 
 **Year convention: series-start year, NOT issue-publication year.** Detective Comics #38 (published 1940) uses `year: 1937` because Detective Comics started in 1937. ASM #700 (published 2012) uses `year: 1963` because the series started in 1963. The `resolveEntry()` function in `keyComicsDatabase.ts` rejects matches where `releaseYear < entry.year` (i.e., the comic claims to be from before the series started — wrong volume).
 
@@ -305,13 +323,15 @@ Premium feature. `key_hunt_lists` table tracks comics the user is hunting. Add-t
 ## 11. Auction & Fixed-Price Marketplace
 Two listing types: timed auction (1-14 days, proxy bidding) and fixed-price (30-day, accepts offers). Offer negotiation (max 3 rounds, 7-day expiry). Stripe Connect (Express) for seller payouts via destination charges. Transaction fees: 8% free / 5% premium with a **$0.75 minimum per sale** (seller-favorable `Math.floor` rounding above the floor). Cron-driven auction processing, listing expiration, and offer expiration.
 
+**Session 48 (June 14, 2026) — switched to true DESTINATION CHARGES (seller = merchant of record).** The checkout charge model changed from the platform-as-merchant transfer split (below) to a Stripe Connect **destination charge** using `on_behalf_of` + `application_fee_amount`. The buyer's charge is now created **on behalf of the seller's Connect account** (seller is the merchant of record on the buyer's statement and for tax/regulatory purposes); the platform's cut is taken via `application_fee_amount` and Stripe deducts processing fees from the seller's side. The fee-snapshot rules below (rate fixed at listing time, $0.75 floor) are unchanged — only the Stripe charge shape and merchant-of-record changed. The worked examples further down describe the OLD platform-as-merchant model and are retained for historical reference; net platform/seller economics are equivalent. Stripe webhook must be subscribed to `account.updated` for Connect onboarding state (deploy prerequisite). Other Session 48 marketplace changes: **atomic Buy-It-Now guard** (one-winner UNIQUE index + conditional update prevents double-purchase races), **idempotent scan-pack crediting** (`credit_scan_pack` RPC + `processed_stripe_sessions` ledger), **refund/dispute reversal handlers** in the Stripe webhook, **webhook idempotency reworked to mark-after-success** (was mark-before, which dropped events when processing failed), and **auto-reject competing offers on accept** (accepting one offer on a fixed-price listing now atomically rejects all other open offers on that listing so a seller can't accidentally accept two).
+
 **Transaction fee mechanics — snapshotted at listing time, not checkout time:**
 
 The fee *rate* (5% or 8%) is determined by the seller's subscription tier *at the moment the listing is created*, not when the buyer pays. The minimum fee floor is a current constant, applied at checkout. Flow:
 
 1. `createAuction` (`src/lib/auctionDb.ts:112-115`) and `createFixedPriceListing` (`src/lib/auctionDb.ts:207-210`) call `getTransactionFeePercent(sellerId)` at write time and persist the result to `auctions.platform_fee_percent` (5 for premium/trialing, 8 for free — see `src/lib/subscription.ts:655-663`).
-2. `/api/checkout` reads the stored `platform_fee_percent` off the listing row (`src/app/api/checkout/route.ts:151-154`) — *not* the seller's current tier — and passes it through `calculateDestinationAmount(totalCents, feePercent)` (`src/lib/stripeConnect.ts`) to compute `sellerAmount = totalCents - max(MIN_PLATFORM_FEE_CENTS, floor(totalCents × feePercent / 100))`, capped so the seller payout can never go negative.
-3. Stripe Checkout receives `payment_intent_data.transfer_data.destination` (the seller's Connect account ID) + `amount: sellerAmount`. No `application_fee_amount`, no `on_behalf_of`. No platform-fee configuration in the Stripe Dashboard — the split is 100% code-driven.
+2. `/api/checkout` reads the stored `platform_fee_percent` off the listing row — *not* the seller's current tier — and computes the platform's `application_fee_amount = max(MIN_PLATFORM_FEE_CENTS, floor(totalCents × feePercent / 100))`, capped so the seller's net can never go negative.
+3. **(Session 48)** Stripe Checkout receives `payment_intent_data.on_behalf_of` (the seller's Connect account ID) + `payment_intent_data.application_fee_amount` (the platform cut) + `transfer_data.destination` (the seller's Connect account). The charge settles on the seller's account as merchant of record; the platform receives only the application fee.
 
 **Snapshot consequences (intentional, not a bug):**
 - Premium seller lists, then cancels Premium → that listing still settles at 5% on purchase.
@@ -319,9 +339,9 @@ The fee *rate* (5% or 8%) is determined by the seller's subscription tier *at th
 - Premium incentive is "list while you're Premium." If a future requirement is to recompute the rate at checkout, the change is `auctionDb.ts:115` and `:210` (drop the snapshot writes) plus `checkout/route.ts:151-154` (call `getTransactionFeePercent(listing.seller_id)` instead of reading the column).
 - The $0.75 floor is **not** snapshotted — it's a const in `stripeConnect.ts` applied at checkout. Changing the floor affects all future settlements regardless of when the listing was created. If we ever need a snapshotted floor (so a price increase doesn't retroactively hit live listings), add `auctions.platform_fee_min_cents` and write it alongside `platform_fee_percent`.
 
-**Stripe processing fee (~2.9% + $0.30) — paid by platform, not seller:**
+**Stripe processing fee (~2.9% + $0.30):**
 
-The destination-charge model means the platform is the merchant of record. The buyer pays exactly the listed total (no surcharge added). Stripe deducts its processing fee from the platform's gross balance before the platform sees it; `transfer_data.amount` is the *seller's net*, deducted from the platform's available balance via Connect transfer.
+> **Note (Session 48):** As of the destination-charge switch, the **seller** is the merchant of record and Stripe deducts the ~2.9% + $0.30 processing fee from the seller's side of the charge; the platform receives the `application_fee_amount`. The worked examples in this subsection describe the PRE-Session-48 platform-as-merchant model and are retained for the fee-floor break-even math (which is unchanged). The buyer still pays exactly the listed total with no surcharge.
 
 Worked example — $100 sale, 8% (free seller):
 - Buyer pays $100.00 flat.
@@ -474,7 +494,12 @@ Resend integration with comic-themed templates (POW!, BAM!, KA-CHING! sound effe
 - **Purchase confirmation email copy.** "added to your collection" → "will be added to your collection once the seller marks it as shipped" — matches ship-gated ownership-transfer timing.
 - **Site-wide em dash sweep.** ~55 em dashes (U+2014) removed from user-facing copy across 10 files (all email templates HTML + text, FAQ answers, notification titles/messages, seller-onboarding guide, about/terms/settings, SecondChanceInboxCard, comicFacts, refresh-value error string, collection placeholder glyphs). Context-aware replacements: names followed by dash → comma; sentence break → period; gloss → colon; no-space dash → hyphen. ~224 occurrences intentionally skipped in code comments, console args, AI prompts, internal validator reasons, JSDoc, tests, migrations, and markdown docs.
 
-**Key files:** `src/lib/email.ts`, `src/lib/notificationPreferences.ts`, `src/lib/concurrency.ts`, `src/types/notificationPreferences.ts`, `src/app/api/cron/send-trial-reminders/route.ts`, `src/app/api/cron/send-feedback-reminders/route.ts`, `src/app/api/settings/notifications/route.ts`, `src/app/settings/notifications/page.tsx`
+**Session 48 (June 14, 2026) — one-click List-Unsubscribe + HTML escaping:**
+- **RFC 8058 one-click unsubscribe.** Emails now carry `List-Unsubscribe` / `List-Unsubscribe-Post` headers pointing at a new `/api/unsubscribe` route. The link/header carries a **signed unsubscribe token** (`src/lib/signedToken.ts`, purpose-scoped via `UNSUBSCRIBE_SECRET`, which **falls back to `CLERK_SECRET_KEY`** if unset) so a click flips the recipient's email preference without requiring login and without exposing a forgeable user id. Token purpose is scoped so it can't be cross-used as a promo-trial / guest-scan token.
+- **HTML escaping across templates.** User-supplied values interpolated into email HTML (titles, names, messages) are now escaped to prevent HTML/markup injection in rendered emails.
+- **Batched sends** (Resend `batch.send()` via `mapWithConcurrency`) continue from Session 39 and were preserved through the `email.ts → src/lib/email/*` refactor.
+
+**Key files:** `src/lib/email/*` (decomposed from `email.ts` in Session 48), `src/lib/signedToken.ts`, `src/app/api/unsubscribe/*`, `src/lib/notificationPreferences.ts`, `src/lib/concurrency.ts`, `src/types/notificationPreferences.ts`, `src/app/api/cron/send-trial-reminders/route.ts`, `src/app/api/cron/send-feedback-reminders/route.ts`, `src/app/api/settings/notifications/route.ts`, `src/app/settings/notifications/page.tsx`
 
 ---
 
@@ -494,6 +519,8 @@ Resend integration with comic-themed templates (POW!, BAM!, KA-CHING! sound effe
 - **2+ strikes in 90 days:** set `profiles.bid_restricted_at`, insert system-generated negative `transaction_feedback` row (idempotent on unique constraint), email `payment_missed_flagged`, notify admins via `/api/admin/flagged-users`.
 - **Enforcement:** `/api/auctions/[id]/bid` blocks bid placement when `bid_restricted_at IS NOT NULL`.
 - **Audit:** every transition is logged to `auction_audit_log` (see Feature #23).
+
+**Session 48 (June 14, 2026) — strike-counting correctness fix.** The payment-strike accumulation/restriction logic was corrected (strike counting + the 2-in-90-days restriction trigger) as part of the atomic Buy-It-Now / payment-path remediation, so missed-payment offenses are counted and the `bid_restricted_at` restriction is applied accurately.
 
 **Migrations:**
 - `20260423_payment_reminder_tracking.sql` — `payment_reminder_sent_at`, `payment_expired_at` columns + partial index (Session 38)
@@ -592,7 +619,9 @@ The `/sales` page is visible to every user regardless of tier; only the aggregat
   - Empty-state copy drops the "with profit tracking" phrase for free users.
 - **Write path is tier-agnostic.** `markComicAsSold` in `src/lib/db.ts` always writes `purchase_price`, `sale_price`, and `profit` into the `sales` table. Free users' sale data is fully preserved → upgrading surfaces existing data retroactively. Overlay copy explicitly tells users "Your sale data is still being saved."
 
-**Key files:** `src/app/sales/page.tsx`, `src/lib/db.ts` (`markComicAsSold`)
+**Session 48 (June 14, 2026) — skippable bulk Mark-as-Sold + unpriced-sale tracking.** Bulk Mark-as-Sold (multi-select in the collection) now lets the user **skip the sale-price prompt per item**. Each selected comic still records a `sales` row, but a new `sale_price_recorded` boolean (migration `20260614_audit_closeout.sql`) records whether a price was actually entered. Revenue/profit displays now **annotate "unpriced" sold books** so totals are honest when some sales were marked without a price. The migration also adds `platform_fee` / `seller_net` columns to `sales` for marketplace-sourced sales accounting.
+
+**Key files:** `src/app/sales/page.tsx`, `src/app/collection/page.tsx` (bulk Mark-as-Sold flow), `src/lib/db.ts` (`markComicAsSold`), `supabase/migrations/20260614_audit_closeout.sql`
 
 ---
 
@@ -665,3 +694,23 @@ Full-page `/notifications` view that complements the bell-dropdown preview. Mobi
 - `src/components/NotificationBell.tsx`, `src/components/Navigation.tsx`
 - `supabase/migrations/20260427_notifications_inbox.sql`
 - `supabase/migrations/20260427_add_shipped_notification_type.sql` (companion: `shipped` notification type + Truck icon)
+
+---
+
+## 29. Modal Accessibility & Motion/Zoom Controls (Session 48, June 14, 2026)
+
+Site-wide accessibility pass landed during the Session 48 audit remediation + refactor.
+
+- **`useModalA11y` hook.** A single hook gives every overlay proper dialog semantics: `role="dialog"` / `aria-modal`, **Escape-to-close**, **focus trap + focus restore** on close, and initial-focus management. **17 overlay modals plus `ComicDetailModal`** were converted to use it, so all blocking overlays now behave consistently for keyboard and screen-reader users. `ComicDetailModal` / `ComicDetailsForm` were decomposed into `src/components/comicDetail/*` as part of the same work, with the modal becoming a true accessible dialog.
+- **Global reduced-motion support.** Animations/transitions respect `prefers-reduced-motion` site-wide (the scan-result and modal transitions no longer animate for users who opt out).
+- **Pinch-zoom re-enabled.** The viewport no longer disables pinch-zoom globally (an accessibility regression); zoom is now allowed everywhere **except during an active scan**, where it stays locked so the framing UI isn't disrupted mid-capture.
+
+**Key files:** `src/hooks/useModalA11y.ts`, `src/components/comicDetail/*` (ComicDetailModal / ComicDetailsForm decomposition), the 17 overlay-modal components wired to the hook, `src/app/scan/page.tsx` (scan-time zoom lock), viewport/meta + global motion CSS.
+
+---
+
+## 30. Branding — "Technopathic" Terminology (Session 48, June 14, 2026)
+
+All user-facing "AI" copy was replaced with the brand's **"Technopathic"** terminology (cover scanning, price estimates, FAQ answers, metadata description, sign-up benefits, etc.). This is the brand-approved direction; the project's `CLAUDE.md` documents an exact per-file **"revert technopathy"** command to roll the wording back to "AI" if ever needed. Code identifiers, prompts, comments, and provider names are intentionally unchanged — copy-only.
+
+**Key files:** `src/app/layout.tsx`, `src/app/page.tsx`, `src/app/sign-up/[[...sign-up]]/page.tsx`, `src/components/Navigation.tsx`, `src/components/AskProfessor.tsx`, `src/components/comicDetail/*`, `src/app/key-hunt/page.tsx`, `src/components/KeyHuntPriceResult.tsx`, `src/hooks/useOffline.ts`, `src/app/api/analyze/route.ts` (disclaimer strings). Full per-file inventory lives in `CLAUDE.md` under "Revert Technopathy Command".
