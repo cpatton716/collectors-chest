@@ -2,39 +2,29 @@
 
 import { useEffect, useState } from "react";
 
-import Image from "next/image";
-
 import {
   AlertCircle,
   AlertTriangle,
   CheckCircle,
-  DollarSign,
-  ExternalLink,
-  Info,
-  KeyRound,
   Loader2,
-  Plus,
-  RefreshCw,
-  Search,
-  TrendingUp,
-  X,
 } from "lucide-react";
-
-import { calculateValueAtGrade } from "@/lib/gradePrice";
 
 import {
   CollectionItem,
   ComicDetails,
-  GRADE_SCALE,
-  GRADING_COMPANIES,
   GradingCompany,
   normalizePublisher,
   PUBLISHERS,
 } from "@/types/comic";
 
 import { AddToKeyHuntButton } from "./AddToKeyHuntButton";
-import { GradePricingBreakdown } from "./GradePricingBreakdown";
 import { TitleAutocomplete } from "./TitleAutocomplete";
+import { CoverSourceSection } from "./comicDetail/CoverSourceSection";
+import { GradingSection } from "./comicDetail/GradingSection";
+import { KeyInfoSection } from "./comicDetail/KeyInfoSection";
+import { PricingSection } from "./comicDetail/PricingSection";
+import { RelookupPrompt } from "./comicDetail/RelookupPrompt";
+import { SignatureSection } from "./comicDetail/SignatureSection";
 
 // Helper to normalize grade values to match GRADE_SCALE format (e.g., "3" → "3.0")
 function normalizeGrade(value: string): string {
@@ -42,22 +32,6 @@ function normalizeGrade(value: string): string {
   if (isNaN(num)) return value;
   if (Number.isInteger(num) && num !== 10) return num.toFixed(1);
   return String(num);
-}
-
-// Helper to generate certification verification URLs
-function getCertVerificationUrl(certNumber: string, gradingCompany: string): string | null {
-  if (!certNumber || !gradingCompany) return null;
-
-  switch (gradingCompany.toUpperCase()) {
-    case "CGC":
-      return `https://www.cgccomics.com/certlookup/${certNumber}`;
-    case "CBCS":
-      return `https://cbcscomics.com/grading-notes/${certNumber}`;
-    case "PGX":
-      return `https://www.pgxcomics.com/certverification/pgxlabel.aspx?CertNo=${certNumber}`;
-    default:
-      return null;
-  }
 }
 
 interface ComicDetailsFormProps {
@@ -558,34 +532,11 @@ export function ComicDetailsForm({
 
       {/* Re-lookup Prompt - shown when title/issue changes in edit mode */}
       {showRelookupPrompt && pendingRelookup && (
-        <div className="flex items-start gap-3 p-4 rounded-lg bg-amber-50 border border-amber-200">
-          <RefreshCw className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-          <div className="flex-1">
-            <p className="text-sm font-medium text-amber-800">Title or issue number changed</p>
-            <p className="text-sm text-amber-700 mt-1">
-              Would you like to look up new details for &quot;{pendingRelookup.title} #
-              {pendingRelookup.issue}&quot;? This will update the publisher, year, creative team,
-              and key info.
-            </p>
-            <div className="flex gap-2 mt-3">
-              <button
-                type="button"
-                onClick={handleRelookup}
-                className="px-3 py-1.5 bg-amber-600 text-white text-sm rounded-lg hover:bg-amber-700 transition-colors flex items-center gap-1.5"
-              >
-                <RefreshCw className="w-3.5 h-3.5" />
-                Look Up New Details
-              </button>
-              <button
-                type="button"
-                onClick={dismissRelookupPrompt}
-                className="px-3 py-1.5 bg-white text-amber-700 text-sm rounded-lg border border-amber-300 hover:bg-amber-50 transition-colors"
-              >
-                Keep Current Details
-              </button>
-            </div>
-          </div>
-        </div>
+        <RelookupPrompt
+          pendingRelookup={pendingRelookup}
+          onRelookup={handleRelookup}
+          onDismiss={dismissRelookupPrompt}
+        />
       )}
 
       {/* Basic Info */}
@@ -749,195 +700,14 @@ export function ComicDetailsForm({
 
       {/* Cover Image Section - show for adding new cover or updating existing */}
       {comic.title && onCoverImageChange && (
-        <div
-          className={`p-4 rounded-lg space-y-3 order-first md:order-none ${coverImageUrl ? "bg-gray-50 border border-gray-200" : "bg-blue-50 border border-blue-200"}`}
-        >
-          <div>
-            <p
-              className={`text-sm font-medium ${coverImageUrl ? "text-gray-900" : "text-blue-900"}`}
-            >
-              {coverImageUrl ? "Cover Image" : "Add a cover image"}
-            </p>
-            {!coverImageUrl && (
-              <>
-                <p className="text-xs text-blue-700 hidden md:block">
-                  Paste a cover image URL or search Google Images to find one.
-                </p>
-                <p className="text-xs text-blue-700 md:hidden">
-                  Search for the cover image, then copy and paste the URL below.
-                </p>
-              </>
-            )}
-          </div>
-
-          {/* Show current cover with change option */}
-          {coverImageUrl && (
-            <div className="flex items-start gap-4">
-              <div className="w-16 h-24 flex-shrink-0 rounded-md overflow-hidden bg-gray-200 shadow-sm relative">
-                <Image
-                  src={coverImageUrl}
-                  alt="Current cover"
-                  fill
-                  className="object-cover"
-                  sizes="64px"
-                  unoptimized
-                />
-              </div>
-              <div className="flex-1 space-y-2">
-                <p className="text-xs text-gray-500">Current cover image</p>
-                {/* Mobile: Full-width buttons stacked */}
-                <div className="md:hidden space-y-2">
-                  <button
-                    type="button"
-                    onClick={handleSearchCover}
-                    disabled={isSearchingCover}
-                    className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-                  >
-                    {isSearchingCover ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Search className="w-4 h-4" />
-                    )}
-                    Find New Cover
-                    <ExternalLink className="w-3 h-3" />
-                  </button>
-                  <p className="text-xs text-gray-500 text-center">
-                    Tap &amp; hold image → Open in new tab → Copy URL
-                  </p>
-                  <div className="flex gap-2">
-                    <input
-                      type="url"
-                      value={coverUrlInput}
-                      onChange={(e) => setCoverUrlInput(e.target.value)}
-                      placeholder="Paste new image URL..."
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleSetCover}
-                      disabled={!coverUrlInput}
-                      className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 text-sm font-medium"
-                    >
-                      Set
-                    </button>
-                  </div>
-                </div>
-                {/* Desktop: Inline controls */}
-                <div className="hidden md:block space-y-2">
-                  <div className="flex gap-2">
-                    <input
-                      type="url"
-                      value={coverUrlInput}
-                      onChange={(e) => setCoverUrlInput(e.target.value)}
-                      placeholder="Paste new image URL..."
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleSetCover}
-                      disabled={!coverUrlInput}
-                      className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 text-sm"
-                    >
-                      Update
-                    </button>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleSearchCover}
-                    disabled={isSearchingCover}
-                    className="flex items-center gap-2 text-sm text-blue-700 hover:text-blue-800"
-                  >
-                    {isSearchingCover ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Search className="w-4 h-4" />
-                    )}
-                    Search Google Images
-                    <ExternalLink className="w-3 h-3" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* No cover yet - show add options */}
-          {!coverImageUrl && (
-            <>
-              {/* Mobile: Search button first, then paste area */}
-              <div className="md:hidden space-y-3">
-                <button
-                  type="button"
-                  onClick={handleSearchCover}
-                  disabled={isSearchingCover}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-                >
-                  {isSearchingCover ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Search className="w-4 h-4" />
-                  )}
-                  Search Google Images
-                  <ExternalLink className="w-4 h-4" />
-                </button>
-                <p className="text-xs text-blue-600 text-center">
-                  Tap &amp; hold image → Open in new tab → Copy URL from address bar
-                </p>
-                <div className="flex gap-2">
-                  <input
-                    type="url"
-                    value={coverUrlInput}
-                    onChange={(e) => setCoverUrlInput(e.target.value)}
-                    placeholder="Paste image URL here..."
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleSetCover}
-                    disabled={!coverUrlInput}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 text-sm font-medium"
-                  >
-                    Set
-                  </button>
-                </div>
-              </div>
-
-              {/* Desktop: URL input first, then search link */}
-              <div className="hidden md:block space-y-3">
-                <div className="flex gap-2">
-                  <input
-                    type="url"
-                    value={coverUrlInput}
-                    onChange={(e) => setCoverUrlInput(e.target.value)}
-                    placeholder="Paste image URL here..."
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleSetCover}
-                    disabled={!coverUrlInput}
-                    className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 text-sm"
-                  >
-                    Set Cover
-                  </button>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleSearchCover}
-                  disabled={isSearchingCover}
-                  className="flex items-center gap-2 text-sm text-blue-700 hover:text-blue-800"
-                >
-                  {isSearchingCover ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Search className="w-4 h-4" />
-                  )}
-                  Search Google Images
-                  <ExternalLink className="w-3 h-3" />
-                </button>
-              </div>
-            </>
-          )}
-        </div>
+        <CoverSourceSection
+          coverImageUrl={coverImageUrl}
+          coverUrlInput={coverUrlInput}
+          isSearchingCover={isSearchingCover}
+          onCoverUrlInputChange={setCoverUrlInput}
+          onSearchCover={handleSearchCover}
+          onSetCover={handleSetCover}
+        />
       )}
 
       {/* Creative Team */}
@@ -1003,439 +773,65 @@ export function ComicDetailsForm({
       </div>
 
       {/* Key Info */}
-      <div>
-        <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-          <KeyRound className="w-4 h-4 text-yellow-600" />
-          Key Info
-        </h3>
-        <p className="text-xs text-gray-500 mb-3">
-          First appearances, deaths, team changes, and other significant events
-        </p>
-
-        {/* Database Key Info (read-only) */}
-        {comic.keyInfo && comic.keyInfo.length > 0 && (
-          <div className="space-y-2 mb-3">
-            {comic.keyInfo.map((info, index) => {
-              const isVerified = comic.keyInfoSource === "database" || comic.keyInfoSource === "cgc";
-              return (
-                <div
-                  key={`db-${index}`}
-                  className={`flex items-start gap-2 p-2 rounded-lg ${
-                    isVerified
-                      ? "bg-yellow-50 border border-yellow-200"
-                      : "bg-gray-50 border border-gray-200"
-                  }`}
-                >
-                  <span className="flex-1 text-sm text-gray-700">{info}</span>
-                  {isVerified ? (
-                    <span className="text-xs text-yellow-600 bg-yellow-100 px-2 py-0.5 rounded">
-                      Verified
-                    </span>
-                  ) : (
-                    <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded">
-                      Technopathic
-                    </span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Custom Key Info (user-added, with remove buttons) */}
-        {customKeyInfo.length > 0 && (
-          <div className="space-y-2 mb-3">
-            {customKeyInfo.map((info, index) => (
-              <div
-                key={`custom-${index}`}
-                className="flex items-start gap-2 p-2 bg-amber-50 border border-amber-200 rounded-lg"
-              >
-                <span className="flex-1 text-sm text-gray-700">{info}</span>
-                <span className="text-xs text-amber-600 bg-amber-100 px-2 py-0.5 rounded">
-                  Pending
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCustomKeyInfo((prev) => prev.filter((_, i) => i !== index));
-                  }}
-                  className="p-1 text-gray-400 hover:text-red-500 transition-colors"
-                  aria-label="Remove key info"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Add New Key Info */}
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={newKeyInfo}
-            onChange={(e) => setNewKeyInfo(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && newKeyInfo.trim()) {
-                e.preventDefault();
-                setCustomKeyInfo((prev) => [...prev, newKeyInfo.trim()]);
-                setNewKeyInfo("");
-              }
-            }}
-            placeholder="e.g., First appearance of Venom"
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white text-gray-900 text-sm"
-          />
-          <button
-            type="button"
-            onClick={() => {
-              if (newKeyInfo.trim()) {
-                setCustomKeyInfo((prev) => [...prev, newKeyInfo.trim()]);
-                setNewKeyInfo("");
-              }
-            }}
-            disabled={!newKeyInfo.trim()}
-            className="px-3 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Plus className="w-4 h-4" />
-          </button>
-        </div>
-        {customKeyInfo.length > 0 && (
-          <p className="text-xs text-amber-600 mt-2 flex items-center gap-1">
-            <Info className="w-3 h-3" />
-            Custom key info is reviewed before appearing publicly
-          </p>
-        )}
-      </div>
+      <KeyInfoSection
+        comic={comic}
+        customKeyInfo={customKeyInfo}
+        newKeyInfo={newKeyInfo}
+        onNewKeyInfoChange={setNewKeyInfo}
+        onAddKeyInfo={() => {
+          if (newKeyInfo.trim()) {
+            setCustomKeyInfo((prev) => [...prev, newKeyInfo.trim()]);
+            setNewKeyInfo("");
+          }
+        }}
+        onRemoveKeyInfo={(index) => {
+          setCustomKeyInfo((prev) => prev.filter((_, i) => i !== index));
+        }}
+      />
 
       {/* Grading */}
-      <div>
-        <h3 className="text-sm font-semibold text-gray-900 mb-3">Grading</h3>
-
-        <div className="mb-4">
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={isGraded}
-              onChange={(e) => setIsGraded(e.target.checked)}
-              className="w-4 h-4 text-primary-600 rounded focus:ring-primary-500"
-            />
-            <span className="text-sm text-gray-700">Professionally Graded (Slabbed)</span>
-          </label>
-        </div>
-
-        {/* Grading details - only show when slabbed */}
-        {isGraded && (
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label
-                  htmlFor="cdf-grading-company"
-                  className="block text-sm font-medium text-gray-700 mb-1"
-                >
-                  Grading Company
-                </label>
-                <select
-                  id="cdf-grading-company"
-                  value={gradingCompany}
-                  onChange={(e) => setGradingCompany(e.target.value as GradingCompany | "")}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white text-gray-900"
-                >
-                  <option value="">Select company...</option>
-                  {GRADING_COMPANIES.map((company) => (
-                    <option key={company} value={company}>
-                      {company}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label htmlFor="cdf-grade" className="block text-sm font-medium text-gray-700 mb-1">
-                  Grade
-                </label>
-                <select
-                  id="cdf-grade"
-                  value={grade}
-                  onChange={(e) => setGrade(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white text-gray-900"
-                >
-                  <option value="">Select grade...</option>
-                  {GRADE_SCALE.map((g) => (
-                    <option key={g.value} value={g.value}>
-                      {g.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* Certification Number */}
-            <div className="mt-4">
-              <label
-                htmlFor="cdf-cert-number"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                Certification Number
-              </label>
-              <div className="flex gap-2">
-                <input
-                  id="cdf-cert-number"
-                  type="text"
-                  value={certificationNumber}
-                  onChange={(e) => setCertificationNumber(e.target.value)}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white text-gray-900"
-                  placeholder="e.g., 3904837001"
-                />
-                <button
-                  type="button"
-                  onClick={handleCertLookup}
-                  disabled={!certificationNumber || !gradingCompany || isLookingUpCert}
-                  className="px-3 py-2 bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
-                >
-                  {isLookingUpCert ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Search className="w-4 h-4" />
-                  )}
-                  Lookup
-                </button>
-              </div>
-              <p className="text-xs text-gray-500 mt-1">
-                Enter the cert number from the label to fetch details from{" "}
-                {gradingCompany || "the grading company"}
-              </p>
-              {/* Clickable link to verification page */}
-              {certificationNumber &&
-                gradingCompany &&
-                getCertVerificationUrl(certificationNumber, gradingCompany) && (
-                  <a
-                    href={getCertVerificationUrl(certificationNumber, gradingCompany) || "#"}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 mt-2 text-sm text-primary-600 hover:text-primary-700 hover:underline"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" />
-                    View on {gradingCompany} website
-                  </a>
-                )}
-            </div>
-
-            {/* Grading Details Section - from cert lookup */}
-            {(comic.pageQuality || comic.gradeDate || comic.graderNotes) && (
-              <div className="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-3">
-                <h4 className="text-sm font-medium text-slate-700">Grading Details</h4>
-
-                {/* Page Quality */}
-                {comic.pageQuality && (
-                  <div>
-                    <label className="block text-xs font-medium text-slate-500 mb-1">
-                      Page Quality
-                    </label>
-                    <p className="text-sm text-slate-700">{comic.pageQuality}</p>
-                  </div>
-                )}
-
-                {/* Grade Date */}
-                {comic.gradeDate && (
-                  <div>
-                    <label className="block text-xs font-medium text-slate-500 mb-1">
-                      Grade Date
-                    </label>
-                    <p className="text-sm text-slate-700">{comic.gradeDate}</p>
-                  </div>
-                )}
-
-                {/* Grader Notes */}
-                {comic.graderNotes && (
-                  <div>
-                    <label className="block text-xs font-medium text-slate-500 mb-1">
-                      Grader Notes
-                    </label>
-                    <p className="text-sm text-slate-700 whitespace-pre-wrap">
-                      {comic.graderNotes}
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-
-          </>
-        )}
-      </div>
+      <GradingSection
+        comic={comic}
+        isGraded={isGraded}
+        gradingCompany={gradingCompany}
+        grade={grade}
+        certificationNumber={certificationNumber}
+        isLookingUpCert={isLookingUpCert}
+        onIsGradedChange={setIsGraded}
+        onGradingCompanyChange={setGradingCompany}
+        onGradeChange={setGrade}
+        onCertificationNumberChange={setCertificationNumber}
+        onCertLookup={handleCertLookup}
+      />
 
       {/* Signatures */}
-      <div>
-        <h3 className="text-sm font-semibold text-gray-900 mb-3">Signatures</h3>
-
-        {isGraded && (
-          <div className="mb-3">
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={isSignatureSeries}
-                onChange={(e) => setIsSignatureSeries(e.target.checked)}
-                className="w-4 h-4 text-primary-600 rounded focus:ring-primary-500"
-              />
-              <span className="text-sm text-gray-700">
-                Signature Series (Signed & Authenticated)
-              </span>
-            </label>
-          </div>
-        )}
-
-        {/* Signature chips */}
-        {signatures.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-3">
-            {signatures.map((sig, index) => (
-              <span
-                key={`sig-${index}`}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-full text-sm text-blue-800"
-              >
-                {sig}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSignatures((prev) => prev.filter((_, i) => i !== index));
-                  }}
-                  className="p-0.5 text-blue-400 hover:text-red-500 transition-colors rounded-full hover:bg-blue-100"
-                  aria-label={`Remove ${sig}`}
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
-
-        {/* Add signature input */}
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={newSignature}
-            onChange={(e) => setNewSignature(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && newSignature.trim()) {
-                e.preventDefault();
-                setSignatures((prev) => [...prev, newSignature.trim()]);
-                setNewSignature("");
-              }
-            }}
-            placeholder="e.g., Stan Lee"
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white text-gray-900 text-sm"
-          />
-          <button
-            type="button"
-            onClick={() => {
-              if (newSignature.trim()) {
-                setSignatures((prev) => [...prev, newSignature.trim()]);
-                setNewSignature("");
-              }
-            }}
-            disabled={!newSignature.trim()}
-            className="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Plus className="w-4 h-4" />
-          </button>
-        </div>
-        {!isGraded && signatures.length > 0 && (
-          <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
-            <Info className="w-3 h-3" />
-            Unsigned raw books are valued higher when signed by notable creators
-          </p>
-        )}
-      </div>
+      <SignatureSection
+        isGraded={isGraded}
+        isSignatureSeries={isSignatureSeries}
+        signatures={signatures}
+        newSignature={newSignature}
+        onIsSignatureSeriesChange={setIsSignatureSeries}
+        onNewSignatureChange={setNewSignature}
+        onAddSignature={() => {
+          if (newSignature.trim()) {
+            setSignatures((prev) => [...prev, newSignature.trim()]);
+            setNewSignature("");
+          }
+        }}
+        onRemoveSignature={(index) => {
+          setSignatures((prev) => prev.filter((_, i) => i !== index));
+        }}
+      />
 
       {/* Estimated Value */}
-      {comic.priceData &&
-        comic.priceData.estimatedValue &&
-        (() => {
-          // Calculate grade-adjusted value
-          const selectedGrade = grade ? parseFloat(grade) : null;
-          const gradeAdjustedValue =
-            selectedGrade && comic.priceData?.gradeEstimates
-              ? calculateValueAtGrade(comic.priceData, selectedGrade, isGraded)
-              : comic.priceData.estimatedValue;
-          const displayValue = gradeAdjustedValue || comic.priceData.estimatedValue;
-
-          return (
-            <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4">
-              <div className="flex items-start justify-between">
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-900 mb-1">
-                    <div className="flex items-center gap-2">
-                      <TrendingUp className="w-4 h-4 text-green-600" />
-                      Avg List Price
-                    </div>
-                  </h3>
-                  <div className="flex items-baseline gap-1">
-                    <DollarSign className="w-5 h-5 text-green-600" />
-                    <span className="text-3xl font-bold text-green-700">
-                      {displayValue.toLocaleString("en-US", {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Recent Sales Summary */}
-                {comic.priceData.recentSales?.length > 0 && (
-                  <div className="text-right">
-                    <p className="text-xs text-gray-500 mb-1">Recent Sales</p>
-                    <div className="space-y-0.5">
-                      {comic.priceData.recentSales.slice(0, 3).map((sale, idx) => (
-                        <p key={idx} className="text-xs text-gray-600">
-                          ${sale.price.toLocaleString()}
-                          <span className="text-gray-400 ml-1">
-                            (
-                            {new Date(sale.date).toLocaleDateString("en-US", {
-                              month: "short",
-                              day: "numeric",
-                            })}
-                            )
-                          </span>
-                        </p>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Signature Series Price Note */}
-              {isSignatureSeries && (
-                <div
-                  className="mt-3 pt-3 border-t border-blue-200 bg-blue-50 -mx-4 -mb-4 px-4 py-3 rounded-b-lg"
-                >
-                  <p className="text-xs text-blue-700 flex items-start gap-2">
-                    <Info className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
-                    <span>
-                      <span className="font-semibold">Signature Series:</span> Price based on
-                      unsigned copies. Signed/authenticated comics often command a premium depending
-                      on the signer.
-                    </span>
-                  </p>
-                </div>
-              )}
-
-              {/* Disclaimer */}
-              {comic.priceData.disclaimer && (
-                <div className="mt-3 pt-3 border-t border-green-200">
-                  <p className="text-xs text-gray-500 flex items-start gap-1">
-                    <Info className="w-3 h-3 mt-0.5 flex-shrink-0" />
-                    {comic.priceData.disclaimer}
-                  </p>
-                </div>
-              )}
-
-              {/* Grade-aware pricing breakdown */}
-              <GradePricingBreakdown
-                priceData={comic.priceData}
-                currentGrade={selectedGrade}
-                isSlabbed={isGraded}
-              />
-            </div>
-          );
-        })()}
+      {comic.priceData && comic.priceData.estimatedValue && (
+        <PricingSection
+          comic={comic}
+          grade={grade}
+          isGraded={isGraded}
+          isSignatureSeries={isSignatureSeries}
+        />
+      )}
 
       {/* Purchase Info */}
       <div>

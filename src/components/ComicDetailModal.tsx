@@ -2,34 +2,20 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import Image from "next/image";
-
 import {
-  AlertTriangle,
   ArrowLeftRight,
   Award,
   Building,
   Calendar,
-  Check,
-  CheckCircle,
-  DollarSign,
   ExternalLink,
-  Eye,
   FileCheck,
-  Info,
   KeyRound,
-  Layers,
-  ListPlus,
-  PackageMinus,
   Palette,
   PenTool,
   Pencil,
   Plus,
-  Star,
-  Store,
   Tag,
   Trash2,
-  TrendingUp,
   User,
   X,
   ZoomIn,
@@ -38,10 +24,19 @@ import {
 import { CollectionItem, GRADE_SCALE, PriceData, UserList } from "@/types/comic";
 
 import { ComicImage } from "./ComicImage";
-import { GradePricingBreakdown } from "./GradePricingBreakdown";
 import { SuggestKeyInfoModal } from "./SuggestKeyInfoModal";
 import { VariantsModal } from "./VariantsModal";
 import { ListInShopModal } from "./auction/ListInShopModal";
+import { ComicDetailHeader } from "./comicDetail/ComicDetailHeader";
+import { ListMenu } from "./comicDetail/ListMenu";
+import {
+  ActiveListingWarningDialog,
+  RemoveConfirmDialog,
+} from "./comicDetail/RemoveConfirmDialog";
+import { SellerActionPanel } from "./comicDetail/SellerActionPanel";
+import { SoldConfirmDialog } from "./comicDetail/SoldConfirmDialog";
+import { ValueSection } from "./comicDetail/ValueSection";
+import { useDialogA11y } from "./comicDetail/useDialogA11y";
 
 // Helper to generate certification verification URLs
 function getCertVerificationUrl(certNumber: string, gradingCompany: string): string | null {
@@ -121,6 +116,9 @@ export function ComicDetailModal({
 
   const { comic } = item;
   const effectivePriceData = localPriceData ?? comic.priceData;
+
+  // Dialog a11y: Escape-to-close + focus management for the root overlay.
+  const { dialogRef } = useDialogA11y(true, onClose);
 
   // Check if this comic has an active listing
   useEffect(() => {
@@ -292,10 +290,18 @@ export function ComicDetailModal({
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
 
       {/* Modal */}
-      <div className="relative bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${comic.title || "Unknown Title"} #${comic.issueNumber || "?"}`}
+        tabIndex={-1}
+        className="relative bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden"
+      >
         {/* Close Button */}
         <button
           onClick={onClose}
+          aria-label="Close"
           className="absolute top-4 right-4 z-10 p-2 bg-white/90 rounded-full hover:bg-gray-100 transition-colors"
         >
           <X className="w-5 h-5 text-gray-600" />
@@ -327,74 +333,13 @@ export function ComicDetailModal({
 
           {/* Details */}
           <div className="md:w-2/3 p-4 md:p-6 overflow-y-auto">
-            {/* Mobile Header with Cover Thumbnail */}
-            <div className="md:hidden flex gap-4 mb-4 pr-8">
-              {/* Mobile Cover Thumbnail */}
-              <div
-                onClick={() => item.coverImageUrl && setShowImageLightbox(true)}
-                className={`flex-shrink-0 self-start w-20 aspect-[2/3] rounded-lg overflow-hidden shadow-md ${item.coverImageUrl ? "cursor-pointer" : ""}`}
-              >
-                <ComicImage
-                  src={item.coverImageUrl}
-                  alt={`${comic.title} #${comic.issueNumber}`}
-                  aspectRatio="fill"
-                  sizes="80px"
-                />
-              </div>
-              {/* Mobile Title Info */}
-              <div className="flex-1 min-w-0">
-                <h2 className="text-xl font-bold text-gray-900 leading-tight">
-                  {comic.title || "Unknown Title"}
-                </h2>
-                <p className="text-base text-gray-600">Issue #{comic.issueNumber || "?"}</p>
-                {comic.variant && <p className="text-sm text-gray-400">{comic.variant}</p>}
-                {variantCount > 1 && (
-                  <button
-                    onClick={() => setShowVariantsModal(true)}
-                    className="mt-1 inline-flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700 font-medium"
-                  >
-                    <Layers className="w-3 h-3" />
-                    View Variants ({variantCount})
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Desktop Header */}
-            <div className="hidden md:block mb-6 pr-10">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1">
-                  <h2 className="text-2xl font-bold text-gray-900">
-                    {comic.title || "Unknown Title"}
-                  </h2>
-                  <p className="text-lg text-gray-600">
-                    Issue #{comic.issueNumber || "?"}
-                    {comic.variant && <span className="text-gray-400 ml-2">({comic.variant})</span>}
-                  </p>
-                  {/* View Variants Link */}
-                  {variantCount > 1 && (
-                    <button
-                      onClick={() => setShowVariantsModal(true)}
-                      className="mt-2 inline-flex items-center gap-1.5 text-sm text-primary-600 hover:text-primary-700 font-medium"
-                    >
-                      <Layers className="w-4 h-4" />
-                      View Variants ({variantCount})
-                    </button>
-                  )}
-                </div>
-                <button
-                  onClick={() => onToggleStar(item.id)}
-                  className={`p-2 rounded-full transition-colors flex-shrink-0 ${
-                    item.isStarred
-                      ? "bg-yellow-100 text-yellow-500 hover:bg-yellow-200"
-                      : "bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-yellow-500"
-                  }`}
-                  title={item.isStarred ? "Remove from favorites" : "Add to favorites"}
-                >
-                  <Star className={`w-6 h-6 ${item.isStarred ? "fill-yellow-500" : ""}`} />
-                </button>
-              </div>
-            </div>
+            <ComicDetailHeader
+              item={item}
+              variantCount={variantCount}
+              onOpenImageLightbox={() => setShowImageLightbox(true)}
+              onOpenVariants={() => setShowVariantsModal(true)}
+              onToggleStar={() => onToggleStar(item.id)}
+            />
 
             {/* Badges */}
             <div className="flex flex-wrap gap-2 mb-6">
@@ -537,11 +482,13 @@ export function ComicDetailModal({
                   Suggest
                 </button>
               </div>
-              {(comic.keyInfo && comic.keyInfo.length > 0) || (item.customKeyInfo && item.customKeyInfo.length > 0) ? (
+              {(comic.keyInfo && comic.keyInfo.length > 0) ||
+              (item.customKeyInfo && item.customKeyInfo.length > 0) ? (
                 <div className="flex flex-wrap gap-2">
                   {/* Key info - show source badge */}
                   {comic.keyInfo?.map((info, idx) => {
-                    const isVerified = comic.keyInfoSource === "database" || comic.keyInfoSource === "cgc";
+                    const isVerified =
+                      comic.keyInfoSource === "database" || comic.keyInfoSource === "cgc";
                     return (
                       <span
                         key={`db-${idx}`}
@@ -579,110 +526,14 @@ export function ComicDetailModal({
               )}
             </div>
 
-            {/* Value Section */}
-            {effectivePriceData && effectivePriceData.estimatedValue && (
-              <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4 mb-6">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-900 mb-1 flex items-center gap-2">
-                      <TrendingUp className="w-4 h-4 text-green-600" />
-                      Avg List Price
-                    </h3>
-                    <div className="flex items-baseline gap-1">
-                      <DollarSign className="w-5 h-5 text-green-600" />
-                      <span className="text-2xl font-bold text-green-700">
-                        {effectivePriceData.estimatedValue.toLocaleString("en-US", {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}
-                      </span>
-                    </div>
-                  </div>
-                  {effectivePriceData.recentSales?.length > 0 && (
-                    <div className="text-right">
-                      <p className="text-xs text-gray-500 mb-1">Recent Sales</p>
-                      <div className="space-y-0.5">
-                        {effectivePriceData.recentSales.slice(0, 3).map((sale, idx) => (
-                          <p key={idx} className="text-xs text-gray-600">
-                            ${sale.price.toLocaleString()}
-                            <span className="text-gray-400 ml-1">
-                              (
-                              {new Date(sale.date).toLocaleDateString("en-US", {
-                                month: "short",
-                                day: "numeric",
-                              })}
-                              )
-                            </span>
-                          </p>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-                {/* Signature Series Price Note */}
-                {comic.isSignatureSeries && (
-                  <div
-                    className="mt-3 pt-3 border-t border-blue-200 bg-blue-50 -mx-4 -mb-4 px-4 py-3 rounded-b-lg"
-                  >
-                    <p className="text-xs text-blue-700 flex items-start gap-2">
-                      <Info className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
-                      <span>
-                        <span className="font-semibold">Signature Series:</span> Price based on
-                        unsigned copies. Signed/authenticated comics often command a premium
-                        depending on the signer.
-                      </span>
-                    </p>
-                  </div>
-                )}
-
-                {/* Disclaimer */}
-                {effectivePriceData.disclaimer && (
-                  <div className="mt-3 pt-3 border-t border-green-200">
-                    <p className="text-xs text-gray-500 flex items-start gap-1">
-                      <Info className="w-3 h-3 mt-0.5 flex-shrink-0" />
-                      {effectivePriceData.disclaimer}
-                    </p>
-                  </div>
-                )}
-
-                {/* Refresh value link */}
-                <div className="mt-3 pt-3 border-t border-green-200 flex justify-end">
-                  <button
-                    type="button"
-                    onClick={handleRefreshValue}
-                    disabled={isRefreshingValue}
-                    className="text-xs text-blue-600 hover:text-blue-800 disabled:text-gray-400 underline"
-                  >
-                    {isRefreshingValue ? "Refreshing…" : "Refresh value"}
-                  </button>
-                </div>
-
-                {/* Grade-aware pricing breakdown */}
-                <GradePricingBreakdown
-                  priceData={effectivePriceData}
-                  currentGrade={item.conditionGrade}
-                  isSlabbed={item.isGraded}
-                />
-              </div>
-            )}
-
-            {/* No Market Value - Look Up Button */}
-            {!effectivePriceData?.estimatedValue && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 text-center">
-                <p className="text-sm text-gray-700 mb-3">No market value on file for this book yet.</p>
-                <button
-                  type="button"
-                  onClick={handleRefreshValue}
-                  disabled={isRefreshingValue}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isRefreshingValue ? "Looking up…" : "Look Up Market Value"}
-                </button>
-                {valueLookupMessage && (
-                  <p className="text-xs text-gray-600 mt-3">{valueLookupMessage}</p>
-                )}
-              </div>
-            )}
+            <ValueSection
+              item={item}
+              effectivePriceData={effectivePriceData}
+              isSignatureSeries={comic.isSignatureSeries || false}
+              isRefreshingValue={isRefreshingValue}
+              valueLookupMessage={valueLookupMessage}
+              onRefreshValue={handleRefreshValue}
+            />
 
             {/* Purchase Info & Profit/Loss */}
             {item.purchasePrice && (
@@ -765,111 +616,20 @@ export function ComicDetailModal({
 
             {/* Action Buttons - Mobile-friendly layout */}
             <div className="pt-4 border-t space-y-3">
-              {/* Primary CTA - List in Shop / View Listing */}
-              {activeListing ? (
-                <>
-                  <a
-                    href={`/shop?listing=${activeListing.id}&tab=${activeListing.listingType === "auction" ? "auctions" : "buy-now"}`}
-                    className="w-full px-4 py-4 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2 font-semibold text-lg"
-                  >
-                    <Eye className="w-6 h-6" />
-                    View Listing
-                  </a>
-
-                  {/* Seller Controls for active listing */}
-                  <div className="flex gap-2">
-                    {/* Mark as Sold - only for fixed_price */}
-                    {activeListing.listingType === "fixed_price" && (
-                      <button
-                        onClick={() => setShowSellerAction("mark_as_sold")}
-                        className="flex-1 px-3 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors flex items-center justify-center gap-1.5 text-sm font-medium"
-                      >
-                        <CheckCircle className="w-4 h-4" />
-                        Mark as Sold
-                      </button>
-                    )}
-                    {/* Pull off the Shelf */}
-                    <button
-                      onClick={() => setShowSellerAction("pull_off_shelf")}
-                      disabled={
-                        activeListing.listingType === "auction" && (activeListing.bidCount || 0) > 0
-                      }
-                      className={`flex-1 px-3 py-2 rounded-lg transition-colors flex items-center justify-center gap-1.5 text-sm font-medium ${
-                        activeListing.listingType === "auction" && (activeListing.bidCount || 0) > 0
-                          ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                      }`}
-                      title={
-                        activeListing.listingType === "auction" && (activeListing.bidCount || 0) > 0
-                          ? "Cannot remove auction with bids"
-                          : undefined
-                      }
-                    >
-                      <PackageMinus className="w-4 h-4" />
-                      Pull off Shelf
-                    </button>
-                  </div>
-
-                  {/* Seller Action Confirmation */}
-                  {showSellerAction && (
-                    <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                      <div className="flex items-start gap-3">
-                        <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
-                        <div className="flex-1">
-                          <h5 className="font-medium text-amber-800">
-                            {showSellerAction === "mark_as_sold"
-                              ? "Mark as Sold?"
-                              : "Pull off the Shelf?"}
-                          </h5>
-                          <p className="text-sm text-amber-700 mt-1">
-                            {showSellerAction === "mark_as_sold"
-                              ? "This will remove the listing from the shop AND remove the comic from your collection."
-                              : "This will remove the listing from the shop. The comic will remain in your collection."}
-                          </p>
-                          {actionError && (
-                            <p className="text-sm text-red-600 mt-2">{actionError}</p>
-                          )}
-                          <div className="flex gap-2 mt-3">
-                            <button
-                              onClick={() => handleSellerAction(showSellerAction)}
-                              disabled={isProcessingAction}
-                              className={`px-4 py-1.5 rounded text-sm font-medium transition-colors ${
-                                showSellerAction === "mark_as_sold"
-                                  ? "bg-green-600 text-white hover:bg-green-700"
-                                  : "bg-blue-600 text-white hover:bg-blue-700"
-                              } disabled:opacity-50`}
-                            >
-                              {isProcessingAction
-                                ? "Processing..."
-                                : showSellerAction === "mark_as_sold"
-                                  ? "Yes, Mark as Sold"
-                                  : "Yes, Pull it"}
-                            </button>
-                            <button
-                              onClick={() => {
-                                setShowSellerAction(null);
-                                setActionError(null);
-                              }}
-                              disabled={isProcessingAction}
-                              className="px-4 py-1.5 bg-gray-200 text-gray-700 rounded text-sm font-medium hover:bg-gray-300 transition-colors disabled:opacity-50"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <button
-                  onClick={() => setShowListInShopModal(true)}
-                  className="w-full px-4 py-4 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2 font-semibold text-lg"
-                >
-                  <Store className="w-6 h-6" />
-                  List in Shop
-                </button>
-              )}
+              {/* Primary CTA - List in Shop / View Listing + seller controls */}
+              <SellerActionPanel
+                activeListing={activeListing}
+                showSellerAction={showSellerAction}
+                isProcessingAction={isProcessingAction}
+                actionError={actionError}
+                onSetSellerAction={(action) => setShowSellerAction(action)}
+                onCancelSellerAction={() => {
+                  setShowSellerAction(null);
+                  setActionError(null);
+                }}
+                onConfirmSellerAction={handleSellerAction}
+                onListInShop={() => setShowListInShopModal(true)}
+              />
 
               {/* Secondary Actions - All same size */}
               <div className="grid grid-cols-3 gap-2">
@@ -883,130 +643,29 @@ export function ComicDetailModal({
                 </button>
 
                 {/* Add to List Button */}
-                <div className="relative">
-                  <button
-                    onClick={() => setShowListMenu(!showListMenu)}
-                    className="w-full px-3 py-2 bg-primary-100 text-primary-700 rounded-lg hover:bg-primary-200 transition-colors flex items-center justify-center gap-1.5 text-sm font-medium"
-                  >
-                    <ListPlus className="w-4 h-4" />
-                    Add to List
-                  </button>
-
-                  {/* List Menu Dropdown */}
-                  {showListMenu && (
-                    <>
-                      {/* Invisible overlay to close dropdown when clicking outside */}
-                      <div
-                        className="fixed inset-0 z-10"
-                        onClick={() => {
-                          setShowListMenu(false);
-                          setShowCreateList(false);
-                          setNewListName("");
-                        }}
-                      />
-                      <div className="absolute bottom-full left-0 mb-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-20">
-                        {!hasCustomLists && !showCreateList ? (
-                          <div className="px-4 py-3 text-center">
-                            <p className="text-sm text-gray-500 mb-3">
-                              You don&apos;t have any custom lists yet.
-                            </p>
-                            <button
-                              onClick={() => setShowCreateList(true)}
-                              className="px-3 py-1.5 bg-primary-600 text-white rounded-lg text-sm hover:bg-primary-700 transition-colors flex items-center gap-1 mx-auto"
-                            >
-                              <Plus className="w-4 h-4" />
-                              Create New List
-                            </button>
-                          </div>
-                        ) : showCreateList ? (
-                          <div className="px-3 py-2">
-                            <input
-                              type="text"
-                              value={newListName}
-                              onChange={(e) => setNewListName(e.target.value)}
-                              placeholder="List name..."
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mb-2 bg-white text-gray-900"
-                              autoFocus
-                            />
-                            <div className="flex gap-2">
-                              <button
-                                onClick={handleCreateList}
-                                disabled={!newListName.trim()}
-                                className="flex-1 px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition-colors disabled:opacity-50"
-                              >
-                                Create & Add
-                              </button>
-                              <button
-                                onClick={() => {
-                                  setShowCreateList(false);
-                                  setNewListName("");
-                                }}
-                                className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 transition-colors"
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <>
-                            {/* Default Lists */}
-                            <div className="px-3 py-1">
-                              <p className="text-xs text-gray-400 uppercase font-medium mb-1">
-                                Default Lists
-                              </p>
-                              {lists
-                                .filter((l) => l.isDefault && l.id !== "collection")
-                                .map((list) => (
-                                  <button
-                                    key={list.id}
-                                    onClick={() => toggleList(list.id)}
-                                    className="w-full px-2 py-1.5 text-left text-sm text-gray-900 hover:bg-gray-100 rounded flex items-center justify-between"
-                                  >
-                                    <span>{list.name}</span>
-                                    {isInList(list.id) && (
-                                      <Check className="w-4 h-4 text-green-600" />
-                                    )}
-                                  </button>
-                                ))}
-                            </div>
-
-                            {/* Custom Lists */}
-                            {customLists.length > 0 && (
-                              <div className="px-3 py-1 border-t mt-1 pt-1">
-                                <p className="text-xs text-gray-400 uppercase font-medium mb-1">
-                                  Custom Lists
-                                </p>
-                                {customLists.map((list) => (
-                                  <button
-                                    key={list.id}
-                                    onClick={() => toggleList(list.id)}
-                                    className="w-full px-2 py-1.5 text-left text-sm text-gray-900 hover:bg-gray-100 rounded flex items-center justify-between"
-                                  >
-                                    <span>{list.name}</span>
-                                    {isInList(list.id) && (
-                                      <Check className="w-4 h-4 text-green-600" />
-                                    )}
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-
-                            {/* Create New */}
-                            <div className="border-t mt-1 pt-1 px-3">
-                              <button
-                                onClick={() => setShowCreateList(true)}
-                                className="w-full px-2 py-1.5 text-left text-sm text-primary-600 hover:bg-primary-50 rounded flex items-center gap-1"
-                              >
-                                <Plus className="w-4 h-4" />
-                                Create New List
-                              </button>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    </>
-                  )}
-                </div>
+                <ListMenu
+                  lists={lists}
+                  customLists={customLists}
+                  hasCustomLists={hasCustomLists}
+                  showListMenu={showListMenu}
+                  showCreateList={showCreateList}
+                  newListName={newListName}
+                  isInList={isInList}
+                  onToggleMenu={() => setShowListMenu(!showListMenu)}
+                  onCloseMenu={() => {
+                    setShowListMenu(false);
+                    setShowCreateList(false);
+                    setNewListName("");
+                  }}
+                  onShowCreateList={() => setShowCreateList(true)}
+                  onHideCreateList={() => {
+                    setShowCreateList(false);
+                    setNewListName("");
+                  }}
+                  onNewListNameChange={setNewListName}
+                  onCreateList={handleCreateList}
+                  onToggleList={toggleList}
+                />
 
                 {/* Remove Button */}
                 <button
@@ -1045,111 +704,25 @@ export function ComicDetailModal({
 
             {/* Remove Confirmation */}
             {showRemoveConfirm && (
-              <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
-                <div className="bg-white rounded-xl border-4 border-black p-6 mx-4 max-w-sm w-full shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
-                      <Trash2 className="w-5 h-5 text-red-600" />
-                    </div>
-                    <h3 className="text-lg font-black">Delete Comic?</h3>
-                  </div>
-                  <p className="text-sm text-gray-600 mb-5">
-                    Are you sure you want to delete this comic from your collection?
-                  </p>
-                  <div className="flex gap-3">
-                    <button
-                      onClick={handleRemove}
-                      className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg border-2 border-black font-bold hover:bg-red-700 transition-colors text-sm"
-                    >
-                      Yes, Delete
-                    </button>
-                    <button
-                      onClick={() => setShowRemoveConfirm(false)}
-                      className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg border-2 border-gray-300 font-bold hover:bg-gray-200 transition-colors text-sm"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              </div>
+              <RemoveConfirmDialog
+                onConfirm={handleRemove}
+                onCancel={() => setShowRemoveConfirm(false)}
+              />
             )}
 
             {activeListingWarning && (
-              <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
-                <div className="bg-white rounded-xl border-4 border-yellow-400 p-6 mx-4 max-w-sm w-full shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center">
-                      <Trash2 className="w-5 h-5 text-yellow-600" />
-                    </div>
-                    <h3 className="text-lg font-black">Cannot Delete Comic</h3>
-                  </div>
-                  <p className="text-sm text-gray-600 mb-5">
-                    This comic has an active shop listing. You must cancel the listing before deleting it from your collection.
-                  </p>
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => setActiveListingWarning(false)}
-                      className="flex-1 px-4 py-2.5 bg-yellow-400 text-black rounded-lg border-2 border-black font-bold hover:bg-yellow-300 transition-colors text-sm"
-                    >
-                      Got It
-                    </button>
-                  </div>
-                </div>
-              </div>
+              <ActiveListingWarningDialog onDismiss={() => setActiveListingWarning(false)} />
             )}
 
             {/* Sold Confirmation */}
             {showSoldConfirm && (
-              <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
-                <p className="text-sm text-green-700 mb-3">
-                  Enter the sale price to record this sale.
-                </p>
-                <div className="mb-3">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Sale Price ($)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={salePrice}
-                    onChange={(e) => setSalePrice(e.target.value)}
-                    className="w-full md:w-48 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white text-gray-900"
-                    placeholder="Enter sale price"
-                  />
-                  {item.purchasePrice && salePrice && parseFloat(salePrice) > 0 && (
-                    <p
-                      className={`text-xs mt-1 ${
-                        parseFloat(salePrice) >= item.purchasePrice
-                          ? "text-green-600"
-                          : "text-red-600"
-                      }`}
-                    >
-                      {parseFloat(salePrice) >= item.purchasePrice ? "Profit" : "Loss"}: $
-                      {Math.abs(parseFloat(salePrice) - item.purchasePrice).toFixed(2)}
-                    </p>
-                  )}
-                </div>
-                <p className="text-xs text-gray-500 mb-3">
-                  Note: In the future, you&apos;ll be able to select the buyer and the comic will
-                  automatically transfer to their collection.
-                </p>
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleMarkSold}
-                    disabled={!salePrice || parseFloat(salePrice) <= 0}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Confirm Sale
-                  </button>
-                  <button
-                    onClick={() => setShowSoldConfirm(false)}
-                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
+              <SoldConfirmDialog
+                item={item}
+                salePrice={salePrice}
+                onSalePriceChange={setSalePrice}
+                onConfirm={handleMarkSold}
+                onCancel={() => setShowSoldConfirm(false)}
+              />
             )}
 
             {/* Date Added */}
