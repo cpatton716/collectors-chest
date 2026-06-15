@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { ThumbsDown, ThumbsUp, X } from "lucide-react";
 
+import { useModalA11y } from "@/hooks/useModalA11y";
 import { RatingType, TransactionType } from "@/types/creatorCredits";
 
 interface FeedbackModalProps {
@@ -29,6 +30,8 @@ export function FeedbackModal({
   const [comment, setComment] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const { dialogProps, titleId } = useModalA11y({ isOpen, onClose });
 
   if (!isOpen) return null;
 
@@ -61,10 +64,10 @@ export function FeedbackModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+      <div {...dialogProps} className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl outline-none">
         {/* Header */}
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900">
+          <h2 id={titleId} className="text-lg font-semibold text-gray-900">
             Leave Feedback
           </h2>
           <button

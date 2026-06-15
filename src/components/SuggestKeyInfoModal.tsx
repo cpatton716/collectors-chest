@@ -4,6 +4,8 @@ import { useState } from "react";
 
 import { CheckCircle, KeyRound, Link, Loader2, MessageSquare, Plus, Trash2, X } from "lucide-react";
 
+import { useModalA11y } from "@/hooks/useModalA11y";
+
 interface SuggestKeyInfoModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -98,6 +100,8 @@ export function SuggestKeyInfoModal({
     onClose();
   };
 
+  const { dialogProps, titleId } = useModalA11y({ isOpen, onClose: handleClose });
+
   if (!isOpen) return null;
 
   return (
@@ -106,12 +110,17 @@ export function SuggestKeyInfoModal({
       <div className="absolute inset-0 bg-black/50" onClick={handleClose} />
 
       {/* Modal */}
-      <div className="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-hidden">
+      <div
+        {...dialogProps}
+        className="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-hidden outline-none"
+      >
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b">
           <div className="flex items-center gap-2">
             <KeyRound className="w-5 h-5 text-amber-500" />
-            <h2 className="text-lg font-bold text-gray-900">Suggest Key Info</h2>
+            <h2 id={titleId} className="text-lg font-bold text-gray-900">
+              Suggest Key Info
+            </h2>
           </div>
           <button
             onClick={handleClose}

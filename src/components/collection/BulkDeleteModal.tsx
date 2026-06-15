@@ -2,6 +2,7 @@
 
 import { AlertTriangle, X } from "lucide-react";
 
+import { useModalA11y } from "@/hooks/useModalA11y";
 import { CollectionItem } from "@/types/comic";
 
 interface BulkDeleteModalProps {
@@ -14,18 +15,27 @@ export function BulkDeleteModal({ items, onConfirm, onCancel }: BulkDeleteModalP
   const displayItems = items.slice(0, 5);
   const remainingCount = items.length - displayItems.length;
 
+  const { dialogProps, titleId } = useModalA11y({
+    isOpen: true,
+    onClose: onCancel,
+    role: "alertdialog",
+  });
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/50" onClick={onCancel} />
 
       {/* Modal */}
-      <div className="relative bg-pop-white border-4 border-pop-black shadow-[6px_6px_0px_#000] max-w-md w-full">
+      <div
+        {...dialogProps}
+        className="relative bg-pop-white border-4 border-pop-black shadow-[6px_6px_0px_#000] max-w-md w-full outline-none"
+      >
         {/* Header */}
         <div className="bg-pop-red border-b-4 border-pop-black p-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <AlertTriangle className="w-6 h-6 text-pop-white" />
-            <h2 className="font-comic text-pop-white text-xl">
+            <h2 id={titleId} className="font-comic text-pop-white text-xl">
               DELETE {items.length} COMICS?
             </h2>
           </div>

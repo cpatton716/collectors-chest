@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   Camera,
@@ -16,6 +16,7 @@ import {
 import { getKeyHuntHistoryCount } from "@/lib/offlineCache";
 
 import { useKeyHunt } from "@/hooks/useKeyHunt";
+import { useModalA11y } from "@/hooks/useModalA11y";
 
 type KeyHuntOption = "cover" | "manual" | "offline-search" | "history" | "my-list";
 
@@ -32,9 +33,11 @@ export function KeyHuntBottomSheet({
   onSelectOption,
   isOffline = false,
 }: KeyHuntBottomSheetProps) {
-  const sheetRef = useRef<HTMLDivElement>(null);
   const [historyCount, setHistoryCount] = useState(0);
   const { count: wishlistCount, isSignedIn } = useKeyHunt();
+
+  // Dialog semantics + Escape-to-close + focus management.
+  const { dialogProps, titleId } = useModalA11y({ isOpen, onClose });
 
   // Load history count on mount and when opened
   useEffect(() => {
@@ -43,16 +46,10 @@ export function KeyHuntBottomSheet({
     }
   }, [isOpen]);
 
-  // Handle escape key
+  // Lock body scroll on mobile while the sheet is open. (Escape handling now
+  // lives in useModalA11y.)
   useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        onClose();
-      }
-    };
-
     if (isOpen) {
-      document.addEventListener("keydown", handleEscape);
       // Only lock body scroll on mobile - this component is inside md:hidden
       // but React still mounts it on desktop, so guard with a media query check
       const isMobile = window.matchMedia("(max-width: 767px)").matches;
@@ -62,10 +59,9 @@ export function KeyHuntBottomSheet({
     }
 
     return () => {
-      document.removeEventListener("keydown", handleEscape);
       document.body.style.overflow = "";
     };
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -139,8 +135,8 @@ export function KeyHuntBottomSheet({
 
       {/* Bottom Sheet */}
       <div
-        ref={sheetRef}
-        className="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl animate-in slide-in-from-bottom duration-300 ease-out"
+        {...dialogProps}
+        className="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl animate-in slide-in-from-bottom duration-300 ease-out outline-none"
       >
         {/* Handle */}
         <div className="flex justify-center pt-3 pb-2">
@@ -154,7 +150,9 @@ export function KeyHuntBottomSheet({
               <KeyRound className="w-5 h-5 text-amber-600" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-gray-900">Key Hunt</h2>
+              <h2 id={titleId} className="text-lg font-bold text-gray-900">
+                Key Hunt
+              </h2>
               <div className="flex items-center gap-1.5">
                 <p className="text-sm text-gray-500">Quick Price Lookup</p>
                 {isOffline && (

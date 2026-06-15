@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { ShieldCheck, ArrowRight } from "lucide-react";
 
+import { useModalA11y } from "@/hooks/useModalA11y";
+
 interface AgeVerificationModalProps {
   action: string;
   onVerified: () => void;
@@ -16,6 +18,8 @@ export default function AgeVerificationModal({
 }: AgeVerificationModalProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  const { dialogProps, titleId } = useModalA11y({ isOpen: true, onClose: onDismiss });
 
   const handleVerify = async () => {
     setLoading(true);
@@ -37,7 +41,10 @@ export default function AgeVerificationModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-pop-white border-3 border-pop-black shadow-[6px_6px_0px_#000] rounded-lg max-w-md w-full">
+      <div
+        {...dialogProps}
+        className="bg-pop-white border-3 border-pop-black shadow-[6px_6px_0px_#000] rounded-lg max-w-md w-full outline-none"
+      >
         {/* Header */}
         <div className="bg-pop-blue border-b-3 border-pop-black p-4 rounded-t-lg">
           <div className="flex items-center gap-3">
@@ -45,7 +52,9 @@ export default function AgeVerificationModal({
               <ShieldCheck className="w-7 h-7 text-white" />
             </div>
             <div>
-              <h3 className="font-comic text-xl text-white">AGE VERIFICATION</h3>
+              <h3 id={titleId} className="font-comic text-xl text-white">
+                AGE VERIFICATION
+              </h3>
               <p className="text-white/80 text-sm">Marketplace requires 18+</p>
             </div>
           </div>

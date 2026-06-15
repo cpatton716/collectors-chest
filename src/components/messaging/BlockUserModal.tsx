@@ -4,6 +4,8 @@ import { useState } from "react";
 
 import { Loader2, ShieldX, X } from "lucide-react";
 
+import { useModalA11y } from "@/hooks/useModalA11y";
+
 interface BlockUserModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -21,6 +23,8 @@ export function BlockUserModal({
 }: BlockUserModalProps) {
   const [isBlocking, setIsBlocking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const { dialogProps, titleId } = useModalA11y({ isOpen, onClose, role: "alertdialog" });
 
   if (!isOpen) return null;
 
@@ -49,7 +53,10 @@ export function BlockUserModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="relative w-full max-w-md rounded-lg border-4 border-pop-black bg-pop-white p-6 shadow-comic">
+      <div
+        {...dialogProps}
+        className="relative w-full max-w-md rounded-lg border-4 border-pop-black bg-pop-white p-6 shadow-comic outline-none"
+      >
         <button
           onClick={onClose}
           className="absolute right-3 top-3 text-gray-500 hover:text-pop-black"
@@ -62,7 +69,9 @@ export function BlockUserModal({
             <ShieldX className="h-8 w-8 text-pop-red" />
           </div>
 
-          <h2 className="mb-2 text-xl font-black">Block {username}?</h2>
+          <h2 id={titleId} className="mb-2 text-xl font-black">
+            Block {username}?
+          </h2>
 
           <p className="mb-6 text-gray-600">
             They won&apos;t be able to send you messages, and you won&apos;t see their messages. You

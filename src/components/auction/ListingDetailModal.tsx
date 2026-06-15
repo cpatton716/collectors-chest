@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 
 import { useFeedbackEligibility } from "@/hooks/useFeedbackEligibility";
+import { useModalA11y } from "@/hooks/useModalA11y";
 
 import { LocationBadge } from "@/components/LocationBadge";
 import { MessageButton } from "@/components/messaging/MessageButton";
@@ -62,6 +63,8 @@ export function ListingDetailModal({
   const [isProcessing, setIsProcessing] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [feedbackRefreshTick, setFeedbackRefreshTick] = useState(0);
+
+  const { dialogProps } = useModalA11y({ isOpen, onClose, label: "Listing details" });
 
   // Check feedback eligibility for sold listings. Pass shippedAt + a local
   // tick as the refresh key so the hook re-queries when (a) shipment flips
@@ -201,7 +204,10 @@ export function ListingDetailModal({
 
       {/* Modal */}
       <div className="relative min-h-full flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-2xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+        <div
+          {...dialogProps}
+          className="relative bg-white rounded-2xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden outline-none"
+        >
           {/* Close Button */}
           <button
             onClick={onClose}

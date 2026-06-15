@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 
 import type { MilestoneType } from "@/hooks/useGuestScans";
+import { useModalA11y } from "@/hooks/useModalA11y";
 
 import { analytics } from "@/components/PostHogProvider";
 
@@ -111,14 +112,8 @@ export function SignUpPromptModal({ milestone, scanCount, onClose }: SignUpPromp
   const title = getTitle(milestone, scanCount);
   const subtitle = getSubtitle(milestone, scanCount);
 
-  // Close on escape key
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", handleEscape);
-    return () => document.removeEventListener("keydown", handleEscape);
-  }, [onClose]);
+  // Dialog semantics + Escape-to-close + focus management (Escape handled here).
+  const { dialogProps, titleId } = useModalA11y({ isOpen: true, onClose });
 
   // Prevent body scroll when modal is open
   useEffect(() => {
@@ -139,7 +134,10 @@ export function SignUpPromptModal({ milestone, scanCount, onClose }: SignUpPromp
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
 
       {/* Modal */}
-      <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      <div
+        {...dialogProps}
+        className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-200 outline-none"
+      >
         {/* Close button */}
         <button
           onClick={onClose}
@@ -156,7 +154,9 @@ export function SignUpPromptModal({ milestone, scanCount, onClose }: SignUpPromp
           >
             <Icon className={`w-8 h-8 ${content.iconColor}`} />
           </div>
-          <h2 className="text-2xl font-bold text-gray-900">{title}</h2>
+          <h2 id={titleId} className="text-2xl font-bold text-gray-900">
+            {title}
+          </h2>
           <p className="text-gray-600 mt-2">{subtitle}</p>
         </div>
 

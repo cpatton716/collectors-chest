@@ -21,6 +21,7 @@ import {
   X,
 } from "lucide-react";
 
+import { useModalA11y } from "@/hooks/useModalA11y";
 import { useSubscription } from "@/hooks/useSubscription";
 
 import { AUCTION_DURATION_OPTIONS, MIN_FIXED_PRICE, MIN_STARTING_PRICE } from "@/types/auction";
@@ -122,6 +123,8 @@ export function ListInShopModal({ comic, isOpen, onClose, onCreated }: ListInSho
     resetForm();
     onClose();
   };
+
+  const { dialogProps } = useModalA11y({ isOpen, onClose: handleClose, label: "List comic in shop" });
 
   const selectMode = (selectedMode: ListingMode) => {
     setMode(selectedMode);
@@ -272,7 +275,10 @@ export function ListInShopModal({ comic, isOpen, onClose, onCreated }: ListInSho
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col">
+      <div
+        {...dialogProps}
+        className="bg-white rounded-xl w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col outline-none"
+      >
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b">
           <div className="flex items-center gap-2">

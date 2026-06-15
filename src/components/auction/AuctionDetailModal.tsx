@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 
 import { useFeedbackEligibility } from "@/hooks/useFeedbackEligibility";
+import { useModalA11y } from "@/hooks/useModalA11y";
 
 import { LeaveFeedbackButton } from "@/components/creatorCredits";
 
@@ -59,6 +60,8 @@ export function AuctionDetailModal({
   const [isProcessing, setIsProcessing] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [feedbackRefreshTick, setFeedbackRefreshTick] = useState(0);
+
+  const { dialogProps } = useModalA11y({ isOpen, onClose, label: "Auction details" });
 
   // Re-query eligibility on shipment (button appears) and after feedback
   // submit (button swaps to "submitted" line without a hard reload).
@@ -162,7 +165,10 @@ export function AuctionDetailModal({
 
       {/* Modal */}
       <div className="relative min-h-full flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-2xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+        <div
+          {...dialogProps}
+          className="relative bg-white rounded-2xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden outline-none"
+        >
           {/* Close Button */}
           <button
             onClick={onClose}

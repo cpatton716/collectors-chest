@@ -5,6 +5,7 @@ import { useState } from "react";
 
 import { ListPlus, Plus, X } from "lucide-react";
 
+import { useModalA11y } from "@/hooks/useModalA11y";
 import { UserList } from "@/types/comic";
 
 interface BulkListPickerModalProps {
@@ -25,6 +26,8 @@ export function BulkListPickerModal({
   const [isCreating, setIsCreating] = useState(false);
   const [newListName, setNewListName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const { dialogProps, titleId } = useModalA11y({ isOpen: true, onClose: onCancel });
 
   // Filter out the default "collection" list
   const userLists = lists.filter((l) => l.id !== "collection");
@@ -48,12 +51,15 @@ export function BulkListPickerModal({
       <div className="absolute inset-0 bg-black/50" onClick={onCancel} />
 
       {/* Modal */}
-      <div className="relative bg-pop-white border-4 border-pop-black shadow-[6px_6px_0px_#000] max-w-sm md:max-w-lg w-full">
+      <div
+        {...dialogProps}
+        className="relative bg-pop-white border-4 border-pop-black shadow-[6px_6px_0px_#000] max-w-sm md:max-w-lg w-full outline-none"
+      >
         {/* Header */}
         <div className="bg-pop-blue border-b-4 border-pop-black p-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <ListPlus className="w-6 h-6 text-pop-white" />
-            <h2 className="font-comic text-pop-white text-lg">
+            <h2 id={titleId} className="font-comic text-pop-white text-lg">
               ADD {selectionCount} TO LIST
             </h2>
           </div>
@@ -97,7 +103,12 @@ export function BulkListPickerModal({
                 autoFocus
                 onKeyDown={(e) => {
                   if (e.key === "Enter") handleCreateList();
-                  if (e.key === "Escape") setIsCreating(false);
+                  if (e.key === "Escape") {
+                    // Cancel inline creation only — don't bubble up to the
+                    // modal-level Escape handler (which would close the modal).
+                    e.preventDefault();
+                    setIsCreating(false);
+                  }
                 }}
               />
               <div className="flex gap-2">

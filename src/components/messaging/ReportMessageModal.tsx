@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { Flag, Loader2, X } from "lucide-react";
 
+import { useModalA11y } from "@/hooks/useModalA11y";
 import { ReportReason } from "@/types/messaging";
 
 interface ReportMessageModalProps {
@@ -31,6 +32,8 @@ export function ReportMessageModal({
   const [details, setDetails] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const { dialogProps, titleId } = useModalA11y({ isOpen, onClose });
 
   if (!isOpen) return null;
 
@@ -68,7 +71,10 @@ export function ReportMessageModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="relative w-full max-w-md rounded-lg border-4 border-pop-black bg-pop-white p-6 shadow-comic">
+      <div
+        {...dialogProps}
+        className="relative w-full max-w-md rounded-lg border-4 border-pop-black bg-pop-white p-6 shadow-comic outline-none"
+      >
         <button
           onClick={onClose}
           className="absolute right-3 top-3 text-gray-500 hover:text-pop-black"
@@ -80,7 +86,9 @@ export function ReportMessageModal({
           <div className="rounded-full bg-pop-yellow/20 p-2">
             <Flag className="h-6 w-6 text-pop-yellow" />
           </div>
-          <h2 className="text-xl font-black">Report Message</h2>
+          <h2 id={titleId} className="text-xl font-black">
+            Report Message
+          </h2>
         </div>
 
         <form onSubmit={handleSubmit}>

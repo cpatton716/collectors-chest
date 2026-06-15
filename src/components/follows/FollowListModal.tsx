@@ -6,6 +6,8 @@ import Link from "next/link";
 
 import { Loader2, Users, X } from "lucide-react";
 
+import { useModalA11y } from "@/hooks/useModalA11y";
+
 import { FollowButton } from "./FollowButton";
 import type { FollowListResponse, FollowUser } from "@/types/follow";
 
@@ -32,6 +34,8 @@ export function FollowListModal({
 
   const limit = 20;
   const hasMore = users.length < total;
+
+  const { dialogProps, titleId } = useModalA11y({ isOpen, onClose });
 
   const fetchUsers = useCallback(
     async (currentOffset: number, append: boolean = false) => {
@@ -119,12 +123,15 @@ export function FollowListModal({
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-md max-h-[80vh] rounded-lg border-4 border-pop-black bg-pop-white shadow-comic flex flex-col"
+        {...dialogProps}
+        className="relative w-full max-w-md max-h-[80vh] rounded-lg border-4 border-pop-black bg-pop-white shadow-comic flex flex-col outline-none"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b-4 border-pop-black p-4">
-          <h2 className="text-xl font-black">{title}</h2>
+          <h2 id={titleId} className="text-xl font-black">
+            {title}
+          </h2>
           <button
             onClick={onClose}
             aria-label="Close modal"

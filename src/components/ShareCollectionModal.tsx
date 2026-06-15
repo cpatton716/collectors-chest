@@ -14,6 +14,8 @@ import {
   X,
 } from "lucide-react";
 
+import { useModalA11y } from "@/hooks/useModalA11y";
+
 interface ShareCollectionModalProps {
   onClose: () => void;
 }
@@ -36,6 +38,9 @@ export function ShareCollectionModal({ onClose }: ShareCollectionModalProps) {
   const [bio, setBio] = useState("");
   const [customSlug, setCustomSlug] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
+
+  // This modal is mounted only while open, so it is always "open" when rendered.
+  const { dialogProps, titleId } = useModalA11y({ isOpen: true, onClose });
 
   // Fetch current settings
   useEffect(() => {
@@ -163,14 +168,19 @@ export function ShareCollectionModal({ onClose }: ShareCollectionModalProps) {
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
 
       {/* Modal */}
-      <div className="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-hidden">
+      <div
+        {...dialogProps}
+        className="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-hidden outline-none"
+      >
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-100">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-primary-100 rounded-lg">
               <Share2 className="w-5 h-5 text-primary-600" />
             </div>
-            <h2 className="text-xl font-semibold text-gray-900">Share Your Collection</h2>
+            <h2 id={titleId} className="text-xl font-semibold text-gray-900">
+              Share Your Collection
+            </h2>
           </div>
           <button
             onClick={onClose}

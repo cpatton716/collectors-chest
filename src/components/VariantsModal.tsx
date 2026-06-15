@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 
 import { ArrowLeft, Search } from "lucide-react";
 
+import { useModalA11y } from "@/hooks/useModalA11y";
 import { CollectionItem } from "@/types/comic";
 
 import { ComicImage } from "./ComicImage";
@@ -27,6 +28,8 @@ export function VariantsModal({
 }: VariantsModalProps) {
   const [searchTerm, setSearchTerm] = useState("");
 
+  const { dialogProps, titleId } = useModalA11y({ isOpen: true, onClose });
+
   const filteredVariants = useMemo(() => {
     if (!searchTerm.trim()) return variants;
     const term = searchTerm.toLowerCase();
@@ -43,7 +46,10 @@ export function VariantsModal({
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
 
       {/* Modal */}
-      <div className="relative bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+      <div
+        {...dialogProps}
+        className="relative bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col outline-none"
+      >
         {/* Header */}
         <div className="bg-primary-600 text-white p-4">
           <button
@@ -53,7 +59,7 @@ export function VariantsModal({
             <ArrowLeft className="w-4 h-4" />
             Back
           </button>
-          <h2 className="text-xl sm:text-2xl font-bold">
+          <h2 id={titleId} className="text-xl sm:text-2xl font-bold">
             {title} #{issueNumber} {year && `(${year})`} Variants
           </h2>
           <p className="text-white/80 text-sm mt-1">

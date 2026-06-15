@@ -19,6 +19,7 @@ import {
   ZoomIn,
 } from "lucide-react";
 
+import { useModalA11y } from "@/hooks/useModalA11y";
 import { CollectionItem, GRADE_SCALE } from "@/types/comic";
 
 import { ComicImage } from "./ComicImage";
@@ -30,6 +31,8 @@ interface PublicComicModalProps {
 
 export function PublicComicModal({ item, onClose }: PublicComicModalProps) {
   const [showImageLightbox, setShowImageLightbox] = useState(false);
+
+  const { dialogProps, titleId } = useModalA11y({ isOpen: true, onClose });
 
   const { comic } = item;
 
@@ -45,7 +48,10 @@ export function PublicComicModal({ item, onClose }: PublicComicModalProps) {
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
 
       {/* Modal */}
-      <div className="relative bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden">
+      <div
+        {...dialogProps}
+        className="relative bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden outline-none"
+      >
         {/* Close Button */}
         <button
           onClick={onClose}
@@ -82,7 +88,9 @@ export function PublicComicModal({ item, onClose }: PublicComicModalProps) {
           <div className="md:w-2/3 p-6 overflow-y-auto">
             {/* Header */}
             <div className="mb-6 pr-10">
-              <h2 className="text-2xl font-bold text-gray-900">{comic.title || "Unknown Title"}</h2>
+              <h2 id={titleId} className="text-2xl font-bold text-gray-900">
+                {comic.title || "Unknown Title"}
+              </h2>
               <p className="text-lg text-gray-600">
                 Issue #{comic.issueNumber || "?"}
                 {comic.variant && <span className="text-gray-400 ml-2">({comic.variant})</span>}

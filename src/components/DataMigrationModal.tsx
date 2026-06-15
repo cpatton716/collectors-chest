@@ -6,6 +6,7 @@ import { useUser } from "@clerk/nextjs";
 
 import { CheckCircle, CloudUpload, Loader2, Trash2, XCircle } from "lucide-react";
 
+import { useModalA11y } from "@/hooks/useModalA11y";
 import { getOrCreateProfile, migrateLocalDataToCloud } from "@/lib/db";
 import { storage } from "@/lib/storage";
 
@@ -19,6 +20,8 @@ export function DataMigrationModal({ isOpen, onClose, onComplete }: DataMigratio
   const { user } = useUser();
   const [status, setStatus] = useState<"idle" | "migrating" | "success" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState("");
+
+  const { dialogProps } = useModalA11y({ isOpen, onClose, label: "Account data migration" });
 
   // Get local data counts
   const localComics = storage.getCollection();
@@ -74,7 +77,7 @@ export function DataMigrationModal({ isOpen, onClose, onComplete }: DataMigratio
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl max-w-md w-full p-6 shadow-xl">
+      <div {...dialogProps} className="bg-white rounded-xl max-w-md w-full p-6 shadow-xl outline-none">
         {status === "idle" && (
           <>
             <h2 className="text-xl font-bold text-gray-900 mb-2">Welcome to Your Account!</h2>
