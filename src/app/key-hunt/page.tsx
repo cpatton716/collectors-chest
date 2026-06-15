@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 
 import { useUser } from "@clerk/nextjs";
 
-import { Database, History, Info, KeyRound, Loader2, Smartphone, Camera, Zap, Target } from "lucide-react";
+import { Database, History, KeyRound, Smartphone, Camera, Zap, Target } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 
 import {
@@ -27,15 +27,14 @@ import { useOffline } from "@/hooks/useOffline";
 
 import { FeatureGate } from "@/components/FeatureGate";
 import { GradeSelector } from "@/components/GradeSelector";
-import { ImageUpload } from "@/components/ImageUpload";
 import { KeyHuntBottomSheet } from "@/components/KeyHuntBottomSheet";
 import { KeyHuntHistoryDetail } from "@/components/KeyHuntHistoryDetail";
 import { KeyHuntHistoryList } from "@/components/KeyHuntHistoryList";
 import { KeyHuntManualEntry } from "@/components/KeyHuntManualEntry";
-import { KeyHuntOfflineSearch } from "@/components/KeyHuntOfflineSearch";
 import { KeyHuntPriceResult } from "@/components/KeyHuntPriceResult";
-import { KeyHuntWishlist } from "@/components/KeyHuntWishlist";
 import { OfflineIndicator, SyncNotification } from "@/components/OfflineIndicator";
+import { KeyHuntResults } from "@/components/keyHunt/KeyHuntResults";
+import { KeyHuntSearchForm } from "@/components/keyHunt/KeyHuntSearchForm";
 
 import { CollectionItem, ComicDetails } from "@/types/comic";
 
@@ -719,20 +718,12 @@ export default function KeyHuntPage() {
           </div>
         </div>
 
-        {/* Offline Search View */}
-        {flow === "offline-search" && (
-          <div className="flex-1">
-            <div className="p-4 border-b border-gray-700">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-medium text-white">Cached Lookups</h2>
-                <button onClick={() => setFlow("options")} className="text-amber-400 text-sm">
-                  Back
-                </button>
-              </div>
-            </div>
-            <KeyHuntOfflineSearch onSelectResult={handleSelectCachedResult} />
-          </div>
-        )}
+        {/* Offline Search + My Hunt List Views */}
+        <KeyHuntSearchForm
+          flow={flow}
+          onSelectCachedResult={handleSelectCachedResult}
+          onBackToOptions={() => setFlow("options")}
+        />
 
         {/* History List View */}
         {flow === "history" && (
@@ -753,103 +744,17 @@ export default function KeyHuntPage() {
           />
         )}
 
-        {/* My Hunt List View */}
-        {flow === "my-list" && (
-          <div className="flex-1 bg-gray-50 min-h-[calc(100vh-120px)]">
-            <div className="p-4 bg-white border-b border-gray-200">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-gray-900">My Hunt List</h2>
-                <button
-                  onClick={() => setFlow("options")}
-                  className="text-amber-600 text-sm font-medium"
-                >
-                  Back
-                </button>
-              </div>
-            </div>
-            <div className="p-4">
-              <KeyHuntWishlist onClose={() => setFlow("options")} />
-            </div>
-          </div>
-        )}
-
-        {/* Main content area for cover scan */}
-        {flow === "cover-scan" && (
-          <div className="p-4">
-            <div className="text-center mb-4">
-              <p className="text-lg font-medium text-gray-900">Take a photo of the cover</p>
-              <p className="text-sm text-gray-600">
-                We&apos;ll identify the comic and check if it&apos;s graded
-              </p>
-            </div>
-            <ImageUpload onImageSelect={handleCoverImageSelect} disabled={false} />
-            {/* Foil/shiny cover tip */}
-            <p className="flex items-start gap-1.5 mt-3 text-xs text-gray-400">
-              <Info className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
-              <span>For foil, holographic, or shiny covers, photograph at a slight angle to reduce glare for best results.</span>
-            </p>
-            <button
-              onClick={() => setFlow("options")}
-              className="mt-4 w-full py-3 text-gray-600 hover:text-gray-900 transition-colors"
-            >
-              Cancel
-            </button>
-          </div>
-        )}
-
-        {/* Analyzing state */}
-        {flow === "cover-analyzing" && (
-          <div className="flex-1 flex items-center justify-center p-8">
-            <div className="text-center text-white">
-              <Loader2 className="w-12 h-12 animate-spin mx-auto mb-4 text-amber-400" />
-              <p className="text-lg font-medium">Analyzing cover...</p>
-              <p className="text-sm text-gray-400 mt-2">Identifying comic and checking for grade</p>
-            </div>
-          </div>
-        )}
-
-        {/* Loading state */}
-        {flow === "loading" && (
-          <div className="flex-1 flex items-center justify-center p-8">
-            <div className="text-center text-white">
-              <Loader2 className="w-12 h-12 animate-spin mx-auto mb-4 text-amber-400" />
-              <p className="text-lg font-medium">Getting price...</p>
-              <p className="text-sm text-gray-400 mt-2">
-                {pendingComic?.title} #{pendingComic?.issueNumber}
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Error state */}
-        {flow === "error" && (
-          <div className="flex-1 flex items-center justify-center p-8">
-            <div className="text-center">
-              <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                <KeyRound className="w-8 h-8 text-red-400" />
-              </div>
-              <p className="text-lg font-medium text-white mb-2">Something went wrong</p>
-              <p className="text-sm text-gray-400 mb-6">{error}</p>
-              <div className="flex flex-col gap-3">
-                <button
-                  onClick={handleNewLookup}
-                  className="px-6 py-3 bg-amber-500 text-white rounded-xl font-medium hover:bg-amber-600 transition-colors"
-                >
-                  Try Again
-                </button>
-                {isOfflineMode && (
-                  <button
-                    onClick={() => setFlow("offline-search")}
-                    className="px-6 py-3 bg-gray-700 text-white rounded-xl font-medium hover:bg-gray-600 transition-colors flex items-center justify-center gap-2"
-                  >
-                    <Database className="w-4 h-4" />
-                    Search Cached Lookups
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Cover scan / analyzing / loading / error states */}
+        <KeyHuntResults
+          flow={flow}
+          pendingComic={pendingComic}
+          error={error}
+          isOfflineMode={isOfflineMode}
+          onCoverImageSelect={handleCoverImageSelect}
+          onCancelToOptions={() => setFlow("options")}
+          onNewLookup={handleNewLookup}
+          onOfflineSearch={() => setFlow("offline-search")}
+        />
 
         {/* Not signed in notice */}
         {!isSignedIn && flow === "options" && (

@@ -4,7 +4,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 
 import dynamic from "next/dynamic";
 import Image from "next/image";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 
 import { useUser } from "@clerk/nextjs";
 
@@ -14,10 +14,7 @@ import {
   Camera,
   Check,
   ClipboardCheck,
-  FileSpreadsheet,
-  Info,
   Loader2,
-  PenLine,
   Save,
   Sparkles,
   Wand2,
@@ -35,7 +32,6 @@ import { MilestoneType, useGuestScans } from "@/hooks/useGuestScans";
 import CoverReviewQueue from "@/components/CoverReviewQueue";
 import { ComicDetailsForm } from "@/components/ComicDetailsForm";
 import { GuestCaptcha, GuestCaptchaHandle } from "@/components/GuestCaptcha";
-import { GuestLimitBanner } from "@/components/GuestLimitBanner";
 import { ImageUpload } from "@/components/ImageUpload";
 import { analytics } from "@/components/PostHogProvider";
 import { SignUpPromptModal } from "@/components/SignUpPromptModal";
@@ -43,52 +39,15 @@ import { useToast } from "@/components/Toast";
 
 import { CollectionItem, ComicDetails } from "@/types/comic";
 
+import { BonusVerificationHandler } from "./BonusVerificationHandler";
+import { ScanPanel } from "@/components/scan/ScanPanel";
+
 // CSV import UI is only mounted when the user opens the importer — load it
 // lazily (client-only) so it isn't in the initial scan-page bundle.
 const CSVImport = dynamic(
   () => import("@/components/CSVImport").then((m) => m.CSVImport),
   { ssr: false }
 );
-
-// Component that handles bonus scan verification from URL params
-// Must be wrapped in Suspense because it uses useSearchParams
-function BonusVerificationHandler({
-  addBonusScans,
-  showToast,
-}: {
-  addBonusScans: () => void;
-  showToast: (message: string, type: "success" | "error" | "info") => void;
-}) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-
-  useEffect(() => {
-    const bonusStatus = searchParams.get("bonus_status");
-    const bonusMessage = searchParams.get("bonus_message");
-    const bonusGranted = searchParams.get("bonus_granted");
-
-    if (bonusStatus && bonusMessage) {
-      // Show appropriate toast based on status
-      if (bonusStatus === "success" && bonusGranted === "true") {
-        addBonusScans();
-        showToast(bonusMessage, "success");
-      } else if (bonusStatus === "already_verified") {
-        showToast(bonusMessage, "info");
-      } else if (bonusStatus === "expired" || bonusStatus === "error") {
-        showToast(bonusMessage, "error");
-      }
-
-      // Clean up URL params
-      const url = new URL(window.location.href);
-      url.searchParams.delete("bonus_status");
-      url.searchParams.delete("bonus_message");
-      url.searchParams.delete("bonus_granted");
-      router.replace(url.pathname, { scroll: false });
-    }
-  }, [searchParams, addBonusScans, showToast, router]);
-
-  return null; // This component just handles the side effect
-}
 
 type ScanState = "upload" | "analyzing" | "review" | "saved" | "error";
 
@@ -554,60 +513,15 @@ export default function ScanPage() {
 
       {/* Upload State */}
       {state === "upload" && (
-        <>
-          {/* Guest scan limit banner */}
-          {isGuest && <GuestLimitBanner variant={isLimitReached ? "warning" : "info"} />}
-
-          {isLimitReached ? (
-            <div
-              className="bg-pop-white border-3 border-pop-black p-8"
-              style={{ boxShadow: "4px 4px 0px #000" }}
-            >
-              <GuestLimitBanner />
-            </div>
-          ) : (
-            <div
-              ref={scanSurfaceRef}
-              className="bg-pop-white border-3 border-pop-black p-8 touch-none"
-              // touch-action:none locks pinch/double-tap zoom on the camera/scan
-              // surface only (H-FE1); the `gesture*` listeners above cover iOS Safari.
-              style={{ boxShadow: "4px 4px 0px #000", touchAction: "none" }}
-            >
-              <ImageUpload onImageSelect={handleImageSelect} />
-
-              {/* Foil/shiny cover tip */}
-              <p className="flex items-start gap-1.5 mt-3 text-xs text-gray-400">
-                <Info className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
-                <span>For foil, holographic, or shiny covers, photograph at a slight angle to reduce glare for best results.</span>
-              </p>
-
-              {/* Alternative add methods */}
-              <div className="mt-8 pt-6 border-t-2 border-pop-black">
-                <p className="text-sm text-gray-600 text-center mb-4 font-bold uppercase">
-                  Other ways to add your books:
-                </p>
-                <div className="flex flex-wrap justify-center gap-4">
-                  <button
-                    onClick={handleManualEntry}
-                    className="flex flex-col items-center justify-center w-36 h-24 bg-pop-white text-pop-black border-2 border-pop-black font-bold hover:shadow-[3px_3px_0px_#000] transition-all"
-                  >
-                    <PenLine className="w-7 h-7 mb-2" />
-                    <span className="text-sm">Enter Manually</span>
-                  </button>
-                  {isSignedIn && (
-                    <button
-                      onClick={() => setShowCSVImport(true)}
-                      className="flex flex-col items-center justify-center w-36 h-24 bg-pop-white text-pop-black border-2 border-pop-black font-bold hover:shadow-[3px_3px_0px_#000] transition-all"
-                    >
-                      <FileSpreadsheet className="w-7 h-7 mb-2" />
-                      <span className="text-sm">Import CSV</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-        </>
+        <ScanPanel
+          isGuest={isGuest}
+          isLimitReached={isLimitReached}
+          isSignedIn={isSignedIn}
+          scanSurfaceRef={scanSurfaceRef}
+          onImageSelect={handleImageSelect}
+          onManualEntry={handleManualEntry}
+          onOpenCSVImport={() => setShowCSVImport(true)}
+        />
       )}
 
       {/* Analyzing State */}
