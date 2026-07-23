@@ -4,6 +4,35 @@ This log tracks session-by-session progress on Collectors Chest.
 
 ---
 
+## July 23, 2026 (Thursday) — Session 49: Cover-Seeding Source Spike (Research — No Code Changes)
+
+### Summary
+A research/spike session — **no code changed**, no deploy. Used Claude-in-Chrome browser automation to test whether publisher/catalog sites can be used to harvest comic cover images for pre-seeding the cover cache (BACKLOG "Pre-populate Cover Cache"). Goal: cut AI scan costs by caching covers so common scans skip the ~$0.015/scan AI pipeline. Outcome: the **publisher-CDN approach is validated and ZenRows is NOT needed**, but the goal was refined to **key/popular issues** where vintage coverage is the hard part. Findings written to BACKLOG; user is considering the Marvel approach.
+
+### What was tested
+- **Architecture proven:** real browser session for *discovery* (harvest cover URLs + metadata from the DOM — clears the Cloudflare wall on `www.*` that blocks curl) → plain server-side `curl` for *fetching* image bytes (image CDNs are not bot-walled). Browser never touches the bytes.
+- **Marvel** (`cdn.marvel.com`): `/comics` hub yields 65 issues/page; swap size suffix `portrait_uncanny` → `clean` for **1800×2733** full-res. Best full-res source. Visually confirmed a real cover download.
+- **DC** (`static.dc.com`): bare CDN URL already full-res (~1138–1920px).
+- **Image** (`cdn.imagecomics.com`): public site caps at **384×591** thumbnail — high-res gated.
+- **IDW** (Shopify / `cdn.shopify.com`): master image at bare filename (~1083×1685); bonus `products.json` structured feed needs no DOM scraping (generalizes to any Shopify indie publisher).
+- **GCD** (comics.org): completeness champion (323 TMNT series, free DB dumps) but cover images are **hotlink-locked** (403 to curl even with Referer; CORS-blocked to in-page fetch) — metadata source only, not covers.
+- All image CDNs returned HTTP 200 to a plain `curl` — **no ZenRows / no paid scraper needed anywhere.**
+
+### Key conclusions
+- **Storefront ≠ catalog:** DC/Image/IDW storefronts expose only recent/in-print books (IDW store: ~145 TMNT SKUs vs. thousands of issues). Only Marvel has historical depth — and even Marvel's on-site search doesn't reliably surface vintage issues, plus Marvel serves placeholder covers for many pre-2000 books.
+- **Goal refined to key/popular issues** (not recent) → bounded set (~400–1,130). Driver list already exists (`key_comics` table = 402 curated; static fallback ~1,130) but **`key_comics` has no `cover_image_url` column** — schema gap to close before a seeding job.
+- **Reframe:** ~400 keys is a one-time bounded job — automation cost is negligible (~$6 even via existing AI), so optimize cover *quality*, not scrape cheapness. Vintage keys remain the hard part (no clean bulk source).
+- **Metron + League of Comic Geeks:** previously evaluated by user — did not yield good results; not pursued.
+
+### Key Files
+- **BACKLOG.md** — "Pre-populate Cover Cache (Publisher-CDN Approach — ZenRows NOT needed)" fully rewritten with the spike findings, per-publisher table, goal refinement, schema gap, and next-step decision (pending user go/no-go on the Marvel pipeline).
+- No source files touched.
+
+### Where We Left Off
+User will decide whether to proceed with the Marvel publisher-CDN pipeline for Marvel-published keys. No deploy impact — Session 48's unpushed batch remains the pending deploy (unchanged by this session).
+
+---
+
 ## June 14, 2026 (Sunday) — Session 48: Full Codebase Audit + Complete Remediation (NOT Deployed — 19 local commits, base `02b0429`, nothing pushed)
 
 ### Summary

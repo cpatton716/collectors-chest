@@ -443,31 +443,44 @@ Partner cost review of ZenRows subscription before implementation.
 
 ---
 
-### Pre-populate Top Comics Cache (ZenRows Scrape — Marvel + DC)
-**Priority:** Medium (Post-Launch — gated on ZenRows subscription)
-**Status:** Pending — defer until Beta → Full Launch transition
+### Pre-populate Cover Cache (Publisher-CDN Approach — ZenRows NOT needed)
+**Priority:** Medium (Post-Launch)
+**Status:** Pending — **spike completed Jul 23, 2026 (see findings below).** User considering the Marvel publisher-CDN approach; decision pending.
 **Added:** Apr 22, 2026
-**Updated:** Apr 23, 2026
+**Updated:** Jul 23, 2026 (browser-automation spike across Marvel / DC / Image / IDW / GCD)
 
-**[CP - 4/23] - Blocked by "Fix CGC Cert Lookup Cloudflare 403 Errors" / ZenRows post-launch decision. One-time scrape burst; defer until ZenRows subscription is active.**
+Our AI cover scan pipeline costs ~$0.015/scan. Pre-seeding `comic_metadata` + `cover_images` with high-value covers skips AI calls for those scans. **Note (Jul 23): goal refined — the priority is popular / KEY issues, NOT recent releases** (see "Goal refinement" below).
 
-Our AI cover scan pipeline costs ~$0.015/scan. Most scans target popular issues from major publishers. Pre-seeding the `comic_metadata` + `cover_images` tables with the top Marvel + DC catalogs *before* Full Launch skips AI calls for those scans entirely — significant cost reduction at scale.
+**⭐ Spike findings (Jul 23, 2026 — Claude-in-Chrome browser automation):**
 
-**User direction (Apr 22, 2026):** *"Yes, but not for Beta Launch. Would like to go ZenRows scraping approach for both Marvel & DC. I'll look into a similar approach for Image and other publishers."*
+The original plan assumed ZenRows was needed to beat Cloudflare. **It isn't.** Architecture proven: use a real browser session for *discovery* (harvest cover URLs + metadata from the DOM — sails through the Cloudflare wall on `www.*` that blocks curl), then plain server-side `curl` for *fetching* the image bytes (the image CDNs are NOT bot-walled). Browser never touches image bytes.
 
-**Approach:**
-- Use ZenRows (already in consideration for CGC cert lookup — shared subscription amortizes cost)
-- **Phase 1:** scrape Marvel.com catalog (supersedes existing "Scrape Marvel.com for Cover Images (ZenRows)" backlog item)
-- **Phase 2:** scrape DC.com catalog
-- **Phase 3 (user follow-up research):** evaluate Image Comics, Dark Horse, and other major publishers
-- ETL: normalize scraped metadata into our schema, download + store cover images to Supabase Storage, populate `comic_metadata` and `cover_images`
-- One-time batch job; optional periodic re-scrape for new releases (ties into Follow List feature — reuses the release-date data)
+Per-publisher results (all image CDNs returned HTTP 200 to a plain `curl -A "Mozilla/5.0"` — **no ZenRows anywhere**):
 
-**Effort:** 3-5 days scripting per publisher + content review.
+| Publisher | Site type | Discovery | Cover CDN | Max res (public) | Notes |
+|-----------|-----------|-----------|-----------|------------------|-------|
+| **Marvel** | Custom | `/comics` hub — **65 issues/page** | `cdn.marvel.com` | **1800×2733** | Swap size suffix `portrait_uncanny` → `clean` for full-res. Slug carries id·title·year·issue#. **Best full-res source.** |
+| **DC** | Custom | `/comics` — ~17/page (carousel) | `static.dc.com` | 1138×1750 (1920 via width param) | Bare CDN URL already full-res. |
+| **Image** | Custom | `/comics/new-releases` — ~18/page | `cdn.imagecomics.com` | ⚠️ **384×591 only** | Public site caps at thumbnail res; high-res art is gated. |
+| **IDW** | Shopify | `/collections/new-releases` — 27/page | `cdn.shopify.com` | 1083×1685 (master at bare filename) | **Bonus:** Shopify exposes `/collections/<name>/products.json` — structured JSON feed, no browser/DOM scraping needed. Pattern generalizes to any Shopify-based indie publisher. |
 
-**Scale win:** Marvel + DC represent ~70% of typical collector scans — pre-seeding those alone cuts AI costs sharply at Full-Launch volume.
+**Key limitation — storefront ≠ catalog:** publisher storefronts (esp. DC / Image / IDW) only expose **recent / in-print** books, not the full back catalog. Confirmed: IDW's store returns ~145 TMNT SKUs (all current product) vs. the thousands of TMNT issues since 1984. Only **Marvel** exposes meaningful historical depth — and even Marvel's on-site search does NOT reliably surface individual vintage issues, and Marvel is known to serve "image not available" placeholders for many pre-2000 books. **Net: publisher CDNs are excellent for recent releases but unreliable for vintage keys.**
 
-**Related:** Existing "Scrape Marvel.com for Cover Images (ZenRows)" entry — consolidate into this; Follow List (reuses release-date data).
+**Grand Comics Database (comics.org) — completeness champion, but images locked:** GCD returned **323 TMNT series** across every era/publisher (Mirage 1984, IDW 2011, Image, Archie, etc.) and publishes **free downloadable DB dumps** (complete metadata, zero scraping). BUT its cover images (`files1.comics.org`) are **hotlink-protected: 403 to `curl` even with Referer, and CORS-blocked to in-page `fetch`** — displayable via `<img>` only, so not harvestable at scale. GCD is a great *metadata* source, not a cover-image source.
+
+**Metron + League of Comic Geeks:** already evaluated previously (per user, Jul 23) — did not yield good results. Not pursuing.
+
+**Goal refinement (Jul 23, 2026):** User confirmed the target is **popular / KEY issues, not recent releases.** This makes the job a *bounded* set (~400–1,130) rather than a full-catalog ETL:
+- Driver list already exists: `key_comics` table (**402 curated keys**, DB-primary) + ~1,130-entry static fallback `keyComicsDatabase.ts` + separate `scripts/key-comics-list.json` (403 "Top 500"). *Note: these lists are out of sync.*
+- **Schema gap:** `key_comics` has **no `cover_image_url` column.** To drive a cover-seeding job from it, either add that column or join `key_comics` → `comic_metadata` on (title_normalized, issue_number) and seed covers there (`comic_metadata` already has a cover column + `comic-covers` bucket).
+- **Reframe:** for ~400 keys this is a **one-time bounded job**, so automation/scrape *cost* is negligible (~$6 even via the existing AI pipeline). The real optimization target is cover-image *quality* for a fixed list, not scraping cheapness. Seed once → every future user scan of a key is a cache hit (free) regardless of source.
+- **The hard part:** most keys are vintage, and no clean *bulk* source for vintage-key covers exists (storefronts = recent-only; Marvel vintage = spotty/placeholders; GCD = locked). eBay Browse API (already integrated for key pricing) carries cover images too — variable quality (often slab photos) but available now with zero new integration; possible fallback.
+
+**Next step (pending user decision):** proceed with the Marvel publisher-CDN pipeline (browser discovery → suffix-swap to `clean.jpg` → `curl` → WebP → Supabase) for the Marvel-published keys, which are the largest and highest-value slice. Validate vintage-key coverage against the actual `key_comics` list before committing (Marvel's vintage placeholder gap is the main risk).
+
+**Effort:** Marvel pipeline ~1-2 days incl. driver-list wiring + WebP + upload. Add the `key_comics.cover_image_url` migration (or the metadata-join path) as a prerequisite.
+
+**Related:** Existing "Scrape Marvel.com for Cover Images (ZenRows)" entry — supersede/consolidate into this (ZenRows no longer required); "Fix CGC Cert Lookup Cloudflare 403" (ZenRows decision now decoupled from this item); Key Hunt feature (`key_comics` is the driver list); Follow List (reuses release-date data for recent-release seeding).
 
 ---
 

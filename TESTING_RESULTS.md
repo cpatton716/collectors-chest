@@ -386,3 +386,10 @@ This document tracks testing sessions with platform and account context.
 - **Device(s):** iPhone, Android, Mac Chrome
 - **Sounds:** No
 - **Focus:** TBD (lead candidate: Variant Detection — Two-Pass High-Res Barcode OCR, BACKLOG #1)
+
+## 2026-06-23 - Session Start
+- **Platform:** Both (Web + Mobile)
+- **Account Type:** Guest, Free, Premium
+- **Device(s):** iPhone, Android, Mac Chrome
+- **Sounds:** No
+- **Focus:** [To be filled as session progresses]
