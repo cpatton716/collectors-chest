@@ -86,9 +86,6 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-// Export posthog instance for custom event tracking
-export { posthog };
-
 // Helper functions for common events
 export const analytics = {
   // Track when user scans a comic

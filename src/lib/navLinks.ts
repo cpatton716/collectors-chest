@@ -30,7 +30,7 @@ import {
  * `icon` is typed loosely as a component accepting a `className` so both navs
  * (which size icons via Tailwind classes) can render the same definitions.
  */
-export type NavIcon = React.ComponentType<{ className?: string }>;
+type NavIcon = React.ComponentType<{ className?: string }>;
 
 export interface NavLink {
   href: string;

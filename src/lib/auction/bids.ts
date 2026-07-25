@@ -2,7 +2,6 @@
 // Behavior-preserving: function bodies moved verbatim.
 
 import {
-  Bid,
   BidHistoryItem,
   PlaceBidResult,
   calculateMinimumBid,
@@ -329,22 +328,6 @@ export async function getBidHistory(auctionId: string): Promise<BidHistoryItem[]
     createdAt: bid.created_at,
     isWinning: bid.is_winning,
   }));
-}
-
-/**
- * Get user's bids across all auctions
- */
-export async function getUserBids(userId: string, limit = 200): Promise<Bid[]> {
-  const { data, error } = await supabase
-    .from("bids")
-    .select("*")
-    .eq("bidder_id", userId)
-    .order("created_at", { ascending: false })
-    .limit(limit);
-
-  if (error) throw error;
-
-  return (data || []).map(transformDbBid);
 }
 
 /**

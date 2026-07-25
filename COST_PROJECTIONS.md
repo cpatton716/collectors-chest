@@ -1,7 +1,7 @@
 # Collectors Chest - Operating Cost Projections
 
 > Cost estimates for running the application at various scale levels.
-> All prices in USD. Last audited June 14, 2026.
+> All prices in USD. Last audited July 25, 2026 (Session 50 — no service or cost changes; dependency-only session).
 > **Audit cadence:** reviewed at end of every session (close-up-shop). Any new service added or cost change must land here before commit.
 
 ---

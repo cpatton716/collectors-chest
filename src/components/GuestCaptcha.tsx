@@ -4,11 +4,7 @@ import { forwardRef, useImperativeHandle, useRef } from "react";
 
 import HCaptcha from "@hcaptcha/react-hcaptcha";
 
-const IS_DEV = process.env.NODE_ENV !== "production";
-
-const SITE_KEY = IS_DEV
-  ? "10000000-ffff-ffff-ffff-000000000001"
-  : (process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY ?? "");
+import { HCAPTCHA_SITE_KEY as SITE_KEY } from "@/lib/publicConfig";
 
 export interface GuestCaptchaHandle {
   /** Trigger invisible CAPTCHA and return token, or null on failure. */

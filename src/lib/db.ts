@@ -363,7 +363,7 @@ export async function ensureComicInSupabase(
   return data.id;
 }
 
-export class ComicSoldError extends Error {
+class ComicSoldError extends Error {
   code = "comic_sold";
   constructor(message = "This comic has been sold and is now read-only in your sold history.") {
     super(message);
@@ -1360,13 +1360,6 @@ export async function getSharingSettings(profileId: string): Promise<{
   };
 }
 
-/**
- * Toggle list sharing visibility
- */
-export async function toggleListSharing(listId: string, isShared: boolean): Promise<void> {
-  await supabase.from("lists").update({ is_shared: isShared }).eq("id", listId);
-}
-
 // ============================================
 // Barcode Cataloging
 // ============================================
@@ -1409,7 +1402,7 @@ interface BarcodeCatalogEntry {
  * Variant names are ALWAYS pending regardless of barcode confidence -- they
  * carry user-typed text that needs admin sanity-check before community use.
  */
-export async function catalogBarcode(entry: BarcodeCatalogEntry): Promise<void> {
+async function catalogBarcode(entry: BarcodeCatalogEntry): Promise<void> {
   try {
     const status = entry.confidence === "high" ? "auto_approved" : "pending_review";
 

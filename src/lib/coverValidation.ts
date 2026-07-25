@@ -96,7 +96,7 @@ const PRIVATE_IP_PREFIXES = [
  * `URL.hostname` returns IPv6 wrapped in `[...]` per WHATWG; we strip those
  * brackets and lowercase before matching.
  */
-export function isPrivateIPv6(hostname: string): boolean {
+function isPrivateIPv6(hostname: string): boolean {
   const h = hostname.replace(/^\[|\]$/g, "").toLowerCase();
   if (!h.includes(":")) return false; // not IPv6
 

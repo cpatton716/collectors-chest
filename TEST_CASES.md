@@ -2239,7 +2239,6 @@ If you encounter bugs or unexpected behavior:
 | **T-IMG-8** | Cover URL pointing at a private/loopback host is rejected (SSRF) | Try to set a cover image URL to `http://127.0.0.1/...`, `192.168.x`, `169.254.x`, or `localhost`. | Rejected/nulled before storage; only valid public hosts accepted. | Web |
 | **T-IMG-9** | Legitimately-redirecting cover URLs are not marked dead | Use a cover URL that 301/302-redirects on a HEAD request. | URL treated as alive (manual-redirect handling); not removed/flagged as dead. | Web |
 | **T-IMG-10** | Harvested community covers are resized and look fine | Trigger a community cover harvest. | Harvested cover stored ≤1000px WebP, small file, visually fine at display size; no upscaling of tiny crops. | Web |
-| **T-IMG-11** | Storage-warning uses real quota and all callers awaited | (Guest/offline path) push localStorage toward capacity. | Storage warning reflects the browser's actual quota; no broken/blank warning from the now-async `checkStorageWarning`. | Web |
 
 ---
 

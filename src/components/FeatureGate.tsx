@@ -206,7 +206,7 @@ function UpgradePrompt({
  * Inline feature badge for buttons/links that are gated
  * Shows a lock icon and "Premium" badge
  */
-export function PremiumBadge({ className = "" }: { className?: string }) {
+function PremiumBadge({ className = "" }: { className?: string }) {
   return (
     <span
       className={`inline-flex items-center gap-1 text-xs font-medium text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full ${className}`}
@@ -215,15 +215,6 @@ export function PremiumBadge({ className = "" }: { className?: string }) {
       Premium
     </span>
   );
-}
-
-/**
- * Hook to check if user can access a feature
- */
-export function useCanAccessFeature(feature: FeatureKey): boolean {
-  const { features, isLoading } = useSubscription();
-  if (isLoading) return false;
-  return features[feature];
 }
 
 /**
@@ -286,32 +277,4 @@ export function FeatureButton({
       )}
     </button>
   );
-}
-
-/**
- * RequiresTier - Shows content only if user has at least the specified tier
- */
-interface RequiresTierProps {
-  tier: SubscriptionTier;
-  children: ReactNode;
-  fallback?: ReactNode;
-}
-
-export function RequiresTier({ tier: requiredTier, children, fallback }: RequiresTierProps) {
-  const { tier, isGuest, isLoading } = useSubscription();
-
-  if (isLoading) {
-    return <div className="animate-pulse bg-gray-100 rounded h-8" />;
-  }
-
-  // Tier hierarchy: guest < free < premium
-  const tierLevel = { guest: 0, free: 1, premium: 2 };
-  const userLevel = isGuest ? 0 : tierLevel[tier] || 0;
-  const requiredLevel = tierLevel[requiredTier] || 0;
-
-  if (userLevel >= requiredLevel) {
-    return <>{children}</>;
-  }
-
-  return fallback ? <>{fallback}</> : null;
 }

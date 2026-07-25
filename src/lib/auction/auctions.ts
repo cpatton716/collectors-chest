@@ -454,54 +454,6 @@ export async function getActiveAuctions(
 }
 
 /**
- * Get auctions by seller
- */
-export async function getSellerAuctions(
-  sellerId: string,
-  status?: string,
-  limit = 200,
-  offset = 0
-): Promise<Auction[]> {
-  let query = supabase
-    .from("auctions")
-    .select(AUCTION_WITH_COMIC_SELECT)
-    .eq("seller_id", sellerId)
-    .order("created_at", { ascending: false })
-    .range(offset, offset + limit - 1);
-
-  if (status) {
-    query = query.eq("status", status);
-  }
-
-  const { data, error } = await query;
-
-  if (error) throw error;
-
-  return ((data as unknown as Record<string, unknown>[]) || []).map(
-    transformDbAuction
-  );
-}
-
-/**
- * Get auctions won by user
- */
-export async function getWonAuctions(userId: string, limit = 200): Promise<Auction[]> {
-  const { data, error } = await supabase
-    .from("auctions")
-    .select(AUCTION_WITH_COMIC_SELECT)
-    .eq("winner_id", userId)
-    .in("status", ["ended", "sold"])
-    .order("end_time", { ascending: false })
-    .limit(limit);
-
-  if (error) throw error;
-
-  return ((data as unknown as Record<string, unknown>[]) || []).map(
-    transformDbAuction
-  );
-}
-
-/**
  * Update auction
  */
 export async function updateAuction(
@@ -624,58 +576,6 @@ export async function cancelAuction(
       cancelledBy: "seller",
     },
   });
-
-  return { success: true };
-}
-
-/**
- * Mark a listing as sold outside the app
- * This removes the listing and the comic from collection
- */
-export async function markSoldOutsideApp(
-  auctionId: string,
-  sellerId: string,
-  salePrice: number
-): Promise<{ success: boolean; error?: string }> {
-  // Get the auction details first
-  const { data: auction } = await supabase
-    .from("auctions")
-    .select("comic_id, bid_count, listing_type")
-    .eq("id", auctionId)
-    .eq("seller_id", sellerId)
-    .single();
-
-  if (!auction) {
-    return { success: false, error: "Listing not found" };
-  }
-
-  // For auctions, check that there are no bids
-  if (auction.listing_type === "auction" && auction.bid_count > 0) {
-    return { success: false, error: "Cannot mark auction with bids as sold outside app" };
-  }
-
-  // Mark listing as sold
-  const { error: auctionError } = await supabase
-    .from("auctions")
-    .update({
-      status: "sold",
-      winning_bid: salePrice,
-      cancel_reason: "sold_elsewhere",
-    })
-    .eq("id", auctionId)
-    .eq("seller_id", sellerId);
-
-  if (auctionError) {
-    return { success: false, error: auctionError.message };
-  }
-
-  // Delete the comic from collection
-  const { error: comicError } = await supabase.from("comics").delete().eq("id", auction.comic_id);
-
-  if (comicError) {
-    // Note: Listing is already marked sold, but comic deletion failed
-    console.error("Failed to delete comic after marking sold:", comicError);
-  }
 
   return { success: true };
 }

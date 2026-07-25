@@ -134,14 +134,6 @@ export async function lookupKeyInfoMetaFromDb(
 }
 
 /**
- * Check if a comic is a key comic (DB or static)
- */
-export async function isKeyComicFromDb(title: string, issueNumber: string): Promise<boolean> {
-  const keyInfo = await lookupKeyInfoFromDb(title, issueNumber);
-  return keyInfo !== null && keyInfo.length > 0;
-}
-
-/**
  * Get key comics count from database
  */
 export async function getKeyComicsCountFromDb(): Promise<number> {

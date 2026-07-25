@@ -14,8 +14,6 @@ import {
   TransactionType,
   FeedbackEligibility,
   UserCreatorProfile,
-  TransactionTrust,
-  CreatorBadgeInfo,
   ContributionType,
   CommunityContribution,
   calculateTransactionTrust,
@@ -373,35 +371,6 @@ export async function getUserFeedback(
 }
 
 /**
- * Get feedback for a specific transaction
- */
-export async function getTransactionFeedback(
-  transactionId: string,
-  transactionType: TransactionType
-): Promise<{ feedback: TransactionFeedback[]; error: string | null }> {
-  const { data, error } = await supabaseAdmin
-    .from("transaction_feedback")
-    .select(
-      `
-      *,
-      reviewer:profiles!reviewer_id(display_name, username)
-    `
-    )
-    .eq("transaction_id", transactionId)
-    .eq("transaction_type", transactionType);
-
-  if (error) {
-    console.error("[creatorCreditsDb] Failed to get transaction feedback:", error);
-    return { feedback: [], error: "Failed to get feedback" };
-  }
-
-  return {
-    feedback: (data as FeedbackRow[]).map(transformFeedback),
-    error: null,
-  };
-}
-
-/**
  * Check if a user can leave feedback for a transaction
  */
 export async function checkFeedbackEligibility(
@@ -645,43 +614,6 @@ export async function getUserCreatorProfile(userId: string): Promise<UserCreator
 }
 
 
-/**
- * Get just transaction trust for a user
- */
-export async function getTransactionTrust(userId: string): Promise<TransactionTrust | null> {
-  const { data, error } = await supabaseAdmin
-    .from("profiles")
-    .select("positive_ratings, negative_ratings")
-    .eq("id", userId)
-    .single();
-
-  if (error || !data) {
-    console.error("[creatorCreditsDb] Failed to get transaction trust:", error);
-    return null;
-  }
-
-  return calculateTransactionTrust(data.positive_ratings, data.negative_ratings);
-}
-
-/**
- * Get just creator badge for a user
- */
-export async function getCreatorBadge(userId: string): Promise<CreatorBadgeInfo | null> {
-  const { data, error } = await supabaseAdmin
-    .from("profiles")
-    .select("community_contribution_count")
-    .eq("id", userId)
-    .single();
-
-  if (error || !data) {
-    console.error("[creatorCreditsDb] Failed to get creator badge:", error);
-    return null;
-  }
-
-  return calculateCreatorBadge(data.community_contribution_count);
-}
-
-
 // ============================================================================
 // COMMUNITY CONTRIBUTIONS (CREATOR CREDITS)
 // ============================================================================
@@ -733,29 +665,4 @@ export async function recordContribution(
   // would double-count. (H-SO1)
 
   return { contribution: transformContribution(data as ContributionRow), error: null };
-}
-
-/**
- * Get contributions by a user
- */
-export async function getUserContributions(
-  userId: string,
-  limit: number = 50
-): Promise<{ contributions: CommunityContribution[]; error: string | null }> {
-  const { data, error } = await supabaseAdmin
-    .from("community_contributions")
-    .select("*")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false })
-    .limit(limit);
-
-  if (error) {
-    console.error("[creatorCreditsDb] Failed to get user contributions:", error);
-    return { contributions: [], error: "Failed to get contributions" };
-  }
-
-  return {
-    contributions: (data as ContributionRow[]).map(transformContribution),
-    error: null,
-  };
 }

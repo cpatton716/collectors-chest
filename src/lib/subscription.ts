@@ -346,14 +346,6 @@ export async function getSubscriptionStatus(profileId: string): Promise<Subscrip
 }
 
 /**
- * Check if a user can perform a scan
- */
-export async function canUserScan(profileId: string): Promise<boolean> {
-  const status = await getSubscriptionStatus(profileId);
-  return status?.canScan ?? false;
-}
-
-/**
  * Atomically reserve a scan slot for a user.
  * Combines check + increment into one conditional UPDATE to prevent race conditions
  * where rapid scans all pass the check before any increment runs.
@@ -554,18 +546,6 @@ export async function releaseScanSlot(
 }
 
 /**
- * Increment scan count for a user (legacy wrapper around reserveScanSlot)
- * Returns success status and remaining scans
- */
-export async function incrementScanCount(
-  profileId: string,
-  source: "scan" | "import" | "key_hunt" = "scan"
-): Promise<ScanResult> {
-  const result = await reserveScanSlot(profileId, source);
-  return { success: result.success, remaining: result.remaining, message: result.message };
-}
-
-/**
  * Log scan usage for analytics
  */
 async function logScanUsage(
@@ -672,19 +652,6 @@ export async function startTrial(
   }
 
   return { success: true, trialEndsAt };
-}
-
-/**
- * End trial (called when trial expires or user subscribes)
- */
-export async function endTrial(profileId: string): Promise<void> {
-  await supabaseAdmin
-    .from("profiles")
-    .update({
-      trial_ends_at: null,
-      subscription_status: "active",
-    })
-    .eq("id", profileId);
 }
 
 // ============================================
@@ -877,7 +844,7 @@ export function hasLiveSubscription(
 /**
  * Check how many active listings a user has
  */
-export async function getActiveListingCount(profileId: string): Promise<number> {
+async function getActiveListingCount(profileId: string): Promise<number> {
   const { count, error } = await supabaseAdmin
     .from("auctions")
     .select("id", { count: "exact", head: true })

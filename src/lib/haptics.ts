@@ -35,16 +35,6 @@ export function hapticSuccess(): void {
   vibrate(30);
 }
 
-/** Two-pulse pattern signaling a positive milestone (won, payment received). */
-export function hapticWin(): void {
-  vibrate([20, 60, 40]);
-}
-
-/** Sharp single buzz for outbid, error, or warning state. */
-export function hapticWarning(): void {
-  vibrate([50]);
-}
-
 /** Heavy negative buzz for failures (network error, payment declined). */
 export function hapticError(): void {
   vibrate([60, 40, 60]);

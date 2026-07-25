@@ -3,7 +3,7 @@
 // ----------------------------------------------------------------------------
 // The implementation was decomposed into cohesive submodules under
 // ./auction/ during the M-AU9 refactor. This file is a behavior-preserving
-// barrel that re-exports the original 47 public symbols so every caller that
+// barrel that re-exports the public symbols so every caller that
 // imports "@/lib/auctionDb" keeps working with ZERO changes.
 //
 // Internal helpers (transformDb*, AUCTION_COLUMNS, CRON_BATCH_LIMIT,
@@ -21,18 +21,14 @@ export {
   createFixedPriceListing,
   getAuction,
   getActiveAuctions,
-  getSellerAuctions,
-  getWonAuctions,
   updateAuction,
   cancelAuction,
-  markSoldOutsideApp,
 } from "./auction/auctions";
 
 // --- bidding ---
 export {
   placeBid,
   getBidHistory,
-  getUserBids,
   executeBuyItNow,
   cloneSoldComicToBuyer,
 } from "./auction/bids";
@@ -42,7 +38,6 @@ export {
   addToWatchlist,
   removeFromWatchlist,
   getUserWatchlist,
-  isWatching,
 } from "./auction/watchlist";
 
 // --- offers ---
@@ -50,14 +45,12 @@ export {
   createOffer,
   respondToOffer,
   respondToCounterOffer,
-  getOffersForListing,
   getBuyerOffers,
 } from "./auction/offers";
 
 // --- notifications ---
 export {
   createNotification,
-  notifyFollowersOfNewListing,
   getUserNotifications,
   getUserNotificationsPaginated,
   getNotificationByIdForUser,

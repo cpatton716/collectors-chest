@@ -11,7 +11,7 @@ import Stripe from "stripe";
  * The client is `null` when STRIPE_SECRET_KEY is unset so callers can degrade
  * gracefully in environments without Stripe configured (CI, preview builds).
  */
-export const STRIPE_API_VERSION = "2025-12-15.clover" as const;
+const STRIPE_API_VERSION = "2025-12-15.clover" as const;
 
 export const stripe = process.env.STRIPE_SECRET_KEY
   ? new Stripe(process.env.STRIPE_SECRET_KEY, {

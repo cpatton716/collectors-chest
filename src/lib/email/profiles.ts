@@ -20,38 +20,6 @@ export async function getProfileForEmail(
   };
 }
 
-/**
- * Batch-fetch profile email + display name for many user IDs in a single
- * round-trip. Cron / fan-out paths should prefer this over looping
- * `getProfileForEmail` so we don't do N sequential queries (M-EM3).
- * Returns a Map keyed by profile ID; absent IDs are simply missing from the map.
- */
-export async function getProfilesForEmail(
-  userIds: string[]
-): Promise<Map<string, { email: string | null; displayName: string }>> {
-  const result = new Map<string, { email: string | null; displayName: string }>();
-  const uniqueIds = Array.from(new Set(userIds)).filter(Boolean);
-  if (uniqueIds.length === 0) return result;
-
-  const { data, error } = await supabaseAdmin
-    .from("profiles")
-    .select("id, email, display_name, username")
-    .in("id", uniqueIds);
-
-  if (error || !data) {
-    if (error) console.error("[getProfilesForEmail] Supabase error:", error);
-    return result;
-  }
-
-  for (const row of data) {
-    result.set(row.id, {
-      email: row.email ?? null,
-      displayName: row.display_name || row.username || "Collector",
-    });
-  }
-  return result;
-}
-
 // PostgREST returns embedded one-to-one joins as either a single object or an
 // array depending on the relationship cardinality it infers. Type the joined
 // shape explicitly instead of casting through `as any` (L-EM16).

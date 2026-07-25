@@ -6,7 +6,7 @@ import { submitCoverImage, getCommunityCovers } from "./coverImageDb";
 export const SYSTEM_HARVEST_PROFILE_ID = "00000000-0000-0000-0000-000000000001";
 
 /** Longest-edge cap (px) for stored harvested covers — keeps WebP files small. */
-export const MAX_HARVEST_DIMENSION = 1000;
+const MAX_HARVEST_DIMENSION = 1000;
 
 export interface CropCoordinates {
   x: number;

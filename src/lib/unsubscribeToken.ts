@@ -37,7 +37,7 @@ export const CATEGORY_COLUMN: Record<UnsubscribeCategory, string> = {
  * `transactional` value that should never carry an unsubscribe link — collapses
  * to "marketing" (the broadest opt-out).
  */
-export function normalizeCategory(
+function normalizeCategory(
   category: string | null | undefined
 ): UnsubscribeCategory {
   if (category && category in CATEGORY_COLUMN) {

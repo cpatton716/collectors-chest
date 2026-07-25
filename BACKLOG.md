@@ -327,6 +327,15 @@ The 2026-06-14 audit surfaced 64 'Partial' + 4 'No' findings requiring an owner 
 
 ---
 
+### Accepted Dev-Only npm Audit Residual (brace-expansion)
+**Priority:** Low (Post-Launch — accepted risk, dev tooling only)
+**Status:** Pending — re-check at next dependency refresh
+**Added:** Jul 25, 2026
+
+One `brace-expansion` DoS advisory fans out through the dev toolchain (eslint, @trivago/prettier-plugin-sort-imports, depcheck, glob). The only patched release (5.0.8) is ESM-only and incompatible with the CJS consumers; no production exposure (dev tooling only, no attacker-controlled input). Re-check for compatible upstream fixes at the next dependency refresh.
+
+---
+
 ### Cover Edit Modal — Add "Take Photo / Upload" Button
 **Priority:** Medium (Post-Launch — natural pair with Bug 2 fix from Session 46)
 **Status:** Pending
@@ -642,7 +651,7 @@ Current DB is on Supabase Free tier with NO automated backups. A single bad migr
 **Status:** Pending
 **Added:** Apr 22, 2026
 
-Current test suite: **584 passing tests** (per EVALUATION § 1). Known coverage gaps — proxy bidding logic, Clerk auth flows, Stripe webhook handlers. Session 36 RLS silent-failures slipped past because no integration tests exercised the buyer / cron path end-to-end.
+Current test suite: **1,423 passing tests** (per EVALUATION § 1, as of Jul 25, 2026). Known coverage gaps — proxy bidding logic, Clerk auth flows, Stripe webhook handlers. Session 36 RLS silent-failures slipped past because no integration tests exercised the buyer / cron path end-to-end.
 
 **User direction (Apr 22, 2026):** *"NO, but quick follow. How do we validate that the current Test Cases is accurate in regards to the applications current feature set?"*
 
@@ -863,16 +872,6 @@ User-validated talking points from May 3-4 weekend show (CLZ came up most among 
 - Brief content already in `docs/CLZ_COMPARISON_BRIEF.md` would be the source of truth for the page copy
 
 **Related:** Testimonials / Social Proof on Homepage; Competitive Positioning (EVALUATION § 5); CLAUDE.md branding section.
-
----
-
-### Resolve npm audit Vulnerabilities (Dependencies)
-**Priority:** Low-Medium (Post-Launch maintenance)
-**Status:** Pending
-**Added:** May 27, 2026
-**Updated:** Jun 14, 2026
-
-`npm audit` reports **7 vulnerabilities (1 high, 6 moderate) as of Jun 14, 2026** — all in transitive dependencies (down from 15 on May 27; the closeout SDK bumps cleared most). `npm audit fix` is available, but test carefully for breakage before committing — several fixes touch deps inside `resend` and `@sentry/nextjs`, so run the full test + build suite and smoke-test email/error-tracking after applying.
 
 ---
 

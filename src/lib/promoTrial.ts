@@ -33,7 +33,7 @@ export const PROMO_TRIAL_STORAGE_KEY = "cc_promo_trial";
  * it across the sign-up / sign-in round-trip back to `/choose-plan`. It grants
  * nothing on its own; the server still verifies the signature + eligibility.
  */
-export const PROMO_TRIAL_TOKEN_STORAGE_KEY = "cc_promo_trial_token";
+const PROMO_TRIAL_TOKEN_STORAGE_KEY = "cc_promo_trial_token";
 
 // ============================================================================
 // CLIENT layer — localStorage display hint (no authorization power)
@@ -63,13 +63,6 @@ export function getPromoTrialToken(): string | null {
     return localStorage.getItem(PROMO_TRIAL_TOKEN_STORAGE_KEY);
   }
   return null;
-}
-
-/** Clear the stored promo-trial token (called after checkout is initiated). */
-export function clearPromoTrialToken(): void {
-  if (typeof window !== "undefined") {
-    localStorage.removeItem(PROMO_TRIAL_TOKEN_STORAGE_KEY);
-  }
 }
 
 /** Check if the promo trial flag is set and not expired (7-day expiration) */
@@ -109,7 +102,7 @@ export const PROMO_TRIAL_SECRET_NAME = "PROMO_TRIAL_SECRET";
 export const PROMO_TRIAL_PURPOSE = "promo-trial";
 
 /** Default token lifetime — a QR poster should stay redeemable for a season. */
-export const PROMO_TRIAL_TOKEN_TTL_MS = 90 * 24 * 60 * 60 * 1000; // 90 days
+const PROMO_TRIAL_TOKEN_TTL_MS = 90 * 24 * 60 * 60 * 1000; // 90 days
 
 export interface PromoTrialTokenPayload {
   /** Must equal PROMO_TRIAL_PURPOSE for the token to authorize anything. */

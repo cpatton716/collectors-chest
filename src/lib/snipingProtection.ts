@@ -11,11 +11,11 @@
  */
 
 /** Bids landing within this window of `end_time` trigger an extension. */
-export const SNIPING_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+const SNIPING_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
 /** Length of each extension. */
-export const SNIPING_EXTENSION_MS = 5 * 60 * 1000; // 5 minutes
+const SNIPING_EXTENSION_MS = 5 * 60 * 1000; // 5 minutes
 /** Hard cap on cumulative extension time past the originally scheduled end. */
-export const MAX_EXTENSION_MS = 6 * 60 * 60 * 1000; // 6 hours
+const MAX_EXTENSION_MS = 6 * 60 * 60 * 1000; // 6 hours
 
 /**
  * Compute the new `end_time` for an auction whose latest bid arrived inside

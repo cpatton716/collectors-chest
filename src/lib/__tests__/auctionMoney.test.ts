@@ -88,7 +88,6 @@ jest.mock("../email", () => ({
   sendNotificationEmail: jest.fn().mockResolvedValue({ success: true }),
   sendNotificationEmailsBatch: jest.fn().mockResolvedValue({ sent: 0 }),
   getProfileForEmail: jest.fn().mockResolvedValue(null),
-  getProfilesForEmail: jest.fn().mockResolvedValue([]),
   getListingComicData: jest.fn().mockResolvedValue(null),
 }));
 jest.mock("../auditLog", () => ({

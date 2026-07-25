@@ -8,25 +8,17 @@
 //   - types.ts      — NotificationEmailType union + all email data interfaces
 //   - helpers.ts    — escapeHtml, emailHeader, emailFooter,
 //                      buildUnsubscribeHeaders, formatPrice, firstJoined
-//   - profiles.ts   — getProfileForEmail, getProfilesForEmail,
-//                      getListingComicData, resolveProfileIdByEmail
+//   - profiles.ts   — getProfileForEmail, getListingComicData,
+//                      resolveProfileIdByEmail
 //   - templates.ts  — all *Template functions
 //   - send.ts       — resolveNotificationTemplate, sendNotificationEmail,
 //                      sendNotificationEmailsBatch, sendBatchWithRetry
 //
-// It is now a re-export barrel so every existing `@/lib/email` import (8 caller
-// files) keeps resolving the same 16 public exports with ZERO changes. The
+// It is now a re-export barrel so every existing `@/lib/email` import keeps
+// resolving its externally-used public exports with ZERO changes. The
 // internal submodules import from siblings, never from this barrel, to avoid
 // circular imports.
 // ============================================================================
-
-export {
-  EMAIL_BATCH_SIZE,
-  EMAIL_SOUND_EFFECTS,
-  FROM_EMAIL,
-  GUEST_BONUS_SCAN_COUNT,
-  SUPPORT_EMAIL,
-} from "./email/constants";
 
 export {
   buildUnsubscribeHeaders,
@@ -35,26 +27,14 @@ export {
   escapeHtml,
 } from "./email/helpers";
 
-export {
-  getListingComicData,
-  getProfileForEmail,
-  getProfilesForEmail,
-} from "./email/profiles";
+export { getListingComicData, getProfileForEmail } from "./email/profiles";
 
 export {
   sendNotificationEmail,
   sendNotificationEmailsBatch,
 } from "./email/send";
 
-export type { NotificationEmailType } from "./email/types";
-
 export type {
-  AuctionEndEmailData,
-  BidActivityEmailData,
   FeedbackEmailData,
-  MarketplaceTransactionEmailData,
-  NewListingEmailData,
   SendNotificationEmailParams,
-  TrialExpiringEmailData,
-  WelcomeEmailData,
 } from "./email/types";

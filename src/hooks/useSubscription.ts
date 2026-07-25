@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
 
 export type SubscriptionTier = "guest" | "free" | "premium";
-export type SubscriptionStatus = "active" | "trialing" | "past_due" | "canceled";
+type SubscriptionStatus = "active" | "trialing" | "past_due" | "canceled";
 
 export interface SubscriptionState {
   // Loading state
@@ -74,32 +74,6 @@ const defaultFeatures = {
   shopBuying: false,
   cloudSync: false,
 };
-
-/**
- * Pure scan-limit display derivation (L-PAY19). Extracted from the hook so the
- * boundary cases (unlimited, exhausted, purchased-only, over-limit) are
- * unit-testable without rendering. A null `monthlyLimit` means unlimited.
- */
-export function deriveScanDisplay(input: {
-  scansUsed: number;
-  scansRemaining: number;
-  monthlyLimit: number | null;
-}): {
-  used: number;
-  remaining: number;
-  limit: number | null;
-  isUnlimited: boolean;
-  isExhausted: boolean;
-} {
-  const isUnlimited = input.monthlyLimit === null;
-  return {
-    used: Math.max(0, input.scansUsed),
-    remaining: isUnlimited ? Infinity : Math.max(0, input.scansRemaining),
-    limit: input.monthlyLimit,
-    isUnlimited,
-    isExhausted: !isUnlimited && input.scansRemaining <= 0,
-  };
-}
 
 export function useSubscription(): SubscriptionState {
   const { isSignedIn, isLoaded } = useAuth();
@@ -348,52 +322,5 @@ export function useSubscription(): SubscriptionState {
     resetTrial,
     startCheckout,
     openBillingPortal,
-  };
-}
-
-/**
- * Helper hook for feature-specific checks
- */
-export function useFeatureAccess(feature: keyof SubscriptionState["features"]): {
-  hasAccess: boolean;
-  isLoading: boolean;
-  tier: SubscriptionTier;
-} {
-  const { features, tier, isLoading } = useSubscription();
-
-  return {
-    hasAccess: features[feature],
-    isLoading,
-    tier,
-  };
-}
-
-/**
- * Helper hook for scan limit display
- */
-export function useScanLimits(): {
-  used: number;
-  remaining: number;
-  limit: number | null;
-  isUnlimited: boolean;
-  resetDate: Date | null;
-  canScan: boolean;
-  isLoading: boolean;
-} {
-  const { scansUsed, scansRemaining, monthlyLimit, monthResetDate, canScan, isLoading } =
-    useSubscription();
-
-  const display = deriveScanDisplay({ scansUsed, scansRemaining, monthlyLimit });
-
-  return {
-    used: display.used,
-    // Preserve the raw remaining count for unlimited tiers (the server sends a
-    // large sentinel); deriveScanDisplay's Infinity is for display/test logic.
-    remaining: display.isUnlimited ? scansRemaining : display.remaining,
-    limit: display.limit,
-    isUnlimited: display.isUnlimited,
-    resetDate: monthResetDate,
-    canScan,
-    isLoading,
   };
 }

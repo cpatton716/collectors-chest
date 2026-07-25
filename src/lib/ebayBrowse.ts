@@ -166,7 +166,7 @@ const NEWSSTAND_PATTERNS = /\b(newsstand)\b/i;
 // e.g., "Amazing Spider-Man" is NOT "Spider-Man"
 const SERIES_PREFIXES = /\b(web\s+of|amazing|spectacular|superior|ultimate|sensational)\b/i;
 
-export function filterIrrelevantListings(
+function filterIrrelevantListings(
   listings: BrowseListingItem[],
   searchTitle: string,
   grade?: string,

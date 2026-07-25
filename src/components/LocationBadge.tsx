@@ -65,35 +65,3 @@ export function LocationBadge({
     </span>
   );
 }
-
-/**
- * Helper function to format location for display (used in server components)
- */
-export function formatLocation(
-  city: string | null | undefined,
-  state: string | null | undefined,
-  country: string | null | undefined,
-  privacy: LocationPrivacy
-): string | null {
-  if (privacy === "hidden") return null;
-  if (!city && !state && !country) return null;
-
-  const parts: string[] = [];
-
-  switch (privacy) {
-    case "full":
-      if (city) parts.push(city);
-      if (state) parts.push(state);
-      if (country) parts.push(country);
-      break;
-    case "state_country":
-      if (state) parts.push(state);
-      if (country) parts.push(country);
-      break;
-    case "country_only":
-      if (country) parts.push(country);
-      break;
-  }
-
-  return parts.length > 0 ? parts.join(", ") : null;
-}

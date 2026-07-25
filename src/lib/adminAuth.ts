@@ -135,20 +135,6 @@ function reportAdminLogFailure(
 }
 
 /**
- * Middleware-style function that throws if user is not an admin
- * Returns the admin profile if authorized
- */
-export async function requireAdmin(): Promise<AdminProfile> {
-  const adminProfile = await getAdminProfile();
-
-  if (!adminProfile) {
-    throw new Error("Admin access required");
-  }
-
-  return adminProfile;
-}
-
-/**
  * Get a user profile by ID (for admin viewing)
  */
 export async function getProfileById(profileId: string) {

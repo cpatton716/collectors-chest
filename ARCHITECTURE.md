@@ -2,7 +2,9 @@
 
 > **Comprehensive map of pages, features, and service dependencies**
 
-*Last Updated: Jun 14, 2026 — Session 48 (Structural / audit-closeout session. **Lib decompositions:** `src/lib/auctionDb.ts` is now a re-export barrel over `src/lib/auction/*` (auctions, bids, offers, secondChance, watchlist, notifications, ratings, cron, transforms, columns, shared, index); `src/lib/email.ts` is a barrel over `src/lib/email/*` (constants, types, helpers, profiles, templates, send, index). Public import paths `@/lib/auctionDb` and `@/lib/email` unchanged. **New libs:** `src/lib/signedToken.ts` (HMAC-SHA256 sign/verify, falls back to `CLERK_SECRET_KEY`), `src/lib/guestScanToken.ts` (signed guest-scan cookie + Redis counters), `src/lib/unsubscribeToken.ts` (one-click email unsubscribe tokens), `src/lib/redis.ts` (shared Upstash client singleton); `src/lib/promoTrial.ts` gained server-side `mintPromoTrialToken()` / `verifyPromoTrialToken()`. **Component/page split-out:** `src/components/comicDetail/*` (ComicDetailsForm/ComicDetailModal sub-sections extracted; modal is now an accessible dialog), `src/components/profile/*` (CustomProfilePage tabs code-split via `next/dynamic`), `src/components/collection/CollectionToolbar+CollectionGrid`, `src/components/scan/ScanPanel`, `src/components/keyHunt/*`, `src/app/scan/BonusVerificationHandler`; new `src/hooks/useModalA11y.ts` applied across ~17 overlay modals (role=dialog/alertdialog, Escape, focus management); `admin/layout.tsx` is now a server component with an `AdminNav` client child. **New routes:** `/api/publishers/suggest`, `/api/unsubscribe`. **Middleware** now enforces `is_admin` on `/admin/*` *pages* (defense-in-depth with the admin layout's own server gate). **Payments:** marketplace checkout uses Stripe DESTINATION CHARGES (`on_behalf_of` + `application_fee_amount` + `transfer_data.destination`); webhook idempotency via Redis (`stripe_event_*`, 3-day TTL), with a `processed_stripe_sessions` table + `credit_scan_pack` RPC for one-time scan-pack credits. **Scanning:** Gemini is the PRIMARY vision provider (Anthropic fallback); guest scans are server-enforced via a signed cookie + Redis count; key-comics lookup is DB-primary (`key_comics`) with the static curated file as fallback; text-only lookups use Haiku (`MODEL_LIGHTWEIGHT`), not Sonnet. **DB (migration `20260614_audit_closeout.sql`, applied):** see Database Tables / migrations sections. **Deps:** `@clerk/nextjs` 6.39.5, `@anthropic-ai/sdk` 0.104; removed `openai` / `@zxing/*` / `html5-qrcode`; added `dotenv` (dev). **New env vars:** `GUEST_SCAN_SECRET`, `PROMO_TRIAL_SECRET`, `UNSUBSCRIBE_SECRET` (all fall back to `CLERK_SECRET_KEY`), `SUPPORT_EMAIL`. Session 47 + earlier context preserved below.)*
+*Last Updated: Jul 25, 2026 — Session 50 (Dead-code removal + dependency-upgrade session. **Deleted unused exports** across lib/hooks/components — notable: `executeSlabDetection()` (aiProvider — slab flagging happens inside the main analysis pass since H-SC1; `executeSlabDetailExtraction()` remains), `markMatchTraded` (tradingDb), `requireAdmin` (adminAuth), `toggleListSharing` (db), messagingDb's `getUserConversations` / unread-count cache helpers (superseded by `getUserConversationsWithUnread` / `getUnreadMessageCount`), subscription's `canUserScan` / `incrementScanCount` / `endTrial` (superseded by `reserveScanSlot` / `releaseScanSlot` + the Stripe webhook), plus unused helpers in storage, the auction submodules, creatorCreditsDb, keyComicsDb, offlineCache, promoTrial, email/profiles, haptics, hooks (`useServiceWorker`, `useFeatureAccess`, `useScanLimits`, `deriveScanDisplay`) and components (`TrustBadgeCompact`, `useCanAccessFeature`, `RequiresTier`, `formatLocation`, `ComicListSkeleton`). **Deleted files:** unused barrels `src/lib/auction/index.ts` + `src/lib/email/index.ts` (the real facades are `src/lib/auctionDb.ts` / `src/lib/email.ts`). **New lib:** `src/lib/publicConfig.ts` — client-safe shared constants: `DEFAULT_SUPPORT_EMAIL` (support@collectors-chest.com; the server email layer overlays the `SUPPORT_EMAIL` env var) and `HCAPTCHA_SITE_KEY` (shared by `GuestCaptcha` + `hcaptcha.ts`). **Bug fixes:** offline-queue changed event unified — `offlineCache.ts` `OFFLINE_QUEUE_CHANGED_EVENT` is now `"cc:offline-queue-changed"` and `useOffline.ts` imports the constant (was a silent dispatch/listener name mismatch); seller-onboarding page support email now uses `DEFAULT_SUPPORT_EMAIL` (was hardcoded admin@collectors-chest.com). **Deps:** `next` 16.1.1→16.2.11, `sharp` 0.33.5→0.35.3 (npm override keeps Next's nested copy in sync), `@clerk/types` added (dev), `@eslint/eslintrc` removed; npm audit down from 13 vulnerabilities (7 high) to one accepted dev-only brace-expansion advisory. Session 49 was a docs-only cover-seeding source spike — no architecture changes. Session 48 + earlier context preserved below.)*
+
+*Earlier Session 48 (Jun 14, 2026): Structural / audit-closeout session. **Lib decompositions:** `src/lib/auctionDb.ts` is now a re-export barrel over `src/lib/auction/*` (auctions, bids, offers, secondChance, watchlist, notifications, ratings, cron, transforms, columns, shared, index); `src/lib/email.ts` is a barrel over `src/lib/email/*` (constants, types, helpers, profiles, templates, send, index). Public import paths `@/lib/auctionDb` and `@/lib/email` unchanged. **New libs:** `src/lib/signedToken.ts` (HMAC-SHA256 sign/verify, falls back to `CLERK_SECRET_KEY`), `src/lib/guestScanToken.ts` (signed guest-scan cookie + Redis counters), `src/lib/unsubscribeToken.ts` (one-click email unsubscribe tokens), `src/lib/redis.ts` (shared Upstash client singleton); `src/lib/promoTrial.ts` gained server-side `mintPromoTrialToken()` / `verifyPromoTrialToken()`. **Component/page split-out:** `src/components/comicDetail/*` (ComicDetailsForm/ComicDetailModal sub-sections extracted; modal is now an accessible dialog), `src/components/profile/*` (CustomProfilePage tabs code-split via `next/dynamic`), `src/components/collection/CollectionToolbar+CollectionGrid`, `src/components/scan/ScanPanel`, `src/components/keyHunt/*`, `src/app/scan/BonusVerificationHandler`; new `src/hooks/useModalA11y.ts` applied across ~17 overlay modals (role=dialog/alertdialog, Escape, focus management); `admin/layout.tsx` is now a server component with an `AdminNav` client child. **New routes:** `/api/publishers/suggest`, `/api/unsubscribe`. **Middleware** now enforces `is_admin` on `/admin/*` *pages* (defense-in-depth with the admin layout's own server gate). **Payments:** marketplace checkout uses Stripe DESTINATION CHARGES (`on_behalf_of` + `application_fee_amount` + `transfer_data.destination`); webhook idempotency via Redis (`stripe_event_*`, 3-day TTL), with a `processed_stripe_sessions` table + `credit_scan_pack` RPC for one-time scan-pack credits. **Scanning:** Gemini is the PRIMARY vision provider (Anthropic fallback); guest scans are server-enforced via a signed cookie + Redis count; key-comics lookup is DB-primary (`key_comics`) with the static curated file as fallback; text-only lookups use Haiku (`MODEL_LIGHTWEIGHT`), not Sonnet. **DB (migration `20260614_audit_closeout.sql`, applied):** see Database Tables / migrations sections. **Deps:** `@clerk/nextjs` 6.39.5, `@anthropic-ai/sdk` 0.104; removed `openai` / `@zxing/*` / `html5-qrcode`; added `dotenv` (dev). **New env vars:** `GUEST_SCAN_SECRET`, `PROMO_TRIAL_SECRET`, `UNSUBSCRIBE_SECRET` (all fall back to `CLERK_SECRET_KEY`), `SUPPORT_EMAIL`. Session 47 + earlier context preserved below.)*
 
 *Earlier Session 47 (May 27, 2026): No new architecture; validation + collection-UI hardening. Session 46's scan-cover persistence pipeline — `POST /api/comics/upload-cover` + `comic-covers` Storage bucket + `src/lib/uploadCoverImage.ts` — was confirmed end-to-end in production for the first time on both iPhone and Android. Five collection-UI fixes followed: detail-modal cover sizing (`w-20 aspect-[2/3]` replacing the undefined `h-30`), "Add Book" `whitespace-nowrap`, grid thumbnail sizing via `absolute inset-0 object-cover`, multi-select header reflow (`SelectionHeader.tsx`), and the multi-select action bar raised above the floating nav via a `cc:selection-mode` window event (`MobileNav.tsx` ↔ `collection/page.tsx` ↔ `SelectionToolbar.tsx`). Two iOS-Safari follow-ups: `ComicCard.tsx` now fades grid covers in on `onLoad` (with a `ref.complete`/`naturalWidth` cached-image guard) to force a repaint, and `tailwind.config.ts` enables `future.hoverOnlyWhenSupported` so `hover:`/`group-hover:` styles no longer steal the first tap on touch devices (single-tap checkbox app-wide). Grid thumbnails kept as plain `<img>` (not `next/image`) deliberately to avoid routing every thumbnail through Netlify's Image CDN. Session 46 + earlier context preserved below.)*
 
@@ -574,7 +576,7 @@ All other routes are public (unauthenticated access allowed). Individual API rou
 | `/api/trades/available` | GET | Get all comics marked for trade | 🗄️ |
 | `/api/trades/matches` | GET | Get user's Hunt List matches | 🗄️ 🔐 |
 | `/api/trades/matches` | POST | Trigger match finding | 🗄️ 🔐 |
-| `/api/trades/matches/[matchId]` | PATCH | Update match (view, dismiss, traded). Owner-scoped writes via `tradingDb` helpers (`dismissMatch` / `markMatchViewed` / `markMatchTraded` require `userId` + `.or('user_a_id.eq.X,user_b_id.eq.X')` predicate); returns **404 on owner mismatch** to avoid existence leaks (Session 43 IDOR fix). | 🗄️ 🔐 |
+| `/api/trades/matches/[matchId]` | PATCH | Update match (view, dismiss). Owner-scoped writes via `tradingDb` helpers (`dismissMatch` / `markMatchViewed` require `userId` + `.or('user_a_id.eq.X,user_b_id.eq.X')` predicate); returns **404 on owner mismatch** to avoid existence leaks (Session 43 IDOR fix). | 🗄️ 🔐 |
 | `/api/comics/for-trade` | GET | Get user's for-trade comics | 🗄️ 🔐 |
 | `/api/comics/[id]/for-trade` | PATCH | Toggle for_trade status | 🗄️ 🔐 |
 
@@ -787,9 +789,9 @@ All cron jobs run as **Netlify Scheduled Functions** (`netlify/functions/`). Eac
          │
          v
 ┌──────────────────────────┐
-│  Phase 1: Slab Detection │  executeSlabDetection()
-│  "Is this a slabbed      │  Gemini → Anthropic fallback
-│   comic?"                │
+│  Phase 1: Slab Flagging  │  Main analysis pass (executeWithFallback())
+│  "Is this a slabbed      │  flags the slab — no dedicated
+│   comic?"                │  detection call (H-SC1)
 └────────┬─────────────────┘
          │
     ┌────┴────┐
@@ -1004,7 +1006,7 @@ Seller's Stripe Express Dashboard shows incoming transfer on 2-5 day payout sche
 | `src/lib/coverHarvest.ts` | Cover harvest orchestrator — validates result eligibility, crops with `sharp`, uploads to Supabase Storage, inserts `cover_images` row with `variant` field; no-op on duplicates |
 | `src/lib/followDb.ts` | Follow system DB helpers (follow/unfollow, counts) |
 | `src/lib/tradingDb.ts` | Trading system DB helpers (trades, matches) |
-| `src/lib/auctionDb.ts` | **(Session 48)** Now a RE-EXPORT BARREL over `src/lib/auction/*` — re-exports the public auction/listing helper surface from focused submodules: `auctions.ts`, `bids.ts`, `offers.ts`, `secondChance.ts`, `watchlist.ts`, `notifications.ts`, `ratings.ts`, `cron.ts` (ended-auction processing / reminders / expiry passes), `transforms.ts`, `columns.ts`, `shared.ts`, `index.ts`. Import path `@/lib/auctionDb` unchanged. |
+| `src/lib/auctionDb.ts` | **(Session 48)** Now a RE-EXPORT BARREL over `src/lib/auction/*` — re-exports the public auction/listing helper surface from focused submodules: `auctions.ts`, `bids.ts`, `offers.ts`, `secondChance.ts`, `watchlist.ts`, `notifications.ts`, `ratings.ts`, `cron.ts` (ended-auction processing / reminders / expiry passes), `transforms.ts`, `columns.ts`, `shared.ts` (unused `index.ts` barrel removed Session 50). Import path `@/lib/auctionDb` unchanged. |
 | `src/lib/keyComicsDb.ts` | Key comics lookup/management helpers. **(Session 48)** DB-PRIMARY read path: `lookupKeyInfoFromDb()` / `lookupKeyInfoMetaFromDb()` query the `key_comics` Supabase table first (with leading-zero issue fallback) and fall back to the static `keyComicsDatabase.ts` curated set. Used by `/api/analyze` and `/api/con-mode-lookup`. |
 | `src/lib/stripeConnect.ts` | Stripe Connect account helpers. **(Session 48)** `computePlatformFeeCents()` (canonical cents-based floored fee, 75¢ minimum) + `calculateDestinationAmount()` → `{sellerAmount, platformFee}` for destination charges. |
 | `src/lib/ageVerification.ts` | Age verification helpers |
@@ -1020,7 +1022,7 @@ Seller's Stripe Express Dashboard shows incoming transfer on 2-5 day payout sche
 | `src/lib/unsubscribeToken.ts` | **(Session 48)** Single source of truth for email unsubscribe tokens (secret `UNSUBSCRIBE_SECRET`) shared between the email sender and `/api/unsubscribe` — `mintUnsubscribeToken()`, `buildUnsubscribeUrl()`, `verifyUnsubscribeToken()`. |
 | `src/lib/redis.ts` | **(Session 48)** Shared Upstash Redis client singleton — exports `redis` (nullable) and `isRedisAvailable()`. |
 | `src/lib/alertBadgeHelpers.ts` | Admin alert badge helpers |
-| `src/lib/aiProvider.ts` | Fallback orchestrator: getProviders(), classifyError(), getRemainingBudget(), executeWithFallback(), executeSlabDetection(), executeSlabDetailExtraction() |
+| `src/lib/aiProvider.ts` | Fallback orchestrator: getProviders(), classifyError(), getRemainingBudget(), executeWithFallback(), executeSlabDetailExtraction() (unused executeSlabDetection() removed Session 50 — the main analysis pass flags slabs, H-SC1) |
 | `src/lib/providers/types.ts` | Provider interface + shared types (AIProvider, CallResult, ScanResponseMeta, SlabDetectionResult, SlabDetailExtractionResult); AICallType includes `slabDetection`/`slabDetailExtraction`; `coverHarvestable` flag and `coverCropCoordinates` in result shape |
 | `src/lib/providers/gemini.ts` | GeminiProvider class — primary vision provider (Gemini 2.0 Flash); `detectSlab()`, `extractSlabDetails()` methods; `maxOutputTokens` increased for harvest prompt |
 | `src/lib/providers/anthropic.ts` | AnthropicProvider class — fallback provider (Claude); `detectSlab()`, `extractSlabDetails()` methods; new prompts: SLAB_DETECTION_PROMPT, SLAB_DETAIL_EXTRACTION_PROMPT, SLAB_COVER_HARVEST_ONLY_PROMPT; AI prompt includes `coverHarvestable` + `coverCropCoordinates` |
@@ -1033,6 +1035,7 @@ Seller's Stripe Express Dashboard shows incoming transfer on 2-5 day payout sche
 | `src/lib/notificationPreferences.ts` | Per-category email notification gating — `NOTIFICATION_CATEGORY_MAP` (4 categories: transactional/marketplace/social/marketing) covers all 27 notification email types; `isNotificationAllowed()`, `filterRecipientsByPreference()` |
 | `src/lib/concurrency.ts` | `mapWithConcurrency(items, concurrency, fn)` — used by `sendPaymentReminders` + `expireUnpaidAuctions` to cap parallel email prep at 5 while feeding Resend `batch.send()` |
 | `src/lib/hcaptcha.ts` | hCaptcha siteverify helper; 5s timeout; dev/prod key swap via `HCAPTCHA_SECRET_KEY`/`NEXT_PUBLIC_HCAPTCHA_SITE_KEY`; invoked on `/api/analyze` for guest scans 4 & 5 |
+| `src/lib/publicConfig.ts` | **(Session 50)** Client-safe shared constants — `DEFAULT_SUPPORT_EMAIL` (`support@collectors-chest.com`; the server email layer overlays the `SUPPORT_EMAIL` env var) and `HCAPTCHA_SITE_KEY` (dev/prod site-key selection shared by `GuestCaptcha.tsx` + `hcaptcha.ts`) |
 | `src/lib/uploadLimits.ts` | Shared 10MB image upload cap — `MAX_IMAGE_UPLOAD_BYTES`, `assertImageSize()`, `base64DecodedByteLength()`; wired into `/api/analyze` and `/api/messages/upload-image` |
 | `src/lib/uploadCoverImage.ts` | Client helper used by `/scan` `handleSave()` — converts data URI to Blob, multipart POSTs to `/api/comics/upload-cover`, returns Supabase Storage public URL. Pass-through for already-hosted `http(s)://` URLs; returns `null` on failure (caller decides whether to drop the cover or block save). (Session 46) |
 | `src/lib/variantResolver.ts` | Variant name resolver invoked from `/api/analyze` after barcode parse. Exports `resolveVariant()` (3-tier orchestrator), `lookupApprovedVariantName` (Supabase `barcode_catalog` query for admin-approved rows), and `enrichVariantNameFromAI` (Claude Haiku, prompted with deterministically-derived cover letter from the addon code). Tier 1 catalog → Tier 2 focused AI → Tier 3 deterministic addon-derived fallback. Design principle: barcode trumps AI cover-derived hint (two physically distinct books can share identical cover art but differ in addon code). (Session 46) |
@@ -1042,7 +1045,7 @@ Seller's Stripe Express Dashboard shows incoming transfer on 2-5 day payout sche
 | `src/lib/normalizeTitle.ts` | Comic title normalization utilities |
 | `src/lib/keyComicsDatabase.ts` | Key comics database management |
 | `src/lib/keyInfoHelpers.ts` | Key info display and formatting helpers |
-| `src/lib/offlineCache.ts` | Offline caching utilities for Key Hunt |
+| `src/lib/offlineCache.ts` | Offline caching utilities for Key Hunt; exports `OFFLINE_QUEUE_CHANGED_EVENT` (`"cc:offline-queue-changed"`) dispatched on queue writes and imported by `useOffline` (event name unified Session 50 — dispatch/listener previously mismatched silently) |
 | `src/lib/emailValidation.ts` | Email validation helpers |
 | `src/lib/comicFacts.ts` | Random comic facts for UI display |
 | `src/lib/certLookup.ts` | CGC/CBCS certificate lookup logic |
@@ -1050,7 +1053,7 @@ Seller's Stripe Express Dashboard shows incoming transfer on 2-5 day payout sche
 | `src/lib/gradePrice.ts` | Grade-based price calculation logic |
 | `src/lib/csvExport.ts` | CSV export generation |
 | `src/lib/csvHelpers.ts` | CSV parsing and import helpers |
-| `src/lib/email.ts` | **(Session 48)** Now a RE-EXPORT BARREL over `src/lib/email/*` (`constants.ts`, `types.ts`, `helpers.ts`, `profiles.ts`, `templates.ts`, `send.ts`, `index.ts`); import path `@/lib/email` unchanged. Email sending via Resend; `getListingComicData()` uses FK-qualified PostgREST join `comics!auctions_comic_id_fkey(...)`; `sendNotificationEmail` + `sendNotificationEmailsBatch` gate on `NOTIFICATION_CATEGORY_MAP` preferences with skipped-count reporting; Resend `batch.send()` (50 emails/batch) used by cron passes; new templates: `payment_reminder`, `auction_payment_expired`, `auction_payment_expired_seller`, `payment_missed_warning`, `payment_missed_flagged`, 5 Second Chance Offer templates. Outbid email (`BidActivityEmailData`) now renders a "Your max bid: $X" line when `yourMaxBid` is present — wired from `currentWinningBid.max_bid` at the `placeBid` call site in `auctionDb.ts` (Session 40b). |
+| `src/lib/email.ts` | **(Session 48)** Now a RE-EXPORT BARREL over `src/lib/email/*` (`constants.ts`, `types.ts`, `helpers.ts`, `profiles.ts`, `templates.ts`, `send.ts` — unused `index.ts` barrel removed Session 50); import path `@/lib/email` unchanged. Email sending via Resend; `getListingComicData()` uses FK-qualified PostgREST join `comics!auctions_comic_id_fkey(...)`; `sendNotificationEmail` + `sendNotificationEmailsBatch` gate on `NOTIFICATION_CATEGORY_MAP` preferences with skipped-count reporting; Resend `batch.send()` (50 emails/batch) used by cron passes; new templates: `payment_reminder`, `auction_payment_expired`, `auction_payment_expired_seller`, `payment_missed_warning`, `payment_missed_flagged`, 5 Second Chance Offer templates. Outbid email (`BidActivityEmailData`) now renders a "Your max bid: $X" line when `yourMaxBid` is present — wired from `currentWinningBid.max_bid` at the `placeBid` call site in `auctionDb.ts` (Session 40b). |
 | `src/lib/rateLimit.ts` | Upstash Redis rate limiting helpers |
 | `src/lib/storage.ts` | Supabase storage helpers |
 | `src/lib/supabase.ts` | Supabase client initialization |
@@ -1211,14 +1214,17 @@ User-uploaded `comics.cover_image_url` is **only** mutated via the manual edit f
 
 | Package | Purpose |
 |---------|---------|
-| `sharp` | Server-side image cropping and format conversion for cover harvest; used in `coverHarvest.ts` to crop to AI-returned coordinates before Supabase Storage upload |
+| `sharp` | Server-side image cropping and format conversion for cover harvest; used in `coverHarvest.ts` to crop to AI-returned coordinates before Supabase Storage upload (Session 50: `0.35.3`, with an npm override keeping Next's nested copy in sync) |
 | `zod` | Runtime schema validation for 82 API routes via `src/lib/validation.ts` (Session 39) |
 | `@hcaptcha/react-hcaptcha` | Invisible hCaptcha widget for guest-scan gating on scans 4 & 5 (`src/components/GuestCaptcha.tsx`) (Session 39) |
 | `@clerk/nextjs` | Authentication (Session 48: `^6.39.5`) |
 | `@anthropic-ai/sdk` | Claude API client — fallback vision provider + Haiku text lookups (Session 48: `^0.104.0`) |
 | `dotenv` (devDependency) | Loads `.env.local` for standalone scripts/tests (added Session 48) |
+| `@clerk/types` (devDependency) | Clerk type definitions for typechecking (added Session 50) |
 
 **Removed Session 48:** `openai`, `@zxing/*`, `html5-qrcode` — no longer used (client-side barcode scanning / OpenAI dependency retired).
+
+**Session 50:** upgraded `next` 16.1.1→16.2.11 and `sharp` 0.33.5→0.35.3; removed `@eslint/eslintrc`. npm audit reduced from 13 vulnerabilities (7 high) to one accepted dev-only brace-expansion advisory.
 
 ---
 
@@ -1271,7 +1277,7 @@ All three are consumed by `src/lib/signedToken.ts` and **fall back to `CLERK_SEC
 - `UNSUBSCRIBE_SECRET` (signs one-click email unsubscribe tokens)
 
 ### Support
-- `SUPPORT_EMAIL` (Session 48 — defaults to `support@collectors-chest.com`; used in email footers/help copy)
+- `SUPPORT_EMAIL` (Session 48 — defaults to `DEFAULT_SUPPORT_EMAIL` = `support@collectors-chest.com`, now exported from client-safe `src/lib/publicConfig.ts` (Session 50); used in email footers/help copy and the seller-onboarding page)
 
 ### Stripe Price IDs
 - `STRIPE_PRICE_PREMIUM_MONTHLY`
@@ -1489,7 +1495,7 @@ Stripe powers all payment flows: premium subscriptions, scan pack purchases, fre
 | File | Purpose |
 |------|---------|
 | `src/hooks/useSubscription.ts` | Client-side subscription state, checkout/trial actions |
-| `src/lib/subscription.ts` | Server-side subscription logic, scan limits, trial management |
+| `src/lib/subscription.ts` | Server-side subscription logic, scan limits (`reserveScanSlot` / `releaseScanSlot`), trial management |
 | `src/app/api/webhooks/stripe/route.ts` | Webhook handler for payment events |
 | `src/app/api/billing/checkout/route.ts` | Checkout session creation |
 
@@ -1648,7 +1654,7 @@ Any helper that uses `supabaseAdmin` (which bypasses RLS) for an `UPDATE` / `DEL
 Affected helpers:
 
 - `markNotificationRead` / `markAllNotificationsRead` — `notifications` table (fixed Session 42d)
-- `dismissMatch` / `markMatchViewed` / `markMatchTraded` — `trade_matches` table (fixed Session 43)
+- `dismissMatch` / `markMatchViewed` — `trade_matches` table (fixed Session 43; unused `markMatchTraded` removed Session 50)
 
 ---
 

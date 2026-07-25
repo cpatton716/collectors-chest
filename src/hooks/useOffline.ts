@@ -5,8 +5,8 @@ import { useCallback, useEffect, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 
 import {
+  OFFLINE_QUEUE_CHANGED_EVENT,
   OfflineAction,
-  clearOfflineQueue,
   getOfflineQueue,
   removeFromOfflineQueue,
 } from "@/lib/offlineCache";
@@ -121,12 +121,12 @@ export function useOffline(): UseOfflineReturn {
       }
     };
 
-    window.addEventListener("cc:offline-queue-changed", updatePendingCount);
+    window.addEventListener(OFFLINE_QUEUE_CHANGED_EVENT, updatePendingCount);
     window.addEventListener("storage", handleStorage);
     window.addEventListener("focus", updatePendingCount);
 
     return () => {
-      window.removeEventListener("cc:offline-queue-changed", updatePendingCount);
+      window.removeEventListener(OFFLINE_QUEUE_CHANGED_EVENT, updatePendingCount);
       window.removeEventListener("storage", handleStorage);
       window.removeEventListener("focus", updatePendingCount);
     };
@@ -197,60 +197,5 @@ function createCollectionItemFromAction(action: OfflineAction): CollectionItem {
     isStarred: false,
     customKeyInfo: [],
     customKeyInfoStatus: null,
-  };
-}
-
-// Hook for service worker registration
-export function useServiceWorker() {
-  const [isRegistered, setIsRegistered] = useState(false);
-  const [registration, setRegistration] = useState<ServiceWorkerRegistration | null>(null);
-  const [updateAvailable, setUpdateAvailable] = useState(false);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !("serviceWorker" in navigator)) {
-      return;
-    }
-
-    // Register service worker
-    navigator.serviceWorker
-      .register("/sw.js")
-      .then((reg) => {
-        setRegistration(reg);
-        setIsRegistered(true);
-
-        // Check for updates
-        reg.addEventListener("updatefound", () => {
-          const newWorker = reg.installing;
-          if (newWorker) {
-            newWorker.addEventListener("statechange", () => {
-              if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
-                setUpdateAvailable(true);
-              }
-            });
-          }
-        });
-      })
-      .catch((error) => {
-        console.error("[SW] Service worker registration failed:", error);
-      });
-
-    // Handle controller change (new SW activated)
-    navigator.serviceWorker.addEventListener("controllerchange", () => {
-      // New service worker has taken control
-      setUpdateAvailable(false);
-    });
-  }, []);
-
-  const updateServiceWorker = useCallback(() => {
-    if (registration && registration.waiting) {
-      registration.waiting.postMessage({ type: "SKIP_WAITING" });
-    }
-  }, [registration]);
-
-  return {
-    isRegistered,
-    registration,
-    updateAvailable,
-    updateServiceWorker,
   };
 }

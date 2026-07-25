@@ -1,3 +1,5 @@
+import { DEFAULT_SUPPORT_EMAIL } from "../publicConfig";
+
 import type { NotificationEmailType } from "./types";
 
 /**
@@ -17,7 +19,7 @@ export const FROM_EMAIL = "Collectors Chest <notifications@collectors-chest.com>
  * default on the verified sending domain. Update here once decided.
  */
 export const SUPPORT_EMAIL =
-  process.env.SUPPORT_EMAIL || "support@collectors-chest.com";
+  process.env.SUPPORT_EMAIL || DEFAULT_SUPPORT_EMAIL;
 
 /**
  * Number of bonus scans granted to a guest who verifies their email through

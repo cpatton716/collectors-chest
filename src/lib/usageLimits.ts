@@ -52,7 +52,7 @@ export const SCAN_SPEND_LIMITS_CENTS = {
 export const COVER_HAIKU_COST_CENTS = 0.2; // ~$0.002 per call
 
 /** Number of trailing days summed for the cover-search 30-day cost metric. */
-export const COVER_COST_WINDOW_DAYS = 30;
+const COVER_COST_WINDOW_DAYS = 30;
 
 /**
  * Map a usage fraction (current / limit) to an alert status. Shared so the

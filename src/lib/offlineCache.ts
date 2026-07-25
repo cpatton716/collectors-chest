@@ -5,7 +5,7 @@ const CACHE_KEY = "con_mode_lookup_cache";
 const OFFLINE_QUEUE_KEY = "con_mode_offline_queue";
 // Browser event dispatched on `window` whenever the offline queue changes, so
 // consumers can react to the new count instead of polling on an interval.
-export const OFFLINE_QUEUE_CHANGED_EVENT = "offline-queue-changed";
+export const OFFLINE_QUEUE_CHANGED_EVENT = "cc:offline-queue-changed";
 const MAX_CACHED_ITEMS = 30;
 const TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
 // Skip rewriting lastAccessed (and the full localStorage serialize) on cache
@@ -193,31 +193,6 @@ export function searchCachedLookups(query: string): CachedLookup[] {
   });
 }
 
-// Clear all cached lookups
-export function clearLookupCache(): void {
-  if (typeof window === "undefined") return;
-  localStorage.removeItem(CACHE_KEY);
-}
-
-// Get cache statistics
-export function getCacheStats(): {
-  count: number;
-  oldestDate: Date | null;
-  newestDate: Date | null;
-} {
-  const lookups = getAllCachedLookups();
-  if (lookups.length === 0) {
-    return { count: 0, oldestDate: null, newestDate: null };
-  }
-
-  const timestamps = lookups.map((l) => l.timestamp);
-  return {
-    count: lookups.length,
-    oldestDate: new Date(Math.min(...timestamps)),
-    newestDate: new Date(Math.max(...timestamps)),
-  };
-}
-
 // Offline action queue functions
 export function getOfflineQueue(): OfflineAction[] {
   if (typeof window === "undefined") return [];
@@ -276,17 +251,6 @@ export function addToOfflineQueue(action: Omit<OfflineAction, "id" | "timestamp"
 export function removeFromOfflineQueue(id: string): void {
   const queue = getOfflineQueue().filter((item) => item.id !== id);
   saveOfflineQueue(queue);
-}
-
-export function clearOfflineQueue(): void {
-  if (typeof window === "undefined") return;
-  localStorage.removeItem(OFFLINE_QUEUE_KEY);
-  // Notify consumers the queue is now empty
-  notifyOfflineQueueChanged(0);
-}
-
-export function getOfflineQueueCount(): number {
-  return getOfflineQueue().length;
 }
 
 // ===========================================
@@ -418,19 +382,6 @@ export function getKeyHuntHistory(): KeyHuntHistoryEntry[] {
   // Save cleaned list back
   saveHistoryEntries(entries);
   return entries;
-}
-
-// Get a specific history entry by ID
-export function getKeyHuntHistoryEntry(id: string): KeyHuntHistoryEntry | null {
-  const entries = getKeyHuntHistory();
-  return entries.find((e) => e.id === id) || null;
-}
-
-// Remove a specific history entry
-export function removeFromKeyHuntHistory(id: string): void {
-  let entries = getHistoryEntries();
-  entries = entries.filter((e) => e.id !== id);
-  saveHistoryEntries(entries);
 }
 
 // Clear all history

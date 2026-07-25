@@ -6,7 +6,6 @@ const SALES_KEY = "comic_sales";
 const RECENTLY_VIEWED_KEY = "comic_recently_viewed";
 
 // Storage quota helpers
-const STORAGE_WARNING_THRESHOLD = 0.8; // Warn at 80% usage
 const STORAGE_FALLBACK_QUOTA = 5 * 1024 * 1024; // 5MB fallback when Storage API is unavailable
 
 export class StorageQuotaError extends Error {
@@ -16,33 +15,8 @@ export class StorageQuotaError extends Error {
   }
 }
 
-// Async quota estimate via the Storage API (navigator.storage.estimate),
-// falling back to a 5MB constant when the API is unavailable, throws, or on SSR.
-export async function estimateStorageQuota(): Promise<{ quota: number; usage: number; remaining: number }> {
-  if (typeof navigator === "undefined" || typeof window === "undefined") {
-    return { quota: STORAGE_FALLBACK_QUOTA, usage: 0, remaining: STORAGE_FALLBACK_QUOTA };
-  }
-
-  if (navigator.storage?.estimate) {
-    try {
-      const { quota, usage } = await navigator.storage.estimate();
-      const resolvedQuota = quota ?? STORAGE_FALLBACK_QUOTA;
-      const resolvedUsage = usage ?? 0;
-      return {
-        quota: resolvedQuota,
-        usage: resolvedUsage,
-        remaining: Math.max(0, resolvedQuota - resolvedUsage),
-      };
-    } catch {
-      // Storage API threw — fall through to the 5MB fallback below
-    }
-  }
-
-  return { quota: STORAGE_FALLBACK_QUOTA, usage: 0, remaining: STORAGE_FALLBACK_QUOTA };
-}
-
-// Estimate total localStorage usage in bytes. Synchronous best-effort: the
-// total can be overridden with a quota obtained from estimateStorageQuota().
+// Estimate total localStorage usage in bytes. Synchronous best-effort against
+// the ~5MB fallback quota.
 function getStorageUsage(total: number = STORAGE_FALLBACK_QUOTA): {
   used: number;
   total: number;
@@ -83,22 +57,6 @@ function safeSetItem(key: string, value: string): void {
     }
     throw error;
   }
-}
-
-// Check if storage is getting full (for warnings). Uses the real Storage API
-// quota when available (via estimateStorageQuota), falling back to ~5MB.
-export async function checkStorageWarning(): Promise<{ warning: boolean; message: string } | null> {
-  if (typeof window === "undefined") return null;
-
-  const { quota } = await estimateStorageQuota();
-  const usage = getStorageUsage(quota);
-  if (usage.percentage >= STORAGE_WARNING_THRESHOLD) {
-    return {
-      warning: true,
-      message: `Storage is ${Math.round(usage.percentage * 100)}% full (${formatBytes(usage.used)} of ${formatBytes(usage.total)}). Consider signing in to sync your collection to the cloud.`,
-    };
-  }
-  return null;
 }
 
 // Default lists that every user starts with

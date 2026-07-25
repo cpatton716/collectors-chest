@@ -85,66 +85,6 @@ export function TrustBadge({
 }
 
 // ============================================================================
-// TRUST BADGE COMPACT - Card version for list items
-// ============================================================================
-
-interface TrustBadgeCompactProps {
-  trust: TransactionTrust;
-  onClick?: () => void;
-}
-
-export function TrustBadgeCompact({ trust, onClick }: TrustBadgeCompactProps) {
-  const baseClasses = "inline-flex items-center gap-1 text-xs font-medium";
-
-  // New seller display
-  if (trust.display.type === "new_seller") {
-    return (
-      <button
-        type="button"
-        onClick={onClick}
-        disabled={!onClick}
-        className={`${baseClasses} text-gray-500 ${
-          onClick ? "cursor-pointer hover:text-gray-700" : "cursor-default"
-        }`}
-      >
-        <User size={12} />
-        <span>New</span>
-      </button>
-    );
-  }
-
-  // Percentage-based display
-  const { percentage, color } = trust.display;
-
-  const colorClasses = {
-    green: "text-green-600 hover:text-green-700",
-    yellow: "text-yellow-600 hover:text-yellow-700",
-    red: "text-red-600 hover:text-red-700",
-  };
-
-  const IconComponent = {
-    green: Shield,
-    yellow: Star,
-    red: Skull,
-  }[color];
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={!onClick}
-      className={`${baseClasses} ${colorClasses[color]} ${
-        onClick ? "cursor-pointer" : "cursor-default"
-      }`}
-    >
-      <IconComponent size={12} />
-      <span>{percentage}%</span>
-    </button>
-  );
-}
-
-
-// ============================================================================
 // CREATOR BADGE - Tier-based badge display for Creator Credits
 // ============================================================================
 

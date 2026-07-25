@@ -1,8 +1,6 @@
-const IS_DEV = process.env.NODE_ENV !== "production";
+import { HCAPTCHA_SITE_KEY } from "./publicConfig";
 
-export const HCAPTCHA_SITE_KEY = IS_DEV
-  ? "10000000-ffff-ffff-ffff-000000000001"
-  : (process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY ?? "");
+const IS_DEV = process.env.NODE_ENV !== "production";
 
 // Named to mirror the underlying env var (HCAPTCHA_SECRET_KEY) so the local
 // constant and the configured secret can't be confused. Audit ref M-DOC7.
@@ -25,7 +23,7 @@ export interface CaptchaVerificationResult {
 // Siteverify should respond in well under a second. Cap at 5s so we fail fast
 // if hCaptcha is having an outage rather than blocking the user-facing scan
 // request until Netlify's function timeout (~30s).
-export const SITEVERIFY_TIMEOUT_MS = 5000;
+const SITEVERIFY_TIMEOUT_MS = 5000;
 
 // Retry budget for transient network failures. Two extra attempts on top of
 // the initial fetch covers most blip scenarios (TCP reset, connection refused,
@@ -35,8 +33,8 @@ export const SITEVERIFY_TIMEOUT_MS = 5000;
 //
 // Non-transient errors (4xx including 400 invalid input, valid-but-failed
 // verification responses) skip retries — they will not change on retry.
-export const RETRY_ATTEMPTS = 2;
-export const RETRY_BACKOFF_MS = 200;
+const RETRY_ATTEMPTS = 2;
+const RETRY_BACKOFF_MS = 200;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 

@@ -27,7 +27,7 @@ import { sign, verify } from "./signedToken";
 export const GUEST_COOKIE_NAME = "cc_guest";
 
 /** Env var holding the guest-cookie signing secret (falls back per signedToken). */
-export const GUEST_COOKIE_SECRET_NAME = "GUEST_SCAN_SECRET";
+const GUEST_COOKIE_SECRET_NAME = "GUEST_SCAN_SECRET";
 
 /** Redis key prefix for the per-guest monthly scan counter. */
 const GUEST_SCAN_KEY_PREFIX = "guest:scans:";

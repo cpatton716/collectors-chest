@@ -4,6 +4,47 @@ This log tracks session-by-session progress on Collectors Chest.
 
 ---
 
+## July 25, 2026 (Saturday) — Session 50: Codebase Strengthening — Dead-Code Sweep + Security Upgrades (NOT Deployed)
+
+### Summary
+A dedicated codebase-strengthening session (no features, no dev server): identified and patched gaps, removed all verified dead code, and cleared the security-audit backlog. Executed with a 4-agent verify → 4-agent edit subagent pipeline so every removal was grep-verified against src/, tests, docs, and BACKLOG before deletion. Net: **47 files changed, +446 / −1,763 lines**, zero test regressions (1,423/1,423 passing before and after).
+
+### What was done
+- **Dead code removed (knip → 0 findings):** deleted 2 unused barrel files (`src/lib/auction/index.ts`, `src/lib/email/index.ts`), ~45 dead functions/constants (incl. superseded implementations: pre-audit messaging queries `getUserConversations`/`getCachedUnreadMessageCount`/never-read unread-count Redis cache, pre-atomic scan path `canUserScan`/`incrementScanCount`, webhook-superseded `endTrial`, `requireAdmin`, `executeSlabDetection`, `toggleListSharing`, `markMatchTraded`, storage-warning helpers), ~40 exports demoted to module-private, ~25 stale facade/barrel re-export lines. Kept deliberately: `GUEST_SCAN_TTL_SECONDS`/`GUEST_COOKIE_MAX_AGE_SECONDS` alias pair (knip's only remaining note).
+- **Bug fix (latent):** offline-queue changed event was dispatched as `"offline-queue-changed"` but the only listener subscribed to `"cc:offline-queue-changed"` — pending-actions count never updated via events. Constant now matches the `cc:` convention and `useOffline` imports it.
+- **Bug fix (user-visible):** seller-onboarding page mailto links pointed at divergent hardcoded `admin@collectors-chest.com`; now uses shared `DEFAULT_SUPPORT_EMAIL` (`support@collectors-chest.com`).
+- **New module:** `src/lib/publicConfig.ts` — client-safe shared constants (`DEFAULT_SUPPORT_EMAIL`, `HCAPTCHA_SITE_KEY` now shared by GuestCaptcha + server siteverify so widget/verify can't drift).
+- **Security:** npm audit 13 vulnerabilities (7 high) → 1 accepted dev-only residual. Next.js 16.1.1→16.2.11 (middleware bypass, cache poisoning, DoS, XSS advisories); sharp 0.33.5→0.35.3 via npm `overrides` (4 libvips CVEs — the real attack surface, user uploads flow through sharp; runtime WebP round-trip smoke-tested); dompurify/fast-uri/js-yaml/uuid+svix/ws/qs/babel lockfile fixes. Remaining `brace-expansion` dev-toolchain advisory documented as accepted risk in BACKLOG (only patched release is ESM-only, incompatible with CJS consumers).
+- **Dependency gaps:** `@clerk/types` added (was imported but unlisted — fresh-install breakage risk), unused `@eslint/eslintrc` removed, knip.json cleaned (redundant ignores dropped; `dotenv`/`tsx`/`@netlify/plugin-nextjs` ignored with reasons).
+- **Docs hygiene:** stale T-IMG-11 manual test case removed (described a storage-warning UI that was never wired and whose helper is now deleted).
+
+### Quality gates (all green)
+- **typecheck:** clean · **lint:** 0 errors · **tests:** 85 suites / 1,423 passing · **build:** 112/112 pages
+- **circular deps:** 0 · **knip:** 0 dead-code findings (from 2 files + 95 exports + 12 types)
+- **npm audit:** 1 dev-only accepted residual (brace-expansion), tracked in BACKLOG
+
+### Key files
+- Deleted: `src/lib/auction/index.ts`, `src/lib/email/index.ts`
+- New: `src/lib/publicConfig.ts`
+- Heavily trimmed: `src/lib/messagingDb.ts`, `src/lib/subscription.ts`, `src/lib/offlineCache.ts`, `src/lib/creatorCreditsDb.ts`, `src/lib/email.ts`, `src/lib/auctionDb.ts` + `src/lib/auction/*`, `src/hooks/useSubscription.ts`, `src/hooks/useOffline.ts`, `src/components/FeatureGate.tsx`, `src/components/Skeleton.tsx`
+- Deps: `package.json`/`package-lock.json` (next 16.2.11, sharp 0.35.3 + override, @clerk/types), `knip.json`
+
+### Where We Left Off
+User will return to knock out more BACKLOG items. **Not deployed** — this batch rides along with the Session 48 unpushed commits. Deploy note: sharp jumped two minor versions, so include the image-upload/WebP path in the pre-deploy smoke test.
+
+### Changes Since Last Deploy
+**Sessions since last deploy: 2 with code changes (48, 50; 49 was research-only).** Last deploy was Session 47 on May 27, 2026.
+
+Everything from the Session 48 batch (see entry below) PLUS Session 50:
+- Dead-code sweep (−1,763 lines), knip now clean
+- Security upgrades: Next.js 16.2.11, sharp 0.35.3 (+ override), 12 of 13 audit advisories resolved
+- Offline-queue event bug fix; seller-onboarding support-email fix; shared `publicConfig.ts`
+- `@clerk/types` dependency gap closed
+
+**Deploy readiness: Needs device testing + Netlify env vars (unchanged from Session 48) + include image-upload path in smoke test (sharp 0.33→0.35).** Quality gates fully green; npm audit reduced to one accepted dev-only residual.
+
+---
+
 ## July 23, 2026 (Thursday) — Session 49: Cover-Seeding Source Spike (Research — No Code Changes)
 
 ### Summary

@@ -18,7 +18,7 @@ import { supabaseAdmin } from "./supabase";
 // never more than the hard cap so a single request can't pull an unbounded set.
 export const TRADE_LIST_DEFAULT_LIMIT = 50;
 export const TRADE_LIST_MAX_LIMIT = 100;
-export const MATCH_LIST_DEFAULT_LIMIT = 100;
+const MATCH_LIST_DEFAULT_LIMIT = 100;
 export const MATCH_LIST_MAX_LIMIT = 200;
 
 export interface ListOptions {
@@ -47,7 +47,7 @@ export function clampOffset(requested: number | undefined): number {
 // ============================================================================
 
 /** Raw comic columns selected for trade displays. Nullable to surface bad data. */
-export interface TradeComicRow {
+interface TradeComicRow {
   id: string;
   title: string | null;
   issue_number: string | null;
@@ -58,7 +58,7 @@ export interface TradeComicRow {
 }
 
 /** Raw trade_items row with optional joined comic. */
-export interface TradeItemRow {
+interface TradeItemRow {
   id: string;
   trade_id: string;
   comic_id: string;
@@ -919,23 +919,6 @@ export async function dismissMatch(
       status: "dismissed",
       dismissed_at: new Date().toISOString(),
     })
-    .eq("id", matchId)
-    .or(`user_a_id.eq.${userId},user_b_id.eq.${userId}`)
-    .select("id");
-  return (data?.length ?? 0) > 0;
-}
-
-/**
- * Mark match as traded (when a trade is created from a match).
- * See ownership-scoping note on `markMatchViewed`.
- */
-export async function markMatchTraded(
-  matchId: string,
-  userId: string
-): Promise<boolean> {
-  const { data } = await supabaseAdmin
-    .from("trade_matches")
-    .update({ status: "traded" })
     .eq("id", matchId)
     .or(`user_a_id.eq.${userId},user_b_id.eq.${userId}`)
     .select("id");

@@ -542,22 +542,6 @@ export async function respondToCounterOffer(
 }
 
 /**
- * Get offers for a listing (seller view)
- */
-export async function getOffersForListing(listingId: string, sellerId: string): Promise<Offer[]> {
-  const { data, error } = await supabase
-    .from("offers")
-    .select("*, profiles!offers_buyer_id_fkey(id, display_name, public_display_name)")
-    .eq("listing_id", listingId)
-    .eq("seller_id", sellerId)
-    .order("created_at", { ascending: false });
-
-  if (error || !data) return [];
-
-  return data.map(transformOffer);
-}
-
-/**
  * Get offers made by a buyer
  */
 export async function getBuyerOffers(buyerId: string): Promise<Offer[]> {

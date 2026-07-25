@@ -39,7 +39,7 @@ import type { BarcodeData } from "@/types/comic";
 
 // ── Types ──
 
-export type VariantSource = "catalog" | "ai" | "derived";
+type VariantSource = "catalog" | "ai" | "derived";
 
 export interface VariantResolution {
   variantName: string | null;

@@ -65,17 +65,3 @@ export async function getUserWatchlist(userId: string): Promise<WatchlistItem[]>
       : undefined,
   }));
 }
-
-/**
- * Check if user is watching an auction
- */
-export async function isWatching(userId: string, auctionId: string): Promise<boolean> {
-  const { data } = await supabase
-    .from("auction_watchlist")
-    .select("id")
-    .eq("user_id", userId)
-    .eq("auction_id", auctionId)
-    .maybeSingle();
-
-  return !!data;
-}

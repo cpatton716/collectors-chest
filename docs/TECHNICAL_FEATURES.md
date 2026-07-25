@@ -159,9 +159,9 @@ AI extracts 12-17 digit UPC → parsed into prefix/item/check/addon components �
 ---
 
 ## 8b. Cert-First Scan Pipeline (Slabbed Comics)
-Dedicated scan pipeline for slabbed/graded comics that bypasses standard cover recognition. Triggered when slab detection AI call returns positive. Five-phase pipeline:
+Dedicated scan pipeline for slabbed/graded comics that bypasses standard cover recognition. Triggered when the main image-analysis call flags a slab. Five-phase pipeline:
 
-- **Phase 1 — Slab Detection:** `executeSlabDetection()` with Gemini → Anthropic fallback. Quick binary: is this a slab?
+- **Phase 1 — Slab Detection:** the main image-analysis call (Gemini → Anthropic fallback) returns `isSlabbed` + grading fields directly; the cert-first branch fires only when it flags a slab (no dedicated slab-detection vision call per scan)
 - **Phase 2 — Slab Detail Extraction:** `executeSlabDetailExtraction()` reads cert number, grade, grading company, label color (blue/yellow/green/etc.), title, issue, variant, key comments, art comments from the slab label photo
 - **Phase 3 — Cert Lookup:** If cert number found, scrapes CGC/CBCS/PGX for verification. `mergeKeyComments()` combines AI-detected comments with cert provider data. `normalizeGradingCompany()` standardizes company names
 - **Phase 4 — eBay Pricing:** Grade-specific search with year disambiguation. `filterIrrelevantListings()` removes non-comic results. Q1 conservative pricing. Grade included in search keywords for slabbed results

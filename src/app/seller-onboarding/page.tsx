@@ -20,6 +20,8 @@ import {
   User,
 } from "lucide-react";
 
+import { DEFAULT_SUPPORT_EMAIL } from "@/lib/publicConfig";
+
 // ---------------------------------------------------------------------------
 // Screenshot placeholder
 // ---------------------------------------------------------------------------
@@ -155,7 +157,7 @@ export const metadata = {
 };
 
 export default function SellerOnboardingPage() {
-  const SUPPORT_EMAIL = "admin@collectors-chest.com";
+  const SUPPORT_EMAIL = DEFAULT_SUPPORT_EMAIL;
 
   return (
     <div className="min-h-screen bg-pop-cream">

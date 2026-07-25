@@ -5,7 +5,6 @@
     "src/app/**/layout.tsx",
     "src/app/**/route.ts",
     "src/app/api/**/route.ts",
-    "src/middleware.ts",
     "sentry.*.config.ts"
   ],
   "project": ["src/**/*.{ts,tsx}"],
@@ -14,15 +13,13 @@
     "**/*.d.ts"
   ],
   "ignoreDependencies": [
-    "autoprefixer",
-    "postcss",
-    "tailwindcss",
-    "@types/*",
     "eslint-config-next",
-    "jest-environment-jsdom",
     "ts-jest",
-    "@testing-library/*"
+    "dotenv",
+    "postcss-load-config",
+    "@netlify/plugin-nextjs"
   ],
+  "ignoreBinaries": ["tsx"],
   "next": {
     "entry": [
       "next.config.{js,ts,mjs}",
