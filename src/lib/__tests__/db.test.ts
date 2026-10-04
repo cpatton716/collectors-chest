@@ -25,8 +25,13 @@ jest.mock("../supabase", () => ({
 
 import type { CollectionItem } from "@/types/comic";
 
+import { supabaseAdmin } from "../supabase";
+
 import {
+  cleanupOrphanedCover,
   COMIC_COVERS_BUCKET,
+  COVER_REFERENCE_COLUMNS,
+  decideCoverCleanup,
   COMIC_METADATA_PRICE_MAX_AGE_MS,
   isComicMetadataPriceStale,
   parseComicCoverStoragePath,
@@ -314,6 +319,106 @@ describe("parseComicCoverStoragePath (M-CO16)", () => {
   });
 });
 
+describe("decideCoverCleanup (M-CO16 reference check)", () => {
+  const PATH = "profile-9/1716000000000-x7q2.webp";
+  const clean = () => COVER_REFERENCE_COLUMNS.map(() => ({ count: 0 }));
+
+  it("deletes when our bucket and nothing references the URL", () => {
+    expect(decideCoverCleanup(PATH, clean())).toBe("delete");
+  });
+
+  it("keeps when a sales record still references the cover (mark-as-sold)", () => {
+    const checks = clean();
+    checks[COVER_REFERENCE_COLUMNS.findIndex((c) => c.table === "sales")] = { count: 1 };
+    expect(decideCoverCleanup(PATH, checks)).toBe("keep");
+  });
+
+  it("keeps when another comic row (e.g. buyer clone) still references it", () => {
+    const checks = clean();
+    checks[COVER_REFERENCE_COLUMNS.findIndex((c) => c.table === "comics")] = { count: 2 };
+    expect(decideCoverCleanup(PATH, checks)).toBe("keep");
+  });
+
+  it("skips non-bucket / external / blank URLs", () => {
+    expect(decideCoverCleanup(null, clean())).toBe("skip");
+    expect(decideCoverCleanup("", clean())).toBe("skip");
+  });
+
+  it("fails safe (keeps) when any lookup errors", () => {
+    const checks: { count: number | null; error?: unknown }[] = clean();
+    checks[0] = { count: null, error: { message: "boom" } };
+    expect(decideCoverCleanup(PATH, checks)).toBe("keep");
+  });
+
+  it("fails safe (keeps) when a count is unknown or checks are incomplete", () => {
+    const checks: { count: number | null }[] = clean();
+    checks[1] = { count: null };
+    expect(decideCoverCleanup(PATH, checks)).toBe("keep");
+    expect(decideCoverCleanup(PATH, [])).toBe("keep");
+    expect(decideCoverCleanup(PATH, clean().slice(1))).toBe("keep");
+  });
+
+  it("covers the sales table among reference sources", () => {
+    expect(COVER_REFERENCE_COLUMNS).toEqual(
+      expect.arrayContaining([
+        { table: "sales", column: "cover_image_url" },
+        { table: "comics", column: "cover_image_url" },
+      ])
+    );
+  });
+});
+
+describe("cleanupOrphanedCover (M-CO16)", () => {
+  const base = "https://abc.supabase.co";
+  const ownUrl = `${base}/storage/v1/object/public/${COMIC_COVERS_BUCKET}/profile-9/cover.webp`;
+  const admin = supabaseAdmin as unknown as {
+    from: jest.Mock;
+    storage?: { from: jest.Mock };
+  };
+  let remove: jest.Mock;
+
+  function mockReferenceCounts(countsByTable: Record<string, number>) {
+    admin.from.mockImplementation((table: string) => ({
+      select: () => ({
+        eq: jest.fn().mockResolvedValue({ count: countsByTable[table] ?? 0, error: null }),
+      }),
+    }));
+  }
+
+  beforeEach(() => {
+    remove = jest.fn().mockResolvedValue({ error: null });
+    admin.storage = { from: jest.fn(() => ({ remove })) };
+    admin.from.mockReset();
+  });
+
+  it("does not delete a cover still referenced by a sales row", async () => {
+    mockReferenceCounts({ sales: 1 });
+    await expect(cleanupOrphanedCover(ownUrl)).resolves.toBe(false);
+    expect(remove).not.toHaveBeenCalled();
+  });
+
+  it("deletes a truly orphaned cover", async () => {
+    mockReferenceCounts({});
+    await expect(cleanupOrphanedCover(ownUrl)).resolves.toBe(true);
+    expect(remove).toHaveBeenCalledWith(["profile-9/cover.webp"]);
+    expect(admin.from).toHaveBeenCalledTimes(COVER_REFERENCE_COLUMNS.length);
+  });
+
+  it("skips external URLs without querying or deleting", async () => {
+    await expect(cleanupOrphanedCover("https://i.ebayimg.com/images/g/abc/s-l1600.jpg")).resolves.toBe(false);
+    expect(admin.from).not.toHaveBeenCalled();
+    expect(remove).not.toHaveBeenCalled();
+  });
+
+  it("keeps the file when a reference lookup throws", async () => {
+    admin.from.mockImplementation(() => {
+      throw new Error("network down");
+    });
+    await expect(cleanupOrphanedCover(ownUrl)).resolves.toBe(false);
+    expect(remove).not.toHaveBeenCalled();
+  });
+});
+
 describe("trimmed list-row transform (M-CO9)", () => {
   // The list query omits price_data + key_info; the transform must still
   // produce a well-formed CollectionItem.
@@ -358,5 +463,38 @@ describe("trimmed list-row transform (M-CO9)", () => {
     expect(item.comic.keyInfo).toEqual([]);
     expect(item.comic.title).toBe("X-Men");
     expect(item.listIds).toEqual(["l9"]);
+  });
+});
+
+describe("comic_metadata writes use the service-role client (RLS fix)", () => {
+  // RLS on comic_metadata only allows writes when auth.is_authenticated();
+  // the anon client never satisfies that, so writes must go via supabaseAdmin.
+  it("saveComicMetadata upserts through supabaseAdmin, not the anon client", async () => {
+    const { supabase: anon } = await import("../supabase");
+    const { saveComicMetadata } = await import("../db");
+    const upsert = jest.fn().mockResolvedValue({ error: null });
+    (supabaseAdmin.from as jest.Mock).mockReset().mockReturnValue({ upsert });
+    (anon.from as jest.Mock).mockReset();
+
+    await saveComicMetadata({ title: "Spawn", issueNumber: "1", keyInfo: [] });
+
+    expect(supabaseAdmin.from).toHaveBeenCalledWith("comic_metadata");
+    expect(upsert).toHaveBeenCalledTimes(1);
+    expect(anon.from).not.toHaveBeenCalled();
+  });
+
+  it("incrementComicLookupCount updates through supabaseAdmin, not the anon client", async () => {
+    const { supabase: anon } = await import("../supabase");
+    const { incrementComicLookupCount } = await import("../db");
+    const secondEq = jest.fn().mockResolvedValue({ count: 1, error: null });
+    const update = jest.fn().mockReturnValue({ eq: jest.fn().mockReturnValue({ eq: secondEq }) });
+    (supabaseAdmin.from as jest.Mock).mockReset().mockReturnValue({ update });
+    (anon.from as jest.Mock).mockReset();
+
+    await incrementComicLookupCount("Spawn", "1");
+
+    expect(supabaseAdmin.from).toHaveBeenCalledWith("comic_metadata");
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(anon.from).not.toHaveBeenCalled();
   });
 });

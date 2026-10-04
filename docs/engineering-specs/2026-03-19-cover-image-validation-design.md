@@ -66,7 +66,7 @@ Answer YES or NO. If NO, briefly say what comic this actually appears to be.
 
 When year or publisher is unknown, omit them from the prompt: `Is this the cover of [Title] #[Issue]?` The model can still identify most covers by title and issue alone.
 
-**Gemini implementation:** Use `gemini-2.0-flash` (the `GEMINI_PRIMARY` constant from `src/lib/models.ts`) via a direct call to the `@google/generative-ai` SDK in `coverValidation.ts`. Do NOT use the existing `GeminiProvider` class — it is purpose-built for comic recognition (structured JSON output) and does not support YES/NO validation prompts. Configure via `generationConfig`: `getGenerativeModel({ model: GEMINI_PRIMARY, generationConfig: { maxOutputTokens: 50 } })` since the response is a brief YES/NO with an optional explanation. Add `coverValidation` to cost tracking if scan analytics recording is desired.
+**Gemini implementation:** Use `GEMINI_PRIMARY` (originally `gemini-2.0-flash`; `gemini-3.5-flash-lite` since Session 51 — the constant from `src/lib/models.ts`) via a direct call to the `@google/generative-ai` SDK in `coverValidation.ts`. Do NOT use the existing `GeminiProvider` class — it is purpose-built for comic recognition (structured JSON output) and does not support YES/NO validation prompts. Configure via `generationConfig`: `getGenerativeModel({ model: GEMINI_PRIMARY, generationConfig: { maxOutputTokens: 50 } })` since the response is a brief YES/NO with an optional explanation. Add `coverValidation` to cost tracking if scan analytics recording is desired.
 
 Flow:
 1. Take the highest-priority non-community candidate (eBay first, then Open Library)

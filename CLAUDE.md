@@ -147,7 +147,7 @@ For ad-hoc use during development:
 | **Supabase** | Database (Postgres) | [supabase.com/dashboard](https://supabase.com/dashboard) | `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` |
 | **Clerk** | Authentication | [dashboard.clerk.com](https://dashboard.clerk.com) | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY` |
 | **Stripe** | Payments | [dashboard.stripe.com](https://dashboard.stripe.com) | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` |
-| **Google AI (Gemini)** | AI cover recognition — **PRIMARY** vision provider (~5x cheaper than Claude) | [aistudio.google.com](https://aistudio.google.com) | `GEMINI_API_KEY` |
+| **Google AI (Gemini)** | AI cover recognition — **PRIMARY** vision provider, model `gemini-3.5-flash-lite` (Session 51; replaced retired `gemini-2.0-flash`) | [aistudio.google.com](https://aistudio.google.com) | `GEMINI_API_KEY` |
 | **Anthropic** | AI (Claude) cover recognition — **fallback** vision provider + text-only lookups (Haiku) | [console.anthropic.com](https://console.anthropic.com) | `ANTHROPIC_API_KEY` |
 | **hCaptcha** | Bot prevention on guest scans (triggered at scans 4–5) | [dashboard.hcaptcha.com](https://dashboard.hcaptcha.com) | `NEXT_PUBLIC_HCAPTCHA_SITE_KEY`, `HCAPTCHA_SECRET_KEY` |
 
@@ -162,11 +162,12 @@ For ad-hoc use during development:
 ### External APIs
 | Service | Purpose | Notes |
 |---------|---------|-------|
-| **GoCollect** | ~~FMV pricing, Hot 50, trends~~ | ~~Pro tier, 100 calls/day~~ — API program discontinued (Feb 2026) |
+| **GoCollect** | ~~FMV pricing, Hot 50, trends~~ | ~~Pro tier, 100 calls/day~~ — API program discontinued (Feb 2026); still unavailable to third parties as of Oct 2026 (Enterprise-only custom API) |
 | **Marvel API** | ~~Comic metadata, covers, creators~~ | ~~Free, 3K calls/day~~ — Developer program deprecated, no longer available (Feb 2026) |
-| **eBay Browse API** | Real-time pricing | Free tier, rate limited |
+| **eBay Browse API** | Real-time pricing | Free tier, rate limited; **active listings only**. Sold listings behind login since Jul–Aug 2026, ToS bans scraping (Feb 20, 2026), Marketplace Insights (sold-data) API closed to new devs |
+| **PriceCharting** | Candidate sold-price data source (not integrated) | Legendary $49/mo (annual $499 unconfirmed on their site) is **internal-use only**; displaying prices in-app requires a separate commercial license (price by email) |
 | **CGC/CBCS** | Cert verification | Web scraping for grade details |
-| **ZenRows** | Scraping proxy for CGC cert lookup | Env var `ZENROWS_API_KEY` is **provisioned but not yet referenced by any code** — feature **deferred post-launch** pending ROI review; no current cost |
+| **ZenRows** | Scraping proxy for CGC cert lookup | `ZENROWS_API_KEY` exists in `.env.local` only — **not on Netlify and not referenced by any code** (verified Oct 4, 2026); feature **deferred post-launch** pending ROI review; no current cost |
 
 ### Project Costs
 
@@ -180,9 +181,10 @@ For ad-hoc use during development:
 **Variable Costs:**
 | Service | Cost | Notes |
 |---------|------|-------|
-| Anthropic API — Sonnet 4.5 (cover scan, vision — fallback provider; Gemini is primary) | ~$0.015/scan | Prepaid credits ($10 loaded). **Prompt caching enabled (Session 48)** cuts input-token cost on the rare Gemini→Claude vision escalation. |
+| Google Gemini — `gemini-3.5-flash-lite` (cover scan, vision — **primary**) | ~$0.0016/scan measured | ~$0.30/M input, $2.50/M output (old 2.0 Flash was $0.10/$0.40). Measured image call 3,396 in / 234 out tokens. `AI_COST_CENTS.gemini` estimate kept at 0.3¢. |
+| Anthropic API — Sonnet 4.5 (cover scan, vision — fallback provider; Gemini is primary) | ~$0.015/scan | ⚠️ **Until the Session 51 Gemini fix deploys, prod fails over to Sonnet on every scan** (retired `gemini-2.0-flash`) — elevated spend. Prepaid credits ($10 loaded). **Prompt caching enabled (Session 48)** cuts input-token cost on the rare Gemini→Claude vision escalation. |
 | Anthropic API — Haiku 4.5 (text-only lookups + variant resolver Tier 2 enrichment) | ~$0.0008/call | **Session 48: all text-only lookups/enrichment moved Sonnet→Haiku (~60–70% cheaper per text call).** Variant resolver Tier 2 (~150 in / ~96 out tokens) fires only when barcode `addonVariant` present AND `barcode_catalog` has no admin-approved name AND addon implies a variant. Estimated $0.02–$0.07/day at Beta volumes; rises after the high-res barcode OCR fix lands (see BACKLOG). |
-| Stripe | 2.9% + $0.30 | Per transaction. **Marketplace uses DESTINATION CHARGES (Session 48):** the seller is merchant-of-record and bears this fee; the platform nets a clean `application_fee` (no Stripe-fee drag on platform marketplace revenue). Premium-subscription payments are standard charges where the platform bears the fee. See COST_PROJECTIONS.md "Stripe". |
+| Stripe | 2.9% + $0.30 | Per transaction. **Marketplace uses DESTINATION CHARGES (Session 48).** ⚠️ **Fee bearer UNVERIFIED (Session 51):** Session 48 assumed the seller bears this fee and the platform nets a clean `application_fee`, but Stripe docs indicate the platform pays processing fees on destination charges even with `on_behalf_of` — pending a test-mode sale check (see BACKLOG). Premium-subscription payments are standard charges where the platform bears the fee. See COST_PROJECTIONS.md "Stripe". |
 
 **Free Tiers (current usage):**
 - Supabase: 500MB DB, 1GB storage (⚠️ `comic-covers` bucket pressures the 1GB cap as cover uploads scale; **Session 48: covers now WebP-converted server-side + orphan cleanup on hard delete slow growth**; see COST_PROJECTIONS.md "Cost Risks")
@@ -216,7 +218,10 @@ When I say **"Deploy"**, perform the following steps:
      - Provide direct link: Netlify → Site settings → Environment variables
      - **DO NOT PROCEED** until user confirms they've added the variables to Netlify
    - This prevents production failures from missing env vars
-   - **Known Netlify env vars (as of Apr 23, 2026):** `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `CLERK_WEBHOOK_SECRET`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `RESEND_API_KEY`, `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`, `SENTRY_DSN`, `NEXT_PUBLIC_POSTHOG_KEY`, `NETLIFY_API_TOKEN`, `NEXT_PUBLIC_HCAPTCHA_SITE_KEY`, `HCAPTCHA_SECRET_KEY`, `ZENROWS_API_KEY` (configured but feature deferred post-launch)
+   - **Known Netlify env vars (as of Oct 4, 2026 — read from Netlify site `collecters-chest`):** `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `CLERK_WEBHOOK_SECRET`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, `STRIPE_PRICE_PREMIUM_MONTHLY`, `STRIPE_PRICE_PREMIUM_ANNUAL`, `STRIPE_PRICE_SCAN_PACK`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `RESEND_API_KEY`, `RESEND_*_AUDIENCE_ID`, `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`, `SENTRY_DSN`, `NEXT_PUBLIC_POSTHOG_KEY`, `NEXT_PUBLIC_POSTHOG_HOST`, `NEXT_PUBLIC_APP_URL`, `NETLIFY_API_TOKEN`, `NEXT_PUBLIC_HCAPTCHA_SITE_KEY`, `HCAPTCHA_SECRET_KEY`, `ADMIN_EMAIL`, `CRON_SECRET`, `EBAY_*`
+   - **Pending — add to Netlify before next deploy:** `GUEST_SCAN_SECRET`, `PROMO_TRIAL_SECRET`, `UNSUBSCRIBE_SECRET`, `SUPPORT_EMAIL`
+   - **Stale/unused on Netlify (safe to remove):** `COMIC_VINE_API_KEY`, `GOCOLLECT_API_KEY`, `METRON_*`. `ZENROWS_API_KEY` is **not** on Netlify (`.env.local` only; unused by code).
+   - **Note:** the `NETLIFY_API_TOKEN` in `.env.local` returns 401 (expired/revoked) — regenerate before relying on Netlify API automation.
 
 3. **Review Deploy Checklist** - Confirm with user:
    - [ ] All tests passing

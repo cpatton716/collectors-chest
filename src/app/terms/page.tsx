@@ -205,8 +205,9 @@ export default function TermsOfServicePage() {
             amount (excluding shipping) and are deducted from the seller&apos;s payout. The
             applicable rate is set when the listing is created and remains in effect through
             completion of the sale, regardless of any subsequent change to the seller&apos;s
-            subscription tier. Payment processing fees charged by Stripe are absorbed by the
-            Company and are not deducted from the seller&apos;s payout.
+            subscription tier. Payment processing fees charged by Stripe are separate from the
+            transaction fee, are borne by the seller as merchant of record, and are deducted from
+            the seller&apos;s payout by Stripe.
           </p>
 
           <h3>4.6 Seller Payouts</h3>

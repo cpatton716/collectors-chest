@@ -2500,4 +2500,22 @@ If you encounter bugs or unexpected behavior:
 
 ---
 
-*Last Updated: June 14, 2026*
+## Session 51 Smoke-Test Fixes — 2026-10-04
+
+> Re-test of the 5 bugs found by the Session 51 browser smoke test, plus the new Pivot Brief admin page. **Note:** local dev shares the PRODUCTION Supabase DB — keep test writes minimal and clean up after. Status: **Pending** unless noted.
+
+| ID | Verify | Steps | Expected Result | Device | Status |
+|----|--------|-------|-----------------|--------|--------|
+| **T-S51-PIVOT** | `/admin/pivot-brief` loads for admin + nav tab | Sign in as an admin. Open any `/admin` page; click the **Pivot Brief** tab in AdminNav. Also sign in as a non-admin and open `/admin/pivot-brief` directly. | Admin: tab is visible and highlighted when active; "Convention Companion Pivot" brief renders in the same style as `/admin/clz-comparison`. Non-admin: redirected / denied, brief not shown. | Web | Pending |
+| **T-S51-ADMIN-MW** | Admin pages load for signed-in admin (middleware regression from `3ba698a`) | Sign in as admin; open `/admin`, `/admin/clz-comparison`, `/admin/pivot-brief`, and one other admin page. Sign out and open `/admin`. | All admin pages render for the admin — no crash / error page. Signed out: redirected to sign-in, no crash. | Web | Pending |
+| **T-S51-GEMINI** | Scans use Gemini primary (`gemini-3.5-flash-lite`), not Claude fallback | Scan a cover while watching the dev server logs. | Recognition succeeds; logs show **no** `[gemini:*] failed` lines and no fallback to Claude Sonnet. Any `[gemini:*] failed` = model misconfigured (prod cost risk). | Web | Pending |
+| **T-S51-SOLD-THUMB** | Mark as Sold keeps the cover file | Add a comic with an uploaded cover; Mark as Sold; open `/sales`. | Sale row shows the cover thumbnail (not broken). Cover storage file is only deleted when no column references it. | Both (Web; Mobile iOS → Android) | Pending |
+| **T-S51-TRADE** | For Trade tab lists comics (was 500) | Mark a comic For Trade; open the For Trade tab in the collection and the trades "available" view. | Comics marked for trade are listed with estimated values; no 500 / error toast. | Web | Pending |
+| **T-S51-FEE-FAQ** | Seller fee copy matches constants (**pending Stripe destination-charge verification**) | Open `/pricing` FAQ, the Navigation FAQ seller-fee answer, and `/terms` section 4.5. | On a $100 sale: **$88.80** take-home (Free) / **$91.80** (Premium); all three locations agree; no "$92" or "platform pays the Stripe fee" text. Re-check after the test-mode sale confirms who bears the Stripe fee. | Web | Pending |
+| **T-S51-METADATA** | Scan metadata saves to `comic_metadata` (was blocked by RLS) | Scan a comic; in Supabase check the `comic_metadata` row for that title/issue. Scan the same comic again. | Row is inserted/updated after the first scan; lookup count increments on the repeat scan. No RLS errors in logs. | Web | Pending |
+| **T-S51-GUEST-COUNT** | Guest scan counter decrements | Signed out (fresh incognito), scan a cover. | Remaining-scans counter decreases by 1 after each scan. | Both (Web; Mobile iOS → Android) | Pending |
+| **T-S51-AUTH** | Sign out / sign in + collection loads | Sign out; sign back in; open the collection. | Sign out/in succeeds and the collection loads with all comics. | Web | **Completed** (owner verified Oct 4, 2026) |
+
+---
+
+*Last Updated: October 4, 2026*

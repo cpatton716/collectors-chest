@@ -83,8 +83,10 @@ export async function DELETE(
 
     // Best-effort: remove the cover image from our own storage bucket now that
     // the comic row is gone. Never block or fail the delete on cleanup errors —
-    // cleanupOrphanedCover swallows its own failures and no-ops for covers we
-    // don't own (e.g. external URLs). M-CO16.
+    // cleanupOrphanedCover swallows its own failures, no-ops for covers we
+    // don't own (e.g. external URLs), and keeps the file while any other row
+    // still references it — notably the sales record that mark-as-sold writes
+    // just before calling this DELETE. M-CO16.
     try {
       await cleanupOrphanedCover(soldRow?.cover_image_url);
     } catch (cleanupError) {

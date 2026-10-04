@@ -132,7 +132,7 @@ export async function GET(_request: NextRequest) {
         publisher,
         cover_image_url,
         grade,
-        estimated_value,
+        estimated_value:price_data->estimatedValue,
         user_id,
         profiles!comics_user_id_fkey (
           id,

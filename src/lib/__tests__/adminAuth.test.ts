@@ -7,6 +7,9 @@
  * mutation. Sentry routing is best-effort and must not itself throw.
  */
 const mockInsert = jest.fn();
+const mockSingle = jest.fn();
+const mockEq = jest.fn(() => ({ single: mockSingle }));
+const mockSelect = jest.fn(() => ({ eq: mockEq }));
 
 // Mock Clerk's server entry so the real (ESM) @clerk/backend isn't loaded.
 jest.mock("@clerk/nextjs/server", () => ({ auth: jest.fn(async () => ({ userId: null })) }));
@@ -19,7 +22,7 @@ jest.mock("../redis", () => ({ redis: null, isRedisAvailable: () => false }));
 
 jest.mock("../supabase", () => ({
   supabase: { from: jest.fn() },
-  supabaseAdmin: { from: jest.fn(() => ({ insert: mockInsert })) },
+  supabaseAdmin: { from: jest.fn(() => ({ insert: mockInsert, select: mockSelect })) },
 }));
 
 // db.ts is imported by adminAuth for isUserSuspended; stub it out.
@@ -28,7 +31,7 @@ jest.mock("../db", () => ({ getProfileByClerkId: jest.fn() }));
 const mockCaptureException = jest.fn();
 jest.mock("@sentry/nextjs", () => ({ captureException: (...args: unknown[]) => mockCaptureException(...args) }));
 
-import { isPayingSubscriber, logAdminAction } from "../adminAuth";
+import { getAdminProfileByUserId, isPayingSubscriber, logAdminAction } from "../adminAuth";
 
 describe("logAdminAction", () => {
   beforeEach(() => {
@@ -105,5 +108,47 @@ describe("isPayingSubscriber", () => {
   it("does not treat an empty profile as paying", () => {
     expect(isPayingSubscriber({})).toBe(false);
     expect(isPayingSubscriber({ stripe_subscription_id: null, subscription_source: null })).toBe(false);
+  });
+});
+
+/**
+ * Middleware-safe admin gate: takes the userId from clerkMiddleware's own
+ * `auth` callback argument (the server `auth()` import throws in middleware).
+ */
+describe("getAdminProfileByUserId", () => {
+  const adminRow = { id: "p-1", clerk_user_id: "user_admin", email: "a@x.com", is_admin: true };
+
+  beforeEach(() => {
+    mockSingle.mockReset();
+    mockEq.mockClear();
+    mockSelect.mockClear();
+  });
+
+  it("returns null without querying when userId is missing", async () => {
+    await expect(getAdminProfileByUserId(null)).resolves.toBeNull();
+    await expect(getAdminProfileByUserId(undefined)).resolves.toBeNull();
+    await expect(getAdminProfileByUserId("")).resolves.toBeNull();
+    expect(mockSelect).not.toHaveBeenCalled();
+  });
+
+  it("returns the profile for an admin, querying by clerk_user_id", async () => {
+    mockSingle.mockResolvedValueOnce({ data: adminRow, error: null });
+    await expect(getAdminProfileByUserId("user_admin")).resolves.toEqual(adminRow);
+    expect(mockEq).toHaveBeenCalledWith("clerk_user_id", "user_admin");
+  });
+
+  it("returns null for a non-admin profile", async () => {
+    mockSingle.mockResolvedValueOnce({ data: { ...adminRow, is_admin: false }, error: null });
+    await expect(getAdminProfileByUserId("user_admin")).resolves.toBeNull();
+  });
+
+  it("returns null when the profile is missing", async () => {
+    mockSingle.mockResolvedValueOnce({ data: null, error: null });
+    await expect(getAdminProfileByUserId("user_ghost")).resolves.toBeNull();
+  });
+
+  it("returns null (fails closed) on a lookup error", async () => {
+    mockSingle.mockResolvedValueOnce({ data: adminRow, error: { message: "db down" } });
+    await expect(getAdminProfileByUserId("user_admin")).resolves.toBeNull();
   });
 });

@@ -2,7 +2,9 @@
 
 > **Comprehensive map of pages, features, and service dependencies**
 
-*Last Updated: Jul 25, 2026 — Session 50 (Dead-code removal + dependency-upgrade session. **Deleted unused exports** across lib/hooks/components — notable: `executeSlabDetection()` (aiProvider — slab flagging happens inside the main analysis pass since H-SC1; `executeSlabDetailExtraction()` remains), `markMatchTraded` (tradingDb), `requireAdmin` (adminAuth), `toggleListSharing` (db), messagingDb's `getUserConversations` / unread-count cache helpers (superseded by `getUserConversationsWithUnread` / `getUnreadMessageCount`), subscription's `canUserScan` / `incrementScanCount` / `endTrial` (superseded by `reserveScanSlot` / `releaseScanSlot` + the Stripe webhook), plus unused helpers in storage, the auction submodules, creatorCreditsDb, keyComicsDb, offlineCache, promoTrial, email/profiles, haptics, hooks (`useServiceWorker`, `useFeatureAccess`, `useScanLimits`, `deriveScanDisplay`) and components (`TrustBadgeCompact`, `useCanAccessFeature`, `RequiresTier`, `formatLocation`, `ComicListSkeleton`). **Deleted files:** unused barrels `src/lib/auction/index.ts` + `src/lib/email/index.ts` (the real facades are `src/lib/auctionDb.ts` / `src/lib/email.ts`). **New lib:** `src/lib/publicConfig.ts` — client-safe shared constants: `DEFAULT_SUPPORT_EMAIL` (support@collectors-chest.com; the server email layer overlays the `SUPPORT_EMAIL` env var) and `HCAPTCHA_SITE_KEY` (shared by `GuestCaptcha` + `hcaptcha.ts`). **Bug fixes:** offline-queue changed event unified — `offlineCache.ts` `OFFLINE_QUEUE_CHANGED_EVENT` is now `"cc:offline-queue-changed"` and `useOffline.ts` imports the constant (was a silent dispatch/listener name mismatch); seller-onboarding page support email now uses `DEFAULT_SUPPORT_EMAIL` (was hardcoded admin@collectors-chest.com). **Deps:** `next` 16.1.1→16.2.11, `sharp` 0.33.5→0.35.3 (npm override keeps Next's nested copy in sync), `@clerk/types` added (dev), `@eslint/eslintrc` removed; npm audit down from 13 vulnerabilities (7 high) to one accepted dev-only brace-expansion advisory. Session 49 was a docs-only cover-seeding source spike — no architecture changes. Session 48 + earlier context preserved below.)*
+*Last Updated: Oct 4, 2026 — Session 51 (**Gemini model swap:** `GEMINI_PRIMARY` in `src/lib/models.ts` moved `gemini-2.0-flash` (shut down 2026-06-01) → `gemini-3.5-flash-lite` (~$0.30 / $2.50 per M input/output tokens — higher than 2.0 Flash, so per-scan Gemini cost estimates below are now low). **New admin page** `/admin/pivot-brief` ("Pivot Brief" tab in `AdminNav`; strategy brief, admin-gated like `/admin/clz-comparison`). **Admin auth:** new `getAdminProfileByUserId(userId)` in `src/lib/adminAuth.ts` (`getAdminProfile()` now wraps it); middleware uses the `clerkMiddleware` callback's own `auth()` + `getAdminProfileByUserId` because the server `auth()` import crashes inside middleware. **Cover cleanup:** `cleanupOrphanedCover` (`db.ts`) only deletes a `comic-covers` file when no row in `COVER_REFERENCE_COLUMNS` (sales, comics, comic_metadata, cover_images, key_hunt_lists, admin_barcode_reviews) references the URL, via pure `decideCoverCleanup` (`skip`/`keep`/`delete`, fails safe to keep). **Marketplace fee copy:** `stripeConnect.ts` gained `STRIPE_PROCESSING_PERCENT`/`STRIPE_PROCESSING_FIXED_CENTS`, `estimateStripeProcessingFeeCents`, `estimateSellerTakeHomeCents`, `buildSellerFeeFaqAnswer` (feeds Pricing + Navigation FAQ); Terms §4.5 updated — who actually bears Stripe fees on destination charges is **UNVERIFIED** (Stripe docs suggest the platform pays) pending a test-mode check. **Trading:** comic value read as `estimated_value:price_data->estimatedValue` (there is no `comics.estimated_value` column) in `/api/trades/available`, `/api/comics/for-trade`, `tradingDb.ts`. **comic_metadata writes:** `saveComicMetadata` + `incrementComicLookupCount` now use the service-role client (RLS requires Supabase-authenticated; Clerk users aren't), so the shared cache actually fills. Session 50 + earlier context preserved below.)*
+
+*Earlier Session 50 (Jul 25, 2026): (Dead-code removal + dependency-upgrade session. **Deleted unused exports** across lib/hooks/components — notable: `executeSlabDetection()` (aiProvider — slab flagging happens inside the main analysis pass since H-SC1; `executeSlabDetailExtraction()` remains), `markMatchTraded` (tradingDb), `requireAdmin` (adminAuth), `toggleListSharing` (db), messagingDb's `getUserConversations` / unread-count cache helpers (superseded by `getUserConversationsWithUnread` / `getUnreadMessageCount`), subscription's `canUserScan` / `incrementScanCount` / `endTrial` (superseded by `reserveScanSlot` / `releaseScanSlot` + the Stripe webhook), plus unused helpers in storage, the auction submodules, creatorCreditsDb, keyComicsDb, offlineCache, promoTrial, email/profiles, haptics, hooks (`useServiceWorker`, `useFeatureAccess`, `useScanLimits`, `deriveScanDisplay`) and components (`TrustBadgeCompact`, `useCanAccessFeature`, `RequiresTier`, `formatLocation`, `ComicListSkeleton`). **Deleted files:** unused barrels `src/lib/auction/index.ts` + `src/lib/email/index.ts` (the real facades are `src/lib/auctionDb.ts` / `src/lib/email.ts`). **New lib:** `src/lib/publicConfig.ts` — client-safe shared constants: `DEFAULT_SUPPORT_EMAIL` (support@collectors-chest.com; the server email layer overlays the `SUPPORT_EMAIL` env var) and `HCAPTCHA_SITE_KEY` (shared by `GuestCaptcha` + `hcaptcha.ts`). **Bug fixes:** offline-queue changed event unified — `offlineCache.ts` `OFFLINE_QUEUE_CHANGED_EVENT` is now `"cc:offline-queue-changed"` and `useOffline.ts` imports the constant (was a silent dispatch/listener name mismatch); seller-onboarding page support email now uses `DEFAULT_SUPPORT_EMAIL` (was hardcoded admin@collectors-chest.com). **Deps:** `next` 16.1.1→16.2.11, `sharp` 0.33.5→0.35.3 (npm override keeps Next's nested copy in sync), `@clerk/types` added (dev), `@eslint/eslintrc` removed; npm audit down from 13 vulnerabilities (7 high) to one accepted dev-only brace-expansion advisory. Session 49 was a docs-only cover-seeding source spike — no architecture changes. Session 48 + earlier context preserved below.)*
 
 *Earlier Session 48 (Jun 14, 2026): Structural / audit-closeout session. **Lib decompositions:** `src/lib/auctionDb.ts` is now a re-export barrel over `src/lib/auction/*` (auctions, bids, offers, secondChance, watchlist, notifications, ratings, cron, transforms, columns, shared, index); `src/lib/email.ts` is a barrel over `src/lib/email/*` (constants, types, helpers, profiles, templates, send, index). Public import paths `@/lib/auctionDb` and `@/lib/email` unchanged. **New libs:** `src/lib/signedToken.ts` (HMAC-SHA256 sign/verify, falls back to `CLERK_SECRET_KEY`), `src/lib/guestScanToken.ts` (signed guest-scan cookie + Redis counters), `src/lib/unsubscribeToken.ts` (one-click email unsubscribe tokens), `src/lib/redis.ts` (shared Upstash client singleton); `src/lib/promoTrial.ts` gained server-side `mintPromoTrialToken()` / `verifyPromoTrialToken()`. **Component/page split-out:** `src/components/comicDetail/*` (ComicDetailsForm/ComicDetailModal sub-sections extracted; modal is now an accessible dialog), `src/components/profile/*` (CustomProfilePage tabs code-split via `next/dynamic`), `src/components/collection/CollectionToolbar+CollectionGrid`, `src/components/scan/ScanPanel`, `src/components/keyHunt/*`, `src/app/scan/BonusVerificationHandler`; new `src/hooks/useModalA11y.ts` applied across ~17 overlay modals (role=dialog/alertdialog, Escape, focus management); `admin/layout.tsx` is now a server component with an `AdminNav` client child. **New routes:** `/api/publishers/suggest`, `/api/unsubscribe`. **Middleware** now enforces `is_admin` on `/admin/*` *pages* (defense-in-depth with the admin layout's own server gate). **Payments:** marketplace checkout uses Stripe DESTINATION CHARGES (`on_behalf_of` + `application_fee_amount` + `transfer_data.destination`); webhook idempotency via Redis (`stripe_event_*`, 3-day TTL), with a `processed_stripe_sessions` table + `credit_scan_pack` RPC for one-time scan-pack credits. **Scanning:** Gemini is the PRIMARY vision provider (Anthropic fallback); guest scans are server-enforced via a signed cookie + Redis count; key-comics lookup is DB-primary (`key_comics`) with the static curated file as fallback; text-only lookups use Haiku (`MODEL_LIGHTWEIGHT`), not Sonnet. **DB (migration `20260614_audit_closeout.sql`, applied):** see Database Tables / migrations sections. **Deps:** `@clerk/nextjs` 6.39.5, `@anthropic-ai/sdk` 0.104; removed `openai` / `@zxing/*` / `html5-qrcode`; added `dotenv` (dev). **New env vars:** `GUEST_SCAN_SECRET`, `PROMO_TRIAL_SECRET`, `UNSUBSCRIBE_SECRET` (all fall back to `CLERK_SECRET_KEY`), `SUPPORT_EMAIL`. Session 47 + earlier context preserved below.)*
 
@@ -24,7 +26,7 @@
 |------|---------|---------|
 | 🔐 | **Clerk** | Authentication |
 | 🗄️ | **Supabase** | Database (PostgreSQL) |
-| 🤖² | **Google/Gemini** | AI analysis (primary — Gemini 2.0 Flash) |
+| 🤖² | **Google/Gemini** | AI analysis (primary — Gemini 3.5 Flash-Lite, Session 51) |
 | 🤖 | **Anthropic/Claude** | AI analysis (fallback — Claude Sonnet 4.5) |
 | 💰 | **Stripe** | Payments |
 | 📧 | **Resend** | Email |
@@ -419,6 +421,13 @@ Admin access is controlled via the `is_admin` field in the `profiles` table.
 | Pocket cheat sheet | — | Printable comic-style card |
 | Source: `docs/CLZ_COMPARISON_BRIEF.md` | — | Brief is the markdown source of truth; admin page is the rendered version |
 
+#### Pivot Brief (`/admin/pivot-brief`) — Session 51
+
+| Feature | Services | Notes |
+|---------|----------|-------|
+| Internal strategy brief | — | Static server page (`src/app/admin/pivot-brief/page.tsx`), "Pivot Brief" tab in `AdminNav`. Sections: where we are today, the pricing-data problem, the pivot (convention companion), why hold the marketplace back, launch plan, willingness-to-pay test, risks |
+| Admin gate | 🗄️ 🔐 | Page calls `getAdminProfile()` and redirects non-admins, same pattern as `/admin/clz-comparison` (plus middleware + admin layout gates) |
+
 #### Flagged Users (Session 39)
 
 Admin endpoint `GET /api/admin/flagged-users` returns users with 2+ missed payments in a 90-day window (`bid_restricted_at IS NOT NULL`). UI surface pending — endpoint is currently consumed by admin notifications only.
@@ -430,7 +439,7 @@ Admin endpoint `GET /api/admin/flagged-users` returns users with 2+ missed payme
 
 ## Middleware (`src/middleware.ts`)
 
-Clerk middleware protects specific routes requiring authentication. **Admin pages get a second layer (Session 48):** beyond the Clerk `auth.protect()` gate, `/admin/*` *page* routes call `getAdminProfile()` (Supabase `profiles.is_admin` check via `src/lib/adminAuth.ts`) and redirect non-admins to `/`. This is defense-in-depth alongside the admin layout's own server-side gate — a non-admin signed-in user can no longer reach an admin page shell.
+Clerk middleware protects specific routes requiring authentication. **Admin pages get a second layer (Session 48):** beyond the Clerk `auth.protect()` gate, `/admin/*` *page* routes look up the admin profile (Supabase `profiles.is_admin` check via `src/lib/adminAuth.ts`) and redirect non-admins to `/`. **Session 51:** middleware must use the `clerkMiddleware` callback's own `auth()` to get `userId` and then call `getAdminProfileByUserId(userId)` — calling `getAdminProfile()` (which uses the request-scoped server `auth()` import) throws inside middleware. `getAdminProfile()` is still the helper for server components, route handlers and server actions. This is defense-in-depth alongside the admin layout's own server-side gate — a non-admin signed-in user can no longer reach an admin page shell.
 
 | Protected Route Pattern | Notes |
 |------------------------|-------|
@@ -573,11 +582,11 @@ All other routes are public (unauthenticated access allowed). Individual API rou
 | `/api/trades` | POST | Create new trade proposal | 🗄️ 🔐 |
 | `/api/trades/[tradeId]` | GET | Get trade details | 🗄️ 🔐 |
 | `/api/trades/[tradeId]` | PATCH | Update trade (accept, decline, ship, confirm) | 🗄️ 🔐 |
-| `/api/trades/available` | GET | Get all comics marked for trade | 🗄️ |
+| `/api/trades/available` | GET | Get all comics marked for trade. Value selected as `estimated_value:price_data->estimatedValue` (no `comics.estimated_value` column — Session 51) | 🗄️ |
 | `/api/trades/matches` | GET | Get user's Hunt List matches | 🗄️ 🔐 |
 | `/api/trades/matches` | POST | Trigger match finding | 🗄️ 🔐 |
 | `/api/trades/matches/[matchId]` | PATCH | Update match (view, dismiss). Owner-scoped writes via `tradingDb` helpers (`dismissMatch` / `markMatchViewed` require `userId` + `.or('user_a_id.eq.X,user_b_id.eq.X')` predicate); returns **404 on owner mismatch** to avoid existence leaks (Session 43 IDOR fix). | 🗄️ 🔐 |
-| `/api/comics/for-trade` | GET | Get user's for-trade comics | 🗄️ 🔐 |
+| `/api/comics/for-trade` | GET | Get user's for-trade comics (value from `price_data->estimatedValue`, Session 51) | 🗄️ 🔐 |
 | `/api/comics/[id]/for-trade` | PATCH | Toggle for_trade status | 🗄️ 🔐 |
 
 ### Follows
@@ -906,7 +915,8 @@ POST /api/checkout → Stripe Checkout Session
     - Math.floor (seller-favorable rounding); 75¢ minimum platform fee
   - DESTINATION CHARGE (Session 48): payment_intent_data = {
       on_behalf_of: seller Connect acct (seller is merchant-of-record; Stripe's
-        2.9%+30¢ settles on the seller),
+        2.9%+30¢ assumed to settle on the seller — UNVERIFIED as of Session 51;
+        Stripe docs suggest the platform pays; pending test-mode check),
       application_fee_amount: platform fee (swept to platform balance),
       transfer_data: { destination: seller Connect acct }  // NO amount —
         seller share = total − application_fee
@@ -982,7 +992,7 @@ Seller's Stripe Express Dashboard shows incoming transfer on 2-5 day payout sche
 | `src/components/scan/` | **(Session 48)** ScanPanel (extracted from `/scan` page) |
 | `src/components/keyHunt/` | **(Session 48)** KeyHuntSearchForm, KeyHuntResults (extracted from `/key-hunt` page) |
 | `src/app/scan/BonusVerificationHandler.tsx` | **(Session 48)** Handles the email-bonus-scan verification redirect on the scan page |
-| `src/app/admin/AdminNav.tsx` | **(Session 48)** Client nav child; `admin/layout.tsx` is now a server component that gates on `is_admin` before rendering this |
+| `src/app/admin/AdminNav.tsx` | **(Session 48)** Client nav child; `admin/layout.tsx` is now a server component that gates on `is_admin` before rendering this. **(Session 51)** Added "Pivot Brief" tab → `/admin/pivot-brief` |
 | `src/components/trading/` | Trading UI (TradeCard, TradeProposalModal, TradeableComicCard) |
 | `src/components/auction/` | Auction/listing UI (AuctionCard, AuctionCountdown, AuctionDetailModal, BidForm, BidHistory, CreateAuctionModal, CreateListingModal, ListingCard, ListingDetailModal, ListInShopModal, MakeOfferModal, MarkAsShippedForm, OfferResponseModal, PaymentButton, PremiumSellerUpsell, SecondChanceInboxCard, SecondChanceOfferButton, SellerBadge, WatchlistButton) |
 | `src/components/PaymentDeadlineCountdown.tsx` | Client component that live-ticks every 60s on pending-payment rows of /transactions — neutral >24h, orange ≤24h, red ≤6h, "Expired" at ≤0; hydration-safe (SSR placeholder, populates in useEffect) |
@@ -1005,17 +1015,17 @@ Seller's Stripe Express Dashboard shows incoming transfer on 2-5 day payout sche
 | `src/lib/coverImageDb.ts` | Community cover image DB helpers (`getCommunityCovers`); variant support added for harvest dedup (unique index on title+issue+publisher+variant) |
 | `src/lib/coverHarvest.ts` | Cover harvest orchestrator — validates result eligibility, crops with `sharp`, uploads to Supabase Storage, inserts `cover_images` row with `variant` field; no-op on duplicates |
 | `src/lib/followDb.ts` | Follow system DB helpers (follow/unfollow, counts) |
-| `src/lib/tradingDb.ts` | Trading system DB helpers (trades, matches) |
+| `src/lib/tradingDb.ts` | Trading system DB helpers (trades, matches). **(Session 51)** Comic value read via `price_data->estimatedValue` alias, not a nonexistent `estimated_value` column |
 | `src/lib/auctionDb.ts` | **(Session 48)** Now a RE-EXPORT BARREL over `src/lib/auction/*` — re-exports the public auction/listing helper surface from focused submodules: `auctions.ts`, `bids.ts`, `offers.ts`, `secondChance.ts`, `watchlist.ts`, `notifications.ts`, `ratings.ts`, `cron.ts` (ended-auction processing / reminders / expiry passes), `transforms.ts`, `columns.ts`, `shared.ts` (unused `index.ts` barrel removed Session 50). Import path `@/lib/auctionDb` unchanged. |
 | `src/lib/keyComicsDb.ts` | Key comics lookup/management helpers. **(Session 48)** DB-PRIMARY read path: `lookupKeyInfoFromDb()` / `lookupKeyInfoMetaFromDb()` query the `key_comics` Supabase table first (with leading-zero issue fallback) and fall back to the static `keyComicsDatabase.ts` curated set. Used by `/api/analyze` and `/api/con-mode-lookup`. |
-| `src/lib/stripeConnect.ts` | Stripe Connect account helpers. **(Session 48)** `computePlatformFeeCents()` (canonical cents-based floored fee, 75¢ minimum) + `calculateDestinationAmount()` → `{sellerAmount, platformFee}` for destination charges. |
+| `src/lib/stripeConnect.ts` | Stripe Connect account helpers. **(Session 48)** `computePlatformFeeCents()` (canonical cents-based floored fee, 75¢ minimum) + `calculateDestinationAmount()` → `{sellerAmount, platformFee}` for destination charges. **(Session 51)** Display-only fee estimators: `STRIPE_PROCESSING_PERCENT` (2.9) / `STRIPE_PROCESSING_FIXED_CENTS` (30), `estimateStripeProcessingFeeCents()`, `estimateSellerTakeHomeCents()`, `buildSellerFeeFaqAnswer()` (shared by Pricing page FAQ + Navigation FAQ so copy can't drift from checkout math). |
 | `src/lib/ageVerification.ts` | Age verification helpers |
 | `src/lib/bulkActions.ts` | Bulk collection action helpers |
 | `src/lib/certHelpers.ts` | Cert/slab helpers — `normalizeGradingCompany()`, `parseKeyComments()`, `mergeKeyComments()`, `parseArtComments()` |
 | `src/lib/metadataCache.ts` | Comic metadata caching helpers; `hasCompleteSlabData()` checks if cached metadata has full slab details |
 | `src/lib/contentFilter.ts` | Message content filtering (phone/email detection) |
-| `src/lib/adminAuth.ts` | Admin authentication helpers |
-| `src/lib/db.ts` | Core database helper functions |
+| `src/lib/adminAuth.ts` | Admin authentication helpers — `getAdminProfile()` (server components/routes; uses Clerk server `auth()`) wraps **(Session 51)** `getAdminProfileByUserId(userId)` (middleware-safe; no request-scoped Clerk APIs) |
+| `src/lib/db.ts` | Core database helper functions. **(Session 51)** `cleanupOrphanedCover()` deletes a `comic-covers` file only when no `COVER_REFERENCE_COLUMNS` row references its URL (pure `decideCoverCleanup()` → `skip`/`keep`/`delete`, fail-safe keep); `saveComicMetadata()` / `incrementComicLookupCount()` write via `supabaseAdmin` (comic_metadata RLS requires Supabase auth, which Clerk users lack) |
 | `src/lib/promoTrial.ts` | localStorage helpers for promo trial flag — `setPromoTrialFlag()`, `getPromoTrialFlag()`, `clearPromoTrialFlag()`; timestamp-based 7-day expiration. **(Session 48)** Gained server-side `mintPromoTrialToken()` / `verifyPromoTrialToken()` (signed, QR-exclusive promo tokens via `signedToken`, secret `PROMO_TRIAL_SECRET`) plus migration-gated `isPromoTrialEligible()` / `consumePromoTrialEligibility()` against `profiles.promo_trial_eligible`. |
 | `src/lib/signedToken.ts` | **(Session 48)** Shared HMAC-SHA256 sign/verify for JSON payloads with constant-time signature comparison — `sign()`, `verify()`. Each token names its own secret env var and **falls back to `CLERK_SECRET_KEY`** when that var is unset (`resolveSecret()`). Single source of truth for guest-scan, promo-trial, and unsubscribe tokens. |
 | `src/lib/guestScanToken.ts` | **(Session 48)** Server-issued signed guest cookie (`cc_guest`, secret `GUEST_SCAN_SECRET`) + Redis-backed scan accounting — `issueGuestToken()`, `signGuestCookie()`, `verifyGuestCookie()`, `readGuestScans()`, `readGuestBonus()`, `incrementGuestScans()`. `/api/analyze` enforces guest scan limits against the **server-stored count**, never a client header. |
@@ -1024,7 +1034,7 @@ Seller's Stripe Express Dashboard shows incoming transfer on 2-5 day payout sche
 | `src/lib/alertBadgeHelpers.ts` | Admin alert badge helpers |
 | `src/lib/aiProvider.ts` | Fallback orchestrator: getProviders(), classifyError(), getRemainingBudget(), executeWithFallback(), executeSlabDetailExtraction() (unused executeSlabDetection() removed Session 50 — the main analysis pass flags slabs, H-SC1) |
 | `src/lib/providers/types.ts` | Provider interface + shared types (AIProvider, CallResult, ScanResponseMeta, SlabDetectionResult, SlabDetailExtractionResult); AICallType includes `slabDetection`/`slabDetailExtraction`; `coverHarvestable` flag and `coverCropCoordinates` in result shape |
-| `src/lib/providers/gemini.ts` | GeminiProvider class — primary vision provider (Gemini 2.0 Flash); `detectSlab()`, `extractSlabDetails()` methods; `maxOutputTokens` increased for harvest prompt |
+| `src/lib/providers/gemini.ts` | GeminiProvider class — primary vision provider (`GEMINI_PRIMARY` = `gemini-3.5-flash-lite` since Session 51; was Gemini 2.0 Flash, shut down 2026-06-01); `detectSlab()`, `extractSlabDetails()` methods; `maxOutputTokens` increased for harvest prompt |
 | `src/lib/providers/anthropic.ts` | AnthropicProvider class — fallback provider (Claude); `detectSlab()`, `extractSlabDetails()` methods; new prompts: SLAB_DETECTION_PROMPT, SLAB_DETAIL_EXTRACTION_PROMPT, SLAB_COVER_HARVEST_ONLY_PROMPT; AI prompt includes `coverHarvestable` + `coverCropCoordinates` |
 | `src/lib/models.ts` | AI model constants incl. GEMINI_PRIMARY, MODEL_PRIMARY, MODEL_LIGHTWEIGHT, VISION_PROVIDER_ORDER |
 | `src/lib/analyticsServer.ts` | Server-side analytics helpers (provider-aware cost estimation via PROVIDER_COSTS lookup); ScanPath type, `scan_path` and `barcode_extracted` fields; `cover_harvested` boolean field |
@@ -1201,7 +1211,7 @@ Seller's Stripe Express Dashboard shows incoming transfer on 2-5 day payout sche
 | Bucket | Purpose | Access |
 |--------|---------|--------|
 | `cover-images` | Auto-harvested cover images from scan results (uploaded by `coverHarvest.ts`) | Public read, service-role write |
-| `comic-covers` | User-uploaded scan cover images per `comics` row (uploaded by `/api/comics/upload-cover` via `src/lib/uploadCoverImage.ts`); 10MB cap, JPEG/PNG/WebP. Migration: `supabase/migrations/20260509_comic_covers_bucket.sql`. (Session 46) | Public read, authenticated write |
+| `comic-covers` | User-uploaded scan cover images per `comics` row (uploaded by `/api/comics/upload-cover` via `src/lib/uploadCoverImage.ts`); 10MB cap, JPEG/PNG/WebP. Migration: `supabase/migrations/20260509_comic_covers_bucket.sql`. (Session 46) On comic hard-delete, `cleanupOrphanedCover()` removes the file only if no `sales`/`comics`/`comic_metadata`/`cover_images`/`key_hunt_lists`/`admin_barcode_reviews` row still references the URL (Session 51; fails safe to keep). | Public read, authenticated write |
 | `message-images` | User-uploaded message attachments | Authenticated |
 
 ### Cover-Image Preservation Rule (Session 45b)
@@ -1297,7 +1307,7 @@ All three are consumed by `src/lib/signedToken.ts` and **fall back to `CLERK_SEC
 | Service | Tier | Cost | Limit |
 |---------|------|------|-------|
 | Netlify | Personal | $9.54/mo | Hosting + domain + DNS (billed 13th) |
-| Google Gemini | Pay-per-use | ~$0.001/scan | Primary vision AI (Gemini 2.0 Flash) |
+| Google Gemini | Pay-per-use | ~$0.001/scan (pre-Session-51 estimate; 3.5 Flash-Lite is ~$0.30/$2.50 per M tokens, so expect higher) | Primary vision AI (Gemini 3.5 Flash-Lite) |
 | Anthropic | Pay-per-use | ~$0.015/scan | Prepaid credits (fallback AI) |
 | Stripe | Standard | 2.9% + $0.30 | Per transaction |
 | Supabase | Free (Pro planned) | $0 ($25/mo) | 500MB (8GB Pro) |
@@ -1326,7 +1336,7 @@ The `/api/analyze` route uses a provider abstraction layer so that each of the 3
 ┌────────────────────────────┐
 │  src/lib/providers/        │
 │  ├── types.ts (AIProvider) │  Provider Interface
-│  ├── gemini.ts             │  Primary (Gemini 2.0 Flash)
+│  ├── gemini.ts             │  Primary (Gemini 3.5 Flash-Lite)
 │  └── anthropic.ts          │  Fallback (Claude)
 └────────────────────────────┘
 ```

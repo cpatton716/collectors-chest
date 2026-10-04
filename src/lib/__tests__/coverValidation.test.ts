@@ -16,7 +16,7 @@ jest.mock("@google/generative-ai", () => ({
 
 // Mock models.ts to avoid any side effects
 jest.mock("@/lib/models", () => ({
-  GEMINI_PRIMARY: "gemini-2.0-flash",
+  GEMINI_PRIMARY: "gemini-3.5-flash-lite",
 }));
 
 import {

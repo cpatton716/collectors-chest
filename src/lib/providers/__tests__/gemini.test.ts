@@ -11,7 +11,7 @@ jest.mock("@google/generative-ai", () => ({
 }));
 
 jest.mock("@/lib/models", () => ({
-  GEMINI_PRIMARY: "gemini-2.0-flash",
+  GEMINI_PRIMARY: "gemini-3.5-flash-lite",
   AI_COST_CENTS: {
     gemini: { imageAnalysis: 0.3, verification: 0.1, text: 0.05, ebay: 0.15 },
     anthropic: { imageAnalysis: 1.5, verification: 0.6, text: 0.08, ebay: 0.15 },

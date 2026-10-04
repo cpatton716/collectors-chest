@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
     // exactly that owner.
     const { data: comics, error } = await supabaseAdmin
       .from("comics")
-      .select("id, title, issue_number, publisher, cover_image_url, grade, estimated_value")
+      .select("id, title, issue_number, publisher, cover_image_url, grade, estimated_value:price_data->estimatedValue")
       .eq("user_id", profileId)
       .eq("for_trade", true)
       .order("title");

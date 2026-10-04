@@ -87,6 +87,65 @@ export function computePlatformFeeDollars(
 }
 
 /**
+ * Stripe's standard US card processing rate (2.9% + $0.30). Under destination
+ * charges with `on_behalf_of` (M-MK16) the seller bears this. Used ONLY for
+ * customer-facing estimates (FAQ/pricing copy) - actual Stripe fees can differ
+ * (international cards, currency conversion, etc.) and are settled by Stripe.
+ */
+export const STRIPE_PROCESSING_PERCENT = 2.9;
+export const STRIPE_PROCESSING_FIXED_CENTS = 30;
+
+/**
+ * Estimated Stripe processing fee in cents at the standard card rate.
+ */
+export function estimateStripeProcessingFeeCents(totalCents: number): number {
+  if (totalCents <= 0) return 0;
+  return Math.round(totalCents * (STRIPE_PROCESSING_PERCENT / 100)) + STRIPE_PROCESSING_FIXED_CENTS;
+}
+
+/**
+ * Estimated seller take-home for a sale: total minus the platform fee (via the
+ * canonical {@link computePlatformFeeCents}) minus the estimated Stripe
+ * processing fee. Never negative. For display copy only.
+ */
+export function estimateSellerTakeHomeCents(
+  totalCents: number,
+  platformFeePercent: number
+): { platformFeeCents: number; stripeFeeCents: number; takeHomeCents: number } {
+  const platformFeeCents = computePlatformFeeCents(totalCents, platformFeePercent);
+  const stripeFeeCents = estimateStripeProcessingFeeCents(totalCents);
+  const takeHomeCents = Math.max(0, totalCents - platformFeeCents - stripeFeeCents);
+  return { platformFeeCents, stripeFeeCents, takeHomeCents };
+}
+
+/**
+ * Plain-English seller-fee FAQ answer, with worked $100 examples derived from
+ * the real fee constants so the copy can't drift from the checkout math.
+ * Shared by the Pricing page FAQ and the Navigation FAQ.
+ */
+export function buildSellerFeeFaqAnswer(): string {
+  const fmt = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+  const sale = 10000;
+  const free = estimateSellerTakeHomeCents(sale, FREE_FEE_PERCENT);
+  const premium = estimateSellerTakeHomeCents(sale, PREMIUM_FEE_PERCENT);
+  // Sale price at which the percent fee overtakes the $0.75 minimum.
+  const floorCrossover = (pct: number) => fmt(Math.ceil(MIN_PLATFORM_FEE_CENTS / (pct / 100)));
+  return (
+    `When you sell a comic in the Shop, two fees come out of the sale. ` +
+    `First, our platform fee: ${FREE_FEE_PERCENT}% on Free, ${PREMIUM_FEE_PERCENT}% on Premium, ` +
+    `with a ${fmt(MIN_PLATFORM_FEE_CENTS)} minimum per sale (the minimum only applies to sales under ` +
+    `${floorCrossover(FREE_FEE_PERCENT)} on Free or ${floorCrossover(PREMIUM_FEE_PERCENT)} on Premium). ` +
+    `The rate is locked in when you create the listing, so changing tiers later doesn't change it. ` +
+    `Second, Stripe's card processing fee (typically ${STRIPE_PROCESSING_PERCENT}% + ` +
+    `${fmt(STRIPE_PROCESSING_FIXED_CENTS)}), which Stripe charges you directly as the seller. ` +
+    `Example: a ${fmt(sale)} sale on Free = ` +
+    `${fmt(free.platformFeeCents)} platform fee + ${fmt(free.stripeFeeCents)} Stripe fee, so you take home ` +
+    `about ${fmt(free.takeHomeCents)}. On Premium: ${fmt(premium.platformFeeCents)} + ` +
+    `${fmt(premium.stripeFeeCents)}, so you take home about ${fmt(premium.takeHomeCents)}.`
+  );
+}
+
+/**
  * Check if a seller has completed Stripe Connect onboarding.
  */
 export function isConnectOnboardingComplete(

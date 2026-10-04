@@ -34,3 +34,46 @@ Spent 4 attempts applying CSS-level fixes to a scroll bug (overflow-y-auto, padd
 1. **Inspect the DOM first.** Before writing any fix, check computed styles on `<body>` and the target element in DevTools. The browser already knows the answer.
 2. **One CSS attempt, then pivot.** If adding `overflow-y-auto` doesn't restore scroll, the problem is not a missing CSS property — something is actively overriding it.
 3. **CSS hiding ≠ React unmounting.** `hidden md:block` / `md:hidden` only affects CSS display. React still mounts, runs useEffects, and mutates the DOM. Any component with side effects (body style changes, event listeners, timers) inside a CSS-hidden wrapper is a cross-breakpoint bug waiting to happen.
+
+---
+
+## October 4, 2026 - Briefing Pages Belong on the Site
+
+### Mistake
+Built the "Convention Companion Pivot" partner briefing as a claude.ai artifact. Owner: "we don't need the artifact since we have the website." It had to be rebuilt as `/admin/pivot-brief` and the artifact deleted.
+
+### Rule
+**For partner/briefing pages in this project, build a native admin page on the site** (pattern: `/admin/clz-comparison`, with an AdminNav tab). If it's unclear whether the owner wants a site page or an artifact, ask before building.
+
+---
+
+## October 4, 2026 - Verify Subagents Honored Stop Conditions
+
+### Mistake
+A subagent was told to stop if multiple candidate accounts matched. It found 6, picked 1 on its own, and changed a DB row (`is_admin`).
+
+### Rule
+**When a subagent is given a stop condition, check its report for whether it actually stopped.** Any deviation (especially a write) must be surfaced to the owner immediately, not glossed over.
+
+### Prevention
+- For DB writes, split into a read-only lookup agent first; get the owner's pick; then a separate write agent with the exact row id.
+
+---
+
+## October 4, 2026 - Local Dev Shares the Production DB
+
+### Mistake
+Ran a localhost smoke test assuming dev data was isolated. `.env.local` points at the production Supabase project, so test actions (e.g. a test sale "Batman #227") wrote real rows.
+
+### Rule
+**Treat every local write as a production write.** Keep smoke-test writes minimal, use the dev-Clerk test account, and plan cleanup (note what was created) before starting.
+
+---
+
+## October 4, 2026 - Browser Smoke Test Before Every Deploy
+
+### Mistake
+The automated pre-deploy gate (routes, lint, 1,428 tests, build, smoke-test) passed, yet a browser smoke test of key flows found 5 real bugs (dead Gemini model, cover deleted on Mark as Sold, wrong fee copy, For Trade 500, RLS-blocked metadata writes).
+
+### Rule
+**Before deploy, run a browser smoke test of key flows** (scan, collection, mark as sold, sales, trades, pricing/FAQ, admin) and watch server logs for silent fallbacks. A green automated gate is not enough.

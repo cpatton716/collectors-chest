@@ -488,17 +488,85 @@ export function parseComicCoverStoragePath(coverImageUrl: string | null | undefi
 }
 
 /**
+ * Every column that can still point at a `comic-covers` object after the
+ * comic row that uploaded it is deleted. A cover is only an orphan when NONE
+ * of these reference its URL:
+ *  - sales: mark-as-sold snapshots the cover onto the sale, then hard-deletes
+ *    the comic (the /sales thumbnail must keep working).
+ *  - comics: marketplace purchases clone the seller's cover URL onto the
+ *    buyer's row (cloneSoldComic); the seller's sold row also keeps it.
+ *  - comic_metadata / cover_images / key_hunt_lists / admin_barcode_reviews:
+ *    shared cover catalog, community submissions, hunt lists and the barcode
+ *    review queue can all store a user-uploaded cover URL.
+ */
+export const COVER_REFERENCE_COLUMNS: ReadonlyArray<{ table: string; column: string }> = [
+  { table: "sales", column: "cover_image_url" },
+  { table: "comics", column: "cover_image_url" },
+  { table: "comic_metadata", column: "cover_image_url" },
+  { table: "cover_images", column: "image_url" },
+  { table: "key_hunt_lists", column: "cover_image_url" },
+  { table: "admin_barcode_reviews", column: "cover_image_url" },
+];
+
+/** Result of one reference lookup: a row count, or an error/unknown count. */
+export interface CoverReferenceCheck {
+  count: number | null;
+  error?: unknown;
+}
+
+export type CoverCleanupDecision = "skip" | "keep" | "delete";
+
+/**
+ * Pure decision for orphaned-cover cleanup.
+ *  - "skip"   - not a cover in our bucket (external / blank / malformed URL).
+ *  - "keep"   - still referenced somewhere, OR a reference lookup failed or was
+ *               incomplete (fail safe: a leaked file is cheap, a broken
+ *               thumbnail is not).
+ *  - "delete" - our bucket, and every reference lookup came back clean with 0.
+ */
+export function decideCoverCleanup(
+  storagePath: string | null,
+  referenceChecks: ReadonlyArray<CoverReferenceCheck>
+): CoverCleanupDecision {
+  if (!storagePath) return "skip";
+  if (referenceChecks.length < COVER_REFERENCE_COLUMNS.length) return "keep";
+  for (const check of referenceChecks) {
+    if (check.error) return "keep";
+    if (typeof check.count !== "number" || check.count !== 0) return "keep";
+  }
+  return "delete";
+}
+
+/**
  * M-CO16: best-effort removal of an orphaned cover from the `comic-covers`
  * bucket after a comic is hard-deleted. Server-side only (uses supabaseAdmin).
  *
- * No-ops for covers we don't own (returns false). Never throws - a failed
- * storage cleanup must not fail the delete that already succeeded.
+ * Call AFTER the comic row is deleted. Only removes the file when no row in
+ * COVER_REFERENCE_COLUMNS still references the URL (e.g. a sales record from
+ * mark-as-sold). Returns true only when a file was removed. Never throws - a
+ * failed storage cleanup must not fail the delete that already succeeded.
  */
 export async function cleanupOrphanedCover(coverImageUrl: string | null | undefined): Promise<boolean> {
   const path = parseComicCoverStoragePath(coverImageUrl);
-  if (!path) return false;
+  if (!path || !coverImageUrl) return false;
 
   try {
+    const referenceChecks: CoverReferenceCheck[] = await Promise.all(
+      COVER_REFERENCE_COLUMNS.map(async ({ table, column }) => {
+        try {
+          const { count, error } = await supabaseAdmin
+            .from(table)
+            .select("*", { count: "exact", head: true })
+            .eq(column, coverImageUrl);
+          return { count: count ?? null, error: error ?? undefined };
+        } catch (error) {
+          return { count: null, error };
+        }
+      })
+    );
+
+    if (decideCoverCleanup(path, referenceChecks) !== "delete") return false;
+
     const { error } = await supabaseAdmin.storage.from(COMIC_COVERS_BUCKET).remove([path]);
     if (error) {
       console.error("[cleanupOrphanedCover] storage remove failed:", error);
@@ -881,7 +949,16 @@ export async function saveComicMetadata(metadata: {
   const normalizedTitle = normalizeTitle(metadata.title);
   const normalizedIssue = normalizeIssueNumber(metadata.issueNumber);
 
-  const { error } = await supabase.from("comic_metadata").upsert(
+  // SHARED cache layer: this writes ONLY the shared `comic_metadata` table.
+  // A user's own collection cover lives on `comics.cover_image_url` and must
+  // never be written from this code path (keep the two write paths separate).
+  //
+  // Service-role client: RLS on comic_metadata only allows INSERT/UPDATE when
+  // `auth.is_authenticated()` (20260110_production_rls_policies.sql). Clerk
+  // auth doesn't mint a Supabase JWT, so the anon client always failed RLS and
+  // the cache never filled. All callers are server-side (API routes / server
+  // libs), matching the other server writes in this file.
+  const { error } = await supabaseAdmin.from("comic_metadata").upsert(
     {
       title: normalizedTitle,
       issue_number: normalizedIssue,
@@ -925,7 +1002,9 @@ export async function incrementComicLookupCount(title: string, issueNumber: stri
   // Supabase .update() returns NO error when zero rows match, so we explicitly
   // request the affected count and log a miss - otherwise a normalization drift
   // (touching a title that doesn't exist) would silently no-op forever. L-CC24.
-  const { count, error } = await supabase
+  // Service-role client - same RLS reason as saveComicMetadata (the anon
+  // client's UPDATE matched 0 rows under RLS, so counts never moved).
+  const { count, error } = await supabaseAdmin
     .from("comic_metadata")
     .update({ updated_at: new Date().toISOString() }, { count: "exact" })
     .eq("title", normalizedTitle)

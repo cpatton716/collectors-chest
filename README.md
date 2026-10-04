@@ -14,7 +14,7 @@ The app is currently in **Private Beta** — public registration is disabled and
 
 **AI Cover Recognition**
 - Scan a cover photo to identify title, issue number, publisher, creators, release year, and variant
-- Multi-provider AI fallback: **Google Gemini 2.0 Flash** is the primary engine (more accurate for comics and ~5x cheaper); **Anthropic Claude Sonnet 4.5** is the fallback; lightweight text lookups use **Claude Haiku 4.5**
+- Multi-provider AI fallback: **Google Gemini 3.5 Flash-Lite** is the primary engine (more accurate for comics and ~5x cheaper); **Anthropic Claude Sonnet 4.5** is the fallback; lightweight text lookups use **Claude Haiku 4.5**
 - Barcode scanning with barcode catalog lookup
 
 **Collection Management**

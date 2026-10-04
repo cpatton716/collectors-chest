@@ -269,7 +269,7 @@ async function getSellerProfilesByIds(ids: string[]): Promise<Map<string, Seller
 }
 
 const TRADE_COMIC_COLUMNS =
-  "id, title, issue_number, publisher, cover_image_url, grade, estimated_value";
+  "id, title, issue_number, publisher, cover_image_url, grade, estimated_value:price_data->estimatedValue";
 
 /** Fetch many comics (trade-display columns) in a single query. */
 async function getTradeComicsByIds(ids: string[]): Promise<Map<string, TradeComicRow>> {
@@ -360,7 +360,7 @@ export async function getTradeById(tradeId: string, visitorId: string): Promise<
           publisher,
           cover_image_url,
           grade,
-          estimated_value
+          estimated_value:price_data->estimatedValue
         )
       )
     `
@@ -413,7 +413,7 @@ export async function getUserTrades(
           publisher,
           cover_image_url,
           grade,
-          estimated_value
+          estimated_value:price_data->estimatedValue
         )
       )
     `

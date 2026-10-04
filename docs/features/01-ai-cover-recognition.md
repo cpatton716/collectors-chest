@@ -434,8 +434,8 @@ If no tier resolves a value, `variantSource` is `null`. The form UI surfaces thi
 
 | | Gemini Flash (Primary) | Claude Sonnet (Fallback) |
 |---|---|---|
-| Model | `gemini-2.0-flash` | `claude-sonnet-4-5-20250929` |
-| Cost per image analysis | 0.3 cents | 1.5 cents |
+| Model | `gemini-3.5-flash-lite` (Session 51; was `gemini-2.0-flash`, shut down 2026-06-01) | `claude-sonnet-4-5-20250929` |
+| Cost per image analysis | 0.3 cents (2.0 Flash estimate; 3.5 Flash-Lite at ~$0.30/$2.50 per M tokens costs more) | 1.5 cents |
 | Cost per verification | 0.1 cents | 0.6 cents |
 | Why primary | Cheaper, tested more accurate for comics | Higher general capability |
 | Max tokens | 1,536 | 1,536 |

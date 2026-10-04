@@ -4,6 +4,60 @@ This log tracks session-by-session progress on Collectors Chest.
 
 ---
 
+## October 4, 2026 (Sunday) — Session 51: Pricing-Source Research + Pivot Brief + Pre-Deploy Smoke Test (5 Bugs Fixed) (NOT Deployed — on hold by owner)
+
+### Summary
+Started as a pricing-data research session and turned into a pre-deploy hardening pass. Confirmed no viable third-party sold-price source exists, built a native admin briefing page recommending a convention-companion pivot, fixed an admin middleware crash, then ran the full pre-deploy gate plus a browser smoke test on localhost that caught **5 bugs the automated gate missed** — all fixed locally with tests. **Not deployed — deploy on hold by owner.**
+
+### What was done
+- **Research — sold-price sources:** GoCollect API still discontinued for third parties (Enterprise-only "customized API access", custom pricing); owner's support ticket was silently closed with no reply. Deep dive found nothing new since Feb 2026: eBay moved sold listings behind login (Jul–Aug 2026), eBay ToS bans scraping (Feb 20, 2026), Marketplace Insights API closed to new devs. PriceCharting $49/mo plan is internal-use only — displaying in-app needs a separate commercial license.
+- **Recommendation — convention-companion pivot:** subscriptions-only launch, marketplace held back, "eBay asking range" labeling, one-convention QR trial test, success bar = 10+ paid subscribers in 60 days.
+- **New admin page `/admin/pivot-brief`:** "Convention Companion Pivot" briefing for Aponte, styled like `/admin/clz-comparison`; "Pivot Brief" tab added to AdminNav. First built as a claude.ai artifact, converted to a native page per owner preference; artifact deleted.
+- **Fix — admin middleware crash:** middleware called Clerk server `auth()` inside `clerkMiddleware` → every `/admin` page crashed for signed-in users. Regression from unpushed commit `3ba698a`. New `getAdminProfileByUserId` in `adminAuth.ts`; middleware now uses the callback `auth`. 5 tests.
+- **Dev admin access:** set `is_admin=true` on the dev-Clerk profile for cpatton716@gmail.com (profile `99bc8d5c-…`, dev Clerk id `user_3B63GMESbUNGew7X0F1eSQlBLND`). **Discovered local dev shares the PRODUCTION Supabase DB.**
+- **Pre-deploy gate passed:** check:routes, lint, 1,428 tests, build (113 pages), smoke-test. Env audit: 4 optional vars missing on Netlify (`GUEST_SCAN_SECRET`, `PROMO_TRIAL_SECRET`, `UNSUBSCRIBE_SECRET`, `SUPPORT_EMAIL`); `NETLIFY_API_TOKEN` returns 401.
+- **Browser smoke test (Claude-in-Chrome, localhost) — 5 bugs fixed:**
+  1. **Gemini model shut down:** `gemini-2.0-flash` retired 2026-06-01 → every scan (including PRODUCTION today) silently falls back to Claude Sonnet (~5x cost). `GEMINI_PRIMARY` in `models.ts` → `gemini-3.5-flash-lite` (`gemini-3.6-flash` rejected — thinking exhausts token caps).
+  2. **Mark as Sold deleted the cover file** (`cleanupOrphanedCover`, regression from unpushed `a65584c`) → broken `/sales` thumbnails; also a latent marketplace buyer-clone variant. Fix: reference check across 6 columns via pure `decideCoverCleanup` in `db.ts`; 11 tests.
+  3. **Seller fee copy wrong:** Pricing FAQ, Navigation FAQ, and Terms 4.5 said the platform pays the Stripe fee ($92 take-home). Now generated from constants via `buildSellerFeeFaqAnswer` etc. in `stripeConnect.ts` ($88.80 Free / $91.80 Premium on $100); 7 tests. **OPEN:** Stripe docs suggest the platform pays fees on destination charges — must verify with a test-mode sale; Terms "excluding shipping" vs code charging fee on total incl. shipping mismatch.
+  4. **For Trade tab 500:** nonexistent `comics.estimated_value` selected in 5 places (`trades/available`, `comics/for-trade`, `tradingDb.ts`) → now `price_data->estimatedValue`. Broken in prod since trading launch.
+  5. **`comic_metadata` writes blocked by RLS since Jan 10** (anon client) → `saveComicMetadata` + `incrementComicLookupCount` now use the service-role client; 2 tests.
+- **BACKLOG.md:** 21 new High items tagged "[Added 2026-10-04]", pinned Next Session list rewritten; existing PriceCharting / Apify GoCollect / barcode / cover edit / FMV / comic_metadata items updated.
+
+### Quality gates
+- **tests:** 85 suites / 1,448 passing (up from 1,428 at the pre-deploy gate)
+
+### Key files
+- New: `src/app/admin/pivot-brief/page.tsx`
+- Modified: `src/app/admin/AdminNav.tsx`, `src/middleware.ts`, `src/lib/adminAuth.ts`, `src/lib/models.ts`, `src/lib/db.ts`, `src/lib/stripeConnect.ts`, `src/app/pricing/page.tsx`, `src/components/Navigation.tsx`, `src/app/terms/page.tsx`, `src/app/api/trades/available/route.ts`, `src/app/api/comics/for-trade/route.ts`, `src/lib/tradingDb.ts`, `src/app/api/comics/[id]/route.ts` (comment only)
+- Tests: `src/lib/__tests__/adminAuth.test.ts`, `db.test.ts`, `stripeConnect.test.ts`, `coverValidation.test.ts`, `src/lib/providers/__tests__/gemini.test.ts`
+- Docs: `BACKLOG.md`
+
+### Issues encountered / resolved
+- Admin pages crashed for signed-in users (middleware `auth()` misuse) — resolved.
+- A subagent told to stop on multiple candidate accounts instead picked 1 of 6 and changed a DB row — surfaced to owner; captured in `tasks/lessons.md`.
+- Local dev writes go to the production DB — smoke-test leftover: test sale "Batman #227" on the dev account's `/sales` (no in-app delete; needs manual cleanup).
+- `NETLIFY_API_TOKEN` 401 — token needs regenerating.
+
+### Where We Left Off
+**Not deployed — on hold by owner.** Before deploy: verify Stripe destination-charge fee behavior with a test-mode sale (and fix fee copy/shipping mismatch if needed), browser re-test of the 5 fixes, device pass, owner steps (Netlify env vars, Netlify token). The Gemini fix is **urgent for prod cost** — production is paying Sonnet rates on every scan until it ships.
+
+### Changes Since Last Deploy
+**Sessions since last deploy: 3 with code changes (48, 50, 51; 49 was research-only).** Last deploy was Session 47 on May 27, 2026.
+
+Everything from Sessions 48 and 50 (see entries below) PLUS Session 51:
+- **Gemini primary model fix (`gemini-3.5-flash-lite`) — URGENT: prod currently falls back to Claude Sonnet on every scan**
+- Admin middleware crash fix (all `/admin` pages for signed-in users)
+- Mark-as-Sold no longer deletes still-referenced cover files
+- For Trade tab 500 fix (`estimated_value` → `price_data->estimatedValue`)
+- `comic_metadata` writes restored (service-role client)
+- Seller-fee copy now generated from constants (pending Stripe verification)
+- New `/admin/pivot-brief` page + AdminNav tab
+
+**Deploy readiness: Has Issues / Needs Testing — blocked on Stripe destination-charge fee verification, browser re-test of fixes, device pass, and owner steps (4 optional Netlify env vars, regenerate `NETLIFY_API_TOKEN`).**
+
+---
+
 ## July 25, 2026 (Saturday) — Session 50: Codebase Strengthening — Dead-Code Sweep + Security Upgrades (NOT Deployed)
 
 ### Summary

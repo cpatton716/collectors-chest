@@ -1,7 +1,7 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
-import { getAdminProfile } from "@/lib/adminAuth";
+import { getAdminProfileByUserId } from "@/lib/adminAuth";
 import { checkRateLimit, getRateLimitIdentifier, rateLimiters } from "@/lib/rateLimit";
 
 // Define routes that require authentication.
@@ -69,7 +69,10 @@ export default clerkMiddleware(async (auth, req) => {
   // are an admin and redirect non-admins to the homepage. Defense-in-depth with
   // the admin layout's own server gate (B5).
   if (isAdminPageRoute(req) && shouldGateAdminPath(req.nextUrl.pathname)) {
-    const adminProfile = await getAdminProfile();
+    // Must use the middleware callback's `auth` -- the server-side `auth()`
+    // import (used by getAdminProfile) throws inside clerkMiddleware.
+    const { userId } = await auth();
+    const adminProfile = await getAdminProfileByUserId(userId);
     if (!adminProfile) {
       return NextResponse.redirect(new URL("/", req.url));
     }

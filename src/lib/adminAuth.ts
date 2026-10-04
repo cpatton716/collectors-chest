@@ -49,11 +49,26 @@ export interface AdminProfile {
 
 /**
  * Get the current user's profile and check if they are an admin
- * Returns null if not authenticated or not an admin
+ * Returns null if not authenticated or not an admin.
+ *
+ * Uses the request-scoped `auth()` from @clerk/nextjs/server, so it is only
+ * valid in server components, route handlers and server actions -- NOT inside
+ * clerkMiddleware. Middleware must use `getAdminProfileByUserId` with the
+ * userId from the middleware callback's own `auth` argument.
  */
 export async function getAdminProfile(): Promise<AdminProfile | null> {
   const { userId } = await auth();
+  return getAdminProfileByUserId(userId);
+}
 
+/**
+ * Look up a profile by Clerk user id and return it only if it is an admin.
+ * Returns null for a missing userId, a missing profile, a lookup error, or a
+ * non-admin. Safe to call from middleware (no request-scoped Clerk APIs).
+ */
+export async function getAdminProfileByUserId(
+  userId: string | null | undefined
+): Promise<AdminProfile | null> {
   if (!userId) {
     return null;
   }

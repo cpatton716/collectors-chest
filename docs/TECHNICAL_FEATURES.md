@@ -2,12 +2,12 @@
 
 > Reference document for spec doc creation. Each feature below should get its own detailed spec document through individual review sessions.
 >
-> **Last Updated:** June 14, 2026 — Session 48
+> **Last Updated:** October 4, 2026 — Session 51
 
 ---
 
 ## 1. AI Cover Recognition & Multi-Provider Fallback
-Camera capture → image compression (400KB target) → Gemini 2.0 Flash (primary) → Claude Sonnet 4.5 (fallback) → structured comic identification. Two independent AI calls: image analysis (12s timeout) + verification/enrichment (8s timeout). Per-call fallback logic, non-retryable error detection, cost tracking ($0.001-0.006/scan Gemini primary, $0.01-0.03/scan Anthropic on fallback). Gemini is primary because it tests more accurately for comic covers and is ~5x cheaper than Claude.
+Camera capture → image compression (400KB target) → Gemini 3.5 Flash-Lite (primary; `GEMINI_PRIMARY` = `gemini-3.5-flash-lite` since Session 51 — `gemini-2.0-flash` was shut down 2026-06-01) → Claude Sonnet 4.5 (fallback) → structured comic identification. Two independent AI calls: image analysis (12s timeout) + verification/enrichment (8s timeout). Per-call fallback logic, non-retryable error detection, cost tracking ($0.001-0.006/scan Gemini primary, $0.01-0.03/scan Anthropic on fallback). Gemini is primary because it tests more accurately for comic covers and is ~5x cheaper than Claude.
 
 **Session 31 additions — Slab detection AI calls:**
 - `detectSlab()` — Quick binary classification: is this a slabbed comic? Returns `SlabDetectionResult` with confidence score
@@ -15,6 +15,8 @@ Camera capture → image compression (400KB target) → Gemini 2.0 Flash (primar
 - New prompts: `SLAB_DETECTION_PROMPT`, `SLAB_DETAIL_EXTRACTION_PROMPT`, `SLAB_COVER_HARVEST_ONLY_PROMPT`
 - New AICallType values: `slabDetection`, `slabDetailExtraction`
 - Updated barcode detection prompt for slabbed comics (reads barcode through slab case)
+
+**Session 51 (October 4, 2026) — Gemini model swap.** `GEMINI_PRIMARY` in `src/lib/models.ts` changed `gemini-2.0-flash` → `gemini-3.5-flash-lite` (~$0.30 / $2.50 per M input/output tokens). The per-scan Gemini cost range above was computed for 2.0 Flash and is now an underestimate.
 
 **Session 48 (June 14, 2026) — Routing, cost, and cache optimizations:**
 - **Gemini confirmed PRIMARY, Anthropic fallback.** Documentation reconciled to match the actual code path (Gemini 2.0 Flash first, Claude as fallback). Earlier docs had drifted toward describing Anthropic as primary.
@@ -92,6 +94,8 @@ User-snapped photos taken via the FAB scan flow are now uploaded to a dedicated 
 - **Detail-modal thumbnail squish.** The modal cover thumbnail used `w-20 h-30`; `h-30` is an undefined Tailwind class that collapsed the box. Changed to `w-20 aspect-[2/3] self-start` so the thumbnail renders as a proper tall comic cover.
 
 **Session 48 (June 14, 2026) — server-side WebP conversion.** Uploaded covers are now converted to **WebP server-side** in `/api/comics/upload-cover` before they land in the `comic-covers` bucket, shrinking stored cover size (helps the 1GB Supabase storage cap flagged in COST_PROJECTIONS) without changing the public-URL contract. The collection grid also gained **Load-more pagination** so large collections don't render every row at once.
+
+**Session 51 (October 4, 2026) — reference-checked orphan cleanup.** `cleanupOrphanedCover()` (`src/lib/db.ts`, called after a comic hard-delete) no longer removes the `comic-covers` file blindly. It counts references to the URL across `COVER_REFERENCE_COLUMNS` — `sales` (mark-as-sold snapshots), `comics` (marketplace purchase clones), `comic_metadata`, `cover_images`, `key_hunt_lists`, `admin_barcode_reviews` — and the pure `decideCoverCleanup()` returns `skip` (not our bucket), `keep` (still referenced, or any lookup errored/incomplete — fail safe), or `delete` (all counts clean 0).
 
 **Key files:** `src/app/api/comics/upload-cover/route.ts` (server-side WebP conversion), `src/lib/uploadCoverImage.ts`, `src/app/scan/page.tsx` (`handleSave()`), `src/app/collection/page.tsx` (Load-more pagination), `src/components/ComicCard.tsx` (iOS fade-in-on-load grid render), `supabase/migrations/20260509_comic_covers_bucket.sql`
 
@@ -221,7 +225,7 @@ Mobile-first quick-lookup designed for the convention floor: scan a cover, get t
 **Step 1 — Cover image → AI vision (`POST /api/analyze`).**
 - `src/app/key-hunt/page.tsx:153` POSTs `{image: base64, mediaType}` to `/api/analyze`
 - `src/app/api/analyze/route.ts` enforces auth + scan-limit (guest 5 / free 10/mo / premium ∞)
-- Image goes to **Gemini 2.0 Flash vision** (primary; Claude Sonnet 4.5 fallback on 5xx)
+- Image goes to **Gemini 3.5 Flash-Lite vision** (primary; Claude Sonnet 4.5 fallback on 5xx)
 - The provider returns `{title, issueNumber, publisher, releaseYear, isSlabbed, grade?}`
 - **`lookupKeyInfo()` consulted** with the recognized title+issue+year — pulls key facts from the curated `src/lib/keyComicsDatabase.ts` (1,132 entries) and attaches them to the response
 - `recordScanAnalytics()` logs the scan to the `scan_analytics` table (cost ~$0.015, latency, AI calls, cache hit/miss, tier)
@@ -246,7 +250,7 @@ Mobile-first quick-lookup designed for the convention floor: scan a cover, get t
   - `runCoverPipeline` resolves the canonical cover URL with aspect-ratio guard (`coverCropValidator.ts` rejects bad crops — grade label strips, full slab regions)
   - **Curated DB beats AI (Session 44):** `lookupKeyInfo()` is called *before* `fetchKeyInfoFromAI()`. If the 945-entry curated DB has the answer, the AI call is skipped entirely. Saves cost on every scan of a popular key.
   - If curated DB doesn't have it: `fetchKeyInfoFromAI` runs (small ~$0.005 call). Failures are swallowed (returns `[]`).
-  - `saveComicMetadata` persists the full result back to Supabase for next time
+  - `saveComicMetadata` persists the full result back to Supabase for next time (**Session 51:** writes via the service-role client — `comic_metadata` RLS requires a Supabase-authenticated session, which Clerk users don't have, so the anon-client upsert had silently never filled the cache; `incrementComicLookupCount` fixed the same way)
   - Return to client
 
   **3c. No eBay data → graceful fallback.** Returns `priceData: null` + `totalListings` + `ebaySearchQuery` so the client can render "X active listings on eBay" link instead of a price. **Curated key info still surfaces** (Session 44 — `lookupKeyInfo` consulted on this path too). **Session 45b — AI rescues curated misses on this path:** if `lookupKeyInfo()` returns nothing, the no-data branch now calls `fetchKeyInfoFromAI()` (mirroring 3b's behavior) so slabbed scans whose CGC cert title doesn't match a curated alias (e.g. "Ultimate Fallout: Spider-Man No More") still get the KEY ISSUE chip when there are zero eBay listings. Logged with the `[keyinfo-drift]` breadcrumb so the gap can be backfilled into `keyComicsDatabase.ts`.
@@ -341,6 +345,8 @@ The fee *rate* (5% or 8%) is determined by the seller's subscription tier *at th
 
 **Stripe processing fee (~2.9% + $0.30):**
 
+> **Note (Session 51) — UNVERIFIED:** whether the seller or the platform actually bears Stripe's processing fee on these destination charges has not been confirmed; Stripe's docs suggest the platform pays. Seller-facing copy (Pricing FAQ, Navigation FAQ via `buildSellerFeeFaqAnswer()` in `stripeConnect.ts`, Terms §4.5) currently says the seller bears it, with take-home estimated by `estimateSellerTakeHomeCents()` (platform fee + `estimateStripeProcessingFeeCents()` at 2.9% + $0.30). Pending a Stripe test-mode check.
+>
 > **Note (Session 48):** As of the destination-charge switch, the **seller** is the merchant of record and Stripe deducts the ~2.9% + $0.30 processing fee from the seller's side of the charge; the platform receives the `application_fee_amount`. The worked examples in this subsection describe the PRE-Session-48 platform-as-merchant model and are retained for the fee-floor break-even math (which is unchanged). The buyer still pays exactly the listed total with no surcharge.
 
 Worked example — $100 sale, 8% (free seller):
@@ -421,6 +427,8 @@ Edge case — $0.50 sale: percent-fee would be $0.04, floor wants $0.75, but the
 ## 12. P2P Trading System
 Comics marked `for_trade` → algorithmic matching via `find_trade_matches()` RPC → match quality scoring → trade proposal → accept → ship (with tracking) → confirm receipt → `completeTrade()` swaps `comics.user_id` ownership. Feedback reminders auto-created post-completion.
 
+**Session 51:** comic value is read as `estimated_value:price_data->estimatedValue` (there is no `comics.estimated_value` column) in `/api/trades/available`, `/api/comics/for-trade`, and `tradingDb.ts`.
+
 **Key files:** `src/lib/tradingDb.ts`, `src/app/api/trades/`
 
 ---
@@ -476,6 +484,8 @@ Toggle `is_public` → auto-generate URL slug → `/u/[slug]` renders public pro
 
 ## 19. Admin Operations Suite
 Cover approval queue, barcode review queue, key info moderation, message report review, user management (suspend/grant premium/reset trial), health checks (eBay/storage connectivity), usage monitoring with rate limit alerts. **Session 39 addition:** flagged-users endpoint (`/api/admin/flagged-users`) surfaces users with `bid_restricted_at` set from the Payment-Miss Strike System.
+
+**Session 51:** new admin-only `/admin/pivot-brief` strategy page ("Pivot Brief" tab). `adminAuth.ts` gained `getAdminProfileByUserId(userId)`; `getAdminProfile()` wraps it, and middleware uses the `clerkMiddleware` callback's `auth()` + `getAdminProfileByUserId` (the server `auth()` import throws inside middleware).
 
 **Key files:** `src/app/api/admin/`, `src/lib/adminAuth.ts`
 

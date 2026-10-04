@@ -18,7 +18,12 @@ export const MODEL_PRIMARY = "claude-sonnet-4-5-20250929";
 export const MODEL_LIGHTWEIGHT = "claude-haiku-4-5-20251001";
 
 // Gemini models (primary provider)
-export const GEMINI_PRIMARY = "gemini-2.0-flash";
+// gemini-2.0-flash was shut down by Google on 2026-06-01 (404 "no longer
+// available"). gemini-3.5-flash-lite is stable/GA with no announced shutdown,
+// and does not "think" by default — important because our calls use tight
+// maxOutputTokens caps (50–1536) that thinking models (e.g. gemini-3.6-flash)
+// exhaust before emitting any answer text.
+export const GEMINI_PRIMARY = "gemini-3.5-flash-lite";
 
 // Provider order (first = primary, rest = fallbacks)
 // Gemini first - more accurate for comic cover identification in testing and

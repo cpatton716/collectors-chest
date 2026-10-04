@@ -1,7 +1,7 @@
 # Collectors Chest - Operating Cost Projections
 
 > Cost estimates for running the application at various scale levels.
-> All prices in USD. Last audited July 25, 2026 (Session 50 — no service or cost changes; dependency-only session).
+> All prices in USD. Last audited Oct 4, 2026 (Session 51 — Gemini model migration 2.0 Flash → 3.5 Flash-Lite; Stripe destination-charge fee bearer flagged UNVERIFIED; PriceCharting licensing clarified).
 > **Audit cadence:** reviewed at end of every session (close-up-shop). Any new service added or cost change must land here before commit.
 
 ---
@@ -10,6 +10,7 @@
 
 | Date | Change | Net Cost Impact |
 |------|--------|-----------------|
+| Oct 4, 2026 (Session 51 — Gemini migration + pricing-assumption audit) | **Gemini primary vision model changed `gemini-2.0-flash` → `gemini-3.5-flash-lite`.** Google shut down 2.0 Flash on 2026-06-01, so **production is currently failing over to Claude Sonnet 4.5 on every scan** (elevated Anthropic spend until the fix deploys — see BACKLOG Gemini item). New rates ~$0.30/M input + $2.50/M output (was $0.10/$0.40); measured image-analysis call ~0.16¢ (3,396 in / 234 out tokens) — still far cheaper than Sonnet. `AI_COST_CENTS.gemini` internal estimate (0.3¢) left unchanged (conservative). **Stripe:** the Session 48 premise that destination charges make the seller bear Stripe's processing fee is now **UNVERIFIED** — Stripe docs indicate the platform pays processing fees on destination charges even with `on_behalf_of`; pending a test-mode sale check (BACKLOG). **PriceCharting:** Legendary $49/mo (annual $499 unconfirmed on their site) is **internal-use only** — displaying prices in-app requires a separate commercial license (price by email). **GoCollect** still unavailable to third parties (Enterprise-only custom API). **eBay:** sold listings behind login since Jul–Aug 2026, ToS bans scraping (Feb 20, 2026), Marketplace Insights API closed to new devs — Browse API (active listings) remains free. **ZenRows:** env var not on Netlify and unused by code — $0. Stale unused keys on Netlify (`COMIC_VINE_API_KEY`, `GOCOLLECT_API_KEY`, `METRON_*`) carry no cost. | Short-term UP (Sonnet fallback on every prod scan until deploy); after deploy Gemini per-scan cost ~3x the old 2.0 Flash rate but still low. Marketplace platform economics at risk if Stripe fee is platform-borne |
 | Jun 14, 2026 (Session 48 — cost-reduction sweep + marketplace destination charges) | **No new paid services.** AI spend trending DOWN: text-only lookups/enrichment switched Sonnet→Haiku (~60–70% cheaper per text call), Anthropic prompt caching added to vision fallback scans, and Gemini reconfirmed PRIMARY vision provider (~5x cheaper than Sonnet). **Supabase storage** growth slowed: user covers now converted to WebP server-side (smaller than the prior ~400KB JPEG) + orphan-cover cleanup on hard delete — pushes the 1GB free-tier cap further out. **Upstash** commands/day reduced: Redis client deduped, `mget` batching, rate-limiter analytics disabled, cache-hit reuse. **PostHog/Sentry** event volume reduced: session recording sampled at 10%, Sentry Replay disabled. Deps removed (`openai`, `@zxing/*`, `html5-qrcode`) — no cost, smaller bundle; Clerk 6.39.5 + Anthropic SDK 0.104 bumps (no cost change). **Stripe marketplace switched to DESTINATION CHARGES** — seller is now merchant-of-record and bears Stripe's 2.9%+$0.30; platform nets a clean `application_fee` (improves marketplace economics in the platform's favor; not a new cost). **PriceCharting Legendary ($499/yr) remains DEFERRED**; **ZenRows still off/deferred** (env var provisioned, no code references it, $0). | Net DOWN — AI/Upstash/PostHog/Sentry all trending lower; Stripe fee burden shifts to sellers; no new spend |
 | May 9, 2026 (Session 46 — variant resolver Tier 2 enrichment) | No new services, tiers, or integrations. New variable AI cost line: variant resolver **Tier 2 Haiku enrichment call** (`claude-haiku-4-5-20251001`, text-only, ~150 input + ~96 max output tokens, ~$0.0008/call). Fires only when (a) a barcode was extracted with `addonVariant` present, (b) `barcode_catalog` has no admin-approved name for the `(upc_prefix, addon_issue, addon_variant)` triplet, and (c) the addon implies a variant (not "00"/"01"/"11"). Catalog is empty at launch, so Tier 2 fires on most barcode-confirmed variant scans until admin approvals compound Tier 1 hits. Estimated **$0.02–$0.07/day** at current Beta scan volumes. **Caveat:** known production gap (BACKLOG: Variant Detection — Two-Pass High-Res Barcode OCR Option C3) means the AI rarely extracts the full 17-digit barcode today, so Tier 2 isn't actually firing much in production yet. Real cost materializes once the OCR fix lands. Also: new `comic-covers` Supabase Storage bucket (~400KB/photo) — see Cost Risks below. | +$0.02–$0.07/day (private beta), pending OCR fix |
 | May 6, 2026 (Session 45b — post-Session-45-deploy continuation) | No new services, tiers, or integrations. Removed ~297 lines of dead Comic Vine code (orphan `/api/quick-lookup` route, dead PWA shortcut, stale service-worker cache entry, `"comicvine"` literal in `CoverPipelineResult` union). `COMIC_VINE_API_KEY` was never set in any environment — the code path was already non-operational at runtime, so the removal has no cost impact. Added `fetchKeyInfoFromAI` call to the no-data branch of `/api/con-mode-lookup` — at most +1 Anthropic call (~$0.0003) per slabbed-cover scan that misses both eBay AND the curated key DB; negligible at private-beta volume. **PriceCharting Legendary tier ($499/yr) decision still pending Aponte review** (`docs/PRICECHARTING_PROPOSAL.md` shipped for stakeholder sign-off — not committed to spend). | $0/mo — no change |
@@ -93,23 +94,25 @@
 
 ### 4. AI Providers — Gemini (primary) + Anthropic Claude (fallback)
 
-> **Provider order:** Gemini 2.0 Flash is the **PRIMARY** vision provider (`VISION_PROVIDER_ORDER = ["gemini", "anthropic"]` in `src/lib/models.ts`). It is more accurate for comic covers in testing and **~5x cheaper** than Claude. Anthropic Claude Sonnet 4.5 runs only as the **fallback** when Gemini fails. Lightweight text-only lookups/enrichment use Claude Haiku 4.5. AI cost is therefore dominated by Gemini, not Claude.
+> **Provider order:** Gemini 3.5 Flash-Lite (`gemini-3.5-flash-lite`, Session 51 — replaced `gemini-2.0-flash`, which Google shut down 2026-06-01) is the **PRIMARY** vision provider (`VISION_PROVIDER_ORDER = ["gemini", "anthropic"]` in `src/lib/models.ts`). It is more accurate for comic covers in testing and **~5x cheaper** than Claude. Anthropic Claude Sonnet 4.5 runs only as the **fallback** when Gemini fails. Lightweight text-only lookups/enrichment use Claude Haiku 4.5. AI cost is therefore dominated by Gemini, not Claude.
+>
+> ⚠️ **Until the Session 51 fix deploys, production is still configured for the retired 2.0 Flash model and fails over to Claude Sonnet on every scan** — expect elevated Anthropic spend (~$0.01–0.03/scan) until deploy (see BACKLOG Gemini item).
 
 | Model                       | Role             | Input Cost     | Output Cost    | Typical Scan Cost   |
 |-----------------------------|------------------|----------------|----------------|---------------------|
-| Gemini 2.0 Flash            | **Primary** (vision) | ~$0.10/M tokens | ~$0.40/M tokens | ~$0.001-0.006/scan  |
+| Gemini 3.5 Flash-Lite       | **Primary** (vision) | ~$0.30/M tokens | ~$2.50/M tokens | ~$0.0016-0.006/scan (measured ~0.16¢: 3,396 in / 234 out) |
 | Claude Sonnet 4.5           | Fallback (vision)    | $3/M tokens    | $15/M tokens   | ~$0.01-0.03/scan    |
 | Claude Haiku 4.5            | Text-only enrichment | $0.25/M tokens | $1.25/M tokens | ~$0.002-0.005/call  |
 
-**Current: Gemini 2.0 Flash** (primary vision) + **Claude Sonnet 4.5** (`claude-sonnet-4-5-20250929`, vision fallback) + **Claude Haiku 4.5** (`claude-haiku-4-5-20251001`, text-only enrichment)
+**Current: Gemini 3.5 Flash-Lite** (`gemini-3.5-flash-lite`, primary vision; was 2.0 Flash at $0.10/$0.40 until Session 51) + **Claude Sonnet 4.5** (`claude-sonnet-4-5-20250929`, vision fallback) + **Claude Haiku 4.5** (`claude-haiku-4-5-20251001`, text-only enrichment)
 **Actual Cost per Action (Gemini-primary economics):**
-- Cover scan (vision, Gemini primary): ~$0.001-0.006; only escalates to ~$0.02-0.05 on the rare scan that falls back to Claude
+- Cover scan (vision, Gemini primary): ~$0.0016-0.006 (measured ~$0.0016; internal `AI_COST_CENTS.gemini` estimate kept at 0.3¢); only escalates to ~$0.02-0.05 on the rare scan that falls back to Claude
 - Comic lookup (text): ~$0.001-0.01 (Haiku/Gemini)
 - Price lookup: ~$0.001-0.01
 - **Variant resolver Tier 2 enrichment (Haiku, text-only): ~$0.0008/call** — fires only when barcode `addonVariant` is present, the `barcode_catalog` has no admin-approved name for that `(upc_prefix, addon_issue, addon_variant)` triplet, and the addon implies a variant (not "00"/"01"/"11"). Self-limiting: as admins approve variant names, Tier 1 catalog hits compound and Tier 2 calls drop. Estimated **$0.02–$0.07/day** at current Beta volumes (will rise once the high-res barcode OCR fix lands — see BACKLOG "Variant Detection — Two-Pass High-Res Barcode OCR Option C3").
 
 **With Hybrid Caching (Current):**
-- First lookup (Gemini primary): ~$0.001-0.006; ~$0.01-0.03 only on Claude fallback
+- First lookup (Gemini primary): ~$0.0016-0.006; ~$0.01-0.03 only on Claude fallback
 - Repeat lookups: $0 (cached)
 - Cache hit rate estimate: 60-80% after initial growth
 - **Session 48 reductions (active):** all text-only lookups/enrichment now run on Claude Haiku 4.5 instead of Sonnet (~60–70% cheaper per text call); **Anthropic prompt caching** is enabled on the Claude vision-fallback path, cutting input-token cost on the rare Gemini→Claude escalation. Both lower the effective per-action AI cost below the ranges quoted above.
@@ -242,6 +245,8 @@
 
 **Projection: $0/mo** (free API)
 
+> **Session 51 note (Oct 4, 2026):** the free Browse API covers **active** listings only. eBay **sold** listings moved behind login (Jul–Aug 2026), eBay ToS bans scraping (Feb 20, 2026), and the Marketplace Insights (sold-data) API is closed to new developers. **PriceCharting** Legendary ($49/mo; $499/yr annual unconfirmed on their site) is **internal-use only** — showing its prices in-app requires a separate commercial license (price by email). **GoCollect** remains unavailable to third parties (Enterprise-only custom API).
+
 **With 24-hour caching:**
 - 5,000 calls/day = ~150,000 unique lookups/month
 - More than enough for 10k+ users
@@ -253,11 +258,14 @@
 | Flow | Who Bears Stripe Fee (2.9% + $0.30) | Platform Economics |
 |------|--------------------------------------|--------------------|
 | **Premium subscriptions** | Platform (standard charge) | Platform pays Stripe's 2.9% + $0.30 on each subscription payment |
-| **Marketplace sales (DESTINATION CHARGES — Session 48)** | **Seller** (seller is merchant-of-record) | Platform takes a clean `application_fee`; Stripe's processing fee is borne by the seller, not the platform |
+| **Marketplace sales (DESTINATION CHARGES — Session 48)** | ⚠️ **UNVERIFIED** — assumed Seller; Stripe docs indicate Platform | If the platform bears the fee, it is deducted from the platform's `application_fee` (the $0.75 floor then matters again for small sales) |
 
-**Session 48 change:** marketplace switched to **destination charges**. The seller is now the merchant-of-record and absorbs Stripe's 2.9% + $0.30 per transaction; the platform collects an `application_fee` on top, with no Stripe-fee drag on platform revenue. This improves marketplace economics in the platform's favor — it is **not a new cost**. A **$0.75 platform-fee floor** (Session 42) still guards small-sale profitability on the platform's application fee.
+**Session 48 change:** marketplace switched to **destination charges** on the premise that the seller (merchant-of-record via `on_behalf_of`) absorbs Stripe's 2.9% + $0.30 and the platform nets a clean `application_fee`.
 
-**Projection:** Stripe cost scales with transaction volume, not user count. Subscription-flow fees remain the platform's; marketplace processing fees are now the seller's.
+> ⚠️ **Session 51 (Oct 4, 2026): this premise is UNVERIFIED / at risk.** Stripe's documentation indicates the **platform** pays processing fees on destination charges, even with `on_behalf_of`. Neither outcome is asserted here until a test-mode sale confirms who is debited (BACKLOG: Stripe destination-charge fee bearer verification). If the platform bears the fee, marketplace net revenue per sale is `application_fee − (2.9% + $0.30)`.
+ A **$0.75 platform-fee floor** (Session 42) still guards small-sale profitability on the platform's application fee.
+
+**Projection:** Stripe cost scales with transaction volume, not user count. Subscription-flow fees remain the platform's; marketplace processing-fee bearer is pending verification (see above).
 
 ---
 

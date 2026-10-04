@@ -6,6 +6,9 @@ import {
   buildOnboardingReturnUrl,
   buildOnboardingRefreshUrl,
   shouldShowPremiumUpsell,
+  estimateStripeProcessingFeeCents,
+  estimateSellerTakeHomeCents,
+  buildSellerFeeFaqAnswer,
 } from "../stripeConnect";
 
 describe("stripeConnect", () => {
@@ -201,5 +204,52 @@ describe("stripeConnect", () => {
       const url = buildOnboardingRefreshUrl("https://example.com", "acct_123");
       expect(url).toBe("https://example.com/api/connect/onboarding-refresh?account_id=acct_123");
     });
+  });
+});
+
+describe("seller take-home estimates (destination charges, seller pays Stripe)", () => {
+  it("estimates Stripe's 2.9% + $0.30 on a $100 sale as $3.20", () => {
+    expect(estimateStripeProcessingFeeCents(10000)).toBe(320);
+  });
+
+  it("returns 0 Stripe fee for zero/negative totals", () => {
+    expect(estimateStripeProcessingFeeCents(0)).toBe(0);
+    expect(estimateStripeProcessingFeeCents(-500)).toBe(0);
+  });
+
+  it("Free seller on $100: $8.00 platform + $3.20 Stripe -> $88.80", () => {
+    expect(estimateSellerTakeHomeCents(10000, 8)).toEqual({
+      platformFeeCents: 800,
+      stripeFeeCents: 320,
+      takeHomeCents: 8880,
+    });
+  });
+
+  it("Premium seller on $100: $5.00 platform + $3.20 Stripe -> $91.80", () => {
+    expect(estimateSellerTakeHomeCents(10000, 5).takeHomeCents).toBe(9180);
+  });
+
+  it("applies the $0.75 platform minimum on small sales", () => {
+    // $6.00: 8% = $0.48 -> floor $0.75; Stripe = $0.17 + $0.30 = $0.47
+    expect(estimateSellerTakeHomeCents(600, 8)).toEqual({
+      platformFeeCents: 75,
+      stripeFeeCents: 47,
+      takeHomeCents: 478,
+    });
+  });
+
+  it("never returns a negative take-home", () => {
+    expect(estimateSellerTakeHomeCents(50, 8).takeHomeCents).toBe(0);
+  });
+
+  it("FAQ copy reflects the real math and no longer claims the platform pays Stripe", () => {
+    const answer = buildSellerFeeFaqAnswer();
+    expect(answer).toContain("$88.80");
+    expect(answer).toContain("$91.80");
+    expect(answer).toContain("$8.00 platform fee + $3.20 Stripe fee");
+    expect(answer).toContain("$9.38");
+    expect(answer).toContain("$15.00");
+    expect(answer).toContain("$0.75 minimum");
+    expect(answer).not.toMatch(/\$92\.00|paid by Collectors Chest|on us/);
   });
 });
