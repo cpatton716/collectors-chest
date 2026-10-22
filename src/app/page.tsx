@@ -24,7 +24,9 @@ import {
   X,
 } from "lucide-react";
 
+import { MARKETPLACE_ENABLED } from "@/lib/features";
 import { calculateCollectionValue, getComicValue } from "@/lib/gradePrice";
+import { isOptimizableImageSrc } from "@/lib/imageSrc";
 import { storage } from "@/lib/storage";
 
 import { useGuestScans } from "@/hooks/useGuestScans";
@@ -88,7 +90,6 @@ export function getBestBuy(collection: CollectionItem[]): BestBuyBook | null {
   }
   return best;
 }
-
 
 export default function Home() {
   const router = useRouter();
@@ -165,7 +166,8 @@ export default function Home() {
           </p>
           {isLoaded && !isSignedIn && (
             <p className="text-sm font-body text-gray-600 mt-2">
-              Snap a photo of any comic cover to instantly identify it, track what it&#39;s worth, and manage your entire collection in one place.
+              Snap a photo of any comic cover to instantly identify it, track what it&#39;s worth,
+              and manage your entire collection in one place.
             </p>
           )}
         </div>
@@ -208,6 +210,7 @@ export default function Home() {
                   {bestBuy.item.coverImageUrl && (
                     <Image
                       src={bestBuy.item.coverImageUrl}
+                      unoptimized={!isOptimizableImageSrc(bestBuy.item.coverImageUrl)}
                       alt=""
                       width={40}
                       height={56}
@@ -230,7 +233,10 @@ export default function Home() {
 
         {/* Features - Only shown to non-logged-in users */}
         {isLoaded && !isSignedIn && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12 max-w-4xl mx-auto">
+          // 3 cards with the marketplace on; 2 (narrower row) while it is off
+          <div
+            className={`grid grid-cols-1 gap-8 mb-12 mx-auto ${MARKETPLACE_ENABLED ? "md:grid-cols-3 max-w-4xl" : "md:grid-cols-2 max-w-2xl"}`}
+          >
             <div className="relative overflow-hidden bg-pop-white border-4 border-pop-black shadow-[6px_6px_0px_#000] p-6 text-center">
               <div className="absolute top-0 left-0 w-20 h-20 dots-blue opacity-20 pointer-events-none" />
               <div className="w-16 h-16 bg-pop-red border-3 border-pop-black shadow-comic-sm flex items-center justify-center mx-auto mb-4">
@@ -249,21 +255,22 @@ export default function Home() {
               </div>
               <h3 className="font-comic text-lg text-pop-black mb-2">TRACK VALUES</h3>
               <p className="font-body text-pop-black/80">
-                Monitor the market value of your comics with price history charts and alerts for
-                significant changes.
+                Monitor the market value of your comics.
               </p>
             </div>
 
-            <div className="bg-pop-white border-4 border-pop-black shadow-[6px_6px_0px_#000] p-6 text-center">
-              <div className="w-16 h-16 bg-pop-red border-3 border-pop-black shadow-comic-sm flex items-center justify-center mx-auto mb-4">
-                <Tag className="w-8 h-8 text-pop-white" />
+            {MARKETPLACE_ENABLED && (
+              <div className="bg-pop-white border-4 border-pop-black shadow-[6px_6px_0px_#000] p-6 text-center">
+                <div className="w-16 h-16 bg-pop-red border-3 border-pop-black shadow-comic-sm flex items-center justify-center mx-auto mb-4">
+                  <Tag className="w-8 h-8 text-pop-white" />
+                </div>
+                <h3 className="font-comic text-lg text-pop-black mb-2">BUY & SELL</h3>
+                <p className="font-body text-pop-black/80">
+                  List your comics for sale and connect with other collectors. Secure transactions
+                  powered by Stripe.
+                </p>
               </div>
-              <h3 className="font-comic text-lg text-pop-black mb-2">BUY & SELL</h3>
-              <p className="font-body text-pop-black/80">
-                List your comics for sale and connect with other collectors. Secure transactions
-                powered by Stripe.
-              </p>
-            </div>
+            )}
           </div>
         )}
 
@@ -486,6 +493,7 @@ export default function Home() {
                   {item.coverImageUrl ? (
                     <Image
                       src={item.coverImageUrl}
+                      unoptimized={!isOptimizableImageSrc(item.coverImageUrl)}
                       alt={`${item.comic.title} #${item.comic.issueNumber}`}
                       fill
                       sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, 20vw"
@@ -546,6 +554,7 @@ export default function Home() {
               {bestBuy.item.coverImageUrl && (
                 <Image
                   src={bestBuy.item.coverImageUrl}
+                  unoptimized={!isOptimizableImageSrc(bestBuy.item.coverImageUrl)}
                   alt=""
                   width={96}
                   height={144}
@@ -576,7 +585,6 @@ export default function Home() {
           </div>
         </div>
       )}
-
     </div>
   );
 }

@@ -19,7 +19,10 @@ import {
   ZoomIn,
 } from "lucide-react";
 
+import { isOptimizableImageSrc } from "@/lib/imageSrc";
+
 import { useModalA11y } from "@/hooks/useModalA11y";
+
 import { CollectionItem, GRADE_SCALE } from "@/types/comic";
 
 import { ComicImage } from "./ComicImage";
@@ -271,6 +274,7 @@ export function PublicComicModal({ item, onClose }: PublicComicModalProps) {
           >
             <Image
               src={item.coverImageUrl}
+              unoptimized={!isOptimizableImageSrc(item.coverImageUrl)}
               alt={`${comic.title} #${comic.issueNumber}`}
               fill
               className="object-contain rounded-lg shadow-2xl"

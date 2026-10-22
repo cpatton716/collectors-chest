@@ -8,6 +8,8 @@ import { useAuth } from "@clerk/nextjs";
 
 import { ArrowLeftRight, ChevronDown, Clock, Gavel, Search, Tag, Users } from "lucide-react";
 
+import { MARKETPLACE_ENABLED } from "@/lib/features";
+
 import {
   AuctionCard,
   AuctionDetailModal,
@@ -88,7 +90,9 @@ function ShopPageSkeleton() {
 function ShopPageContent() {
   const { isSignedIn } = useAuth();
   const searchParams = useSearchParams();
-  const [activeTab, setActiveTab] = useState<ShopTab>("buy-now");
+  const [activeTab, setActiveTab] = useState<ShopTab>(
+    MARKETPLACE_ENABLED ? "buy-now" : "for-trade"
+  );
 
   // Handle URL params for tab and listing selection.
   // When a listing id is in the URL, route the modal based on the listing's
@@ -96,6 +100,12 @@ function ShopPageContent() {
   // otherwise /shop?tab=buy-now&listing=<auctionId> renders an auction inside
   // the Buy Now modal. The URL tab still controls the browse-tab selection.
   useEffect(() => {
+    // Marketplace hidden (src/lib/features.ts): For Trade is the only tab.
+    if (!MARKETPLACE_ENABLED) {
+      setActiveTab("for-trade");
+      return;
+    }
+
     const tabParam = searchParams.get("tab");
     const listingParam = searchParams.get("listing");
 
@@ -365,45 +375,49 @@ function ShopPageContent() {
     <div className="min-h-screen">
       {/* Header */}
       <div className="container mx-auto px-4 py-6">
-        <h1 className="text-3xl font-black text-pop-black font-comic">SHOP</h1>
+        <h1 className="text-3xl font-black text-pop-black font-comic">
+          {MARKETPLACE_ENABLED ? "SHOP" : "TRADE"}
+        </h1>
         <p className="text-gray-600 mt-1">Find your next addition to the collection</p>
 
-        {/* Tabs - Pop Art Style */}
-        <div className="flex flex-wrap gap-2 mt-4">
-          <button
-            onClick={() => setActiveTab("buy-now")}
-            className={`flex items-center gap-1 px-3 py-1 text-sm font-bold border-2 border-pop-black transition-all whitespace-nowrap ${
-              activeTab === "buy-now"
-                ? "bg-pop-green text-white shadow-[2px_2px_0px_#000]"
-                : "bg-pop-white text-pop-black hover:shadow-[2px_2px_0px_#000]"
-            }`}
-          >
-            <Tag className="w-3 h-3" />
-            Buy Now
-          </button>
-          <button
-            onClick={() => setActiveTab("auctions")}
-            className={`flex items-center gap-1 px-3 py-1 text-sm font-bold border-2 border-pop-black transition-all whitespace-nowrap ${
-              activeTab === "auctions"
-                ? "bg-pop-blue text-white shadow-[2px_2px_0px_#000]"
-                : "bg-pop-white text-pop-black hover:shadow-[2px_2px_0px_#000]"
-            }`}
-          >
-            <Gavel className="w-3 h-3" />
-            Auctions
-          </button>
-          <button
-            onClick={() => setActiveTab("for-trade")}
-            className={`flex items-center gap-1 px-3 py-1 text-sm font-bold border-2 border-pop-black transition-all whitespace-nowrap ${
-              activeTab === "for-trade"
-                ? "bg-pop-orange text-white shadow-[2px_2px_0px_#000]"
-                : "bg-pop-white text-pop-black hover:shadow-[2px_2px_0px_#000]"
-            }`}
-          >
-            <ArrowLeftRight className="w-3 h-3" />
-            For Trade
-          </button>
-        </div>
+        {/* Tabs - Pop Art Style (hidden while the marketplace is off: For Trade would be a lone tab) */}
+        {MARKETPLACE_ENABLED && (
+          <div className="flex flex-wrap gap-2 mt-4">
+            <button
+              onClick={() => setActiveTab("buy-now")}
+              className={`flex items-center gap-1 px-3 py-1 text-sm font-bold border-2 border-pop-black transition-all whitespace-nowrap ${
+                activeTab === "buy-now"
+                  ? "bg-pop-green text-white shadow-[2px_2px_0px_#000]"
+                  : "bg-pop-white text-pop-black hover:shadow-[2px_2px_0px_#000]"
+              }`}
+            >
+              <Tag className="w-3 h-3" />
+              Buy Now
+            </button>
+            <button
+              onClick={() => setActiveTab("auctions")}
+              className={`flex items-center gap-1 px-3 py-1 text-sm font-bold border-2 border-pop-black transition-all whitespace-nowrap ${
+                activeTab === "auctions"
+                  ? "bg-pop-blue text-white shadow-[2px_2px_0px_#000]"
+                  : "bg-pop-white text-pop-black hover:shadow-[2px_2px_0px_#000]"
+              }`}
+            >
+              <Gavel className="w-3 h-3" />
+              Auctions
+            </button>
+            <button
+              onClick={() => setActiveTab("for-trade")}
+              className={`flex items-center gap-1 px-3 py-1 text-sm font-bold border-2 border-pop-black transition-all whitespace-nowrap ${
+                activeTab === "for-trade"
+                  ? "bg-pop-orange text-white shadow-[2px_2px_0px_#000]"
+                  : "bg-pop-white text-pop-black hover:shadow-[2px_2px_0px_#000]"
+              }`}
+            >
+              <ArrowLeftRight className="w-3 h-3" />
+              For Trade
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Content */}
@@ -474,7 +488,9 @@ function ShopPageContent() {
                   )}
                 </div>
                 <p className="text-xl font-black text-pop-black font-comic uppercase">
-                  {followingOnlyListings ? "No listings from followed sellers" : "No listings found"}
+                  {followingOnlyListings
+                    ? "No listings from followed sellers"
+                    : "No listings found"}
                 </p>
                 <p className="mt-2 text-gray-600">
                   {listingSearchQuery
@@ -591,7 +607,9 @@ function ShopPageContent() {
                   )}
                 </div>
                 <p className="text-xl font-black text-pop-black font-comic uppercase">
-                  {followingOnlyAuctions ? "No auctions from followed sellers" : "No auctions found"}
+                  {followingOnlyAuctions
+                    ? "No auctions from followed sellers"
+                    : "No auctions found"}
                 </p>
                 <p className="mt-2 text-gray-600">
                   {auctionSearchQuery

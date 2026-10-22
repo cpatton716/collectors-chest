@@ -11,21 +11,21 @@ import {
   clearPromoTrialFlag,
 } from "@/lib/promoTrial";
 import { getPromoTrialAction } from "@/lib/choosePlanHelpers";
+import { MARKETPLACE_ENABLED } from "@/lib/features";
 
 const premiumFeatures = [
   "Unlimited scans",
   "Key Hunt (offline lookups)",
   "CSV import & export",
   "Advanced statistics",
-  "Unlimited listings",
-  "5% seller fee (save 3%)",
+  ...(MARKETPLACE_ENABLED ? ["Unlimited listings", "5% seller fee (save 3%)"] : []),
 ];
 
 const freeFeatures = [
   { name: "10 scans per month", included: true },
   { name: "Cloud collection sync", included: true },
   { name: "Real eBay prices", included: true },
-  { name: "Buy & bid in Shop", included: true },
+  ...(MARKETPLACE_ENABLED ? [{ name: "Buy & bid in Shop", included: true }] : []),
   { name: "Key Hunt", included: false },
   { name: "CSV export", included: false },
   { name: "Advanced stats", included: false },

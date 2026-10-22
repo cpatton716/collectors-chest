@@ -8,6 +8,7 @@ import { v4 as uuidv4 } from "uuid";
 import { batchLookup, dedupKey, type ImportLookupResult } from "@/lib/batchImport";
 import { getRandomFact } from "@/lib/comicFacts";
 import { parseCurrencyValue } from "@/lib/csvHelpers";
+import { MARKETPLACE_ENABLED } from "@/lib/features";
 import { CollectionItem, ComicDetails, normalizePublisher } from "@/types/comic";
 
 function normalizeGrade(value: string): string {
@@ -55,6 +56,12 @@ interface ImportResult {
   error?: string;
   row: ParsedRow;
 }
+
+// The forSale/askingPrice columns are only advertised in the sample template
+// while the marketplace is enabled. The parser still accepts them either way.
+const SAMPLE_TEMPLATE_PATH = MARKETPLACE_ENABLED
+  ? "/Collectors-Chest-Sample-Import.csv"
+  : "/Collectors-Chest-Sample-Import-Basic.csv";
 
 const EXPECTED_HEADERS = [
   "title",
@@ -435,7 +442,7 @@ export function CSVImport({ onImportComplete, onCancel }: CSVImportProps) {
             correct format.
           </p>
           <a
-            href="/Collectors-Chest-Sample-Import.csv"
+            href={SAMPLE_TEMPLATE_PATH}
             download="Collectors-Chest-Sample-Import.csv"
             className="inline-flex items-center gap-2 text-sm text-pop-blue hover:text-pop-blue/80 font-comic mb-6"
           >

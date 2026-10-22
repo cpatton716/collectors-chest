@@ -77,3 +77,26 @@ The automated pre-deploy gate (routes, lint, 1,428 tests, build, smoke-test) pas
 
 ### Rule
 **Before deploy, run a browser smoke test of key flows** (scan, collection, mark as sold, sales, trades, pricing/FAQ, admin) and watch server logs for silent fallbacks. A green automated gate is not enough.
+
+---
+
+## October 22, 2026 - One Item at a Time
+
+### Mistake
+Replies bundled several results and asks together, making it hard for the owner to act on any of them. When he asked for the pivot brief link, an agent also opened an unexplained file (COPY_DRAFT.md in TextEdit) on his screen that he didn't know about.
+
+### Rule
+**One item per reply.** Answer only what was asked, queue the rest, and offer "Next up: X" in one line.
+
+### Prevention
+- Never open windows or apps (TextEdit, browser tabs) on the owner's screen without first telling him what it is and why.
+
+---
+
+## October 22, 2026 - Verify Column Names Before Handing the Owner SQL
+
+### Mistake
+Handed the owner a cleanup SQL statement with a guessed `RETURNING` column (`title` on `sales`). It failed in the owner's Supabase SQL editor (safely, no rows changed), costing a round trip.
+
+### Rule
+**Never hand the owner SQL with unverified column names** — query `information_schema.columns` or check the code's `select()` for that table first.

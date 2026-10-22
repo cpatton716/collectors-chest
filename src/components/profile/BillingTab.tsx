@@ -13,6 +13,8 @@ import {
   Zap,
 } from "lucide-react";
 
+import { MARKETPLACE_ENABLED } from "@/lib/features";
+
 import { ConnectStatus, formatBillingDate } from "./profileTabHelpers";
 
 interface BillingTabProps {
@@ -68,7 +70,7 @@ export function BillingTab({
   return (
     <div className="space-y-6">
       {/* Connect Onboarding Banner */}
-      {connectBanner === "success" && (
+      {MARKETPLACE_ENABLED && connectBanner === "success" && (
         <div className="bg-green-50 border-2 border-green-300 rounded-lg p-3 flex items-center gap-2">
           <Check className="w-5 h-5 text-green-600 flex-shrink-0" />
           <p className="font-body text-sm text-green-800">
@@ -79,7 +81,7 @@ export function BillingTab({
           </button>
         </div>
       )}
-      {connectBanner === "incomplete" && (
+      {MARKETPLACE_ENABLED && connectBanner === "incomplete" && (
         <div className="bg-amber-50 border-2 border-amber-300 rounded-lg p-3 flex items-center gap-2">
           <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
           <p className="font-body text-sm text-amber-800">
@@ -90,7 +92,7 @@ export function BillingTab({
           </button>
         </div>
       )}
-      {connectBanner === "error" && (
+      {MARKETPLACE_ENABLED && connectBanner === "error" && (
         <div className="bg-red-50 border-2 border-red-300 rounded-lg p-3 flex items-center gap-2">
           <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
           <p className="font-body text-sm text-red-800">
@@ -253,12 +255,19 @@ export function BillingTab({
             },
             { feature: "CSV export", included: tier === "premium" || isTrialing },
             { feature: "Advanced statistics", included: tier === "premium" || isTrialing },
-            { feature: "Unlimited listings", included: tier === "premium" || isTrialing },
+            {
+              feature: "Unlimited listings",
+              included: tier === "premium" || isTrialing,
+              marketplaceOnly: true,
+            },
             {
               feature: "5% seller fee (vs 8%)",
               included: tier === "premium" || isTrialing,
+              marketplaceOnly: true,
             },
-          ].map((item) => (
+          ]
+            .filter((item) => MARKETPLACE_ENABLED || !item.marketplaceOnly)
+            .map((item) => (
             <li key={item.feature} className="flex items-center gap-2 text-sm">
               <Check
                 className={`w-4 h-4 ${item.included ? "text-green-500" : "text-gray-300"}`}
@@ -281,57 +290,59 @@ export function BillingTab({
       </div>
 
       {/* Seller Payments */}
-      <div id="seller-payments" className="bg-pop-white border-3 border-pop-black shadow-[4px_4px_0px_#000] rounded-lg p-4">
-        <h3 className="font-comic text-lg mb-3 flex items-center gap-2">
-          <Store className="w-5 h-5" />
-          SELLER PAYMENTS
-        </h3>
-        {connectStatus === null ? (
-          <p className="font-body text-sm text-pop-black/60">Loading...</p>
-        ) : connectStatus.onboardingComplete ? (
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-pop-green rounded-full" />
-              <span className="font-body text-sm">Payment setup complete</span>
+      {MARKETPLACE_ENABLED && (
+        <div id="seller-payments" className="bg-pop-white border-3 border-pop-black shadow-[4px_4px_0px_#000] rounded-lg p-4">
+          <h3 className="font-comic text-lg mb-3 flex items-center gap-2">
+            <Store className="w-5 h-5" />
+            SELLER PAYMENTS
+          </h3>
+          {connectStatus === null ? (
+            <p className="font-body text-sm text-pop-black/60">Loading...</p>
+          ) : connectStatus.onboardingComplete ? (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-pop-green rounded-full" />
+                <span className="font-body text-sm">Payment setup complete</span>
+              </div>
+              <p className="font-body text-sm text-pop-black/60">
+                {connectStatus.completedSales} sale{connectStatus.completedSales !== 1 ? "s" : ""} completed
+              </p>
+              <button
+                onClick={handleOpenDashboard}
+                className="btn-pop btn-pop-blue py-2 px-4 text-sm font-comic"
+              >
+                VIEW PAYOUT DASHBOARD
+              </button>
             </div>
-            <p className="font-body text-sm text-pop-black/60">
-              {connectStatus.completedSales} sale{connectStatus.completedSales !== 1 ? "s" : ""} completed
-            </p>
-            <button
-              onClick={handleOpenDashboard}
-              className="btn-pop btn-pop-blue py-2 px-4 text-sm font-comic"
-            >
-              VIEW PAYOUT DASHBOARD
-            </button>
-          </div>
-        ) : connectStatus.connected ? (
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-pop-yellow rounded-full" />
-              <span className="font-body text-sm">Setup incomplete</span>
+          ) : connectStatus.connected ? (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-pop-yellow rounded-full" />
+                <span className="font-body text-sm">Setup incomplete</span>
+              </div>
+              <button
+                onClick={handleSetupConnect}
+                className="btn-pop btn-pop-green py-2 px-4 text-sm font-comic"
+              >
+                COMPLETE SETUP
+              </button>
             </div>
-            <button
-              onClick={handleSetupConnect}
-              className="btn-pop btn-pop-green py-2 px-4 text-sm font-comic"
-            >
-              COMPLETE SETUP
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            <p className="font-body text-sm text-pop-black/60">
-              Set up payments to start selling comics on the marketplace.
-            </p>
-            <button
-              onClick={handleSetupConnect}
-              disabled={connectSetupLoading}
-              className="btn-pop btn-pop-green py-2 px-4 text-sm font-comic disabled:opacity-50"
-            >
-              {connectSetupLoading ? "CONNECTING..." : "SET UP SELLER PAYMENTS"}
-            </button>
-          </div>
-        )}
-      </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="font-body text-sm text-pop-black/60">
+                Set up payments to start selling comics on the marketplace.
+              </p>
+              <button
+                onClick={handleSetupConnect}
+                disabled={connectSetupLoading}
+                className="btn-pop btn-pop-green py-2 px-4 text-sm font-comic disabled:opacity-50"
+              >
+                {connectSetupLoading ? "CONNECTING..." : "SET UP SELLER PAYMENTS"}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

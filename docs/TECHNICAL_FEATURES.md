@@ -2,7 +2,7 @@
 
 > Reference document for spec doc creation. Each feature below should get its own detailed spec document through individual review sessions.
 >
-> **Last Updated:** October 4, 2026 — Session 51
+> **Last Updated:** October 22, 2026 — Session 52
 
 ---
 
@@ -335,7 +335,7 @@ The fee *rate* (5% or 8%) is determined by the seller's subscription tier *at th
 
 1. `createAuction` (`src/lib/auctionDb.ts:112-115`) and `createFixedPriceListing` (`src/lib/auctionDb.ts:207-210`) call `getTransactionFeePercent(sellerId)` at write time and persist the result to `auctions.platform_fee_percent` (5 for premium/trialing, 8 for free — see `src/lib/subscription.ts:655-663`).
 2. `/api/checkout` reads the stored `platform_fee_percent` off the listing row — *not* the seller's current tier — and computes the platform's `application_fee_amount = max(MIN_PLATFORM_FEE_CENTS, floor(totalCents × feePercent / 100))`, capped so the seller's net can never go negative.
-3. **(Session 48)** Stripe Checkout receives `payment_intent_data.on_behalf_of` (the seller's Connect account ID) + `payment_intent_data.application_fee_amount` (the platform cut) + `transfer_data.destination` (the seller's Connect account). The charge settles on the seller's account as merchant of record; the platform receives only the application fee.
+3. **(Session 52 — supersedes the Session 48 shape below)** `buildMarketplacePaymentIntentData()` (`stripeConnect.ts`) builds `payment_intent_data` with `application_fee_amount` + `transfer_data.destination` only — **no `on_behalf_of`**. Sellers are onboarded with only the `transfers` capability and Stripe rejects `on_behalf_of` for accounts without `card_payments`, so checkout failed for them. The **platform is merchant of record** and pays Stripe's processing fee. ~~**(Session 48)** Stripe Checkout receives `payment_intent_data.on_behalf_of` (the seller's Connect account ID) + `payment_intent_data.application_fee_amount` (the platform cut) + `transfer_data.destination` (the seller's Connect account). The charge settles on the seller's account as merchant of record; the platform receives only the application fee.~~
 
 **Snapshot consequences (intentional, not a bug):**
 - Premium seller lists, then cancels Premium → that listing still settles at 5% on purchase.
@@ -345,7 +345,9 @@ The fee *rate* (5% or 8%) is determined by the seller's subscription tier *at th
 
 **Stripe processing fee (~2.9% + $0.30):**
 
-> **Note (Session 51) — UNVERIFIED:** whether the seller or the platform actually bears Stripe's processing fee on these destination charges has not been confirmed; Stripe's docs suggest the platform pays. Seller-facing copy (Pricing FAQ, Navigation FAQ via `buildSellerFeeFaqAnswer()` in `stripeConnect.ts`, Terms §4.5) currently says the seller bears it, with take-home estimated by `estimateSellerTakeHomeCents()` (platform fee + `estimateStripeProcessingFeeCents()` at 2.9% + $0.30). Pending a Stripe test-mode check.
+> **Note (Session 52, Oct 22, 2026) — VERIFIED in Stripe test mode:** the **platform** pays the processing fee on these destination charges ($20 sale → 88¢, $100 → 320¢ on the platform balance). The seller receives total minus the platform fee (**$92.00 Free / $95.00 Premium on $100**). `estimateSellerTakeHomeCents()` / `buildSellerFeeFaqAnswer()` still subtract the Stripe fee and the Terms still describe the seller as merchant of record — both must be fixed before relaunch. The whole marketplace is hidden behind `MARKETPLACE_ENABLED = false` (`src/lib/features.ts`; middleware 404s the marketplace APIs and redirects its pages; the `process-auctions` cron skips) until then — see BACKLOG "Marketplace Relaunch Checklist".
+>
+> **Note (Session 51) — superseded by Session 52:** whether the seller or the platform actually bears Stripe's processing fee on these destination charges has not been confirmed; Stripe's docs suggest the platform pays. Seller-facing copy (Pricing FAQ, Navigation FAQ via `buildSellerFeeFaqAnswer()` in `stripeConnect.ts`, Terms §4.5) currently says the seller bears it, with take-home estimated by `estimateSellerTakeHomeCents()` (platform fee + `estimateStripeProcessingFeeCents()` at 2.9% + $0.30). Pending a Stripe test-mode check.
 >
 > **Note (Session 48):** As of the destination-charge switch, the **seller** is the merchant of record and Stripe deducts the ~2.9% + $0.30 processing fee from the seller's side of the charge; the platform receives the `application_fee_amount`. The worked examples in this subsection describe the PRE-Session-48 platform-as-merchant model and are retained for the fee-floor break-even math (which is unchanged). The buyer still pays exactly the listed total with no surcharge.
 

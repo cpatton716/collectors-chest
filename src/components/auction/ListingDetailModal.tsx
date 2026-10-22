@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import Image from "next/image";
+import { isOptimizableImageSrc } from "@/lib/imageSrc";
 import Link from "next/link";
 
 import { useAuth } from "@clerk/nextjs";
@@ -232,6 +233,7 @@ export function ListingDetailModal({
                   <>
                     <Image
                       src={allImages[selectedImageIndex]}
+                      unoptimized={!isOptimizableImageSrc(allImages[selectedImageIndex])}
                       alt={comic?.title || "Comic"}
                       fill
                       className="object-contain"

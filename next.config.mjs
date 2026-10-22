@@ -1,5 +1,8 @@
 import { withSentryConfig } from "@sentry/nextjs";
+
 import bundleAnalyzer from "@next/bundle-analyzer";
+
+import { IMAGE_REMOTE_PATTERNS } from "./src/lib/imageRemotePatterns.mjs";
 
 const withBundleAnalyzer = bundleAnalyzer({
   enabled: process.env.ANALYZE === "true",
@@ -7,34 +10,12 @@ const withBundleAnalyzer = bundleAnalyzer({
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Don't let `next dev` auto-generate AGENTS.md (Next 16 agent-rules feature).
+  agentRules: false,
   images: {
-    // Explicit allowlist of remote image hosts (H-CC4 / M-FE8).
-    // Replaces the previous wildcard `hostname: "**"`.
-    remotePatterns: [
-      {
-        // Supabase Storage (public covers) — project ref derived from
-        // NEXT_PUBLIC_SUPABASE_URL (e.g. ytlzdczhzbyiujxwosez.supabase.co).
-        // Wildcard subdomain covers the project ref / storage host.
-        protocol: "https",
-        hostname: "*.supabase.co",
-        pathname: "/storage/v1/object/public/**",
-      },
-      {
-        // eBay listing/sold-comp imagery
-        protocol: "https",
-        hostname: "i.ebayimg.com",
-      },
-      {
-        // Clerk-hosted user avatars
-        protocol: "https",
-        hostname: "img.clerk.com",
-      },
-      {
-        // Open Library cover fallbacks
-        protocol: "https",
-        hostname: "covers.openlibrary.org",
-      },
-    ],
+    // Explicit allowlist of remote image hosts (H-CC4 / M-FE8). Defined once in
+    // src/lib/imageRemotePatterns.mjs and shared with isOptimizableImageSrc().
+    remotePatterns: IMAGE_REMOTE_PATTERNS,
     formats: ["image/avif", "image/webp"],
     minimumCacheTTL: 60,
   },

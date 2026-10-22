@@ -1,4 +1,5 @@
 import { collectionToCSV } from "@/lib/csvExport";
+import { MARKETPLACE_ENABLED } from "@/lib/features";
 import { parseCurrencyValue } from "@/lib/csvHelpers";
 
 import { CollectionItem, ComicDetails } from "@/types/comic";
@@ -61,11 +62,35 @@ function makeItem(
 
 describe("collectionToCSV", () => {
   it("emits a header row with all expected columns", () => {
-    const csv = collectionToCSV([]);
+    const csv = collectionToCSV([], true);
     const headerLine = csv.split("\n")[0];
     expect(headerLine).toContain("Title");
     expect(headerLine).toContain("Cover Image URL");
     expect(headerLine.split(",").length).toBe(22);
+  });
+
+  describe("For Sale columns follow the marketplace flag", () => {
+    const forSaleItem = () => makeItem({}, { forSale: true, askingPrice: 77.5 });
+
+    it("includes For Sale / Asking Price when the marketplace is enabled", () => {
+      const [header, row] = collectionToCSV([forSaleItem()], true).split("\n");
+      expect(header).toContain("For Sale,Asking Price");
+      expect(row).toContain("true,77.5");
+      expect(header.split(",").length).toBe(row.split(",").length);
+    });
+
+    it("omits For Sale / Asking Price when the marketplace is hidden", () => {
+      const [header, row] = collectionToCSV([forSaleItem()], false).split("\n");
+      expect(header).not.toContain("For Sale");
+      expect(header).not.toContain("Asking Price");
+      expect(header.split(",").length).toBe(20);
+      expect(row).not.toContain("77.5");
+      expect(row.split(",").length).toBe(20);
+    });
+
+    it("defaults to MARKETPLACE_ENABLED", () => {
+      expect(collectionToCSV([])).toBe(collectionToCSV([], MARKETPLACE_ENABLED));
+    });
   });
 
   it("renders a basic row with no quoting when no special chars", () => {

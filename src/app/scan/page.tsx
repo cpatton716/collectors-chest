@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 
+import { MARKETPLACE_ENABLED } from "@/lib/features";
 import { StorageQuotaError, storage } from "@/lib/storage";
 import { uploadCoverImage } from "@/lib/uploadCoverImage";
 
@@ -805,10 +806,14 @@ export default function ScanPage() {
                 // (A dedicated bulk-import API route is tracked separately.)
                 await Promise.all(items.map((item) => addToCollection(item)));
 
-                // Create shop listings for items marked as for sale
-                const forSaleItems = items.filter(
-                  (item) => item.forSale && item.askingPrice && item.askingPrice >= 1
-                );
+                // Create shop listings for items marked as for sale. Skipped while
+                // the marketplace is hidden (src/lib/features.ts) - comics still
+                // import with their for-sale flag intact.
+                const forSaleItems = MARKETPLACE_ENABLED
+                  ? items.filter(
+                      (item) => item.forSale && item.askingPrice && item.askingPrice >= 1
+                    )
+                  : [];
                 let listingsCreated = 0;
                 let listingsFailed = 0;
 

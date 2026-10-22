@@ -16,6 +16,8 @@ import {
   Wallet,
 } from "lucide-react";
 
+import { MARKETPLACE_ENABLED } from "@/lib/features";
+
 /**
  * Shared navigation link definitions consumed by both the desktop
  * `Navigation` component and the mobile `MobileNav` component. Keeping a single
@@ -42,36 +44,75 @@ export interface NavLink {
   requiresAuth?: boolean;
 }
 
+// ---- Marketplace flag -----------------------------------------------------
+
+/** Destinations that only exist for the marketplace (hidden when it's off). */
+const MARKETPLACE_ONLY_HREFS = ["/transactions", "/my-auctions"];
+
+/** Replacement for the Shop link when the marketplace is off. */
+export const TRADE_LINK: NavLink = {
+  href: "/shop?tab=for-trade",
+  label: "Trade",
+  icon: ArrowLeftRight,
+};
+
+/**
+ * Pure: adapt a link list to the marketplace flag. When disabled, drops
+ * marketplace-only links (Transactions, My Listings — incl. their sign-in
+ * redirect variants) and swaps Shop for Trade. Returns the list unchanged
+ * when enabled.
+ */
+export function applyMarketplaceFlag(links: NavLink[], enabled: boolean): NavLink[] {
+  if (enabled) return links;
+  return links
+    .filter(
+      (l) => !MARKETPLACE_ONLY_HREFS.some((h) => l.href === h || l.href.endsWith(`redirect=${h}`))
+    )
+    .map((l) => (l.href === "/shop" ? TRADE_LINK : l));
+}
+
+const flag = (links: NavLink[]) => applyMarketplaceFlag(links, MARKETPLACE_ENABLED);
+
 // ---- Desktop Navigation link sets -----------------------------------------
 
 /** Desktop primary links shown to signed-out visitors. */
-export const guestPrimaryLinks: NavLink[] = [
+export const guestPrimaryLinks: NavLink[] = flag([
   { href: "/", label: "Home", icon: Home },
   { href: "/scan", label: "Scan", icon: Camera },
   { href: "/collection", label: "Collection", icon: BookOpen },
   { href: "/shop", label: "Shop", icon: ShoppingBag },
-];
+]);
 
 /** Desktop "More" links shown to signed-out visitors (all gated behind sign-in). */
-export const guestSecondaryLinks: NavLink[] = [
-  { href: "/sign-in?redirect=/messages", label: "Messages", icon: MessageSquare, requiresAuth: true },
-  { href: "/sign-in?redirect=/transactions", label: "Transactions", icon: Wallet, requiresAuth: true },
+export const guestSecondaryLinks: NavLink[] = flag([
+  {
+    href: "/sign-in?redirect=/messages",
+    label: "Messages",
+    icon: MessageSquare,
+    requiresAuth: true,
+  },
+  {
+    href: "/sign-in?redirect=/transactions",
+    label: "Transactions",
+    icon: Wallet,
+    requiresAuth: true,
+  },
   { href: "/sign-in?redirect=/my-auctions", label: "My Listings", icon: Gavel, requiresAuth: true },
   { href: "/sign-in?redirect=/trades", label: "Trades", icon: ArrowLeftRight, requiresAuth: true },
   { href: "/sign-in?redirect=/stats", label: "Stats", icon: BarChart3, requiresAuth: true },
   { href: "/sign-in?redirect=/collection", label: "Lists", icon: Layers, requiresAuth: true },
   { href: "/about", label: "About", icon: Info },
-];
+]);
 
 /** Desktop primary links shown to signed-in users. */
-export const registeredPrimaryLinks: NavLink[] = [
+export const registeredPrimaryLinks: NavLink[] = flag([
   { href: "/collection", label: "Collection", icon: BookOpen },
   { href: "/shop", label: "Shop", icon: ShoppingBag },
   { href: "/stats", label: "Stats", icon: BarChart3 },
-];
+]);
 
 /** Desktop "More" links shown to signed-in users. */
-export const registeredSecondaryLinks: NavLink[] = [
+export const registeredSecondaryLinks: NavLink[] = flag([
   { href: "/notifications", label: "Inbox", icon: Bell },
   { href: "/messages", label: "Messages", icon: MessageSquare, showBadge: true },
   { href: "/transactions", label: "Transactions", icon: Wallet },
@@ -82,7 +123,7 @@ export const registeredSecondaryLinks: NavLink[] = [
   { href: "/my-auctions", label: "My Listings", icon: Gavel },
   { href: "/key-hunt", label: "Key Hunt", icon: KeyRound },
   { href: "/about", label: "About", icon: Info },
-];
+]);
 
 /**
  * Resolve the desktop primary + secondary link sets for the current auth state.
@@ -100,30 +141,40 @@ export function getNavLinks(isSignedIn: boolean): {
 // ---- Mobile bottom-bar link sets ------------------------------------------
 
 /** Mobile bottom-bar primary links shown to signed-out visitors. */
-export const mobileGuestNavItems: NavLink[] = [
+export const mobileGuestNavItems: NavLink[] = flag([
   { href: "/", label: "Home", icon: Home },
   { href: "/collection", label: "Collection", icon: BookOpen },
   { href: "/shop", label: "Shop", icon: ShoppingBag },
-];
+]);
 
 /** Mobile bottom-bar primary links shown to signed-in users. */
-export const mobileRegisteredNavItems: NavLink[] = [
+export const mobileRegisteredNavItems: NavLink[] = flag([
   { href: "/collection", label: "Collection", icon: BookOpen },
   { href: "/shop", label: "Shop", icon: ShoppingBag },
-];
+]);
 
 /** Mobile drawer ("More") links shown to signed-out visitors. */
-export const mobileGuestDrawerItems: NavLink[] = [
-  { href: "/sign-in?redirect=/messages", label: "Messages", icon: MessageSquare, requiresAuth: true },
-  { href: "/sign-in?redirect=/transactions", label: "Transactions", icon: Wallet, requiresAuth: true },
+export const mobileGuestDrawerItems: NavLink[] = flag([
+  {
+    href: "/sign-in?redirect=/messages",
+    label: "Messages",
+    icon: MessageSquare,
+    requiresAuth: true,
+  },
+  {
+    href: "/sign-in?redirect=/transactions",
+    label: "Transactions",
+    icon: Wallet,
+    requiresAuth: true,
+  },
   { href: "/sign-in?redirect=/my-auctions", label: "My Listings", icon: Gavel, requiresAuth: true },
   { href: "/sign-in?redirect=/trades", label: "Trades", icon: ArrowLeftRight, requiresAuth: true },
   { href: "/sign-in?redirect=/stats", label: "Stats", icon: BarChart3, requiresAuth: true },
   { href: "/sign-in?redirect=/collection", label: "Lists", icon: Layers, requiresAuth: true },
-];
+]);
 
 /** Mobile drawer ("More") links shown to signed-in users. */
-export const mobileRegisteredDrawerItems: NavLink[] = [
+export const mobileRegisteredDrawerItems: NavLink[] = flag([
   { href: "/notifications", label: "Inbox", icon: Bell },
   { href: "/messages", label: "Messages", icon: MessageSquare, showBadge: true },
   { href: "/transactions", label: "Transactions", icon: Wallet },
@@ -132,7 +183,7 @@ export const mobileRegisteredDrawerItems: NavLink[] = [
   { href: "/collection", label: "Lists", icon: Layers },
   { href: "/my-auctions", label: "My Listings", icon: Gavel },
   { href: "/stats", label: "Stats", icon: BarChart3 },
-];
+]);
 
 /** Resolve the mobile bottom-bar + drawer link sets for the current auth state. */
 export function getMobileNavItems(isSignedIn: boolean): {
@@ -147,10 +198,11 @@ export function getMobileNavItems(isSignedIn: boolean): {
 /**
  * True when `pathname` should mark `href` as the active nav target. The Home
  * link only matches the exact root path; every other link matches an exact
- * pathname. Shared so both navs (and `aria-current`) compute "active" the same
+ * pathname (ignoring the href's query string). Shared so both navs (and `aria-current`) compute "active" the same
  * way.
  */
 export function isNavLinkActive(pathname: string, href: string): boolean {
   if (href === "/") return pathname === "/";
-  return pathname === href;
+  // Compare against the href's path only, so "/shop?tab=for-trade" is active on /shop.
+  return pathname === href.split("?")[0];
 }

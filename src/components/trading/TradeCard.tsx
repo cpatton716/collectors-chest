@@ -15,6 +15,8 @@ import {
   X,
 } from "lucide-react";
 
+import { isOptimizableImageSrc } from "@/lib/imageSrc";
+
 import { useFeedbackEligibility } from "@/hooks/useFeedbackEligibility";
 
 import { LeaveFeedbackButton } from "@/components/creatorCredits";
@@ -132,6 +134,7 @@ export function TradeCard({ trade, onStatusChange }: TradeCardProps) {
               {item.comic?.coverImageUrl && (
                 <Image
                   src={item.comic.coverImageUrl}
+                  unoptimized={!isOptimizableImageSrc(item.comic.coverImageUrl)}
                   alt={item.comic.title || "Comic"}
                   width={48}
                   height={64}
@@ -159,6 +162,7 @@ export function TradeCard({ trade, onStatusChange }: TradeCardProps) {
               {item.comic?.coverImageUrl && (
                 <Image
                   src={item.comic.coverImageUrl}
+                  unoptimized={!isOptimizableImageSrc(item.comic.coverImageUrl)}
                   alt={item.comic.title || "Comic"}
                   width={48}
                   height={64}
@@ -189,6 +193,7 @@ export function TradeCard({ trade, onStatusChange }: TradeCardProps) {
                       {item.comic?.coverImageUrl && (
                         <Image
                           src={item.comic.coverImageUrl}
+                          unoptimized={!isOptimizableImageSrc(item.comic.coverImageUrl)}
                           alt={item.comic.title || "Comic"}
                           width={40}
                           height={56}
@@ -215,6 +220,7 @@ export function TradeCard({ trade, onStatusChange }: TradeCardProps) {
                       {item.comic?.coverImageUrl && (
                         <Image
                           src={item.comic.coverImageUrl}
+                          unoptimized={!isOptimizableImageSrc(item.comic.coverImageUrl)}
                           alt={item.comic.title || "Comic"}
                           width={40}
                           height={56}

@@ -8,6 +8,8 @@ import { useUser } from "@clerk/nextjs";
 
 import { Loader2, MessageCircle } from "lucide-react";
 
+import { MARKETPLACE_ENABLED } from "@/lib/features";
+
 interface MessageButtonProps {
   sellerId: string;
   sellerName?: string;
@@ -103,7 +105,7 @@ export function MessageButton({
       <button
         onClick={handleClick}
         disabled={isLoading}
-        title={`Message ${sellerName || "seller"}`}
+        title={`Message ${sellerName || (MARKETPLACE_ENABLED ? "seller" : "owner")}`}
         className={`flex items-center justify-center rounded-full border-2 border-pop-black bg-pop-white transition-all hover:bg-pop-blue hover:text-white disabled:opacity-50 ${sizeClasses[size]} ${className}`}
       >
         {isLoading ? (
@@ -126,7 +128,7 @@ export function MessageButton({
       ) : (
         <MessageCircle className={iconSizes[size]} />
       )}
-      <span>Message {sellerName || "Seller"}</span>
+      <span>Message {sellerName || (MARKETPLACE_ENABLED ? "Seller" : "Owner")}</span>
     </button>
   );
 }

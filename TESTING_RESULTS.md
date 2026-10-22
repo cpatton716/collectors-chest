@@ -393,3 +393,21 @@ This document tracks testing sessions with platform and account context.
 - **Device(s):** iPhone, Android, Mac Chrome
 - **Sounds:** No
 - **Focus:** [To be filled as session progresses]
+
+## 2026-10-22 - Session 52
+- **Platform:** Web (Mac Chrome, automated by Claude via Claude-in-Chrome on localhost)
+- **Account Type:** Admin (cpatton716 dev account)
+- **Device(s):** Mac Chrome (desktop + mobile-width viewport)
+- **Focus:** Deploy-hold re-tests of the Session 51 fixes + marketplace hide
+
+### Results
+- ✅ **Gemini scan** — real scan (Spawn #1) used `provider="gemini"` (`gemini-3.5-flash-lite`), no Claude fallback
+- ✅ **Mark as Sold keeps cover** — "Sold elsewhere? Record sale" → `/sales` thumbnail renders
+- ✅ **For Trade / Trade page** — renders after the image-host fix (unknown-host covers load `unoptimized`); `/collection`, `/sales`, `/trades` no error boundary
+- ✅ **Marketplace hidden** — nav shows Trade, marketplace pages redirect, marketplace APIs 404, For Sale UI hidden
+- ✅ **Pricing / FAQ** — no seller-fee or marketplace copy
+- ✅ **Admin pages + `/admin/pivot-brief`** — desktop + mobile width
+- ✅ **Stripe test-mode checkout** — succeeded after removing `on_behalf_of`; processing fee confirmed on the platform balance
+- ⚠️ **Billing tab** showed "Scans used 0/10" right after a scan — logged to BACKLOG
+- Test sales (Batman #227, Spawn #1) deleted by owner via SQL afterwards
+- Pending: iPhone check on prod after deploy

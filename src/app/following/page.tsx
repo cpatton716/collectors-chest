@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import Image from "next/image";
+import { isOptimizableImageSrc } from "@/lib/imageSrc";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -241,6 +242,7 @@ export default function FollowingPage() {
                       {user.avatarUrl ? (
                         <Image
                           src={user.avatarUrl}
+                          unoptimized={!isOptimizableImageSrc(user.avatarUrl)}
                           alt={user.displayName || `@${user.username}`}
                           width={48}
                           height={48}

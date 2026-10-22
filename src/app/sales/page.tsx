@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 
 import Image from "next/image";
+import { isOptimizableImageSrc } from "@/lib/imageSrc";
 import { useRouter } from "next/navigation";
 
 import { useUser } from "@clerk/nextjs";
@@ -333,6 +334,7 @@ export default function SalesPage() {
                             <div className="w-10 h-14 relative flex-shrink-0 border border-gray-200 rounded overflow-hidden">
                               <Image
                                 src={sale.coverImageUrl}
+                                unoptimized={!isOptimizableImageSrc(sale.coverImageUrl)}
                                 alt={sale.comic.title || "Comic cover"}
                                 fill
                                 className="object-cover"

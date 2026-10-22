@@ -3,6 +3,8 @@ import { Bangers, Comic_Neue, Space_Mono } from "next/font/google";
 
 import { ClerkProvider } from "@clerk/nextjs";
 
+import { MARKETPLACE_ENABLED, getMissionTradeClause } from "@/lib/features";
+
 import Footer from "@/components/Footer";
 import { MobileUtilitiesFAB } from "@/components/MobileUtilitiesFAB";
 import { Navigation } from "@/components/Navigation";
@@ -38,7 +40,8 @@ const spaceMono = Space_Mono({
 export const metadata: Metadata = {
   title: "Collectors Chest - Track, Value & Trade Your Comics",
   description:
-    "Scan comics. Track value. Collect smarter. Collectors Chest is the all-in-one platform that helps comic collectors discover value, organize with pride, and buy, sell, and trade with confidence.",
+    // Mission clause drops "buy, sell," while the marketplace is off (src/lib/features.ts).
+    `Scan comics. Track value. Collect smarter. Collectors Chest is the all-in-one platform that helps comic collectors discover value, organize with pride, and ${getMissionTradeClause(MARKETPLACE_ENABLED)}.`,
   manifest: "/manifest.json",
   icons: {
     icon: [
@@ -69,32 +72,27 @@ export const metadata: Metadata = {
 const APPLE_SPLASH_LINKS: Array<{ media: string; href: string }> = [
   // iPhone 12/13/14 Pro Max (1284x2778 @3x)
   {
-    media:
-      "(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3)",
+    media: "(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3)",
     href: "/icons/apple-splash-1284-2778.png",
   },
   // iPhone 12/13/14 standard (1170x2532 @3x)
   {
-    media:
-      "(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)",
+    media: "(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)",
     href: "/icons/apple-splash-1170-2532.png",
   },
   // iPhone XR/11 (828x1792 @2x)
   {
-    media:
-      "(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2)",
+    media: "(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2)",
     href: "/icons/apple-splash-828-1792.png",
   },
   // iPhone X/XS/11 Pro (1125x2436 @3x)
   {
-    media:
-      "(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3)",
+    media: "(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3)",
     href: "/icons/apple-splash-1125-2436.png",
   },
   // iPhone 6/7/8 (750x1334 @2x)
   {
-    media:
-      "(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2)",
+    media: "(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2)",
     href: "/icons/apple-splash-750-1334.png",
   },
 ];

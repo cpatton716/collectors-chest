@@ -9,9 +9,49 @@ import {
   estimateStripeProcessingFeeCents,
   estimateSellerTakeHomeCents,
   buildSellerFeeFaqAnswer,
+  buildMarketplacePaymentIntentData,
+  FREE_FEE_PERCENT,
+  PREMIUM_FEE_PERCENT,
 } from "../stripeConnect";
 
 describe("stripeConnect", () => {
+  describe("buildMarketplacePaymentIntentData", () => {
+    const acct = "acct_1TOl9aENb8vB3dbm";
+
+    it("routes a destination charge with the platform fee (free tier, $100)", () => {
+      const fee = computePlatformFeeCents(10000, FREE_FEE_PERCENT);
+      expect(buildMarketplacePaymentIntentData({ sellerAccountId: acct, platformFeeCents: fee })).toEqual({
+        application_fee_amount: 800,
+        transfer_data: { destination: acct },
+      });
+    });
+
+    it("uses the premium fee when given ($100 at 5%)", () => {
+      const fee = computePlatformFeeCents(10000, PREMIUM_FEE_PERCENT);
+      expect(
+        buildMarketplacePaymentIntentData({ sellerAccountId: acct, platformFeeCents: fee }).application_fee_amount
+      ).toBe(500);
+    });
+
+    it("passes the minimum fee floor through on small sales ($5)", () => {
+      const fee = computePlatformFeeCents(500, FREE_FEE_PERCENT);
+      expect(
+        buildMarketplacePaymentIntentData({ sellerAccountId: acct, platformFeeCents: fee }).application_fee_amount
+      ).toBe(MIN_PLATFORM_FEE_CENTS);
+    });
+
+    it("does NOT set on_behalf_of (transfers-only sellers lack card_payments)", () => {
+      const data = buildMarketplacePaymentIntentData({ sellerAccountId: acct, platformFeeCents: 160 });
+      expect(data).not.toHaveProperty("on_behalf_of");
+      expect(Object.keys(data).sort()).toEqual(["application_fee_amount", "transfer_data"]);
+    });
+
+    it("does NOT set transfer_data.amount (seller share derives from the fee)", () => {
+      const data = buildMarketplacePaymentIntentData({ sellerAccountId: acct, platformFeeCents: 160 });
+      expect(data.transfer_data).toEqual({ destination: acct });
+    });
+  });
+
   describe("calculateDestinationAmount", () => {
     it("calculates seller amount for free tier (8% fee) on a $100 sale", () => {
       // $100 × 8% = $8.00 (above $0.75 floor) → percent-fee wins

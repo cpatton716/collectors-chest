@@ -9,16 +9,19 @@ import { useUser } from "@clerk/nextjs";
 import {
   AlertCircle,
   ArrowLeft,
+  ArrowLeftRight,
   Bell,
   Check,
-  Lock,
   Loader2,
+  Lock,
   Mail,
   Megaphone,
   ShoppingBag,
   Smartphone,
   Users,
 } from "lucide-react";
+
+import { MARKETPLACE_ENABLED } from "@/lib/features";
 
 import { useToast } from "@/components/Toast";
 
@@ -243,17 +246,25 @@ export default function NotificationSettingsPage() {
           </div>
         </div>
 
-        {/* Marketplace */}
+        {/* Marketplace (while it is off, this category only carries trade feedback requests) */}
         <div className="p-6 border-b-3 border-pop-black">
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-start gap-3">
               <div className="p-2 bg-pop-blue border-2 border-pop-black">
-                <ShoppingBag className="w-5 h-5 text-pop-white" />
+                {MARKETPLACE_ENABLED ? (
+                  <ShoppingBag className="w-5 h-5 text-pop-white" />
+                ) : (
+                  <ArrowLeftRight className="w-5 h-5 text-pop-white" />
+                )}
               </div>
               <div>
-                <h3 className="font-comic text-pop-black">MARKETPLACE</h3>
+                <h3 className="font-comic text-pop-black">
+                  {MARKETPLACE_ENABLED ? "MARKETPLACE" : "TRADE FEEDBACK"}
+                </h3>
                 <p className="text-sm font-body text-pop-black/70 mt-0.5">
-                  Bids, offers, second-chance offers, feedback requests, watchlist auctions ending.
+                  {MARKETPLACE_ENABLED
+                    ? "Bids, offers, second-chance offers, feedback requests, watchlist auctions ending."
+                    : "Feedback requests."}
                 </p>
               </div>
             </div>

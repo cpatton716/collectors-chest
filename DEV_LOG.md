@@ -4,6 +4,64 @@ This log tracks session-by-session progress on Collectors Chest.
 
 ---
 
+## October 22, 2026 (Thursday) — Session 52: Deploy-Hold Resolution — Security Upgrade, Stripe Fix, Marketplace Hidden (NOT Deployed — ready, awaiting owner push go-ahead)
+
+### Summary
+Worked through the Session 51 deploy hold. Fixed the "push failure" (wrong gh account), upgraded Next/sharp to clear all production npm-audit advisories, verified in Stripe test mode that the platform pays processing fees on destination charges and fixed checkout for transfers-only sellers, hid the whole marketplace behind a one-line feature flag pending Aponte's fee decision, fixed a For Trade page crash on non-allowlisted cover hosts, and re-tested everything in the browser. Full gate green. **Not deployed — ready to push, awaiting owner go-ahead.**
+
+### What was done
+- **"Push failure" diagnosed:** wrong gh account active (`RT-Patton` instead of `cpatton716`); switched; fetch + push dry-run OK (23 commits ahead, fast-forward).
+- **Security upgrade:** `next` 16.2.11 → 16.4.2, `eslint-config-next` / `@next/*` → 16.4.2, `sharp` 0.35.3 → 0.35.5 (override). `npm audit --omit=dev` = **0**; total 56 → 33 (all dev-only).
+- **Stripe test-mode investigation:** the **platform (not the seller)** pays the processing fee on destination charges ($20 → 88¢, $100 → 320¢). Checkout failed for transfers-only Express sellers because of `on_behalf_of` → removed it (platform is merchant of record); new helper `buildMarketplacePaymentIntentData` in `stripeConnect.ts` + tests; verified in test mode.
+- **Netlify:** added `GUEST_SCAN_SECRET`, `PROMO_TRIAL_SECRET`, `UNSUBSCRIBE_SECRET`, `SUPPORT_EMAIL` (secrets marked secret).
+- **Pivot brief (`/admin/pivot-brief`) updated:** per-sale economics table ($5–$100), "Chris's recommendation" (keep fees, platform covers the card fee; marketplace should cover costs, not profit), "Decisions for Aponte".
+- **Marketplace hidden behind `MARKETPLACE_ENABLED = false`** (`src/lib/features.ts`): nav Shop → Trade; marketplace pages redirect; marketplace APIs 404 in middleware; `process-auctions` cron skips; all marketplace copy flag-conditional (mission statement, FAQ via new `faqData.tsx`, Terms with a visible "4. Trading", AUP, pricing, homepage/About grids); For Sale badge/column/list and CSV columns hidden; Seller Payments card hidden. One-line re-enable.
+- **Fix — For Trade page crash** on non-allowlisted cover hosts: Comic Vine + Marvel CDN added to a shared allowlist (`src/lib/imageRemotePatterns.mjs`, imported by `next.config.mjs`) + `isOptimizableImageSrc` fallback (`unoptimized`) across 22 `next/image` usages.
+- **Homepage:** removed the false "price history charts and alerts" claim. Disabled Next AGENTS.md generation (`agentRules: false`).
+- **Browser re-tests passed** (Mac Chrome, localhost): Gemini scan (gemini provider, no fallback), Mark as Sold keeps cover, marketplace hidden, pricing/FAQ, admin + pivot brief (desktop + mobile).
+- **Test data:** Batman #227 and Spawn #1 test sales deleted by owner via SQL. The Spawn cover file `comic-covers/99bc8d5c-e255-4bd0-b3f5-f5810fb1a60e/1792680358778-b45j6g2df0h.webp` is now orphaned in storage (harmless; BACKLOG).
+- **Docs:** BACKLOG cleaned (completed smoke-test items removed; new "Marketplace Relaunch Checklist"; Deploy Hold reduced to push + prod iPhone check), EVALUATION, ARCHITECTURE, TECHNICAL_FEATURES, CLAUDE.md (Netlify env list), TEST_CASES ("Marketplace Hidden — 2026-10-22"), TESTING_RESULTS, lessons.
+
+### Quality gates (all green)
+- `check:routes` ✓ · lint 0 errors / 256 warnings · `tsc --noEmit` ✓ · **88 suites / 1,543 tests** · clean build (113 pages) · `smoke-test` ✓ (homepage 200)
+- `npm audit --omit=dev`: 0 · full `npm audit`: 33 (22 moderate, 11 high, 0 critical — dev tooling)
+
+### Key files
+- New: `src/lib/features.ts`, `src/lib/faqData.tsx`, `src/lib/imageRemotePatterns.mjs`, `src/lib/imageSrc.ts`, `public/Collectors-Chest-Sample-Import-Basic.csv`; tests `features.test.ts`, `faqData.test.tsx`, `imageSrc.test.ts`
+- Checkout/Stripe: `src/app/api/checkout/route.ts`, `src/lib/stripeConnect.ts` (+ test)
+- Flag enforcement: `src/middleware.ts`, `src/app/api/cron/process-auctions/route.ts`, `src/lib/navLinks.ts` (+ test), `src/components/Navigation.tsx`
+- Copy: `src/app/terms/page.tsx`, `src/app/acceptable-use/page.tsx`, `src/app/pricing/page.tsx`, `src/app/page.tsx`, `src/app/about/page.tsx`, `src/app/layout.tsx`, `src/app/sign-up/...`, `src/app/choose-plan/page.tsx`, `src/app/join/trial/page.tsx`, `src/app/settings/notifications/page.tsx`, `src/components/profile/BillingTab.tsx`, `ProfileTab.tsx`, `CreatorBadge.tsx`
+- For Sale UI / CSV: `src/app/shop/page.tsx`, `src/app/collection/page.tsx`, `src/components/collection/CollectionGrid.tsx`, `ComicDetailModal.tsx`, `ComicListItem.tsx`, `ComicCard.tsx`, `CSVImport.tsx`, `src/lib/csvExport.ts` (+ `csvParsing.test.ts`), `src/hooks/useCollection.ts`
+- Image fallback (22 usages): `ComicImage`, `CoverLightbox`, `PublicComicModal`, `CustomProfilePage`, `TradeCard`, `TradeMatchCard`, `TradeableComicCard`, `AuctionDetailModal`, `ListingDetailModal`, `SecondChanceInboxCard`, `FollowListModal`, `MessageButton`, `PublicCollectionView`, `/sales`, `/transactions`, `/following`, `/trades`, `/scan`; `next.config.mjs`
+- Deps: `package.json`, `package-lock.json`
+- Admin: `src/app/admin/pivot-brief/page.tsx`
+- Diff vs HEAD: 56 tracked code/doc files changed before doc updates (+3,415 / −2,630, mostly `package-lock.json`) + 9 new files
+
+### Issues encountered / resolved
+- Push "failure" was the wrong gh account — resolved by switching to `cpatton716`.
+- Checkout failed for transfers-only sellers (`on_behalf_of` requires `card_payments`) — resolved.
+- Claude handed the owner cleanup SQL with a guessed column name (`title` on `sales`) — failed safely, corrected; lesson logged in `tasks/lessons.md`.
+- Owner asked for one item per reply — lesson + memory saved.
+
+### Where We Left Off
+**Ready to push — awaiting owner go-ahead** (push auto-deploys to Netlify; confirm `gh auth status` = `cpatton716`). After deploy: iPhone check on prod. Marketplace stays hidden until the BACKLOG "Marketplace Relaunch Checklist" is done (Aponte fee sign-off first).
+
+### Changes Since Last Deploy
+**Sessions since last deploy: 4 with code changes (48, 50, 51, 52; 49 was research-only).** Last deploy was Session 47 on May 27, 2026.
+
+Everything from Sessions 48, 50 and 51 (see entries below) PLUS Session 52:
+- Next 16.4.2 / sharp 0.35.5 security upgrade (prod npm audit 0)
+- Checkout fix: destination charges without `on_behalf_of` (platform is merchant of record, pays the Stripe fee)
+- Marketplace hidden behind `MARKETPLACE_ENABLED=false` (nav, redirects, API 404s, cron skip, flag-conditional copy, For Sale UI hidden)
+- For Trade page crash fix (shared image allowlist + `unoptimized` fallback)
+- Pivot brief: per-sale economics, recommendation, Decisions for Aponte
+- Homepage false "price history charts and alerts" claim removed; AGENTS.md generation disabled
+- New Netlify env vars already added (`GUEST_SCAN_SECRET`, `PROMO_TRIAL_SECRET`, `UNSUBSCRIBE_SECRET`, `SUPPORT_EMAIL`)
+
+**Deploy readiness: Ready — pending owner push go-ahead; iPhone check on prod after deploy.**
+
+---
+
 ## October 4, 2026 (Sunday) — Session 51: Pricing-Source Research + Pivot Brief + Pre-Deploy Smoke Test (5 Bugs Fixed) (NOT Deployed — on hold by owner)
 
 ### Summary

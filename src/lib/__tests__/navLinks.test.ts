@@ -1,4 +1,5 @@
 import {
+  applyMarketplaceFlag,
   getMobileNavItems,
   getNavLinks,
   guestPrimaryLinks,
@@ -10,6 +11,7 @@ import {
   mobileRegisteredNavItems,
   registeredPrimaryLinks,
   registeredSecondaryLinks,
+  TRADE_LINK,
 } from "../navLinks";
 
 describe("getNavLinks (desktop)", () => {
@@ -91,5 +93,65 @@ describe("isNavLinkActive", () => {
     expect(isNavLinkActive("/collection", "/collection")).toBe(true);
     expect(isNavLinkActive("/collection/123", "/collection")).toBe(false);
     expect(isNavLinkActive("/shop", "/collection")).toBe(false);
+  });
+});
+
+describe("marketplace flag (off by default)", () => {
+  const allLinkSets = () => [
+    ...getNavLinks(false).primary,
+    ...getNavLinks(false).secondary,
+    ...getNavLinks(true).primary,
+    ...getNavLinks(true).secondary,
+    ...getMobileNavItems(false).navItems,
+    ...getMobileNavItems(false).drawerItems,
+    ...getMobileNavItems(true).navItems,
+    ...getMobileNavItems(true).drawerItems,
+  ];
+
+  it("hides My Listings, Transactions, and the bare Shop link", () => {
+    for (const link of allLinkSets()) {
+      expect(link.href).not.toMatch(/\/my-auctions/);
+      expect(link.href).not.toMatch(/\/transactions/);
+      expect(link.href).not.toBe("/shop");
+    }
+  });
+
+  it("shows a Trade link to the For Trade tab in every primary set", () => {
+    for (const set of [
+      getNavLinks(false).primary,
+      getNavLinks(true).primary,
+      getMobileNavItems(false).navItems,
+      getMobileNavItems(true).navItems,
+    ]) {
+      expect(set).toContain(TRADE_LINK);
+    }
+    expect(TRADE_LINK).toMatchObject({ href: "/shop?tab=for-trade", label: "Trade" });
+  });
+
+  it("keeps Sales and Trades for signed-in users", () => {
+    for (const set of [getNavLinks(true).secondary, getMobileNavItems(true).drawerItems]) {
+      expect(set.some((l) => l.href === "/sales")).toBe(true);
+      expect(set.some((l) => l.href === "/trades")).toBe(true);
+    }
+  });
+
+  it("applyMarketplaceFlag(links, true) returns links unchanged", () => {
+    const links = [
+      { href: "/shop", label: "Shop", icon: TRADE_LINK.icon },
+      { href: "/my-auctions", label: "My Listings", icon: TRADE_LINK.icon },
+    ];
+    expect(applyMarketplaceFlag(links, true)).toBe(links);
+  });
+
+  it("applyMarketplaceFlag(links, false) drops sign-in redirect variants too", () => {
+    const links = [
+      { href: "/sign-in?redirect=/transactions", label: "Transactions", icon: TRADE_LINK.icon },
+      { href: "/sign-in?redirect=/trades", label: "Trades", icon: TRADE_LINK.icon },
+    ];
+    expect(applyMarketplaceFlag(links, false).map((l) => l.label)).toEqual(["Trades"]);
+  });
+
+  it("marks the Trade link active on /shop", () => {
+    expect(isNavLinkActive("/shop", TRADE_LINK.href)).toBe(true);
   });
 });

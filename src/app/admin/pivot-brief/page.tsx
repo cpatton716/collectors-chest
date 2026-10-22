@@ -15,6 +15,7 @@ import {
   ShieldAlert,
   Store,
   Target,
+  ThumbsUp,
   TrendingDown,
 } from "lucide-react";
 
@@ -169,6 +170,25 @@ const priceCompare = [
   { price: "$4.99", label: "Us, with scanning and offline key lookup", us: true },
 ];
 
+// All values in cents. Platform fee = computePlatformFeeCents (src/lib/stripeConnect.ts):
+// floor(8% Free / 5% Premium), 75¢ minimum. Card fee = 2.9% + 30¢, rounded to the cent
+// (matches real test charges: $20 -> $0.88, $100 -> $3.20). Item price only, no shipping.
+// Seller gets = sale - platform fee; we keep = platform fee - card fee.
+const saleEconomics = [
+  { sale: "$5", fee: 45, free: { seller: 425, keep: 30 }, premium: { seller: 425, keep: 30 } },
+  { sale: "$10", fee: 59, free: { seller: 920, keep: 21 }, premium: { seller: 925, keep: 16 } },
+  { sale: "$15", fee: 74, free: { seller: 1380, keep: 46 }, premium: { seller: 1425, keep: 1 } },
+  { sale: "$25", fee: 103, free: { seller: 2300, keep: 97 }, premium: { seller: 2375, keep: 22 } },
+  { sale: "$50", fee: 175, free: { seller: 4600, keep: 225 }, premium: { seller: 4750, keep: 75 } },
+  { sale: "$100", fee: 320, free: { seller: 9200, keep: 480 }, premium: { seller: 9500, keep: 180 } },
+];
+
+function Money({ cents, className = "" }: { cents: number; className?: string }) {
+  const negative = cents < 0;
+  const text = `${negative ? "\u2212" : ""}$${(Math.abs(cents) / 100).toFixed(2)}`;
+  return <span className={negative ? "font-semibold text-red-700" : className}>{text}</span>;
+}
+
 const pillClasses: Record<PillKind, string> = {
   yes: "bg-green-50 border-green-300 text-green-900",
   cond: "bg-amber-50 border-amber-300 text-amber-900",
@@ -237,7 +257,7 @@ export default async function PivotBriefPage() {
       {/* Top line */}
       <section className="rounded-2xl border-4 border-black bg-yellow-50 p-6 md:p-8 shadow-[6px_6px_0_0_rgba(0,0,0,1)]">
         <p className="text-xs font-bold uppercase tracking-wider text-gray-600 mb-2">
-          Collectors Chest · Partner briefing for Aponte · Oct 4, 2026
+          Collectors Chest · Partner briefing for Aponte · Oct 4, 2026 (updated Oct 22)
         </p>
         <div className="flex items-start gap-2 mb-4">
           <FileText className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-1" />
@@ -274,6 +294,23 @@ export default async function PivotBriefPage() {
             <li>
               <strong>Agree the success bar:</strong> 10+ paying users in 60 days means keep
               investing. Fewer than 3 means stop spending.
+            </li>
+          </ol>
+          <h3 className="text-base md:text-lg font-bold mt-4 mb-2" style={{ fontFamily: "var(--font-bangers)" }}>
+            For later: when the marketplace comes back
+          </h3>
+          <ol start={4} className="list-[lower-alpha] pl-5 space-y-2 text-sm md:text-base text-gray-800">
+            <li>
+              <strong>Who pays the card fee?</strong> Chris recommends we keep covering it — the
+              marketplace should cover its costs, not profit off sellers. Sign off? (See section 4.)
+            </li>
+            <li>
+              <strong>Should our cut apply to shipping?</strong> Today it does, but our Terms say it
+              doesn&apos;t. One of them has to change.
+            </li>
+            <li>
+              <strong>When to reopen selling</strong>, for example once the 60-day test hits its
+              bar and the fee model is decided.
             </li>
           </ol>
         </div>
@@ -578,7 +615,157 @@ export default async function PivotBriefPage() {
       {/* 4. Marketplace */}
       <section>
         <SectionHeading n={4} title="Why hold the marketplace back" icon={<Store className="w-6 h-6 text-red-600" />} />
-        <div className="rounded-xl border-2 border-red-300 bg-red-50 p-4 md:p-5">
+        <p className="text-sm text-gray-600 mb-4 italic">
+          Here&apos;s what every sale actually earns. (Stripe test check, Oct 22)
+        </p>
+        <div className="rounded-xl border-2 border-indigo-300 bg-indigo-50 p-4 md:p-5">
+          <div className="flex items-center gap-2 mb-2">
+            <DollarSign className="w-5 h-5 text-indigo-700" />
+            <h3 className="text-base font-bold text-indigo-900">We pay the card fee, not the seller</h3>
+          </div>
+          <ul className="space-y-1.5 text-sm text-gray-800 list-disc pl-4">
+            <li>
+              On every marketplace sale, <strong>Collectors Chest pays the 2.9% + 30¢</strong> card
+              processing fee out of its own cut, not the seller.
+            </li>
+            <li>
+              Example: on a $100 sale by a Premium seller we charge $5.00, Stripe takes $3.20, and{" "}
+              <strong>we keep $1.80</strong>.
+            </li>
+            <li>
+              Small sales are thin but still cover the card fee: on a $15 sale by a Premium seller
+              we keep 1¢.
+            </li>
+            <li>
+              Our FAQ and Terms say the seller pays the card fee. <strong>That&apos;s wrong</strong>,
+              and gets corrected before launch.
+            </li>
+          </ul>
+        </div>
+
+        <SubHeading>What we actually keep per sale</SubHeading>
+        <p className="text-sm text-gray-700 mb-3">
+          Our cut is 8% from Free sellers and 5% from Premium sellers (75¢ minimum), minus the card
+          fee we pay.
+        </p>
+        {/* Desktop table */}
+        <div className="hidden md:block rounded-xl border-2 border-red-200 bg-white overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-red-50 border-b border-red-200">
+              <tr>
+                <th className="text-left px-3 py-2 font-semibold">Sale price</th>
+                <th className="text-left px-3 py-2 font-semibold">Card processing fee (we pay)</th>
+                <th className="text-left px-3 py-2 font-semibold">Free seller: seller gets / we keep</th>
+                <th className="text-left px-3 py-2 font-semibold">Premium seller: seller gets / we keep</th>
+              </tr>
+            </thead>
+            <tbody>
+              {saleEconomics.map((row) => (
+                <tr key={row.sale} className="border-b border-gray-100 last:border-0">
+                  <td className="px-3 py-2.5 font-medium">{row.sale}</td>
+                  <td className="px-3 py-2.5 text-red-700">
+                    <Money cents={row.fee} />
+                  </td>
+                  <td className="px-3 py-2.5 text-gray-800">
+                    <Money cents={row.free.seller} /> /{" "}
+                    <Money cents={row.free.keep} className="font-semibold" />
+                  </td>
+                  <td className="px-3 py-2.5 text-gray-800">
+                    <Money cents={row.premium.seller} /> /{" "}
+                    <Money cents={row.premium.keep} className="font-semibold" />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {/* Mobile stacked cards */}
+        <div className="md:hidden grid grid-cols-2 gap-3">
+          {saleEconomics.map((row) => (
+            <div key={row.sale} className="rounded-xl border-2 border-red-200 bg-white p-3">
+              <div
+                className="text-2xl leading-none text-gray-900 mb-2"
+                style={{ fontFamily: "var(--font-bangers)" }}
+              >
+                {row.sale} sale
+              </div>
+              <dl className="space-y-1 text-xs text-gray-700">
+                <div className="flex justify-between gap-2">
+                  <dt>Card fee (we pay)</dt>
+                  <dd className="font-semibold text-red-700">
+                    <Money cents={row.fee} />
+                  </dd>
+                </div>
+                <div className="pt-1 font-semibold text-gray-900">Free seller</div>
+                <div className="flex justify-between gap-2">
+                  <dt>Seller gets</dt>
+                  <dd className="text-gray-900">
+                    <Money cents={row.free.seller} />
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <dt>We keep</dt>
+                  <dd className="font-semibold text-gray-900">
+                    <Money cents={row.free.keep} />
+                  </dd>
+                </div>
+                <div className="pt-1 font-semibold text-gray-900">Premium seller</div>
+                <div className="flex justify-between gap-2">
+                  <dt>Seller gets</dt>
+                  <dd className="text-gray-900">
+                    <Money cents={row.premium.seller} />
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <dt>We keep</dt>
+                  <dd className="font-semibold text-gray-900">
+                    <Money cents={row.premium.keep} />
+                  </dd>
+                </div>
+              </dl>
+            </div>
+          ))}
+        </div>
+        <p className="mt-2 text-xs text-gray-500">
+          Our fee is currently also charged on shipping; shown here on the item price only.
+        </p>
+        <div className="mt-3 flex items-start gap-2 px-3 py-2 bg-red-100 border border-red-300 rounded-md">
+          <AlertCircle className="w-4 h-4 text-red-700 mt-0.5 flex-shrink-0" />
+          <p className="text-xs md:text-sm text-red-900">
+            <strong>International cards add 1.5% and a chargeback costs $15</strong> — either can
+            turn a small sale into a loss.
+          </p>
+        </div>
+
+        <div className="mt-4 rounded-xl border-4 border-black bg-green-50 p-4 md:p-5 shadow-[4px_4px_0_0_rgba(0,0,0,1)]">
+          <div className="flex items-center gap-2 mb-2">
+            <ThumbsUp className="w-5 h-5 text-green-700" />
+            <h3 className="text-lg font-bold text-green-900" style={{ fontFamily: "var(--font-bangers)" }}>
+              Chris&apos;s recommendation
+            </h3>
+          </div>
+          <ul className="space-y-1.5 text-sm md:text-base text-gray-800 list-disc pl-4">
+            <li>
+              <strong>Keep today&apos;s fees</strong> (8% Free / 5% Premium, 75¢ minimum) and{" "}
+              <strong>keep covering the card fee ourselves</strong>.
+            </li>
+            <li>
+              The marketplace is a service. It should cover its own costs and be fair to sellers,
+              not profit off them. I&apos;m fine making 30¢ on a $5 sale.
+            </li>
+            <li>
+              Sellers keep more than our FAQ promised: <strong>$92.00 instead of $88.80</strong> on a
+              $100 Free sale.
+            </li>
+            <li>The table shows every sale still covers its card fee.</li>
+          </ul>
+          <p className="mt-3 text-sm md:text-base font-bold text-gray-900">
+            Aponte: can you sign off on this fee model?
+          </p>
+        </div>
+
+        <SubHeading>Still open from before</SubHeading>
+        <div className="rounded-xl border-2 border-amber-300 bg-amber-50 p-4 md:p-5">
           <ul className="space-y-1.5 text-sm text-gray-800 list-disc pl-4">
             <li>Its payment flow was rewritten and has only been tested with fake money.</li>
             <li>No real seller payout to a bank account has been done since.</li>
@@ -589,10 +776,25 @@ export default async function PivotBriefPage() {
             <li>Shipping isn&apos;t verified.</li>
           </ul>
         </div>
-        <p className="mt-3 text-sm md:text-base text-gray-800">
-          <strong>Plan:</strong> keep it founders-only for now, and revisit once subscriptions prove
-          out.
-        </p>
+        <div className="mt-4 rounded-xl border-4 border-black bg-white p-4 md:p-5 shadow-[4px_4px_0_0_rgba(0,0,0,1)]">
+          <p className="text-sm md:text-base text-gray-800">
+            <strong>Plan:</strong> keep it founders-only for now. Reasons to hold it for launch:
+          </p>
+          <ul className="mt-2 space-y-1.5 text-sm md:text-base text-gray-800 list-disc pl-4">
+            <li>Get Aponte&apos;s sign-off on the fee model above.</li>
+            <li>
+              Correct the FAQ and Terms, which wrongly say sellers pay the card fee.
+            </li>
+            <li>
+              No sold-price data we&apos;re allowed to show (section 2), so buyers and sellers only
+              see an &ldquo;eBay asking range.&rdquo;
+            </li>
+            <li>Keep the launch focused on the convention test, where subscriptions are simple.</li>
+          </ul>
+          <p className="mt-2 text-sm md:text-base text-gray-800">
+            Revisit once the test hits its bar and the fee model is signed off.
+          </p>
+        </div>
       </section>
 
       {/* 5. Launch plan */}
@@ -609,8 +811,8 @@ export default async function PivotBriefPage() {
               Make one real <strong>$1 Premium purchase</strong> to prove billing works end to end.
             </>,
             <>
-              Hide or limit the marketplace to founders, and change the price wording to
-              &ldquo;asking range.&rdquo;
+              Hide or limit the marketplace to founders, change the price wording to
+              &ldquo;asking range,&rdquo; and correct the FAQ and Terms on who pays the card fee.
             </>,
             <>Turn public sign-up back on, and confirm the support inbox works.</>,
           ].map((step, i) => (
@@ -711,7 +913,7 @@ export default async function PivotBriefPage() {
 
       {/* Footer */}
       <section className="text-xs text-gray-500 text-center pt-4 pb-8">
-        <p>Prepared October 4, 2026.</p>
+        <p>Prepared October 4, 2026. Marketplace findings added October 22, 2026.</p>
       </section>
     </div>
   );

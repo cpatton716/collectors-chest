@@ -2,6 +2,8 @@ import { SignUp } from "@clerk/nextjs";
 
 import { Camera, Check, DollarSign, LineChart, Tag } from "lucide-react";
 
+import { MARKETPLACE_ENABLED, getMissionTradeClause } from "@/lib/features";
+
 import { ChestIcon } from "@/components/icons/ChestIcon";
 
 export default function SignUpPage() {
@@ -13,9 +15,7 @@ export default function SignUpPage() {
           {/* Header */}
           <div className="flex items-center gap-3 mb-4">
             <ChestIcon size={72} />
-            <h1 className="font-comic text-2xl text-pop-black tracking-wide">
-              COLLECTORS CHEST
-            </h1>
+            <h1 className="font-comic text-2xl text-pop-black tracking-wide">COLLECTORS CHEST</h1>
           </div>
 
           <p className="font-comic text-sm text-pop-black/70 mb-1">
@@ -23,16 +23,14 @@ export default function SignUpPage() {
           </p>
 
           <p className="font-body text-pop-black/80 text-sm mb-6">
-            Scan any cover. Track every book. Find your people. The all-in-one
-            platform that helps comic collectors discover value, organize with
-            pride, and buy, sell, and trade with confidence.
+            Scan any cover. Track every book. Find your people. The all-in-one platform that helps
+            comic collectors discover value, organize with pride, and{" "}
+            {getMissionTradeClause(MARKETPLACE_ENABLED)}.
           </p>
 
           {/* Benefits panel */}
           <div className="bg-pop-white border-4 border-pop-black shadow-[4px_4px_0px_#000] p-5">
-            <h3 className="font-comic text-pop-black text-sm mb-4">
-              WHAT YOU&apos;LL GET:
-            </h3>
+            <h3 className="font-comic text-pop-black text-sm mb-4">WHAT YOU&apos;LL GET:</h3>
             <ul className="space-y-3">
               <li className="flex items-center gap-3">
                 <div className="w-8 h-8 bg-pop-red border-2 border-pop-black flex items-center justify-center shrink-0">
@@ -58,14 +56,16 @@ export default function SignUpPage() {
                   Track your collection value over time
                 </span>
               </li>
-              <li className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-pop-yellow border-2 border-pop-black flex items-center justify-center shrink-0">
-                  <Tag className="w-4 h-4 text-pop-black" />
-                </div>
-                <span className="font-body text-sm text-pop-black/90">
-                  Buy, sell, and auction comics
-                </span>
-              </li>
+              {MARKETPLACE_ENABLED && (
+                <li className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-pop-yellow border-2 border-pop-black flex items-center justify-center shrink-0">
+                    <Tag className="w-4 h-4 text-pop-black" />
+                  </div>
+                  <span className="font-body text-sm text-pop-black/90">
+                    Buy, sell, and auction comics
+                  </span>
+                </li>
+              )}
             </ul>
           </div>
         </div>

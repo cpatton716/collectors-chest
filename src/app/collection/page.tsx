@@ -29,6 +29,7 @@ import {
 
 import { pruneSelection } from "@/lib/bulkActions";
 import { exportCollectionToCSV } from "@/lib/csvExport";
+import { resolveSelectedListId } from "@/lib/features";
 import { COLLECTION_PAGE_SIZE, getUserComicsPage } from "@/lib/db";
 import { calculateCollectionValue, getComicValue } from "@/lib/gradePrice";
 import { storage } from "@/lib/storage";
@@ -197,6 +198,12 @@ function CollectionPageContent() {
 
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [selectedList, setSelectedList] = useState<string>("collection");
+  // Fall back to the full collection if the selected list is no longer
+  // visible (e.g. the "For Sale" list hidden while the marketplace is off).
+  useEffect(() => {
+    const resolved = resolveSelectedListId(selectedList, lists);
+    if (resolved !== selectedList) setSelectedList(resolved);
+  }, [selectedList, lists]);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<SortOption>("date");
   const [selectedItem, setSelectedItem] = useState<CollectionItem | null>(null);

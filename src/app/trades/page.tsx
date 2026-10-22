@@ -9,6 +9,8 @@ import { useAuth } from "@clerk/nextjs";
 
 import { ArrowLeftRight, History, Package, Sparkles } from "lucide-react";
 
+import { MARKETPLACE_ENABLED } from "@/lib/features";
+
 import { TradeCard, TradeMatchCard } from "@/components/trading";
 
 import { GroupedMatch, TradePreview } from "@/types/trade";
@@ -289,7 +291,9 @@ function TradesPageContent() {
                   </p>
                   <p className="mt-2 text-gray-600">
                     {activeTab === "active"
-                      ? "Start trading by browsing the Shop's For Trade tab"
+                      ? MARKETPLACE_ENABLED
+                        ? "Start trading by browsing the Shop's For Trade tab"
+                        : "Start trading by browsing the Trade page"
                       : "Your completed trades will appear here"}
                   </p>
                   {activeTab === "active" && (

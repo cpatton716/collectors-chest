@@ -12,6 +12,8 @@ import { CreditCard, Loader2, Shield, User } from "lucide-react";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useSubscription } from "@/hooks/useSubscription";
 
+import { MARKETPLACE_ENABLED } from "@/lib/features";
+
 import { LocationPrivacy, UserLocation } from "@/app/api/location/route";
 import { TransactionFeedback, UserCreatorProfile } from "@/types/creatorCredits";
 
@@ -255,6 +257,7 @@ export function CustomProfilePage() {
 
   // Fetch Connect status on mount
   useEffect(() => {
+    if (!MARKETPLACE_ENABLED) return; // marketplace hidden (src/lib/features.ts)
     async function fetchConnectStatus() {
       try {
         const res = await fetch("/api/connect/status");
@@ -283,6 +286,7 @@ export function CustomProfilePage() {
 
   // Handle ?connect= query param from onboarding return
   useEffect(() => {
+    if (!MARKETPLACE_ENABLED) return;
     const connectParam = searchParams.get("connect");
     if (connectParam === "success" || connectParam === "incomplete" || connectParam === "error") {
       setConnectBanner(connectParam);

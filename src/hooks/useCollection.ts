@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useUser } from "@clerk/nextjs";
 
@@ -19,6 +19,7 @@ import {
   removeComicFromList as removeComicFromListDb,
   updateComic as updateComicDb,
 } from "@/lib/db";
+import { getVisibleLists, MARKETPLACE_ENABLED } from "@/lib/features";
 import { storage } from "@/lib/storage";
 import { supabase } from "@/lib/supabase";
 
@@ -545,10 +546,14 @@ export function useCollection(): UseCollectionReturn {
     await loadData();
   }, [loadData]);
 
+  // While the marketplace is hidden, the default "For Sale" list is hidden
+  // from every consumer (memberships stay in the DB untouched).
+  const visibleLists = useMemo(() => getVisibleLists(lists, MARKETPLACE_ENABLED), [lists]);
+
   return {
     // State
     collection,
-    lists,
+    lists: visibleLists,
     sales,
     isLoading,
     error,

@@ -16,6 +16,7 @@ import {
 import { useAuth } from "@clerk/nextjs";
 
 import { PublicCollectionStats, PublicProfile } from "@/lib/db";
+import { getVisibleLists, MARKETPLACE_ENABLED } from "@/lib/features";
 
 import { ComicImage } from "@/components/ComicImage";
 import { FollowButton } from "@/components/follows";
@@ -34,7 +35,9 @@ interface Props {
 type ViewMode = "grid" | "list";
 type SortOption = "date" | "title" | "value";
 
-export function PublicCollectionView({ profile, comics, lists, stats }: Props) {
+export function PublicCollectionView({ profile, comics, lists: allLists, stats }: Props) {
+  // Hide the default "For Sale" list while the marketplace is off.
+  const lists = getVisibleLists(allLists, MARKETPLACE_ENABLED);
   const { userId } = useAuth();
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [searchQuery, setSearchQuery] = useState("");

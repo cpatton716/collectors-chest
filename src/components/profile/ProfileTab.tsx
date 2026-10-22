@@ -17,10 +17,19 @@ import {
   X,
 } from "lucide-react";
 
-import { LocationPrivacy } from "@/app/api/location/route";
+import { MARKETPLACE_ENABLED } from "@/lib/features";
+
+import {
+  CreatorBadge,
+  FeedbackList,
+  FeedbackSummary,
+  TrustBadge,
+} from "@/components/creatorCredits";
 import { FollowerCount } from "@/components/follows";
-import { CreatorBadge, FeedbackList, FeedbackSummary, TrustBadge } from "@/components/creatorCredits";
+
 import { TransactionFeedback, UserCreatorProfile } from "@/types/creatorCredits";
+
+import { LocationPrivacy } from "@/app/api/location/route";
 
 import { UsernameAvailability } from "./profileTabHelpers";
 
@@ -287,7 +296,8 @@ export function ProfileTab({
             Username
           </h3>
           <p className="text-xs text-gray-500 mb-4">
-            Your unique username for the marketplace. Displayed as @username.
+            Your unique username{MARKETPLACE_ENABLED && " for the marketplace"}. Displayed as
+            @username.
           </p>
 
           {isLoadingUsername ? (
@@ -313,9 +323,7 @@ export function ProfileTab({
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-gray-900"
                 />
                 <div className="ml-2 w-6 h-6 flex items-center justify-center">
-                  {isCheckingUsername && (
-                    <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
-                  )}
+                  {isCheckingUsername && <Loader2 className="w-5 h-5 animate-spin text-gray-400" />}
                   {!isCheckingUsername &&
                     usernameAvailability?.available &&
                     username.length >= 3 && <Check className="w-5 h-5 text-green-500" />}
@@ -340,13 +348,11 @@ export function ProfileTab({
                     {usernameAvailability.error}
                   </p>
                 )}
-              {usernameAvailability?.available &&
-                username.length >= 3 &&
-                hasUsernameChanges && (
-                  <p className="mt-2 text-sm text-green-600">
-                    {usernameAvailability.display} is available!
-                  </p>
-                )}
+              {usernameAvailability?.available && username.length >= 3 && hasUsernameChanges && (
+                <p className="mt-2 text-sm text-green-600">
+                  {usernameAvailability.display} is available!
+                </p>
+              )}
 
               <ul className="mt-3 text-xs text-gray-400 space-y-0.5">
                 <li>3-20 characters, letters, numbers, underscores only</li>
@@ -390,9 +396,7 @@ export function ProfileTab({
             <User className="w-4 h-4" />
             Followers
           </h3>
-          <p className="text-xs text-gray-500 mb-4">
-            See who follows you and who you follow
-          </p>
+          <p className="text-xs text-gray-500 mb-4">See who follows you and who you follow</p>
 
           {isLoadingFollowCounts || !profileId ? (
             <div className="flex items-center gap-2 text-gray-400">
@@ -476,9 +480,7 @@ export function ProfileTab({
 
               {/* Privacy Control */}
               <div className="mt-4">
-                <label className="block text-xs text-gray-500 mb-1">
-                  Location Visibility
-                </label>
+                <label className="block text-xs text-gray-500 mb-1">Location Visibility</label>
                 <select
                   value={locationPrivacy}
                   onChange={(e) => {
@@ -494,7 +496,8 @@ export function ProfileTab({
                   <option value="hidden">Hide location completely</option>
                 </select>
                 <p className="mt-1 text-xs text-gray-400">
-                  Controls what other users see on your listings and profile
+                  Controls what other users see on your {MARKETPLACE_ENABLED && "listings and "}
+                  profile
                 </p>
               </div>
 
@@ -588,18 +591,25 @@ export function ProfileTab({
       </div>
 
       {/* Display Preferences */}
-      <div className="bg-pop-white border-3 border-pop-black p-6 mt-8 mb-8" style={{ boxShadow: "4px 4px 0px #000" }}>
+      <div
+        className="bg-pop-white border-3 border-pop-black p-6 mt-8 mb-8"
+        style={{ boxShadow: "4px 4px 0px #000" }}
+      >
         <h3 className="text-lg font-black text-pop-black mb-4">Display Preferences</h3>
         <div className="flex items-center justify-between">
           <div>
             <p className="font-bold text-pop-black">Show Financial Fields</p>
-            <p className="text-sm text-gray-500">Display Cost, Sales, and Profit/Loss on your collection page</p>
+            <p className="text-sm text-gray-500">
+              Display Cost, Sales, and Profit/Loss on your collection page
+            </p>
           </div>
           <button
             onClick={handleToggleFinancials}
             className={`relative w-12 h-6 rounded-full transition-colors ${showFinancials ? "bg-pop-green" : "bg-gray-300"}`}
           >
-            <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${showFinancials ? "translate-x-6" : ""}`} />
+            <span
+              className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${showFinancials ? "translate-x-6" : ""}`}
+            />
           </button>
         </div>
       </div>

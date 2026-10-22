@@ -1,6 +1,9 @@
 "use client";
 
 import { Award, BadgeCheck, Crown, Shield, Skull, Star, User } from "lucide-react";
+
+import { MARKETPLACE_ENABLED } from "@/lib/features";
+
 import type { CreatorBadgeInfo, TransactionTrust } from "@/types/creatorCredits";
 
 // ============================================================================
@@ -14,12 +17,7 @@ interface TrustBadgeProps {
   onClick?: () => void;
 }
 
-export function TrustBadge({
-  trust,
-  size = "md",
-  showCount = true,
-  onClick,
-}: TrustBadgeProps) {
+export function TrustBadge({ trust, size = "md", showCount = true, onClick }: TrustBadgeProps) {
   const sizeClasses = {
     sm: "text-xs px-1.5 py-0.5 gap-1",
     md: "text-sm px-2 py-1 gap-1.5",
@@ -46,7 +44,7 @@ export function TrustBadge({
         }`}
       >
         <User size={iconSizes[size]} />
-        <span>New Seller</span>
+        <span>{MARKETPLACE_ENABLED ? "New Seller" : "New Trader"}</span>
       </button>
     );
   }
@@ -77,9 +75,7 @@ export function TrustBadge({
     >
       <IconComponent size={iconSizes[size]} />
       <span>{percentage}%</span>
-      {showCount && (
-        <span className="opacity-75">({count})</span>
-      )}
+      {showCount && <span className="opacity-75">({count})</span>}
     </button>
   );
 }
@@ -94,11 +90,7 @@ interface CreatorBadgeProps {
   showLabel?: boolean;
 }
 
-export function CreatorBadge({
-  badge,
-  size = "md",
-  showLabel = true,
-}: CreatorBadgeProps) {
+export function CreatorBadge({ badge, size = "md", showLabel = true }: CreatorBadgeProps) {
   if (badge.tier === "none") {
     return null;
   }
@@ -143,7 +135,6 @@ export function CreatorBadge({
   );
 }
 
-
 // ============================================================================
 // CREATOR ICON - Icon-only version for inline display
 // ============================================================================
@@ -183,4 +174,3 @@ export function CreatorIcon({ badge, size = "sm" }: CreatorIconProps) {
 
   return <Icon size={iconSizes[size]} className={className} />;
 }
-

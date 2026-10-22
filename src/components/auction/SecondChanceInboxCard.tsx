@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 
 import Image from "next/image";
+import { isOptimizableImageSrc } from "@/lib/imageSrc";
 import Link from "next/link";
 
 import { Check, Clock, Loader2, X } from "lucide-react";
@@ -101,6 +102,7 @@ export function SecondChanceInboxCard({
           {offer.coverImageUrl ? (
             <Image
               src={offer.coverImageUrl}
+              unoptimized={!isOptimizableImageSrc(offer.coverImageUrl)}
               alt={offer.comicTitle}
               fill
               className="object-cover"

@@ -3,7 +3,10 @@
 import { useEffect } from "react";
 
 import Image from "next/image";
+
 import { X } from "lucide-react";
+
+import { isOptimizableImageSrc } from "@/lib/imageSrc";
 
 interface CoverLightboxProps {
   isOpen: boolean;
@@ -66,6 +69,7 @@ export function CoverLightbox({ isOpen, onClose, src, alt, caption }: CoverLight
       >
         <Image
           src={src}
+          unoptimized={!isOptimizableImageSrc(src)}
           alt={alt}
           fill
           sizes="95vw"

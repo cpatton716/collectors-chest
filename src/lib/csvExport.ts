@@ -1,3 +1,4 @@
+import { MARKETPLACE_ENABLED } from "@/lib/features";
 import { CollectionItem } from "@/types/comic";
 
 /**
@@ -27,9 +28,14 @@ function escapeCSVValue(value: string | number | boolean | null | undefined): st
 }
 
 /**
- * Converts a collection of items to CSV format
+ * Converts a collection of items to CSV format. The "For Sale" and
+ * "Asking Price" columns are only included while the marketplace is enabled
+ * (the underlying values stay in the database either way).
  */
-export function collectionToCSV(items: CollectionItem[]): string {
+export function collectionToCSV(
+  items: CollectionItem[],
+  includeForSale: boolean = MARKETPLACE_ENABLED
+): string {
   // Define headers
   const headers = [
     "Title",
@@ -48,8 +54,7 @@ export function collectionToCSV(items: CollectionItem[]): string {
     "Purchase Price",
     "Purchase Date",
     "Avg List Price",
-    "For Sale",
-    "Asking Price",
+    ...(includeForSale ? ["For Sale", "Asking Price"] : []),
     "Notes",
     "Key Info",
     "Date Added",
@@ -80,8 +85,9 @@ export function collectionToCSV(items: CollectionItem[]): string {
       escapeCSVValue(item.purchasePrice),
       escapeCSVValue(item.purchaseDate),
       escapeCSVValue(comic.priceData?.estimatedValue),
-      escapeCSVValue(item.forSale),
-      escapeCSVValue(item.askingPrice),
+      ...(includeForSale
+        ? [escapeCSVValue(item.forSale), escapeCSVValue(item.askingPrice)]
+        : []),
       escapeCSVValue(item.notes),
       escapeCSVValue(comic.keyInfo?.join(", ")),
       escapeCSVValue(item.dateAdded),

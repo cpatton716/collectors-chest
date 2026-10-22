@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
+import { isOptimizableImageSrc } from "@/lib/imageSrc";
 import Link from "next/link";
 
 import { Loader2, Users, X } from "lucide-react";
@@ -183,6 +184,7 @@ export function FollowListModal({
                       {user.avatarUrl ? (
                         <Image
                           src={user.avatarUrl}
+                          unoptimized={!isOptimizableImageSrc(user.avatarUrl)}
                           alt={
                             user.displayName
                               ? `${user.displayName} (@${user.username})`

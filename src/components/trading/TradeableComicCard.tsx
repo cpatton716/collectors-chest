@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { isOptimizableImageSrc } from "@/lib/imageSrc";
 
 import { ArrowLeftRight, Star } from "lucide-react";
 
@@ -46,6 +47,7 @@ export function TradeableComicCard({ comic, onClick, isCurrentUser = false }: Tr
         {comic.coverImageUrl ? (
           <Image
             src={comic.coverImageUrl}
+            unoptimized={!isOptimizableImageSrc(comic.coverImageUrl)}
             alt={`${comic.title} #${comic.issueNumber}`}
             fill
             className="object-cover"

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import Image from "next/image";
+import { isOptimizableImageSrc } from "@/lib/imageSrc";
 
 import {
   AlertTriangle,
@@ -191,6 +192,7 @@ export function AuctionDetailModal({
                   {allImages[selectedImageIndex] ? (
                     <Image
                       src={allImages[selectedImageIndex]}
+                      unoptimized={!isOptimizableImageSrc(allImages[selectedImageIndex])}
                       alt="Auction item"
                       fill
                       className="object-contain"
@@ -240,6 +242,7 @@ export function AuctionDetailModal({
                       >
                         <Image
                           src={img}
+                          unoptimized={!isOptimizableImageSrc(img)}
                           alt={`Thumbnail ${idx + 1}`}
                           fill
                           className="object-cover"

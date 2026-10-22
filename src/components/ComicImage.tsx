@@ -4,6 +4,8 @@ import { useState } from "react";
 
 import Image from "next/image";
 
+import { isOptimizableImageSrc } from "@/lib/imageSrc";
+
 interface ComicImageProps {
   src: string | null | undefined;
   alt: string;
@@ -72,6 +74,7 @@ export function ComicImage({
           {isLoading && <div className="absolute inset-0 bg-gray-200 animate-pulse" />}
           <Image
             src={src}
+            unoptimized={!isOptimizableImageSrc(src)}
             alt={alt}
             fill
             priority={priority}

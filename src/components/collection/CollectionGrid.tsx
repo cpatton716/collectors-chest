@@ -2,6 +2,7 @@
 
 import { Star, Tag } from "lucide-react";
 
+import { MARKETPLACE_ENABLED } from "@/lib/features";
 import { getComicValue } from "@/lib/gradePrice";
 
 import { ComicCard } from "@/components/ComicCard";
@@ -38,7 +39,9 @@ export function CollectionGrid({
 }: CollectionGridProps) {
   if (viewMode === "grid") {
     return (
-      <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 ${isSelectionMode ? "pb-28" : ""}`}>
+      <div
+        className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 ${isSelectionMode ? "pb-28" : ""}`}
+      >
         {filteredCollection.map((item) => (
           <ComicCard
             key={item.id}
@@ -55,15 +58,27 @@ export function CollectionGrid({
     );
   }
 
+  // Column count drops by one when the For Sale column is hidden. Literal
+  // class names so Tailwind generates each one.
+  const tableGridCols = MARKETPLACE_ENABLED
+    ? showFinancials
+      ? "grid-cols-12"
+      : "grid-cols-10"
+    : showFinancials
+      ? "grid-cols-11"
+      : "grid-cols-9";
+
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
       {/* Table Header */}
-      <div className={`grid ${showFinancials ? "grid-cols-12" : "grid-cols-10"} gap-4 px-4 py-3 bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wider`}>
+      <div
+        className={`grid ${tableGridCols} gap-4 px-4 py-3 bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wider`}
+      >
         <div className={showFinancials ? "col-span-5" : "col-span-5"}>Comic</div>
         <div className="col-span-2">Publisher</div>
         <div className="col-span-2 text-right">Est. Value</div>
         {showFinancials && <div className="col-span-2 text-right">Purchase Price</div>}
-        <div className="col-span-1 text-center">For Sale</div>
+        {MARKETPLACE_ENABLED && <div className="col-span-1 text-center">For Sale</div>}
       </div>
 
       {/* Table Body */}
@@ -78,7 +93,7 @@ export function CollectionGrid({
             <div
               key={item.id}
               onClick={() => onComicClick(item)}
-              className={`grid ${showFinancials ? "grid-cols-12" : "grid-cols-10"} gap-4 px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors items-center`}
+              className={`grid ${tableGridCols} gap-4 px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors items-center`}
             >
               {/* Comic Info */}
               <div className="col-span-5 flex items-center gap-3">
@@ -140,27 +155,31 @@ export function CollectionGrid({
               </div>
 
               {/* Purchase Price */}
-              {showFinancials && <div className="col-span-2 text-right">
-                {item.purchasePrice ? (
-                  <p className="font-medium text-gray-900">${item.purchasePrice.toFixed(2)}</p>
-                ) : (
-                  <span className="text-sm text-gray-400">-</span>
-                )}
-              </div>}
+              {showFinancials && (
+                <div className="col-span-2 text-right">
+                  {item.purchasePrice ? (
+                    <p className="font-medium text-gray-900">${item.purchasePrice.toFixed(2)}</p>
+                  ) : (
+                    <span className="text-sm text-gray-400">-</span>
+                  )}
+                </div>
+              )}
 
-              {/* For Sale */}
-              <div className="col-span-1 flex justify-center">
-                {item.forSale ? (
-                  <div className="flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded-full">
-                    <Tag className="w-3 h-3" />
-                    <span className="text-xs font-medium">
-                      ${item.askingPrice?.toFixed(0) || "-"}
-                    </span>
-                  </div>
-                ) : (
-                  <span className="text-gray-300">-</span>
-                )}
-              </div>
+              {/* For Sale (hidden while the marketplace is off) */}
+              {MARKETPLACE_ENABLED && (
+                <div className="col-span-1 flex justify-center">
+                  {item.forSale ? (
+                    <div className="flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded-full">
+                      <Tag className="w-3 h-3" />
+                      <span className="text-xs font-medium">
+                        ${item.askingPrice?.toFixed(0) || "-"}
+                      </span>
+                    </div>
+                  ) : (
+                    <span className="text-gray-300">-</span>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}

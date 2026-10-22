@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
-
 import Link from "next/link";
 
 import { BookOpen, Camera, Mail, Search, ShoppingBag, Users } from "lucide-react";
+
+import { MARKETPLACE_ENABLED, getMissionStatement } from "@/lib/features";
 
 export const metadata: Metadata = {
   title: "About | Collectors Chest",
@@ -28,9 +29,7 @@ export default function AboutPage() {
           </h1>
           <div className="speech-bubble max-w-2xl mx-auto">
             <p className="text-lg font-body text-pop-black">
-              Scan any cover. Track every book. Find your people. Collectors Chest is the all-in-one
-              platform that helps comic collectors discover value, organize with pride, and buy,
-              sell, and trade with confidence.
+              {getMissionStatement(MARKETPLACE_ENABLED)}
             </p>
           </div>
         </div>
@@ -74,7 +73,10 @@ export default function AboutPage() {
             WHAT WE OFFER!
           </h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          {/* 2x2 with the marketplace card; 3 across without it so no corner sits empty */}
+          <div
+            className={`grid grid-cols-1 ${MARKETPLACE_ENABLED ? "md:grid-cols-2" : "md:grid-cols-3"} gap-8`}
+          >
             {/* AI Cover Scanning */}
             <div className="bg-pop-white border-4 border-pop-black shadow-[6px_6px_0px_#000] p-6 relative overflow-hidden">
               <div className="absolute top-0 left-0 w-20 h-20 dots-red opacity-25 pointer-events-none" />
@@ -120,19 +122,21 @@ export default function AboutPage() {
             </div>
 
             {/* Collector Marketplace */}
-            <div className="bg-pop-white border-4 border-pop-black shadow-[6px_6px_0px_#000] p-6 relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-16 h-16 dots-red opacity-20 pointer-events-none" />
-              <div className="flex items-center gap-4 mb-4">
-                <div className="w-14 h-14 bg-pop-green border-3 border-pop-black shadow-comic-sm flex items-center justify-center flex-shrink-0">
-                  <ShoppingBag className="w-7 h-7 text-pop-white" />
+            {MARKETPLACE_ENABLED && (
+              <div className="bg-pop-white border-4 border-pop-black shadow-[6px_6px_0px_#000] p-6 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-16 h-16 dots-red opacity-20 pointer-events-none" />
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="w-14 h-14 bg-pop-green border-3 border-pop-black shadow-comic-sm flex items-center justify-center flex-shrink-0">
+                    <ShoppingBag className="w-7 h-7 text-pop-white" />
+                  </div>
+                  <h3 className="font-comic text-lg text-pop-black">COLLECTOR MARKETPLACE</h3>
                 </div>
-                <h3 className="font-comic text-lg text-pop-black">COLLECTOR MARKETPLACE</h3>
+                <p className="font-body text-pop-black/80">
+                  Buy, sell, and trade with confidence in a community built by collectors, for
+                  collectors.
+                </p>
               </div>
-              <p className="font-body text-pop-black/80">
-                Buy, sell, and trade with confidence in a community built by collectors, for
-                collectors.
-              </p>
-            </div>
+            )}
           </div>
         </div>
 
@@ -166,9 +170,7 @@ export default function AboutPage() {
         {/* Contact / Connect */}
         <div className="mb-16">
           <div className="bg-pop-blue border-4 border-pop-black shadow-[6px_6px_0px_#000] p-8 text-center">
-            <h2 className="font-comic text-2xl md:text-3xl text-pop-yellow mb-4">
-              GET IN TOUCH!
-            </h2>
+            <h2 className="font-comic text-2xl md:text-3xl text-pop-yellow mb-4">GET IN TOUCH!</h2>
             <div className="flex items-center justify-center gap-3 mb-4">
               <div className="w-12 h-12 bg-pop-red border-3 border-pop-black shadow-comic-sm flex items-center justify-center">
                 <Mail className="w-6 h-6 text-pop-white" />

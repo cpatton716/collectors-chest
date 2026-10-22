@@ -1,14 +1,14 @@
 # Collectors Chest Backlog
 
-## ⭐ Next Session — Main Priority (updated 2026-10-04 — deploy ON HOLD)
+## ⭐ Next Session — Main Priority (updated 2026-10-22 — ready to push, awaiting owner go-ahead)
 
-Lead with these when the next session opens. **Owner: ALL items added 2026-10-04 are top priority** (marked `[Added 2026-10-04]` in the High section below). The deploy is on hold — nothing ships until these are verified.
+Lead with these when the next session opens.
 
-1. **Deploy Hold — Resume Pre-Deploy Checklist** — incl. verifying the 5 smoke-test bug fixes, re-running the automated gate, the guest-scan counter test, the 4 new Netlify env vars, the npm-audit Next/sharp security upgrade, then pushing the 22 commits + admin middleware fix together. Gemini fix is the strongest reason to resume soon (prod scans are on Claude Sonnet at ~5x cost).
-2. **The 5 smoke-test bugs — ALL fixed locally (uncommitted)**; full suite 1,448 tests passing per last agent run. Remaining before deploy: re-run the full gate; browser re-test of scan, mark-as-sold → `/sales` thumbnail, For Trade tab, pricing FAQ; **RESOLVE the Stripe destination-charge fee question** (see "Pricing FAQ Fee Copy Wrong"); plus existing owner steps. Review `src/lib/db.ts` + `db.test.ts` together — edited by two fixes (cover cleanup + metadata RLS).
-3. **Convention Companion Pivot** — Aponte review of `/admin/pivot-brief`.
+1. **Deploy Hold — push + prod iPhone check** — gate re-run green Oct 22; Netlify env vars added; Stripe fee question resolved; marketplace hidden. Remaining: owner go-ahead to push (auto-deploys), then an iPhone check on prod. Gemini fix is the strongest reason to ship (prod scans are on Claude Sonnet at ~5x cost).
+2. **Convention Companion Pivot** — Aponte review of `/admin/pivot-brief` (incl. "Decisions for Aponte" and the fee recommendation).
+3. **Marketplace Relaunch Checklist** — Aponte fee sign-off, seller-fee copy/take-home math, Terms MoR/shipping/age wording, then flip `MARKETPLACE_ENABLED`.
 4. **PriceCharting commercial license + pricing data outreach** (CovrPrice, optionally GPA).
-5. **Remaining 2026-10-04 items** — shared dev/prod DB, live keys in `.env.local`, Netlify token 401, CSRF, usage page 0 scans, edit modal Esc, mobile overlaps, billing status 404, PGX timeout, `proxy.ts` rename, test sale cleanup.
+5. **Remaining 2026-10-04 items** — shared dev/prod DB, live keys in `.env.local`, Netlify token 401, CSRF, usage page 0 scans, edit modal Esc, mobile overlaps, billing status 404, PGX timeout, `proxy.ts` rename.
 
 After those: Variant Detection two-pass barcode OCR, Closeout device test pass, then the standing pre-launch list below.
 
@@ -17,144 +17,54 @@ After those: Variant Detection two-pass barcode OCR, Closeout device test pass, 
 ## Pre-Launch — Critical / High Priority
 
 ### [Added 2026-10-04] Deploy Hold — Resume Pre-Deploy Checklist (Oct 4, 2026)
-**Priority:** High (Pre-Launch — nothing ships until this is resumed)
-**Status:** On Hold — owner revisiting
+**Priority:** High (Pre-Launch — nothing ships until the owner gives the push go-ahead)
+**Status:** Ready to push — awaiting owner go-ahead (updated 2026-10-22)
 **Added:** 2026-10-04
 
-The owner put the deploy on hold on Oct 4 to dig in later. Nothing will be deployed for now. **A push to `main` auto-deploys to Netlify** — do not push until this checklist is complete.
+**A push to `main` auto-deploys to Netlify** — do not push without the owner's explicit go-ahead.
 
-**Current state:**
-- **22 unpushed commits on `main`** + today's uncommitted local work:
-  - Admin **Pivot Brief** page at `/admin/pivot-brief` + new `AdminNav` tab
-  - Admin middleware crash fix in `src/middleware.ts` + `src/lib/adminAuth.ts` (new `getAdminProfileByUserId` + 5 tests)
-  - **All 5 smoke-test bug fixes done locally (uncommitted)** — see the five "Smoke Test (Oct 4)" entries below. Full suite **1,448 tests passing** per last agent run.
-  - Uncommitted modified files include `src/lib/db.ts` + `src/lib/__tests__/db.test.ts`, **edited by two fixes** (cover cleanup + `comic_metadata` RLS) — review them together before committing.
-- **Automated gate passed Oct 4 (before the smoke fixes):** `check:routes`, lint (0 errors / 256 warnings), 1,428 tests, build (113 pages), `smoke-test`. **Must be re-run after the fixes land.**
-- **Remaining before deploy:** re-run the full gate; browser re-test of scan / mark-as-sold thumbnail / For Trade tab / pricing FAQ; **RESOLVE the Stripe destination-charge fee question** (see "Pricing FAQ Fee Copy Wrong" — blocks the deploy); **upgrade Next.js ≥16.3.5 + sharp ≥0.35.4 and clear the critical npm-audit advisories** (see "Security: npm audit — 52 vulnerabilities" — blocks the deploy); plus the owner steps below.
+**Current state (Oct 22):**
+- **23 unpushed commits on `main`** (fast-forward onto `origin/main`; push dry-run OK with the `cpatton716` gh account) + the Session 51/52 uncommitted work (smoke-test fixes, Next/sharp security upgrade, checkout `on_behalf_of` removal, marketplace hidden behind `MARKETPLACE_ENABLED=false`, image-host allowlist fix, pivot brief updates).
+- **Full gate re-run Oct 22 — all green:** `check:routes`, lint (0 errors / 256 warnings), `tsc --noEmit`, 1,543 tests (88 suites), clean build (113 pages), `smoke-test`. `npm audit --omit=dev` = 0.
+- **Resolved Oct 22:** browser re-tests (Gemini scan, Mark as Sold cover, For Trade, pricing/FAQ, marketplace hidden, admin + pivot brief); Stripe fee-bearer question (platform pays — see "Marketplace Relaunch Checklist"); Netlify env vars `GUEST_SCAN_SECRET`, `PROMO_TRIAL_SECRET`, `UNSUBSCRIBE_SECRET`, `SUPPORT_EMAIL` added; test sales deleted.
 
-**Admin middleware crash (MUST ship with the 22 commits):** regression from unpushed commit `3ba698a` — Clerk server `auth()` was called inside `clerkMiddleware`, so every `/admin` page crashed for signed-in users. Fixed locally and verified by the owner in the browser. Shipping the 22 commits without this fix would break all admin pages in production.
+**Remaining:**
+- [ ] Owner go-ahead → commit + push (check `gh auth status` = `cpatton716` first)
+- [ ] iPhone check on prod after deploy (scan, collection, Trade page, pricing, nav)
+- [ ] Guest scan counter (#9) — owner test in a private window using picture upload, on prod after deploy
 
-**Netlify env vars to add before deploy:**
-- `GUEST_SCAN_SECRET`, `PROMO_TRIAL_SECRET`, `UNSUBSCRIBE_SECRET` — generate **fresh prod values** with `openssl rand -hex 32` (different from local)
-- `SUPPORT_EMAIL=support@collectors-chest.com`
-- Use Netlify "Import from a .env file" at https://app.netlify.com/sites/collecters-chest/configuration/env (note the site-name spelling — confirm before using)
-- `STRIPE_PRICE_*` are already on Netlify
-- **Side effects when added:** existing guest-scan cookies reset counters; unsubscribe links in already-sent emails stop validating (mailto fallback still works); previously issued promo-trial links break — there is no transitional fallback in `verify()`. Acceptable in private beta; **do this before printing promo QR codes.**
-
-**Smoke test results (Oct 4, Chrome extension on localhost):**
-- PASS: sign out/in + collection (owner verified), scan identifies (Batman #227 PGX 6.0), save to collection, detail modal Esc/X, bulk mark-as-sold skip-pricing, all 4 admin pages, pricing page prices ($4.99/mo, $49.99/yr), shop tabs load, mobile layout (390px iframe).
-- PENDING: **Guest scan counter (#9)** — owner to test in a private window using picture upload; best after the Gemini fix lands.
-- PENDING: re-test affected flows after fixes — scan, mark-as-sold → `/sales` thumbnail, For Trade tab, pricing FAQ.
-
-**Outstanding owner steps:**
-- [ ] Stripe production webhook: subscribe `account.updated` + run a Connect test
+**Outstanding owner steps (not deploy-blocking):**
+- [ ] Stripe production webhook: subscribe `account.updated` + run a Connect test (only needed at marketplace relaunch)
 - [ ] `/about` copy (still placeholder — see "About Page Copy")
-- [ ] Device test pass: TEST_CASES.md "Closeout Test Plan — 2026-06-14" (~37 cases) + "Refactor Smoke Test" — not done
+- [ ] Device test pass: TEST_CASES.md "Closeout Test Plan — 2026-06-14" (~37 cases) + "Refactor Smoke Test" + "Marketplace Hidden — 2026-10-22"
 - [ ] Set `promo_trial_eligible` for QR accounts at launch
 - [ ] Dashboard checks: `comic-covers` bucket cleanup policy, zero traffic on deprecated `/api/listings/[id]/purchase`, rating-count spot-check
 
+**Side effects of the new Netlify secrets (on deploy):** existing guest-scan cookies reset counters; unsubscribe links in already-sent emails stop validating (mailto fallback still works); previously issued promo-trial links break. Acceptable in private beta.
+
 **After deploy:** clear DEV_LOG "Changes Since Last Deploy" and batch the DEV_LOG update into the deploy commit (avoid a second Netlify build).
 
-**Related:** "Closeout residual owner steps (migration applied)"; "Execute Audit Remediation + Closeout Test Suite". Netlify env-var inventory (verified Oct 4) lives in project CLAUDE.md → Deploy Command.
+**Related:** "Closeout residual owner steps (migration applied)"; "Execute Audit Remediation + Closeout Test Suite". Netlify env-var inventory lives in project CLAUDE.md → Deploy Command.
 
 ---
 
-### [Added 2026-10-04] Security: npm audit — 52 vulnerabilities (1 critical, 45 high) — upgrade before next deploy
-**Priority:** High (Pre-Launch — pre-deploy step in "Deploy Hold — Resume Pre-Deploy Checklist")
-**Status:** Pending
-**Added:** 2026-10-04
+### [Added 2026-10-22] Marketplace Relaunch Checklist (Marketplace Hidden Behind `MARKETPLACE_ENABLED`)
+**Priority:** High (Pre-Launch — marketplace stays hidden until every item is done)
+**Status:** Pending — awaiting Aponte sign-off on the fee model
+**Added:** 2026-10-22 (supersedes "Pricing FAQ Fee Copy Wrong (Destination Charges)", Oct 4)
 
-New advisories published since Session 50 (which left only 1 accepted dev-only residual).
-- **Critical — `next` 16.2.11** (affected through 16.3.5): GHSA-p293-qw3h-jr36 (RCE, Windows-hosted servers) and GHSA-2xp9-vwfh-vxw4 (RCE via Image Optimization API with AVIF).
-- **High:** `sharp` <0.35.4 (libheif), `qs` (DoS), `smol-toml` (DoS), others.
+The marketplace (buy, sell, auctions, offers, watchlist, seller onboarding) is hidden behind `MARKETPLACE_ENABLED = false` in `src/lib/features.ts` (Session 52). **Verified in Stripe test mode Oct 22:** on destination charges the **platform** pays the processing fee ($20 → 88¢, $100 → 320¢). Checkout no longer sends `on_behalf_of` (transfers-only Express sellers lack `card_payments`, so checkout failed) — the **platform is merchant of record**. Recommendation in `/admin/pivot-brief`: keep the 8% / 5% fees, platform covers the card fee; the marketplace should cover costs, not profit.
 
-**Fix:** `npm audit fix` is available. Upgrade Next to **≥16.3.5** and sharp to **≥0.35.4** (update the npm override), then run the full gate (`check:routes`, lint, tests, build, `smoke-test`) plus an image-upload smoke test (scan + cover upload, WebP conversion).
-
-**Verify:** `npm audit` shows no critical/high production advisories; build + image upload work.
-
----
-
-### [Added 2026-10-04] Smoke Test (Oct 4) — Gemini Vision Model Retired (Every Scan Falls Back to Claude)
-**Priority:** High (Pre-Launch — **PRODUCTION IS AFFECTED NOW**; strongest reason to resume the deploy soon)
-**Status:** Fixed locally (uncommitted, Oct 4) — needs one real scan through `/api/analyze` to confirm no `[gemini:*] failed` log lines
-**Added:** 2026-10-04
-
-**Root cause:** the configured Gemini model `models/gemini-2.0-flash` now returns **404** (model retired). Every scan silently falls back to Claude Sonnet (~5x cost per scan). Almost certainly affecting production now, since prod runs the same model id.
-
-**Fix (done locally):** `GEMINI_PRIMARY` in `src/lib/models.ts` changed `gemini-2.0-flash` (shut down 2026-06-01) → **`gemini-3.5-flash-lite`** (GA, no shutdown date). Rejected alternatives: `gemini-3.6-flash` (thinking exhausts our `maxOutputTokens` caps → truncated JSON); `gemini-2.5-flash` (404s for our key). New model ~$0.30 / $2.50 per M tokens (3–6x old 2.0 Flash, still far below Sonnet). Verified via SDK on real prompts.
-
-**Production impact:** every live scan falls back to Claude Sonnet (~5x cost) until this is deployed.
-
-**Sub-task — update docs still saying "Gemini 2.0 Flash":** ✅ Done (Session 51 close-up-shop, Oct 4)
-- [x] ARCHITECTURE.md (lines ~27, 1027, 1300, 1329)
-- [x] COST_PROJECTIONS.md (~96, 100, 104 — line 100 has old $0.10/$0.40 pricing)
-- [x] README.md (~17)
-- [x] docs/TECHNICAL_FEATURES.md (~10, 224)
-- [x] docs/features/01-ai-cover-recognition.md (~437)
-- [x] docs/engineering-specs/2026-03-19-cover-image-validation-design.md (~69)
-- [x] CLAUDE.md cost table mentions Gemini as primary (no model id change needed there — review cost figures only)
-
-**Verify:** scan a cover and confirm the server log shows Gemini as the provider (no fallback); check Admin → Usage after the fix. Consider an alert/log when the primary provider 404s so a silent fallback can't recur unnoticed.
-
----
-
-### [Added 2026-10-04] Smoke Test (Oct 4) — Mark as Sold Deletes the Cover Image
-**Priority:** High (Pre-Launch — regression in the unpushed commits)
-**Status:** Fixed locally (uncommitted, Oct 4) — needs browser re-test (mark as sold → `/sales` thumbnail intact)
-**Added:** 2026-10-04
-
-**Root cause:** the sell flow calls `DELETE /api/comics/[id]` → `cleanupOrphanedCover` (M-CO16) removes the storage file, but the sales record still references that cover URL → broken `/sales` thumbnails for **every** sold comic. Regression introduced in the unpushed commits (never reached prod).
-
-**Fix (done locally):** `cleanupOrphanedCover` now checks 6 reference columns before deleting — `sales`, `comics` (incl. marketplace buyer clones), `comic_metadata`, `cover_images`, `key_hunt_lists`, `admin_barcode_reviews` — via pure helper `decideCoverCleanup` in `src/lib/db.ts`; 11 new tests. Fails safe (keeps the file on lookup error). Also fixed the latent marketplace-clone variant of the same bug (buyer's cloned comic referencing the seller's cover).
-
-**Verify:** mark a comic as sold → `/sales` shows the thumbnail; a plain hard delete still cleans up an unreferenced cover.
-
----
-
-### [Added 2026-10-04] Smoke Test (Oct 4) — Pricing FAQ Fee Copy Wrong (Destination Charges)
-**Priority:** High (Pre-Launch — must fix before charging anyone)
-**Status:** Fixed locally (uncommitted, Oct 4) — **BLOCKED ON VERIFICATION** (Stripe fee-bearer question below must be resolved before deploy)
-**Added:** 2026-10-04
-
-**Root cause:** `src/app/pricing/page.tsx` (~line 308) FAQ says the platform pays the Stripe fee and the seller receives exactly $92 on a $100 sale. Since Session 48 the marketplace uses **destination charges** — the seller is merchant-of-record and pays 2.9% + $0.30. Copy is factually wrong about money. **Not a regression** — stale since Session 48.
-
-**Fix (done locally):** copy is now generated from real constants via new helpers in `src/lib/stripeConnect.ts` — `STRIPE_PROCESSING_PERCENT` / `STRIPE_PROCESSING_FIXED_CENTS`, `estimateStripeProcessingFeeCents`, `estimateSellerTakeHomeCents`, `buildSellerFeeFaqAnswer` (7 tests). Pricing page, Navigation FAQ and Terms 4.5 updated ($100 sale → **$88.80 Free / $91.80 Premium**).
-
-**⚠️ CRITICAL OPEN QUESTION — Stripe destination-charge fee bearer verification (who actually pays the Stripe fee?)** Stripe docs indicate that on **destination** charges the **platform** pays Stripe processing fees even with `on_behalf_of` (only **direct** charges shift fees to the connected account). This contradicts the Session 48 premise (seller as merchant-of-record bears the fee). If true:
-- the new copy is wrong in the other direction, AND
-- the M-MK16 / COST_PROJECTIONS.md / CLAUDE.md cost assumptions are wrong (platform nets `application_fee` **minus** the Stripe fee).
-
-**Before deploy:** run one test-mode sale and check which balance transaction carries the Stripe fee; then fix the copy and/or cost docs accordingly.
-
-**Also — Terms 4.5 "excluding shipping" vs fee computed on total incl. shipping (owner decision):** Terms 4.5 says fees are calculated "excluding shipping", but `computePlatformFeeCents` applies to the total **including** shipping (checkout route ~line 151). Owner must decide: change the code or change the terms.
-
-**Verify:** re-read the pricing FAQ, Navigation FAQ and terms; fee example matches the confirmed fee-bearer math.
-
----
-
-### [Added 2026-10-04] Smoke Test (Oct 4) — For Trade Tab Broken (`estimated_value` Column)
-**Priority:** High (Pre-Launch)
-**Status:** Fixed locally (uncommitted, Oct 4) — verified via curl (200, 9 comics); **needs browser re-test of the For Trade tab**
-**Added:** 2026-10-04
-
-**Root cause:** `/api/trades/available` returns **500** — `column comics.estimated_value does not exist` (`src/app/api/trades/available/route.ts` ~line 135). The UI masks the error as an empty list, so the bug looks like "no trades available." The nonexistent column was selected in **5 places**: `/api/trades/available`, `/api/comics/for-trade`, and 3 in `src/lib/tradingDb.ts`. **Not a regression** — broken in production since the original trading feature (commit `a8fe5de`); trade detail/list were also broken.
-
-**Fix (done locally):** all 5 selects now use `estimated_value:price_data->estimatedValue`. Still worth considering: surface a real error state in the UI instead of an empty list.
-
-**Verify:** Shop → For Trade tab lists trade-flagged comics; no 500 in the network tab.
-
----
-
-### [Added 2026-10-04] Smoke Test (Oct 4) — Scan Metadata Not Saving (`comic_metadata` RLS)
-**Priority:** High (Pre-Launch — shared metadata cache never fills)
-**Status:** Fixed locally (uncommitted, Oct 4) — verified against the live DB (probe row cleaned up)
-**Added:** 2026-10-04
-
-**Root cause:** `saveComicMetadata` + `incrementComicLookupCount` in `src/lib/db.ts` used the **anon** client. RLS since migration `20260110` requires `auth.is_authenticated()`, and Clerk doesn't give the anon client a Supabase session → **every write has failed in production since Jan 10** (shared metadata cache never filled; lookup counts never incremented).
-
-**Fix (done locally):** both functions now use the service-role client (all callers are server-side); no migration needed; 2 tests. Defensive "never write `comics.cover_image_url` from here" comment added — this also completes **"`comic_metadata` Write Path — Defensive Comment in db.ts:235"** (close it on commit).
-
-**Verify:** scan a new comic → no RLS error in server logs; row present in `comic_metadata`.
+**Before flipping the flag:**
+- [ ] **Aponte sign-off** on the fee model (see `/admin/pivot-brief` → "Decisions for Aponte")
+- [ ] **Fix seller-fee FAQ text AND `estimateSellerTakeHomeCents`** (`src/lib/stripeConnect.ts`) — it still subtracts the Stripe fee ($88.80 / $91.80 on $100). Seller actually receives total minus platform fee only: **$92.00 Free / $95.00 Premium on $100**. Update tests; `buildSellerFeeFaqAnswer` feeds the pricing FAQ, Ask the Professor FAQ and Terms.
+- [ ] **Terms 4.1 "not a party to any transaction"** and **4.5 merchant-of-record wording** conflict with platform-as-MoR — rewrite (owner/legal)
+- [ ] **Fee charged on shipping vs Terms:** Terms say fees exclude shipping, but `computePlatformFeeCents` applies to the total incl. shipping — decide code or Terms
+- [ ] **Age attestation:** Terms vs app mismatch — align
+- [ ] Update COST_PROJECTIONS.md / CLAUDE.md Stripe cost note (platform nets `application_fee` minus the Stripe fee)
+- [ ] Stripe production webhook `account.updated` + Connect test (see Deploy Hold owner steps)
+- [ ] Handle "Deleting a Comic with an Active Listing Is Blocked While Marketplace Is Hidden"
+- [ ] Flip `MARKETPLACE_ENABLED` to `true`, run TEST_CASES.md "Marketplace Hidden — 2026-10-22" in reverse (all marketplace UI/copy returns)
 
 ---
 
@@ -181,7 +91,7 @@ Brief lives in-app at `/admin/pivot-brief` (built Oct 4, uncommitted).
 **The plan:**
 - **Subscriptions-only launch** — marketplace held back (or founders-only)
 - Relabel prices as **"eBay asking range"** (honest about active-listing data until a sold-price source is licensed)
-- **Cleanup steps:** ship the pending batch (see "Deploy Hold"); make **one live $1 Premium purchase** to prove billing end-to-end (none has ever been recorded); hide the marketplace; re-enable public sign-up in Clerk; verify the support inbox works
+- **Cleanup steps:** ship the pending batch (see "Deploy Hold"); make **one live $1 Premium purchase** to prove billing end-to-end (none has ever been recorded); hide the marketplace (✅ done locally Oct 22 — `MARKETPLACE_ENABLED=false`, ships with the push); re-enable public sign-up in Clerk; verify the support inbox works
 - **One-convention test:** QR code → 30-day Premium trial
 - **Success bar (60 days):** 10+ paid = keep · 3–9 = adjust · <3 = stop
 - **Break-even:** ~4 Premium subscriptions today
@@ -249,6 +159,8 @@ EVALUATION.md says CSRF is "tracked in BACKLOG" but no entry existed — this is
 
 Admin → Usage showed "Scans (30 days): 0 / Est. AI cost $0.00" after the Oct 4 smoke-test scans. Verify scan usage tracking is being written (may be related to the dev/prod shared DB or the expired `NETLIFY_API_TOKEN`).
 
+**Related:** "Billing Tab Shows 'Scans used 0/10' Right After a Scan" (Medium) — possibly the same root cause; investigate together.
+
 ---
 
 ### [Added 2026-10-04] Edit Comic Modal Doesn't Close on Escape
@@ -296,17 +208,6 @@ The PGX cert site is unreachable, so the lookup times out and adds ~10s to every
 **Added:** 2026-10-04
 
 Next 16 logs a deprecation warning for `middleware.ts`. Rename to `proxy.ts` per the Next 16 convention once the Oct 4 admin middleware fix has shipped.
-
----
-
-### [Added 2026-10-04] Test Data Cleanup — Smoke-Test Sale Record + No In-App Sale Delete
-**Priority:** High (Oct 4 session item — owner: all Oct 4 items are top priority; originally scoped Low)
-**Status:** Pending — owner to remove in Supabase
-**Added:** 2026-10-04
-
-The Oct 4 smoke test created a sale record "Batman #227 (Detective Comics #31 cover swipe…)" on `/sales` for dev account cpatton716@gmail.com (in the production DB — see "Local Dev Shares the Production Supabase Database"). Owner to delete it in Supabase.
-
-**Feature gap:** there is no way to delete a sale record in-app. Consider whether users need "undo sale / remove sale record."
 
 ---
 
@@ -632,12 +533,75 @@ The 2026-06-14 audit surfaced 64 'Partial' + 4 'No' findings requiring an owner 
 
 ---
 
-### Accepted Dev-Only npm Audit Residual (brace-expansion)
+### Accepted Dev-Only npm Audit Residual (33 dev-tooling advisories)
 **Priority:** Low (Post-Launch — accepted risk, dev tooling only)
 **Status:** Pending — re-check at next dependency refresh
-**Added:** Jul 25, 2026
+**Added:** Jul 25, 2026 · **Updated:** 2026-10-22
 
-One `brace-expansion` DoS advisory fans out through the dev toolchain (eslint, @trivago/prettier-plugin-sort-imports, depcheck, glob). The only patched release (5.0.8) is ESM-only and incompatible with the CJS consumers; no production exposure (dev tooling only, no attacker-controlled input). Re-check for compatible upstream fixes at the next dependency refresh.
+After the Oct 22 Next 16.4.2 / sharp 0.35.5 upgrade, **`npm audit --omit=dev` = 0**; full audit = **33 (22 moderate, 11 high, 0 critical)**, all in dev tooling (jest/ts-jest, tailwindcss/braces, knip, depcheck, the eslint-config-next advisory path, `brace-expansion`). Fixes need major-version jumps (the only patched `brace-expansion` is ESM-only and breaks CJS consumers). No production exposure. Re-check for compatible upstream fixes at the next dependency refresh.
+
+---
+
+### [Added 2026-10-22] Bad Cover URLs in DB — Validate Cover URLs on Save
+**Priority:** Low
+**Status:** Pending
+**Added:** 2026-10-22
+
+Bad cover URLs in DB (Google thumbnail on Spider-Man 2099 #1, a web page URL on TMNT #1, Google ad redirect in `cover_images`) — now render safely (`isOptimizableImageSrc` → `unoptimized`); optionally clean up / validate cover URLs on save (e.g. reject non-image URLs, re-host external covers to Supabase Storage).
+
+---
+
+### [Added 2026-10-22] Deleting a Comic with an Active Listing Is Blocked While Marketplace Is Hidden
+**Priority:** Medium
+**Status:** Pending
+**Added:** 2026-10-22
+
+`RemoveConfirmDialog` tells the user to cancel the listing first, but the listing UI is hidden while the marketplace is held back — so the user has no way to delete that comic. 0 active listings in prod as of Oct 22; handle before any listing could exist, or on marketplace relaunch.
+
+---
+
+### [Added 2026-10-22] Billing Tab Shows "Scans used 0/10" Right After a Scan
+**Priority:** Medium
+**Status:** Pending — investigate
+**Added:** 2026-10-22
+
+Profile → Billing showed "Scans used 0/10" immediately after a successful scan during the Oct 22 re-tests. Check whether the scan counter is incremented/read correctly (or just cached stale). May share a root cause with "Usage Admin Page Shows 0 Scans / $0.00 After Scans" (High).
+
+---
+
+### [Added 2026-10-22] `imageSrc.ts` Imports a Next.js Internal Path — Re-check on Next Upgrades
+**Priority:** Low
+**Status:** Pending — re-check on every Next upgrade
+**Added:** 2026-10-22
+
+`src/lib/imageSrc.ts` imports `matchRemotePattern` from `next/dist/shared/lib/match-remote-pattern` (not a public API) so `isOptimizableImageSrc` uses the exact matcher Next uses for `images.remotePatterns`. A Next upgrade could move or change it. On each upgrade: confirm the import resolves and `src/lib/__tests__/imageSrc.test.ts` passes; if removed, vendor a small matcher.
+
+---
+
+### [Added 2026-10-22] Orphaned Cover File from Spawn #1 Test Sale
+**Priority:** Low
+**Status:** Pending (harmless)
+**Added:** 2026-10-22
+
+The Oct 22 Spawn #1 test sale was deleted by the owner via SQL, leaving `comic-covers/99bc8d5c-e255-4bd0-b3f5-f5810fb1a60e/1792680358778-b45j6g2df0h.webp` with no referencing row. Delete it in Supabase Storage, or let a future bucket orphan sweep catch it (see Deploy Hold owner step "`comic-covers` bucket cleanup policy").
+
+---
+
+### [Added 2026-10-22] No In-App Way to Delete a Sale Record
+**Priority:** Low
+**Status:** Pending — product decision
+**Added:** 2026-10-22 (split out of the Oct 4 test-data cleanup item, now done)
+
+There is no way to delete a sale record in-app (test sales had to be removed via SQL). Consider whether users need "undo sale / remove sale record."
+
+---
+
+### [Added 2026-10-22] Profile Tab "Transaction Trust" Wording While Marketplace Is Hidden
+**Priority:** Low
+**Status:** Pending — copy review
+**Added:** 2026-10-22
+
+With the marketplace hidden, the Profile tab still labels the reputation block "Transaction Trust" (badge now reads "New Trader"). Review whether the heading should read as trade-oriented while `MARKETPLACE_ENABLED` is false.
 
 ---
 
@@ -1772,16 +1736,3 @@ Listed in `docs/DATA_PARTNERS.md` as a possible alternative pricing data source.
 **Related:** PriceCharting Integration (Pre-Launch entry above — primary path); `docs/DATA_PARTNERS.md`; "Pricing Data Outreach".
 
 ---
-
-### `comic_metadata` Write Path — Defensive Comment in db.ts:235
-**Priority:** Low (documentation only, no behavior change)
-**Status:** Done locally with RLS fix — close on commit
-**Added:** May 6, 2026 (Session 45b)
-
-Currently SAFE: writes to the shared `comic_metadata` cache table do NOT touch a user's `comics` row, so user-uploaded collection covers are never overwritten by a metadata cache update. Session 45b audit confirmed this.
-
-However, the rule isn't documented in code. Add a short comment block at `src/lib/db.ts:235` (the `comic_metadata` write site) explaining: "This table is the SHARED cache layer. User-collection-photo writes go to `comics.cover_image` — never touch that field from this code path." Prevents a future contributor from accidentally bridging the two write paths.
-
-Tiny task. ~5 minutes.
-
-**Update (Oct 4, 2026):** the Oct 4 smoke test found the `comic_metadata` insert is actually **failing on RLS** — see "Smoke Test (Oct 4) — Scan Metadata Not Saving (`comic_metadata` RLS)" (High). Do this comment as part of that fix; close both together.

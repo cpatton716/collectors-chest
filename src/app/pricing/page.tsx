@@ -8,6 +8,7 @@ import { Check, Crown, Sparkles, X, Zap } from "lucide-react";
 
 import { useSubscription } from "@/hooks/useSubscription";
 
+import { MARKETPLACE_ENABLED } from "@/lib/features";
 import { buildSellerFeeFaqAnswer } from "@/lib/stripeConnect";
 
 type BillingInterval = "monthly" | "annual";
@@ -130,14 +131,18 @@ export default function PricingPage() {
               <FeatureItem included>Cloud collection sync</FeatureItem>
               <FeatureItem included>Real eBay prices</FeatureItem>
               <FeatureItem included>Public profile sharing</FeatureItem>
-              <FeatureItem included>Buy & bid in Shop</FeatureItem>
-              <FeatureItem included>3 active listings</FeatureItem>
-              <FeatureItem included>8% seller fee</FeatureItem>
+              {MARKETPLACE_ENABLED && (
+                <>
+                  <FeatureItem included>Buy & bid in Shop</FeatureItem>
+                  <FeatureItem included>3 active listings</FeatureItem>
+                  <FeatureItem included>8% seller fee</FeatureItem>
+                </>
+              )}
               <FeatureItem included>CSV import</FeatureItem>
               <FeatureItem>Key Hunt (offline lookup)</FeatureItem>
               <FeatureItem>CSV export</FeatureItem>
               <FeatureItem>Advanced statistics</FeatureItem>
-              <FeatureItem>Unlimited listings</FeatureItem>
+              {MARKETPLACE_ENABLED && <FeatureItem>Unlimited listings</FeatureItem>}
             </ul>
           </div>
 
@@ -223,19 +228,23 @@ export default function PricingPage() {
               <FeatureItem included premium>
                 Public profile sharing
               </FeatureItem>
-              <FeatureItem included premium>
-                Buy & bid in Shop
-              </FeatureItem>
-              <FeatureItem included premium>
-                <span className="flex items-center gap-2">
-                  <Zap className="w-4 h-4 text-pop-yellow" />
-                  Unlimited listings
-                </span>
-              </FeatureItem>
-              <FeatureItem included premium>
-                <span className="font-comic">5% seller fee</span>
-                <span className="text-pop-white/70 text-sm ml-1">(save 3%)</span>
-              </FeatureItem>
+              {MARKETPLACE_ENABLED && (
+                <>
+                  <FeatureItem included premium>
+                    Buy & bid in Shop
+                  </FeatureItem>
+                  <FeatureItem included premium>
+                    <span className="flex items-center gap-2">
+                      <Zap className="w-4 h-4 text-pop-yellow" />
+                      Unlimited listings
+                    </span>
+                  </FeatureItem>
+                  <FeatureItem included premium>
+                    <span className="font-comic">5% seller fee</span>
+                    <span className="text-pop-white/70 text-sm ml-1">(save 3%)</span>
+                  </FeatureItem>
+                </>
+              )}
               <FeatureItem included premium>
                 CSV import & export
               </FeatureItem>
@@ -305,10 +314,12 @@ export default function PricingPage() {
               question="What's Key Hunt?"
               answer="Key Hunt is a quick price lookup mode designed for conventions. It caches barcode data for offline use, so you can quickly check prices without internet access."
             />
-            <FAQ
-              question="How does the seller fee work?"
-              answer={buildSellerFeeFaqAnswer()}
-            />
+            {MARKETPLACE_ENABLED && (
+              <FAQ
+                question="How does the seller fee work?"
+                answer={buildSellerFeeFaqAnswer()}
+              />
+            )}
             <FAQ
               question="Do purchased scans expire?"
               answer="No! Scan packs never expire. Monthly scan limits reset on the 1st of each month, but purchased scans carry over."

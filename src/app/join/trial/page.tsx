@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { MARKETPLACE_ENABLED } from "@/lib/features";
 import { mintPromoTrialToken } from "@/lib/promoTrial";
 import PromoTrialActivator from "./PromoTrialActivator";
 import PromoTrialCTA from "./PromoTrialCTA";
@@ -70,10 +71,12 @@ export default async function JoinTrialPage() {
               <span className="text-pop-red font-bold text-lg">WHAM!</span>
               <span className="text-pop-black font-medium">CSV export your collection</span>
             </li>
-            <li className="flex items-baseline gap-2">
-              <span className="text-pop-red font-bold text-lg">KAPOW!</span>
-              <span className="text-pop-black font-medium">Buy, sell & auction comics</span>
-            </li>
+            {MARKETPLACE_ENABLED && (
+              <li className="flex items-baseline gap-2">
+                <span className="text-pop-red font-bold text-lg">KAPOW!</span>
+                <span className="text-pop-black font-medium">Buy, sell & auction comics</span>
+              </li>
+            )}
           </ul>
 
           <PromoTrialCTA />

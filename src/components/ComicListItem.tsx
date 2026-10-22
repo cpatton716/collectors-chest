@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronRight, DollarSign, Star, Tag } from "lucide-react";
+import { MARKETPLACE_ENABLED } from "@/lib/features";
 
 import { CollectionItem } from "@/types/comic";
 
@@ -55,13 +56,13 @@ export function ComicListItem({ item, onClick }: ComicListItemProps) {
 
             {/* Price */}
             <div className="text-right">
-              {(askingPrice || averagePrice) && (
+              {((MARKETPLACE_ENABLED ? askingPrice : null) || averagePrice) && (
                 <p className="font-bold text-gray-900 flex items-center justify-end gap-1">
                   <DollarSign className="w-4 h-4" />
-                  {(askingPrice || averagePrice)?.toFixed(2)}
+                  {((MARKETPLACE_ENABLED ? askingPrice : null) || averagePrice)?.toFixed(2)}
                 </p>
               )}
-              {forSale && (
+              {MARKETPLACE_ENABLED && forSale && (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded-full mt-1">
                   <Tag className="w-3 h-3" />
                   For Sale

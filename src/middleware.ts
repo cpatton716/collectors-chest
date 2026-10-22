@@ -1,7 +1,14 @@
-import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
+import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+
 import { getAdminProfileByUserId } from "@/lib/adminAuth";
+import {
+  MARKETPLACE_ENABLED,
+  isMarketplaceApiPath,
+  isMarketplacePagePath,
+  shouldRedirectShopTab,
+} from "@/lib/features";
 import { checkRateLimit, getRateLimitIdentifier, rateLimiters } from "@/lib/rateLimit";
 
 // Define routes that require authentication.
@@ -47,10 +54,26 @@ const isPublicAiLookupRoute = createRouteMatcher([
  * responses), so it's excluded from the page-redirect gate. Exported for tests.
  */
 export function shouldGateAdminPath(pathname: string): boolean {
-  return pathname === "/admin" || (pathname.startsWith("/admin/") && !pathname.startsWith("/admin/api"));
+  return (
+    pathname === "/admin" || (pathname.startsWith("/admin/") && !pathname.startsWith("/admin/api"))
+  );
 }
 
 export default clerkMiddleware(async (auth, req) => {
+  // Marketplace hidden (see src/lib/features.ts): 404 its APIs, redirect its pages.
+  if (!MARKETPLACE_ENABLED) {
+    const { pathname, searchParams } = req.nextUrl;
+    if (isMarketplaceApiPath(pathname)) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+    if (isMarketplacePagePath(pathname)) {
+      return NextResponse.redirect(new URL("/collection", req.url));
+    }
+    if (shouldRedirectShopTab(pathname, searchParams.get("tab"))) {
+      return NextResponse.redirect(new URL("/shop?tab=for-trade", req.url));
+    }
+  }
+
   if (isPublicAiLookupRoute(req)) {
     const identifier = getRateLimitIdentifier(
       null,

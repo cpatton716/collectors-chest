@@ -2,11 +2,11 @@ import type { SubscriptionTier } from "./subscriptionTypes";
 
 /**
  * Minimum platform fee in cents. Under the destination-charge model (M-MK16),
- * the seller is merchant-of-record and bears Stripe's 2.9% + $0.30 processing
- * cost; the platform's `application_fee_amount` is a CLEAN cut with no Stripe
- * cost netted against it. The floor therefore guarantees the platform a minimum
- * gross take per sale rather than protecting it from going underwater on Stripe
- * fees (which it no longer pays).
+ * WITHOUT `on_behalf_of`, the PLATFORM is merchant-of-record and pays Stripe's
+ * 2.9% + $0.30 processing fee out of its balance; the `application_fee_amount`
+ * is the platform's gross cut, so the Stripe fee is netted against it. The
+ * floor guarantees a minimum gross take per sale so small sales don't leave
+ * the platform underwater on the fixed $0.30.
  *
  * The percent-fee crosses the $0.75 floor at $9.38 (8% free tier) and $15.00
  * (5% premium). Below those points the floor wins; above them the percent-fee
@@ -39,8 +39,8 @@ export function feePercentForTier(
  * helpers). M-PAY10 / M-MK16.
  *
  * Under destination charges this value is passed verbatim as Stripe's
- * `application_fee_amount` - the platform's clean cut. (Stripe's processing
- * cost is settled separately against the seller's balance.)
+ * `application_fee_amount` - the platform's gross cut. (Stripe's processing
+ * fee is debited from the platform balance, not the seller's.)
  *
  * Fee = max(percent-fee, MIN_PLATFORM_FEE_CENTS), capped at the sale total
  * so the application fee can never exceed the charge. Percent-fee uses
@@ -62,9 +62,9 @@ export function computePlatformFeeCents(
  * destination charge. Thin wrapper over the canonical
  * {@link computePlatformFeeCents}.
  *
- * `platformFee` is the Stripe `application_fee_amount`. `sellerAmount` is the
- * seller's gross before Stripe deducts its 2.9% + $0.30 processing cost from
- * the seller's balance (the seller is merchant-of-record). M-MK16.
+ * `platformFee` is the Stripe `application_fee_amount`. `sellerAmount` is what
+ * is transferred to the seller (total - application fee); Stripe's processing
+ * fee is paid by the platform, which is merchant-of-record. M-MK16.
  */
 export function calculateDestinationAmount(
   totalCents: number,
@@ -72,6 +72,30 @@ export function calculateDestinationAmount(
 ): { sellerAmount: number; platformFee: number } {
   const platformFee = computePlatformFeeCents(totalCents, platformFeePercent);
   return { sellerAmount: totalCents - platformFee, platformFee };
+}
+
+/**
+ * Build Stripe `payment_intent_data` charge-routing params for a marketplace
+ * sale (destination charge). `transfer_data.destination` routes total minus
+ * `application_fee_amount` to the seller; the application fee stays on the
+ * platform balance, which also pays Stripe's processing fee.
+ *
+ * Intentionally NO `on_behalf_of`: sellers are onboarded with only the
+ * `transfers` capability, and Stripe rejects `on_behalf_of` for accounts
+ * without `card_payments`. The platform is merchant-of-record. Also no
+ * `transfer_data.amount` - the seller's share is derived from the fee.
+ */
+export function buildMarketplacePaymentIntentData({
+  sellerAccountId,
+  platformFeeCents,
+}: {
+  sellerAccountId: string;
+  platformFeeCents: number;
+}): { application_fee_amount: number; transfer_data: { destination: string } } {
+  return {
+    application_fee_amount: platformFeeCents,
+    transfer_data: { destination: sellerAccountId },
+  };
 }
 
 /**
@@ -88,7 +112,7 @@ export function computePlatformFeeDollars(
 
 /**
  * Stripe's standard US card processing rate (2.9% + $0.30). Under destination
- * charges with `on_behalf_of` (M-MK16) the seller bears this. Used ONLY for
+ * charges without `on_behalf_of` (M-MK16) the PLATFORM pays this. Used ONLY for
  * customer-facing estimates (FAQ/pricing copy) - actual Stripe fees can differ
  * (international cards, currency conversion, etc.) and are settled by Stripe.
  */

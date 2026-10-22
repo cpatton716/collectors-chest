@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 
 import Image from "next/image";
+import { isOptimizableImageSrc } from "@/lib/imageSrc";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -298,6 +299,7 @@ function TransactionCard({
         {row.coverImageUrl ? (
           <Image
             src={row.coverImageUrl}
+            unoptimized={!isOptimizableImageSrc(row.coverImageUrl)}
             alt={row.comicTitle}
             fill
             className="object-cover"

@@ -6,6 +6,8 @@ import Image from "next/image";
 
 import { ChevronDown, ChevronUp, MessageCircle, Star, X } from "lucide-react";
 
+import { isOptimizableImageSrc } from "@/lib/imageSrc";
+
 import { GroupedMatch } from "@/types/trade";
 
 interface TradeMatchCardProps {
@@ -45,6 +47,7 @@ export function TradeMatchCard({ group, onDismiss, onMessage }: TradeMatchCardPr
             {group.myComic?.coverImageUrl && (
               <Image
                 src={group.myComic.coverImageUrl}
+                unoptimized={!isOptimizableImageSrc(group.myComic.coverImageUrl)}
                 alt={group.myComic.title || "Comic"}
                 width={64}
                 height={96}
@@ -92,6 +95,7 @@ export function TradeMatchCard({ group, onDismiss, onMessage }: TradeMatchCardPr
                   {match.theirComic?.coverImageUrl && (
                     <Image
                       src={match.theirComic.coverImageUrl}
+                      unoptimized={!isOptimizableImageSrc(match.theirComic.coverImageUrl)}
                       alt={match.theirComic.title || "Comic"}
                       width={48}
                       height={64}

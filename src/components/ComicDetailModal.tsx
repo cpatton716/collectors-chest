@@ -21,6 +21,8 @@ import {
   ZoomIn,
 } from "lucide-react";
 
+import { MARKETPLACE_ENABLED } from "@/lib/features";
+
 import { CollectionItem, GRADE_SCALE, PriceData, UserList } from "@/types/comic";
 
 import { ComicImage } from "./ComicImage";
@@ -29,10 +31,7 @@ import { VariantsModal } from "./VariantsModal";
 import { ListInShopModal } from "./auction/ListInShopModal";
 import { ComicDetailHeader } from "./comicDetail/ComicDetailHeader";
 import { ListMenu } from "./comicDetail/ListMenu";
-import {
-  ActiveListingWarningDialog,
-  RemoveConfirmDialog,
-} from "./comicDetail/RemoveConfirmDialog";
+import { ActiveListingWarningDialog, RemoveConfirmDialog } from "./comicDetail/RemoveConfirmDialog";
 import { SellerActionPanel } from "./comicDetail/SellerActionPanel";
 import { SoldConfirmDialog } from "./comicDetail/SoldConfirmDialog";
 import { ValueSection } from "./comicDetail/ValueSection";
@@ -122,6 +121,7 @@ export function ComicDetailModal({
 
   // Check if this comic has an active listing
   useEffect(() => {
+    if (!MARKETPLACE_ENABLED) return; // marketplace hidden (src/lib/features.ts)
     async function checkActiveListing() {
       try {
         const response = await fetch(`/api/auctions/by-comic/${item.id}`);
@@ -349,7 +349,7 @@ export function ComicDetailModal({
                   {item.gradingCompany} {gradeLabel}
                 </span>
               )}
-              {item.forSale && (
+              {MARKETPLACE_ENABLED && item.forSale && (
                 <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium flex items-center gap-1">
                   <Tag className="w-4 h-4" />
                   For Sale - ${item.askingPrice?.toFixed(2)}
@@ -617,19 +617,21 @@ export function ComicDetailModal({
             {/* Action Buttons - Mobile-friendly layout */}
             <div className="pt-4 border-t space-y-3">
               {/* Primary CTA - List in Shop / View Listing + seller controls */}
-              <SellerActionPanel
-                activeListing={activeListing}
-                showSellerAction={showSellerAction}
-                isProcessingAction={isProcessingAction}
-                actionError={actionError}
-                onSetSellerAction={(action) => setShowSellerAction(action)}
-                onCancelSellerAction={() => {
-                  setShowSellerAction(null);
-                  setActionError(null);
-                }}
-                onConfirmSellerAction={handleSellerAction}
-                onListInShop={() => setShowListInShopModal(true)}
-              />
+              {MARKETPLACE_ENABLED && (
+                <SellerActionPanel
+                  activeListing={activeListing}
+                  showSellerAction={showSellerAction}
+                  isProcessingAction={isProcessingAction}
+                  actionError={actionError}
+                  onSetSellerAction={(action) => setShowSellerAction(action)}
+                  onCancelSellerAction={() => {
+                    setShowSellerAction(null);
+                    setActionError(null);
+                  }}
+                  onConfirmSellerAction={handleSellerAction}
+                  onListInShop={() => setShowListInShopModal(true)}
+                />
+              )}
 
               {/* Secondary Actions - All same size */}
               <div className="grid grid-cols-3 gap-2">
@@ -779,7 +781,7 @@ export function ComicDetailModal({
       )}
 
       {/* List in Shop Modal */}
-      {showListInShopModal && (
+      {MARKETPLACE_ENABLED && showListInShopModal && (
         <ListInShopModal
           comic={item}
           isOpen={showListInShopModal}

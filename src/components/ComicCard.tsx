@@ -3,6 +3,8 @@
 import { memo, useEffect, useRef, useState } from "react";
 
 import Image from "next/image";
+import { isOptimizableImageSrc } from "@/lib/imageSrc";
+import { MARKETPLACE_ENABLED } from "@/lib/features";
 
 import { DollarSign, Pencil, Star, Tag, TrendingDown, TrendingUp } from "lucide-react";
 
@@ -97,6 +99,7 @@ function ComicCardComponent({
           <Image
             ref={imgRef}
             src={coverImageUrl}
+            unoptimized={!isOptimizableImageSrc(coverImageUrl)}
             alt={`${comic.title} #${comic.issueNumber}`}
             fill
             sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 200px"
@@ -123,7 +126,7 @@ function ComicCardComponent({
 
         {/* Badges */}
         <div className={`absolute ${isSelectionMode ? "top-12" : "top-2"} left-2 flex flex-col gap-1`}>
-          {forSale && (
+          {MARKETPLACE_ENABLED && forSale && (
             <span className="badge-pop badge-pop-green flex items-center gap-1">
               <Tag className="w-3 h-3" />
               FOR SALE!

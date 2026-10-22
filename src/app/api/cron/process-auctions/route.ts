@@ -11,6 +11,7 @@ import {
   sendPaymentReminders,
 } from "@/lib/auctionDb";
 import { checkCoverImageHeadStatus } from "@/lib/coverHeadCheck";
+import { MARKETPLACE_ENABLED } from "@/lib/features";
 
 // POST - Process ended auctions and expirations (called by cron)
 export async function POST(request: NextRequest) {
@@ -22,6 +23,22 @@ export async function POST(request: NextRequest) {
     // Fail closed: require CRON_SECRET to be set and match
     if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Marketplace hidden (src/lib/features.ts): skip every auction/offer/listing
+    // pass, but keep the non-marketplace housekeeping (notification pruning,
+    // cover HEAD-checks) running.
+    if (!MARKETPLACE_ENABLED) {
+      const pruneResult = await pruneOldNotifications();
+      const headCheckResult = await checkCoverImageHeadStatus();
+      return NextResponse.json({
+        skipped: "marketplace disabled",
+        notifications: {
+          deletedRead: pruneResult.deletedRead,
+          deletedUnread: pruneResult.deletedUnread,
+        },
+        coverHeadCheck: headCheckResult,
+      });
     }
 
     // Process ended auctions (active → ended with winner)
@@ -63,7 +80,7 @@ export async function POST(request: NextRequest) {
     const headCheckResult = await checkCoverImageHeadStatus();
     if (headCheckResult.dead > 0 || headCheckResult.errors > 0) {
       console.warn(
-        `[cover-head-check] checked=${headCheckResult.checked} alive=${headCheckResult.alive} dead=${headCheckResult.dead} errors=${headCheckResult.errors}`,
+        `[cover-head-check] checked=${headCheckResult.checked} alive=${headCheckResult.alive} dead=${headCheckResult.dead} errors=${headCheckResult.errors}`
       );
     }
 
@@ -116,6 +133,10 @@ export async function GET(request: NextRequest) {
   // Only allow in development
   if (process.env.NODE_ENV !== "development") {
     return NextResponse.json({ error: "Not allowed in production" }, { status: 403 });
+  }
+
+  if (!MARKETPLACE_ENABLED) {
+    return NextResponse.json({ skipped: "marketplace disabled" });
   }
 
   try {
